@@ -1,0 +1,18 @@
+[package]
+name = "agent-context-cli"
+version = "0.1.0"
+edition = "2024"
+description = "Deterministic task-specific context router for coding agents"
+license = "MIT"
+repository = "https://github.com/AmirTlinov/ctx"
+
+[dependencies]
+anyhow = "1.0.100"
+clap = { version = "4.5.51", features = ["derive"] }
+dirs = "6.0.0"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
+
+[[bin]]
+name = "ctx"
+path = "src/main.rs"
