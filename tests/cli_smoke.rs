@@ -900,6 +900,68 @@ fn changed_reports_do_not_infer_project_checks_when_diff_is_empty() {
 }
 
 #[test]
+fn impact_and_verify_refuse_ambiguous_diff_selectors() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join("package.json"),
+        r#"{"scripts":{"test":"echo SHOULD_NOT_RUN"}}"#,
+    );
+    write(&repo.path().join("index.ts"), "export const x = 1;\n");
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+    write(&repo.path().join("index.ts"), "export const x = 2;\n");
+
+    let impact = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "impact",
+            "--changed",
+            "--files",
+            "index.ts",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx impact should run");
+    assert!(!impact.status.success());
+    let stderr = String::from_utf8(impact.stderr).expect("stderr should be utf8");
+    assert!(stderr.contains("choose only one diff selector"));
+
+    let verify = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["verify", "--changed", "--since", "HEAD", "--run"])
+        .output()
+        .expect("ctx verify should run");
+    assert!(!verify.status.success());
+    let stdout = String::from_utf8(verify.stdout).expect("stdout should be utf8");
+    assert!(!stdout.contains("SHOULD_NOT_RUN"));
+    let stderr = String::from_utf8(verify.stderr).expect("stderr should be utf8");
+    assert!(stderr.contains("choose only one diff selector"));
+
+    let explicit_files = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "impact",
+            "--files",
+            "index.ts",
+            "package.json",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx impact should run");
+    assert!(
+        explicit_files.status.success(),
+        "--files and positional files are the same explicit-files selector"
+    );
+}
+
+#[test]
 fn verify_run_fails_when_only_placeholder_is_inferred() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");

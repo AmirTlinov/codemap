@@ -309,7 +309,7 @@ pub fn run() -> Result<()> {
         }
         CommandKind::Impact(args) => {
             ensure_valid_config(&project)?;
-            let changed = changed_from_args(&project, &args);
+            let changed = changed_from_args(&project, &args)?;
             let report = route::impact_report(&project, changed, args.depth, args.limit);
             output(args.format, &report, || render::impact(&report))
         }
@@ -532,7 +532,7 @@ fn init(project: &crate::model::Project, args: InitArgs) -> Result<()> {
 
 fn verify(project: &crate::model::Project, args: VerifyArgs) -> Result<()> {
     ensure_valid_config(project)?;
-    let changed = changed_from_verify_args(project, &args);
+    let changed = changed_from_verify_args(project, &args)?;
     let report = route::verify_report(project, changed.clone(), args.depth, args.limit);
     if args.run {
         render::verify(&report.changed, &report.verification);
@@ -601,30 +601,74 @@ fn ensure_valid_config(project: &crate::model::Project) -> Result<()> {
     bail!("invalid .ctx semantic anchors; run `ctx anchors validate`")
 }
 
-fn changed_from_args(project: &crate::model::Project, args: &ImpactArgs) -> Vec<String> {
+fn changed_from_args(project: &crate::model::Project, args: &ImpactArgs) -> Result<Vec<String>> {
+    ensure_single_diff_selector(
+        args.changed,
+        args.staged,
+        args.since.as_deref(),
+        args.files.as_deref(),
+        &args.positional_files,
+    )?;
     if args.changed {
-        return repo::changed_files(&project.root, false, None);
+        return Ok(repo::changed_files(&project.root, false, None));
     }
     if args.staged {
-        return repo::changed_files(&project.root, true, None);
+        return Ok(repo::changed_files(&project.root, true, None));
     }
     if let Some(since) = &args.since {
-        return repo::changed_files(&project.root, false, Some(since));
+        return Ok(repo::changed_files(&project.root, false, Some(since)));
     }
-    parse_files(project, args.files.as_deref(), &args.positional_files)
+    Ok(parse_files(
+        project,
+        args.files.as_deref(),
+        &args.positional_files,
+    ))
 }
 
-fn changed_from_verify_args(project: &crate::model::Project, args: &VerifyArgs) -> Vec<String> {
+fn changed_from_verify_args(
+    project: &crate::model::Project,
+    args: &VerifyArgs,
+) -> Result<Vec<String>> {
+    ensure_single_diff_selector(
+        args.changed,
+        args.staged,
+        args.since.as_deref(),
+        args.files.as_deref(),
+        &args.positional_files,
+    )?;
     if args.changed {
-        return repo::changed_files(&project.root, false, None);
+        return Ok(repo::changed_files(&project.root, false, None));
     }
     if args.staged {
-        return repo::changed_files(&project.root, true, None);
+        return Ok(repo::changed_files(&project.root, true, None));
     }
     if let Some(since) = &args.since {
-        return repo::changed_files(&project.root, false, Some(since));
+        return Ok(repo::changed_files(&project.root, false, Some(since)));
     }
-    parse_files(project, args.files.as_deref(), &args.positional_files)
+    Ok(parse_files(
+        project,
+        args.files.as_deref(),
+        &args.positional_files,
+    ))
+}
+
+fn ensure_single_diff_selector(
+    changed: bool,
+    staged: bool,
+    since: Option<&str>,
+    files: Option<&str>,
+    positional_files: &[String],
+) -> Result<()> {
+    let explicit_files = files.map(|value| !value.trim().is_empty()).unwrap_or(false)
+        || !positional_files.is_empty();
+    let count = [changed, staged, since.is_some(), explicit_files]
+        .into_iter()
+        .filter(|enabled| *enabled)
+        .count();
+    if count > 1 {
+        bail!("choose only one diff selector: --changed, --staged, --since, or explicit files");
+    }
+    Ok(())
 }
 
 fn parse_files(
