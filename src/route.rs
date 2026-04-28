@@ -731,7 +731,7 @@ pub fn boundary_findings(
     }
     for edge in &project.package_edges {
         if let Some(changed) = changed_only
-            && !changed.contains(&edge.from_manifest)
+            && !package_edge_touched(edge, changed)
         {
             continue;
         }
@@ -827,10 +827,12 @@ fn package_transitive_paths(project: &Project, max_depth: usize) -> Vec<PackageG
     }
     let mut paths = Vec::new();
     for first in &project.package_edges {
+        let mut first_manifests = vec![first.from_manifest.clone()];
+        append_manifest(&mut first_manifests, first.to_manifest.as_deref());
         let mut queue = VecDeque::from([(
             first.to.clone(),
             vec![first.dependency.clone()],
-            vec![first.from_manifest.clone()],
+            first_manifests,
             BTreeSet::from([first.from.clone(), first.to.clone()]),
             1usize,
         )]);
@@ -848,7 +850,8 @@ fn package_transitive_paths(project: &Project, max_depth: usize) -> Vec<PackageG
                 let mut next_dependencies = dependencies.clone();
                 next_dependencies.push(edge.dependency.clone());
                 let mut next_manifests = manifests.clone();
-                next_manifests.push(edge.from_manifest.clone());
+                append_manifest(&mut next_manifests, Some(&edge.from_manifest));
+                append_manifest(&mut next_manifests, edge.to_manifest.as_deref());
                 let next_depth = depth + 1;
                 paths.push(PackageGraphPath {
                     from: first.from.clone(),
@@ -871,6 +874,26 @@ fn package_transitive_paths(project: &Project, max_depth: usize) -> Vec<PackageG
         }
     }
     paths
+}
+
+fn package_edge_touched(
+    edge: &crate::model::PackageDependency,
+    changed: &BTreeSet<String>,
+) -> bool {
+    changed.contains(&edge.from_manifest)
+        || edge
+            .to_manifest
+            .as_ref()
+            .map(|manifest| changed.contains(manifest))
+            .unwrap_or(false)
+}
+
+fn append_manifest(manifests: &mut Vec<String>, manifest: Option<&str>) {
+    if let Some(manifest) = manifest
+        && !manifests.iter().any(|existing| existing == manifest)
+    {
+        manifests.push(manifest.to_string());
+    }
 }
 
 fn package_edge_matches_rule(pattern: &str, package_path: &str) -> bool {

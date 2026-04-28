@@ -1490,6 +1490,82 @@ boundaries:
 }
 
 #[test]
+fn changed_target_package_manifest_boundary_edge_fails_closed() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join(".ctx.yml"),
+        r#"version: 1
+boundaries:
+  forbidden:
+    - from: domains/replay/src/**
+      to: domains/renderer/src/**
+      reason: replay emits DTOs; renderer consumes DTOs
+"#,
+    );
+    write(
+        &repo.path().join("domains/replay/package.json"),
+        r#"{
+  "name": "@fixture/replay",
+  "dependencies": {
+    "@fixture/renderer": "workspace:*"
+  }
+}"#,
+    );
+    write(
+        &repo.path().join("domains/replay/src/session.ts"),
+        "export const session = 1;\n",
+    );
+    write(
+        &repo.path().join("domains/renderer/package.json"),
+        r#"{"name":"@fixture/renderer-old"}"#,
+    );
+    write(
+        &repo.path().join("domains/renderer/src/replay-renderer.ts"),
+        "export const renderer = 1;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let clean = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["boundaries", "--changed"])
+        .output()
+        .expect("ctx boundaries should run");
+    assert!(clean.status.success());
+
+    write(
+        &repo.path().join("domains/renderer/package.json"),
+        r#"{"name":"@fixture/renderer"}"#,
+    );
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["boundaries", "--changed", "--format", "json"])
+        .output()
+        .expect("ctx boundaries should run");
+    assert!(
+        !output.status.success(),
+        "target manifest changes can introduce forbidden package edges"
+    );
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid boundaries json");
+    let findings = json["findings"].as_array().expect("findings array");
+    assert!(findings.iter().any(|finding| {
+        finding["status"].as_str() == Some("forbidden")
+            && finding["from"].as_str() == Some("domains/replay/package.json")
+            && finding["to"].as_str() == Some("domains/renderer/package.json")
+            && finding["provenance"].as_str() == Some("package_manifest+ctx_anchor")
+            && finding["reason"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("package manifest dependency `@fixture/renderer`")
+    }));
+}
+
+#[test]
 fn transitive_package_manifest_boundary_edge_fails_closed_when_changed() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");
@@ -1552,6 +1628,83 @@ boundaries:
     assert!(stdout.contains("transitive package manifest dependency path"));
     assert!(stdout.contains("@fixture/timeline -> @fixture/renderer"));
     assert!(stdout.contains("domains/replay/package.json"));
+}
+
+#[test]
+fn changed_transitive_target_manifest_boundary_edge_fails_closed() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join(".ctx.yml"),
+        r#"version: 1
+boundaries:
+  forbidden:
+    - from: domains/replay/src/**
+      to: domains/renderer/src/**
+      reason: replay emits DTOs; renderer consumes DTOs
+"#,
+    );
+    write(
+        &repo.path().join("domains/replay/package.json"),
+        r#"{
+  "name": "@fixture/replay",
+  "dependencies": {
+    "@fixture/timeline": "workspace:*"
+  }
+}"#,
+    );
+    write(
+        &repo.path().join("domains/timeline/package.json"),
+        r#"{
+  "name": "@fixture/timeline",
+  "dependencies": {
+    "@fixture/renderer": "workspace:*"
+  }
+}"#,
+    );
+    write(
+        &repo.path().join("domains/renderer/package.json"),
+        r#"{"name":"@fixture/renderer-old"}"#,
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let clean = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["boundaries", "--changed"])
+        .output()
+        .expect("ctx boundaries should run");
+    assert!(clean.status.success());
+
+    write(
+        &repo.path().join("domains/renderer/package.json"),
+        r#"{"name":"@fixture/renderer"}"#,
+    );
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["boundaries", "--changed", "--format", "json"])
+        .output()
+        .expect("ctx boundaries should run");
+    assert!(
+        !output.status.success(),
+        "target manifest changes can introduce transitive forbidden package paths"
+    );
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid boundaries json");
+    let findings = json["findings"].as_array().expect("findings array");
+    assert!(findings.iter().any(|finding| {
+        finding["status"].as_str() == Some("forbidden")
+            && finding["from"].as_str() == Some("domains/replay/package.json")
+            && finding["to"].as_str() == Some("domains/renderer/package.json")
+            && finding["provenance"].as_str() == Some("package_manifest_transitive+ctx_anchor")
+            && finding["reason"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("@fixture/timeline -> @fixture/renderer")
+    }));
 }
 
 #[test]
