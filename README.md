@@ -102,6 +102,8 @@ Zero-config works from files, manifests, tests, imports, scripts, and git diff. 
 
 `ctx init --write-minimal --path domains/replay` writes a valid skeletal config only. It does not invent placeholder concepts, source-of-truth files, or boundaries.
 
+If a `.ctx.yml` exists but cannot be parsed, routing commands fail closed. Use `ctx anchors validate` to see the exact problem.
+
 ```yaml
 version: 1
 

@@ -10,7 +10,9 @@ use ignore::WalkBuilder;
 use regex::Regex;
 
 use crate::cache;
-use crate::model::{AnchorDomain, CtxConfig, Domain, FileInfo, Project, ScriptInfo};
+use crate::model::{
+    AnchorDomain, ConfigLoadError, CtxConfig, Domain, FileInfo, Project, ScriptInfo,
+};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -95,7 +97,7 @@ pub fn load_project(root_override: Option<PathBuf>) -> Result<Project> {
     };
     let root = resolve_root(root_override.as_deref(), &cwd)?;
     let remote = git_remote(&root);
-    let (anchors, config_path) = load_ctx_configs(&root);
+    let (anchors, config_path, config_errors) = load_ctx_configs(&root);
     let nearest_agents = nearest_agents(&cwd, &root);
     let mut files = scan_files(&root)?;
     resolve_imports(&mut files);
@@ -117,6 +119,7 @@ pub fn load_project(root_override: Option<PathBuf>) -> Result<Project> {
         vcs,
         cache_dir,
         config_path,
+        config_errors,
         nearest_agents,
         files,
         reverse_imports,
@@ -222,13 +225,21 @@ fn load_ctx_config(path: &Path) -> Result<CtxConfig> {
     }
 }
 
-fn load_ctx_configs(root: &Path) -> (CtxConfig, Option<String>) {
+fn load_ctx_configs(root: &Path) -> (CtxConfig, Option<String>, Vec<ConfigLoadError>) {
     let paths = find_config_paths(root);
     let mut merged = CtxConfig::default();
     let mut loaded = Vec::new();
+    let mut errors = Vec::new();
     for path in paths {
-        let Ok(mut config) = load_ctx_config(&root.join(&path)) else {
-            continue;
+        let mut config = match load_ctx_config(&root.join(&path)) {
+            Ok(config) => config,
+            Err(error) => {
+                errors.push(ConfigLoadError {
+                    path,
+                    error: error.to_string(),
+                });
+                continue;
+            }
         };
         let base = config_base_dir(&path);
         normalize_ctx_config(&mut config, &base);
@@ -240,7 +251,7 @@ fn load_ctx_configs(root: &Path) -> (CtxConfig, Option<String>) {
         [only] => Some(only.clone()),
         [first, rest @ ..] => Some(format!("{} (+{} more)", first, rest.len())),
     };
-    (merged, summary)
+    (merged, summary, errors)
 }
 
 fn find_config_paths(root: &Path) -> Vec<String> {

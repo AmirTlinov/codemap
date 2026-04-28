@@ -10,6 +10,7 @@ pub struct Project {
     pub vcs: Option<String>,
     pub cache_dir: PathBuf,
     pub config_path: Option<String>,
+    pub config_errors: Vec<ConfigLoadError>,
     pub nearest_agents: Option<String>,
     pub files: BTreeMap<String, FileInfo>,
     pub reverse_imports: BTreeMap<String, BTreeSet<String>>,
@@ -18,6 +19,12 @@ pub struct Project {
     pub scripts: Vec<ScriptInfo>,
     pub languages: BTreeSet<String>,
     pub anchors: CtxConfig,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ConfigLoadError {
+    pub path: String,
+    pub error: String,
 }
 
 #[derive(Debug, Clone, Serialize)]

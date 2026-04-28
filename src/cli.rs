@@ -109,8 +109,6 @@ struct StartArgs {
     format: OutputFormat,
     #[arg(long, default_value_t = 7)]
     limit: usize,
-    #[arg(long)]
-    for_agent: bool,
 }
 
 #[derive(Debug, Args)]
@@ -131,8 +129,6 @@ struct ImpactArgs {
     limit: usize,
     #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
     format: OutputFormat,
-    #[arg(long)]
-    for_agent: bool,
 }
 
 #[derive(Debug, Args)]
@@ -153,8 +149,6 @@ struct VerifyArgs {
     recommended: bool,
     #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
     format: OutputFormat,
-    #[arg(long)]
-    for_agent: bool,
 }
 
 #[derive(Debug, Args)]
@@ -252,25 +246,30 @@ pub fn run() -> Result<()> {
         CommandKind::Init(args) => init(&project, args),
         CommandKind::Bootstrap(_) => Ok(()),
         CommandKind::Locate(args) => {
+            ensure_valid_config(&project)?;
             let report = route::locate_report(&project, &args.task, args.limit);
             output(args.format, &report, || render::locate(&report))
         }
         CommandKind::Start(args) => {
+            ensure_valid_config(&project)?;
             let capsule =
                 route::start_capsule(&project, &args.task, args.path.as_deref(), args.limit);
             output(args.format, &capsule, || render::start(&capsule))
         }
         CommandKind::Impact(args) => {
+            ensure_valid_config(&project)?;
             let changed = changed_from_args(&project, &args);
             let report = route::impact_report(&project, changed, args.depth, args.limit);
             output(args.format, &report, || render::impact(&report))
         }
         CommandKind::Verify(args) => verify(&project, args),
         CommandKind::Explain(args) => {
+            ensure_valid_config(&project)?;
             let report = route::explain_target(&project, &args.target);
             output(args.format, &report, || render::explain(&report))
         }
         CommandKind::Widen(args) => {
+            ensure_valid_config(&project)?;
             let report = route::widen_context(
                 &project,
                 &args.task,
@@ -282,6 +281,7 @@ pub fn run() -> Result<()> {
             output(args.format, &report, || render::widen(&report))
         }
         CommandKind::Graph(args) => {
+            ensure_valid_config(&project)?;
             let changed = if args.changed {
                 repo::changed_files(&project.root, false, None)
             } else {
@@ -307,6 +307,7 @@ pub fn run() -> Result<()> {
             }
         }
         CommandKind::Boundaries(args) => {
+            ensure_valid_config(&project)?;
             let changed = if args.changed {
                 Some(
                     repo::changed_files(&project.root, false, None)
@@ -422,6 +423,7 @@ fn init(project: &crate::model::Project, args: InitArgs) -> Result<()> {
 }
 
 fn verify(project: &crate::model::Project, args: VerifyArgs) -> Result<()> {
+    ensure_valid_config(project)?;
     let changed = changed_from_verify_args(project, &args);
     let impacted = Vec::new();
     let plan = route::verification_plan(project, &changed, &impacted);
@@ -443,11 +445,21 @@ fn run_plan(
     if include_recommended {
         commands.extend(plan.recommended.clone());
     }
-    for command in commands {
-        if command.contains("nearest domain tests") {
+    if commands.is_empty() {
+        bail!("no verification commands inferred; refusing to treat --run as successful");
+    }
+    let placeholders: Vec<String> = commands
+        .iter()
+        .filter(|command| !is_runnable_verification_command(command))
+        .cloned()
+        .collect();
+    if !placeholders.is_empty() {
+        for command in placeholders {
             eprintln!("ctx: cannot run placeholder verification: {command}");
-            continue;
         }
+        bail!("verification plan contains no runnable command for the selected scope");
+    }
+    for command in commands {
         println!("\n$ {command}");
         let status = Command::new("sh")
             .arg("-lc")
@@ -459,6 +471,23 @@ fn run_plan(
         }
     }
     Ok(())
+}
+
+fn is_runnable_verification_command(command: &str) -> bool {
+    !command.trim().is_empty() && !command.contains("nearest domain tests")
+}
+
+fn ensure_valid_config(project: &crate::model::Project) -> Result<()> {
+    if project.config_errors.is_empty() {
+        return Ok(());
+    }
+    for error in &project.config_errors {
+        eprintln!(
+            "ctx: invalid semantic anchor `{}`: {}",
+            error.path, error.error
+        );
+    }
+    bail!("invalid .ctx semantic anchors; run `ctx anchors validate`")
 }
 
 fn changed_from_args(project: &crate::model::Project, args: &ImpactArgs) -> Vec<String> {
@@ -598,7 +627,11 @@ struct AnchorValidation {
 }
 
 fn validate_anchors(project: &crate::model::Project) -> AnchorValidation {
-    let mut problems = Vec::new();
+    let mut problems = project
+        .config_errors
+        .iter()
+        .map(|error| format!("{}: {}", error.path, error.error))
+        .collect::<Vec<_>>();
     for (id, concept) in &project.anchors.concepts {
         for file in &concept.files {
             let rel = route::resolve_anchor_path(project, file);

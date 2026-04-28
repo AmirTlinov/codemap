@@ -33,6 +33,9 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - root and nested `.ctx.yml` semantic anchor loading
 - absolute `--path` and `--files` arguments normalized to the owning repo
 - safe `ctx init --write-minimal`: creates requested domain directories, refuses writes outside the repo, and writes no fake placeholder concepts
+- invalid `.ctx.yml` files are reported by `ctx anchors validate` and block routing commands instead of being silently ignored
+- `ctx verify --run` fails closed when the plan contains only a non-runnable placeholder
+- printed global agent bootstrap does not advertise a separate `--for-agent` mode; Markdown is already the agent-facing default
 
 ## Core Files
 
@@ -62,11 +65,14 @@ This is intentionally flatter than the final large-tree design. The next split s
 - task keywords alone do not create high-confidence capsules without matching files or anchors;
 - absolute start paths and file arguments work from outside the repo;
 - `ctx init --write-minimal` writes a valid skeletal `.ctx.yml` and refuses absolute paths outside the repo.
+- invalid semantic anchors block `start`/`impact`/`verify` until fixed, while `ctx anchors validate` stays available for diagnosis.
+- `verify --run` returns non-zero when no concrete command can be inferred.
+- explicit forbidden boundary edges have regression coverage.
 
 ## Next Useful Slices
 
 1. Add golden fixtures for mixed monorepos and workspace package detection.
 2. Add public-boundary and DTO/schema impact rules with stronger tests.
-3. Add stronger boundary fixture coverage for explicit `.ctx.yml` forbidden edges.
-4. Split JS/TS, Rust, Python, and Go adapters once their extraction logic grows.
-5. Publish stable JSON schemas for task capsules and impact reports.
+3. Split JS/TS, Rust, Python, and Go adapters once their extraction logic grows.
+4. Publish stable JSON schemas for task capsules and impact reports.
+5. Replace deprecated `serde_yaml` before distribution hardening.

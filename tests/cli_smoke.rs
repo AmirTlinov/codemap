@@ -174,6 +174,27 @@ fn verify_prints_plan_and_does_not_run_without_run() {
 }
 
 #[test]
+fn verify_run_fails_when_only_placeholder_is_inferred() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(&repo.path().join("notes.txt"), "before\n");
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+    write(&repo.path().join("notes.txt"), "after\n");
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["verify", "--changed", "--run"])
+        .output()
+        .expect("ctx verify should run");
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be utf8");
+    assert!(stderr.contains("cannot run placeholder verification"));
+}
+
+#[test]
 fn init_default_writes_nothing() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");
@@ -193,6 +214,44 @@ fn init_default_writes_nothing() {
         git_status(repo.path()).is_empty(),
         "plain ctx init must not write"
     );
+}
+
+#[test]
+fn invalid_ctx_config_is_reported_and_blocks_routing() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(&repo.path().join(".ctx.yml"), "version: [\n");
+    write(&repo.path().join("src/lib.rs"), "pub fn demo() {}\n");
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let validate = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["anchors", "validate", "--format", "json"])
+        .output()
+        .expect("ctx anchors validate should run");
+    assert!(validate.status.success());
+    let json: Value = serde_json::from_slice(&validate.stdout).expect("valid json");
+    assert_eq!(json["ok"], false);
+    assert!(
+        json["problems"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|problem| problem.as_str().unwrap().contains(".ctx.yml"))
+    );
+
+    let start = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["start", "--task", "fix demo"])
+        .output()
+        .expect("ctx start should run");
+    assert!(!start.status.success());
+    let stderr = String::from_utf8(start.stderr).expect("stderr should be utf8");
+    assert!(stderr.contains("invalid .ctx semantic anchors"));
 }
 
 #[test]
@@ -270,6 +329,47 @@ task_routes:
 }
 
 #[test]
+fn explicit_forbidden_boundary_edge_fails_closed() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join(".ctx.yml"),
+        r#"version: 1
+boundaries:
+  forbidden:
+    - from: domains/replay/src/**
+      to: domains/renderer/src/**
+      reason: replay emits DTOs; renderer consumes DTOs
+      recovery:
+        - extend replay DTO
+        - update renderer adapter
+"#,
+    );
+    write(
+        &repo.path().join("domains/replay/src/session.ts"),
+        "import { renderReplay } from '../../renderer/src/replay-renderer';\nexport const session = renderReplay;\n",
+    );
+    write(
+        &repo.path().join("domains/renderer/src/replay-renderer.ts"),
+        "export function renderReplay() { return 'rendered'; }\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .arg("boundaries")
+        .output()
+        .expect("ctx boundaries should run");
+    assert!(!output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be utf8");
+    assert!(stdout.contains("replay emits DTOs"));
+    assert!(stdout.contains("domains/replay/src/session.ts"));
+}
+
+#[test]
 fn nested_ctx_config_is_loaded_as_domain_anchor() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");
@@ -315,6 +415,18 @@ task_routes:
         json["read_first"][0]["path"],
         "domains/replay/src/replay-session.ts"
     );
+}
+
+#[test]
+fn global_instruction_does_not_advertise_fake_agent_mode_flag() {
+    let output = ctx()
+        .args(["bootstrap", "--global-instruction"])
+        .output()
+        .expect("ctx bootstrap should run");
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be utf8");
+    assert!(!stdout.contains("--for-agent"));
+    assert!(stdout.contains("ctx start --task"));
 }
 
 #[test]

@@ -95,6 +95,10 @@ pub fn status(report: &StatusReport, doctor: bool) {
             .collect();
         println!("{}", table(&["ID", "Path", "Semantic config"], rows));
     }
+    if !report.config_errors.is_empty() {
+        println!("\n## Anchor Config Errors\n");
+        println!("{}", bullet(&report.config_errors, false, Some(10)));
+    }
     if !report.scripts.is_empty() {
         println!("\n## Verification Hints\n");
         println!("{}", bullet(&report.scripts, true, Some(10)));
@@ -467,7 +471,7 @@ pub fn agents_bootloader() -> &'static str {
 }
 
 pub fn global_instruction() -> &'static str {
-    "For coding tasks, if `ctx` is available in PATH, begin with:\n\n```bash\nctx start --task \"<user task>\" --path \"$PWD\" --for-agent\n```\n\nAfter edits:\n\n```bash\nctx impact --changed --for-agent\nctx verify --changed --for-agent\n```\n\nDo not manually scan the repository before using `ctx` unless ctx confidence is low or an expansion trigger fires.\nFollow the returned read order, negative context, forbidden moves, expansion triggers, verification plan, and stop conditions.\nWiden context only with `ctx widen` or when an expansion trigger fires.\n"
+    "For coding tasks, if `ctx` is available in PATH, begin with:\n\n```bash\nctx start --task \"<user task>\" --path \"$PWD\"\n```\n\nAfter edits:\n\n```bash\nctx impact --changed\nctx verify --changed\n```\n\nDo not manually scan the repository before using `ctx` unless ctx confidence is low or an expansion trigger fires.\nFollow the returned read order, negative context, forbidden moves, expansion triggers, verification plan, and stop conditions.\nWiden context only with `ctx widen` or when an expansion trigger fires.\n"
 }
 
 pub fn suggested_ctx_yml_for(path: Option<&str>) -> String {

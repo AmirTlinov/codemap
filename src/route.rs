@@ -17,6 +17,7 @@ pub struct StatusReport {
     pub cwd: String,
     pub vcs: Option<String>,
     pub config: Option<String>,
+    pub config_errors: Vec<String>,
     pub nearest_agents: Option<String>,
     pub cache_dir: String,
     pub zero_footprint_default: bool,
@@ -50,6 +51,11 @@ pub fn status_report(project: &Project) -> StatusReport {
         cwd: project.cwd.to_string_lossy().to_string(),
         vcs: project.vcs.clone(),
         config: project.config_path.clone(),
+        config_errors: project
+            .config_errors
+            .iter()
+            .map(|error| format!("{}: {}", error.path, error.error))
+            .collect(),
         nearest_agents: project.nearest_agents.clone(),
         cache_dir: project.cache_dir.to_string_lossy().to_string(),
         zero_footprint_default: true,
