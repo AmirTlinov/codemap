@@ -101,6 +101,7 @@ This is intentionally flatter than the final large-tree design. The next split s
 - broad low-confidence general tasks still receive a bounded orientation route instead of an empty read-first set;
 - dogfood `ctx` implementation tasks route to context-routing implementation owners before output schemas;
 - task keyword/domain overlap matching respects token boundaries, so short keywords such as `ui` do not match inside unrelated words like `build`;
+- build/CI tasks route to build surfaces such as manifests, entrypoints, and workflow files instead of returning empty read-first context;
 - top-level fixtures/examples/samples are excluded from normal task routing unless the task explicitly asks for them;
 - explicit `--path` scopes into support artifact containers can narrow to the nested package whose manifest/path matches the task, and explicit file paths inside nested packages resolve to that package owner;
 - support artifact roots such as `fixtures/**` and `examples/**` appear in negative context when they are not task owners;

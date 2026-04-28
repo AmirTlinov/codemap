@@ -527,6 +527,46 @@ fn task_keyword_matching_does_not_match_inside_other_words() {
 }
 
 #[test]
+fn build_ci_tasks_read_build_surfaces_instead_of_empty_context() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join("Cargo.toml"),
+        "[package]\nname = \"build-fixture\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    );
+    write(&repo.path().join("src/main.rs"), "fn main() {}\n");
+    write(
+        &repo.path().join(".github/workflows/ci.yml"),
+        "name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps: []\n",
+    );
+    write(
+        &repo.path().join("src/model.rs"),
+        "pub struct DomainModel;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["start", "--task", "fix build error", "--format", "json"])
+        .output()
+        .expect("ctx start should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
+    assert_eq!(json["task_kind"], "build_ci");
+    let read_first = json["read_first"].as_array().expect("read_first array");
+    let read_paths: Vec<_> = read_first
+        .iter()
+        .filter_map(|item| item["path"].as_str())
+        .collect();
+    assert!(read_paths.contains(&".github/workflows/ci.yml"));
+    assert!(read_paths.contains(&"Cargo.toml"));
+    assert!(!read_paths.contains(&"src/model.rs"));
+}
+
+#[test]
 fn pnpm_workspace_globs_create_domains_outside_builtin_dirs() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");

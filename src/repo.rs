@@ -682,6 +682,14 @@ fn classify_roles(info: &mut FileInfo) {
     }
     add_role_if(&mut info.roles, &rel, &["cache", "fingerprint"], "cache");
     add_role_if(&mut info.roles, &rel, &["cli", "command"], "cli_surface");
+    if rel.starts_with(".github/workflows/")
+        || info.tokens.contains("build")
+        || info.tokens.contains("ci")
+        || info.tokens.contains("workflow")
+        || matches!(name.as_str(), "makefile" | "justfile")
+    {
+        info.roles.insert("build_ci".to_string());
+    }
     if name == "agents.md" {
         info.roles.insert("agent_bootstrap".to_string());
     }
@@ -702,6 +710,7 @@ fn classify_roles(info: &mut FileInfo) {
             "repo_discovery",
             "cache",
             "cli_surface",
+            "build_ci",
         ] {
             info.roles.remove(role);
         }

@@ -1461,6 +1461,15 @@ fn score_file(_project: &Project, file: &FileInfo, task: &str, kind: &str) -> Ca
                 ("cache", 1.0),
             ],
         ),
+        (
+            "build_ci",
+            &[
+                ("build_ci", 6.0),
+                ("public_boundary", 4.0),
+                ("cli_surface", 2.0),
+                ("repo_discovery", 1.0),
+            ],
+        ),
     ];
     let role_boosts = boosts
         .iter()
@@ -1538,7 +1547,7 @@ fn candidate_has_specific_evidence(candidate: &Candidate, kind: &str) -> bool {
         "ui_rendering" => &["renderer_ui"],
         "auth" => &["runtime_state", "adapter"],
         "data_storage" | "persistence" => &["persistence"],
-        "build_ci" => &["cli_surface"],
+        "build_ci" => &["build_ci", "public_boundary", "cli_surface"],
         _ => &[],
     };
     candidate.reasons.iter().any(|reason| {
@@ -1953,6 +1962,9 @@ fn risk_for_file(project: &Project, rel: &str) -> (Risk, Vec<String>) {
     }
     if file.has_role("cli_surface") {
         bump(Risk::High, "CLI command surface");
+    }
+    if file.has_role("build_ci") {
+        bump(Risk::MediumHigh, "build/CI configuration");
     }
     if file.has_role("repo_discovery") {
         bump(Risk::MediumHigh, "repo discovery / inventory");
