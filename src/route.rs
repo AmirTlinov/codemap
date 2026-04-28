@@ -334,7 +334,22 @@ pub fn impact_report(
         .map(|f| repo::normalize_rel_path(&f))
         .filter(|f| f != ".")
         .collect();
-    let impacted = impacted_files(project, &changed, depth, limit);
+    let mut impacted = impacted_files(project, &changed, depth, limit);
+    let package_seed = [changed.clone(), impacted.clone()].concat();
+    let package_impacted = package_consumer_manifests(
+        project,
+        &package_seed,
+        depth,
+        limit.saturating_sub(impacted.len()),
+    );
+    for rel in &package_impacted {
+        if impacted.len() >= limit {
+            break;
+        }
+        if !changed.contains(rel) && !impacted.contains(rel) {
+            impacted.push(rel.clone());
+        }
+    }
     let related_tests = test_files_for(
         project,
         &[changed.clone(), impacted.clone()].concat(),
@@ -385,6 +400,9 @@ pub fn impact_report(
     }
     if !external_domains.is_empty() {
         triggers.push("impact crosses domain boundary".to_string());
+    }
+    if !package_impacted.is_empty() {
+        triggers.push("package consumers affected".to_string());
     }
     if changed.iter().any(|f| {
         project
@@ -1710,6 +1728,85 @@ fn impacted_files(
         }
     }
     out
+}
+
+fn package_consumer_manifests(
+    project: &Project,
+    changed: &[String],
+    depth: usize,
+    limit: usize,
+) -> Vec<String> {
+    if depth == 0 || limit == 0 {
+        return Vec::new();
+    }
+    let mut roots = BTreeSet::new();
+    for rel in changed {
+        if !requires_package_consumer_expansion(project, rel) {
+            continue;
+        }
+        if let Some(package) = package_for_rel(project, rel) {
+            roots.insert(package.path.clone());
+        }
+    }
+    if roots.is_empty() {
+        return Vec::new();
+    }
+    let mut seen = roots.clone();
+    let mut queue: VecDeque<(String, usize)> = roots.into_iter().map(|path| (path, 0)).collect();
+    let mut out = Vec::new();
+    while let Some((package_path, d)) = queue.pop_front() {
+        if out.len() >= limit {
+            break;
+        }
+        for edge in project
+            .package_edges
+            .iter()
+            .filter(|edge| edge.to == package_path)
+        {
+            if seen.insert(edge.from.clone()) {
+                out.push(edge.from_manifest.clone());
+                if d + 1 < depth {
+                    queue.push_back((edge.from.clone(), d + 1));
+                }
+                if out.len() >= limit {
+                    break;
+                }
+            }
+        }
+    }
+    out
+}
+
+fn requires_package_consumer_expansion(project: &Project, rel: &str) -> bool {
+    let Some(file) = project.files.get(rel) else {
+        return false;
+    };
+    file.has_role("public_boundary")
+        || file.has_role("schema_contract")
+        || matches!(
+            Path::new(rel).file_name().and_then(|name| name.to_str()),
+            Some("package.json" | "Cargo.toml" | "go.mod" | "pyproject.toml")
+        )
+}
+
+fn package_for_rel<'a>(project: &'a Project, rel: &str) -> Option<&'a crate::model::PackageInfo> {
+    let mut best = None;
+    let mut best_len = 0usize;
+    for package in &project.packages {
+        let prefix = package.path.trim_end_matches('/');
+        let matches = prefix == "."
+            || rel == package.manifest
+            || rel == prefix
+            || rel.starts_with(&format!("{prefix}/"));
+        if matches {
+            let len = if prefix == "." { 0 } else { prefix.len() };
+            if len >= best_len {
+                best = Some(package);
+                best_len = len;
+            }
+        }
+    }
+    best
 }
 
 fn impacted_domains<'a>(project: &'a Project, files: &[String]) -> Vec<&'a Domain> {

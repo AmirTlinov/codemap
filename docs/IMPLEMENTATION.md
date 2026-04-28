@@ -46,6 +46,7 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - `ctx impact` names public-boundary, schema/DTO, source-of-truth, unclassified-source, generated-file, and cross-domain expansion triggers explicitly
 - workspace domain discovery from root `package.json` workspaces, `pnpm-workspace.yaml`, Cargo workspace members, `go.work`, and simple Python workspace/member arrays
 - boundary checks include explicit forbidden file imports and local package-manifest dependency edges
+- `impact` expands public-boundary/package changes through local package-manifest consumer edges
 - mixed-monorepo golden fixtures cover replay/auth routing and bounded replay impact
 - release packaging check script verifies tests, clippy, doctor, bundled schemas, and crate package contents
 - printed global agent bootstrap does not advertise a separate `--for-agent` mode; Markdown is already the agent-facing default

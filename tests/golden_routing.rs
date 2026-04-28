@@ -140,3 +140,103 @@ fn mixed_monorepo_impact_keeps_replay_scope_bounded() {
             .any(|item| item.as_str().unwrap_or("").starts_with("apps/web/"))
     );
 }
+
+#[test]
+fn mixed_monorepo_impact_expands_package_consumers_for_public_boundary_change() {
+    let repo = fixture_copy("mixed-monorepo");
+    let cache = TempDir::new().expect("cache tempdir");
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "impact",
+            "--files",
+            "domains/replay/package.json",
+            "--depth",
+            "2",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx impact should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
+    assert!(
+        json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("domains/renderer/package.json"))
+    );
+    assert!(
+        json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("apps/web/package.json"))
+    );
+    assert!(
+        json["external_domains"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["path"].as_str() == Some("domains/renderer"))
+    );
+    assert!(
+        json["external_domains"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["path"].as_str() == Some("apps/web"))
+    );
+    assert!(
+        json["expansion_triggers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("package consumers affected"))
+    );
+}
+
+#[test]
+fn mixed_monorepo_impact_expands_package_consumers_when_internal_change_reaches_public_boundary() {
+    let repo = fixture_copy("mixed-monorepo");
+    let cache = TempDir::new().expect("cache tempdir");
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "impact",
+            "--files",
+            "services/auth/src/token.ts",
+            "--depth",
+            "2",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx impact should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
+    assert!(
+        json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("services/auth/src/index.ts"))
+    );
+    assert!(
+        json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("apps/web/package.json"))
+    );
+    assert!(
+        json["external_domains"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["path"].as_str() == Some("apps/web"))
+    );
+}
