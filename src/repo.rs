@@ -1998,134 +1998,38 @@ fn package_name_from_path(path: &str) -> String {
 }
 
 fn cargo_package_name(text: &str) -> Option<String> {
-    let mut in_package = false;
-    for line in text.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with('[') && trimmed.ends_with(']') {
-            in_package = trimmed == "[package]";
-            continue;
-        }
-        if in_package
-            && let Some(raw) = trimmed.strip_prefix("name")
-            && let Some(value) = raw.split_once('=').map(|(_, value)| value.trim())
-        {
-            return unquote(value).filter(|s| !s.is_empty());
-        }
-    }
-    None
+    cargo_toml(text)?
+        .get("package")?
+        .get("name")?
+        .as_str()
+        .map(str::to_string)
+        .filter(|s| !s.is_empty())
 }
 
 fn cargo_path_dependencies(text: &str) -> Vec<(String, String)> {
+    let Some(value) = cargo_toml(text) else {
+        return Vec::new();
+    };
     let mut deps = Vec::new();
-    let mut section = CargoDependencySection::Outside;
-    let mut in_root = true;
-    for line in text.lines() {
-        let cleaned = strip_toml_comment(line);
-        let trimmed = cleaned.trim();
-        if trimmed.starts_with('[') && trimmed.ends_with(']') {
-            let name = trimmed.trim_matches(&['[', ']'][..]);
-            section = cargo_dependency_section(name);
-            in_root = false;
-            continue;
-        }
-        if trimmed.is_empty() || trimmed.starts_with('#') {
-            continue;
-        }
-        let Some((name, value)) = trimmed.split_once('=') else {
-            continue;
-        };
-        match &section {
-            CargoDependencySection::InlineMap => {
-                if let Some(path) = cargo_inline_path(value) {
-                    deps.push((name.trim().to_string(), path));
-                } else if let Some(dep_name) = cargo_dotted_property_name(name, "path")
-                    && let Some(path) = unquote(value.trim()).filter(|s| !s.is_empty())
-                {
-                    deps.push((dep_name, path));
-                }
-            }
-            CargoDependencySection::DependencyTable(dep_name) => {
-                if name.trim() != "path" {
-                    continue;
-                }
-                let Some(path) = unquote(value.trim()).filter(|s| !s.is_empty()) else {
-                    continue;
-                };
-                deps.push((dep_name.clone(), path));
-            }
-            CargoDependencySection::Outside => {
-                if in_root
-                    && let Some(dep_name) = cargo_full_dotted_dependency_property(name, "path")
-                    && let Some(path) = unquote(value.trim()).filter(|s| !s.is_empty())
-                {
-                    deps.push((dep_name, path));
-                }
-            }
-        }
+    for table in cargo_dependency_tables(&value) {
+        deps.extend(cargo_table_path_dependencies(table));
     }
-    deps
+    unique_pairs(deps)
 }
 
 fn cargo_workspace_path_dependencies(text: &str) -> BTreeMap<String, String> {
+    let Some(value) = cargo_toml(text) else {
+        return BTreeMap::new();
+    };
     let mut deps = BTreeMap::new();
-    let mut section = CargoWorkspaceDependencySection::Outside;
-    let mut in_root = true;
-    for line in text.lines() {
-        let cleaned = strip_toml_comment(line);
-        let trimmed = cleaned.trim();
-        if trimmed.starts_with('[') && trimmed.ends_with(']') {
-            let name = trimmed.trim_matches(&['[', ']'][..]);
-            section = cargo_workspace_dependency_section(name);
-            in_root = false;
-            continue;
-        }
-        if trimmed.is_empty() || trimmed.starts_with('#') {
-            continue;
-        }
-        let Some((name, value)) = trimmed.split_once('=') else {
-            continue;
-        };
-        match &section {
-            CargoWorkspaceDependencySection::InlineMap => {
-                if let Some(path) = cargo_inline_path(value) {
-                    deps.insert(name.trim().to_string(), path);
-                } else if let Some(dep_name) = cargo_dotted_property_name(name, "path")
-                    && let Some(path) = unquote(value.trim()).filter(|s| !s.is_empty())
-                {
-                    deps.insert(dep_name, path);
-                }
-            }
-            CargoWorkspaceDependencySection::WorkspaceTable => {
-                if let Some(dep_name) = cargo_workspace_table_dependency_property(name, "path")
-                    && let Some(path) = unquote(value.trim()).filter(|s| !s.is_empty())
-                {
-                    deps.insert(dep_name, path);
-                } else if let Some(dep_name) = cargo_workspace_table_dependency_name(name)
-                    && let Some(path) = cargo_inline_path(value)
-                {
-                    deps.insert(dep_name, path);
-                }
-            }
-            CargoWorkspaceDependencySection::DependencyTable(dep_name) => {
-                if name.trim() == "path"
-                    && let Some(path) = unquote(value.trim()).filter(|s| !s.is_empty())
-                {
-                    deps.insert(dep_name.clone(), path);
-                }
-            }
-            CargoWorkspaceDependencySection::Outside => {
-                if in_root
-                    && let Some(dep_name) =
-                        cargo_full_dotted_workspace_dependency_property(name, "path")
-                    && let Some(path) = unquote(value.trim()).filter(|s| !s.is_empty())
-                {
-                    deps.insert(dep_name, path);
-                } else if in_root
-                    && let Some(dep_name) = cargo_full_dotted_workspace_dependency_name(name)
-                    && let Some(path) = cargo_inline_path(value)
-                {
-                    deps.insert(dep_name, path);
-                }
+    if let Some(table) = value
+        .get("workspace")
+        .and_then(|workspace| workspace.get("dependencies"))
+        .and_then(toml::Value::as_table)
+    {
+        for (name, dependency) in table {
+            if let Some(path) = cargo_dependency_path(dependency) {
+                deps.insert(name.to_string(), path);
             }
         }
     }
@@ -2133,46 +2037,14 @@ fn cargo_workspace_path_dependencies(text: &str) -> BTreeMap<String, String> {
 }
 
 fn cargo_workspace_dependency_names(text: &str) -> Vec<String> {
+    let Some(value) = cargo_toml(text) else {
+        return Vec::new();
+    };
     let mut deps = Vec::new();
-    let mut section = CargoDependencySection::Outside;
-    let mut in_root = true;
-    for line in text.lines() {
-        let cleaned = strip_toml_comment(line);
-        let trimmed = cleaned.trim();
-        if trimmed.starts_with('[') && trimmed.ends_with(']') {
-            let name = trimmed.trim_matches(&['[', ']'][..]);
-            section = cargo_dependency_section(name);
-            in_root = false;
-            continue;
-        }
-        if trimmed.is_empty() || trimmed.starts_with('#') {
-            continue;
-        }
-        let Some((name, value)) = trimmed.split_once('=') else {
-            continue;
-        };
-        match &section {
-            CargoDependencySection::InlineMap => {
-                if cargo_inline_bool(value, "workspace") == Some(true) {
-                    deps.push(name.trim().to_string());
-                } else if let Some(dep_name) = cargo_dotted_property_name(name, "workspace")
-                    && bare_toml_bool(value) == Some(true)
-                {
-                    deps.push(dep_name);
-                }
-            }
-            CargoDependencySection::DependencyTable(dep_name) => {
-                if name.trim() == "workspace" && bare_toml_bool(value) == Some(true) {
-                    deps.push(dep_name.clone());
-                }
-            }
-            CargoDependencySection::Outside => {
-                if in_root
-                    && let Some(dep_name) = cargo_full_dotted_dependency_property(name, "workspace")
-                    && bare_toml_bool(value) == Some(true)
-                {
-                    deps.push(dep_name);
-                }
+    for table in cargo_dependency_tables(&value) {
+        for (name, dependency) in table {
+            if cargo_dependency_workspace(dependency) == Some(true) {
+                deps.push(name.to_string());
             }
         }
     }
@@ -2180,311 +2052,72 @@ fn cargo_workspace_dependency_names(text: &str) -> Vec<String> {
 }
 
 fn cargo_workspace_declared(text: &str) -> bool {
-    let mut in_root = true;
-    for line in text.lines() {
-        let cleaned = strip_toml_comment(line);
-        let trimmed = cleaned.trim();
-        if trimmed.starts_with('[') && trimmed.ends_with(']') {
-            let name = trimmed.trim_matches(&['[', ']'][..]);
-            let parts = split_toml_dotted_key(name);
-            if parts.first().is_some_and(|part| part == "workspace") {
-                return true;
-            }
-            in_root = false;
-            continue;
-        }
-        if in_root && let Some((name, _)) = trimmed.split_once('=') {
-            let parts = split_toml_dotted_key(name);
-            if parts.first().is_some_and(|part| part == "workspace") {
-                return true;
-            }
-        }
-    }
-    false
+    cargo_toml(text)
+        .and_then(|value| value.get("workspace").cloned())
+        .is_some()
 }
 
 fn cargo_workspace_array_values(text: &str, key: &str) -> Vec<String> {
-    let mut values = Vec::new();
-    let mut in_workspace = false;
-    let mut in_root = true;
-    let mut collecting = false;
-    for line in text.lines() {
-        let cleaned = strip_toml_comment(line);
-        let trimmed = cleaned.trim();
-        if trimmed.is_empty() {
-            continue;
+    cargo_toml(text)
+        .and_then(|value| value.get("workspace").cloned())
+        .and_then(|workspace| workspace.get(key).cloned())
+        .and_then(|value| toml_string_array(&value))
+        .unwrap_or_default()
+}
+
+fn cargo_toml(text: &str) -> Option<toml::Value> {
+    toml::from_str::<toml::Value>(text).ok()
+}
+
+fn cargo_dependency_tables(value: &toml::Value) -> Vec<&toml::Table> {
+    let mut tables = Vec::new();
+    collect_cargo_dependency_tables(value, &mut tables);
+    if let Some(targets) = value.get("target").and_then(toml::Value::as_table) {
+        for target in targets.values() {
+            collect_cargo_dependency_tables(target, &mut tables);
         }
-        if trimmed.starts_with('[') && trimmed.ends_with(']') {
-            let name = trimmed.trim_matches(&['[', ']'][..]);
-            let parts = split_toml_dotted_key(name);
-            in_workspace = parts.as_slice() == ["workspace"];
-            in_root = false;
-            collecting = false;
-            continue;
+    }
+    tables
+}
+
+fn collect_cargo_dependency_tables<'a>(value: &'a toml::Value, out: &mut Vec<&'a toml::Table>) {
+    for section in ["dependencies", "dev-dependencies", "build-dependencies"] {
+        if let Some(table) = value.get(section).and_then(toml::Value::as_table) {
+            out.push(table);
         }
-        if collecting {
-            values.extend(quoted_values(trimmed));
-            if trimmed.contains(']') {
-                collecting = false;
-            }
-            continue;
-        }
-        let Some((name, value)) = trimmed.split_once('=') else {
-            continue;
-        };
-        let parts = split_toml_dotted_key(name);
-        let matches_key = (in_workspace && name.trim() == key)
-            || (in_root && parts.len() == 2 && parts[0] == "workspace" && parts[1] == key);
-        if !matches_key {
-            continue;
-        }
-        values.extend(quoted_values(value));
-        collecting = value.contains('[') && !value.contains(']');
-    }
-    values
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum CargoDependencySection {
-    Outside,
-    InlineMap,
-    DependencyTable(String),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum CargoWorkspaceDependencySection {
-    Outside,
-    WorkspaceTable,
-    InlineMap,
-    DependencyTable(String),
-}
-
-fn cargo_workspace_dependency_section(section: &str) -> CargoWorkspaceDependencySection {
-    let parts = split_toml_dotted_key(section);
-    if parts.as_slice() == ["workspace"] {
-        return CargoWorkspaceDependencySection::WorkspaceTable;
-    }
-    if parts.as_slice() == ["workspace", "dependencies"] {
-        return CargoWorkspaceDependencySection::InlineMap;
-    }
-    if parts.len() == 3
-        && parts[0] == "workspace"
-        && parts[1] == "dependencies"
-        && let Some(name) = clean_cargo_table_key(&parts[2])
-    {
-        return CargoWorkspaceDependencySection::DependencyTable(name);
-    }
-    CargoWorkspaceDependencySection::Outside
-}
-
-fn cargo_dependency_section(section: &str) -> CargoDependencySection {
-    if section.starts_with("workspace.") {
-        return CargoDependencySection::Outside;
-    }
-    if let Some(name) = cargo_dependency_table_name(section) {
-        return CargoDependencySection::DependencyTable(name);
-    }
-    if cargo_dependency_map_section(section) {
-        CargoDependencySection::InlineMap
-    } else {
-        CargoDependencySection::Outside
     }
 }
 
-fn cargo_dependency_map_section(section: &str) -> bool {
-    let parts = split_toml_dotted_key(section);
-    if parts.len() == 1 {
-        return cargo_dependency_section_name(&parts[0]);
-    }
-    parts.len() == 3
-        && parts[0] == "target"
-        && !parts[1].trim().is_empty()
-        && cargo_dependency_section_name(&parts[2])
+fn cargo_table_path_dependencies(table: &toml::Table) -> Vec<(String, String)> {
+    table
+        .iter()
+        .filter_map(|(name, dependency)| {
+            cargo_dependency_path(dependency).map(|path| (name.to_string(), path))
+        })
+        .collect()
 }
 
-fn cargo_dependency_table_name(section: &str) -> Option<String> {
-    let parts = split_toml_dotted_key(section);
-    if parts.len() == 2 && cargo_dependency_section_name(&parts[0]) {
-        return clean_cargo_table_key(&parts[1]);
-    }
-    if parts.len() == 4
-        && parts[0] == "target"
-        && !parts[1].trim().is_empty()
-        && cargo_dependency_section_name(&parts[2])
-    {
-        return clean_cargo_table_key(&parts[3]);
-    }
-    None
+fn cargo_dependency_path(value: &toml::Value) -> Option<String> {
+    value
+        .get("path")
+        .and_then(toml::Value::as_str)
+        .map(str::to_string)
+        .filter(|path| !path.is_empty())
 }
 
-fn cargo_dependency_section_name(name: &str) -> bool {
-    matches!(
-        name,
-        "dependencies" | "dev-dependencies" | "build-dependencies"
-    )
+fn cargo_dependency_workspace(value: &toml::Value) -> Option<bool> {
+    value.get("workspace").and_then(toml::Value::as_bool)
 }
 
-fn cargo_dotted_property_name(key: &str, property: &str) -> Option<String> {
-    let parts = split_toml_dotted_key(key);
-    if parts.len() == 2 && parts[1] == property {
-        return clean_cargo_table_key(&parts[0]);
-    }
-    None
-}
-
-fn cargo_full_dotted_dependency_property(key: &str, property: &str) -> Option<String> {
-    let parts = split_toml_dotted_key(key);
-    if parts.len() == 3 && cargo_dependency_section_name(&parts[0]) && parts[2] == property {
-        return clean_cargo_table_key(&parts[1]);
-    }
-    None
-}
-
-fn cargo_full_dotted_workspace_dependency_property(key: &str, property: &str) -> Option<String> {
-    let parts = split_toml_dotted_key(key);
-    if parts.len() == 4
-        && parts[0] == "workspace"
-        && parts[1] == "dependencies"
-        && parts[3] == property
-    {
-        return clean_cargo_table_key(&parts[2]);
-    }
-    None
-}
-
-fn cargo_full_dotted_workspace_dependency_name(key: &str) -> Option<String> {
-    let parts = split_toml_dotted_key(key);
-    if parts.len() == 3 && parts[0] == "workspace" && parts[1] == "dependencies" {
-        return clean_cargo_table_key(&parts[2]);
-    }
-    None
-}
-
-fn cargo_workspace_table_dependency_property(key: &str, property: &str) -> Option<String> {
-    let parts = split_toml_dotted_key(key);
-    if parts.len() == 3 && parts[0] == "dependencies" && parts[2] == property {
-        return clean_cargo_table_key(&parts[1]);
-    }
-    None
-}
-
-fn cargo_workspace_table_dependency_name(key: &str) -> Option<String> {
-    let parts = split_toml_dotted_key(key);
-    if parts.len() == 2 && parts[0] == "dependencies" {
-        return clean_cargo_table_key(&parts[1]);
-    }
-    None
-}
-
-fn split_toml_dotted_key(key: &str) -> Vec<String> {
-    let mut parts = Vec::new();
-    let mut current = String::new();
-    let mut quote: Option<char> = None;
-    let mut escaped = false;
-    for ch in key.chars() {
-        if let Some(q) = quote {
-            current.push(ch);
-            if escaped {
-                escaped = false;
-            } else if q == '"' && ch == '\\' {
-                escaped = true;
-            } else if ch == q {
-                quote = None;
-            }
-            continue;
-        }
-        if ch == '.' {
-            parts.push(current.trim().to_string());
-            current.clear();
-            continue;
-        }
-        if ch == '"' || ch == '\'' {
-            quote = Some(ch);
-        }
-        current.push(ch);
-    }
-    parts.push(current.trim().to_string());
-    parts
-}
-
-fn strip_toml_comment(line: &str) -> String {
-    let mut out = String::new();
-    let mut quote: Option<char> = None;
-    let mut escaped = false;
-    for ch in line.chars() {
-        if let Some(q) = quote {
-            out.push(ch);
-            if escaped {
-                escaped = false;
-            } else if q == '"' && ch == '\\' {
-                escaped = true;
-            } else if ch == q {
-                quote = None;
-            }
-            continue;
-        }
-        if ch == '#' {
-            break;
-        }
-        if ch == '"' || ch == '\'' {
-            quote = Some(ch);
-        }
-        out.push(ch);
-    }
-    out
-}
-
-fn clean_cargo_table_key(raw: &str) -> Option<String> {
-    let value = raw.trim();
-    if value.is_empty() || value.contains('.') {
-        return None;
-    }
+fn toml_string_array(value: &toml::Value) -> Option<Vec<String>> {
     Some(
         value
-            .trim_matches('"')
-            .trim_matches('\'')
-            .trim()
-            .to_string(),
+            .as_array()?
+            .iter()
+            .filter_map(|item| item.as_str().map(str::to_string))
+            .filter(|item| !item.is_empty())
+            .collect(),
     )
-    .filter(|value| !value.is_empty())
-}
-
-fn cargo_inline_path(value: &str) -> Option<String> {
-    let value = value.trim();
-    if !(value.starts_with('{') && value.ends_with('}')) {
-        return None;
-    }
-    for part in value.trim_matches(&['{', '}'][..]).split(',') {
-        let (key, raw_value) = part.split_once('=')?;
-        if key.trim() == "path" {
-            return unquote(raw_value.trim()).filter(|s| !s.is_empty());
-        }
-    }
-    None
-}
-
-fn cargo_inline_bool(value: &str, wanted_key: &str) -> Option<bool> {
-    let value = value.trim();
-    if !(value.starts_with('{') && value.ends_with('}')) {
-        return None;
-    }
-    for part in value.trim_matches(&['{', '}'][..]).split(',') {
-        let Some((key, raw_value)) = part.split_once('=') else {
-            continue;
-        };
-        if key.trim() == wanted_key {
-            return bare_toml_bool(raw_value);
-        }
-    }
-    None
-}
-
-fn bare_toml_bool(value: &str) -> Option<bool> {
-    match value.trim() {
-        "true" => Some(true),
-        "false" => Some(false),
-        _ => None,
-    }
 }
 
 fn go_module_name(text: &str) -> Option<String> {
@@ -2960,7 +2593,7 @@ fn workspace_patterns(root: &Path) -> Vec<String> {
         }
     }
     if let Ok(text) = fs::read_to_string(root.join("Cargo.toml")) {
-        patterns.extend(toml_array_values(&text, &["members"]));
+        patterns.extend(cargo_workspace_array_values(&text, "members"));
     }
     if let Ok(text) = fs::read_to_string(root.join("go.work")) {
         patterns.extend(go_work_uses(&text));
@@ -3029,52 +2662,28 @@ fn workspace_path_has_project(root: &Path, files: &BTreeMap<String, FileInfo>, r
 }
 
 fn toml_array_values(text: &str, keys: &[&str]) -> Vec<String> {
-    let mut values = Vec::new();
-    let mut collecting = false;
-    for line in text.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with('#') || trimmed.is_empty() {
-            continue;
-        }
-        if collecting {
-            values.extend(quoted_values(trimmed));
-            if trimmed.contains(']') {
-                collecting = false;
-            }
-            continue;
-        }
-        let Some((key, value)) = trimmed.split_once('=') else {
-            continue;
-        };
-        if !keys.iter().any(|wanted| key.trim() == *wanted) {
-            continue;
-        }
-        values.extend(quoted_values(value));
-        collecting = value.contains('[') && !value.contains(']');
-    }
-    values
+    let Some(value) = cargo_toml(text) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    collect_toml_array_values(&value, keys, &mut out);
+    unique_strings(out)
 }
 
-fn quoted_values(text: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut current = String::new();
-    let mut quote: Option<char> = None;
-    for ch in text.chars() {
-        if let Some(active) = quote {
-            if ch == active {
-                if !current.is_empty() {
-                    out.push(current.clone());
-                }
-                current.clear();
-                quote = None;
-            } else {
-                current.push(ch);
-            }
-        } else if ch == '"' || ch == '\'' {
-            quote = Some(ch);
+fn collect_toml_array_values(value: &toml::Value, keys: &[&str], out: &mut Vec<String>) {
+    let Some(table) = value.as_table() else {
+        return;
+    };
+    for (key, value) in table {
+        if keys.iter().any(|wanted| key == wanted)
+            && let Some(values) = toml_string_array(value)
+        {
+            out.extend(values);
+        }
+        if value.is_table() {
+            collect_toml_array_values(value, keys, out);
         }
     }
-    out
 }
 
 fn go_work_uses(text: &str) -> Vec<String> {
@@ -3291,16 +2900,16 @@ mod tests {
 
     #[test]
     fn cargo_workspace_table_and_dotted_forms_parse() {
-        let workspace = r#"workspace.dependencies.ctx_fixture_tools = { path = "crates/tools" }
-
-[workspace]
+        let workspace = r#"[workspace]
 members = [
   "crates/app",
   "crates/renderer",
 ]
 exclude = ["crates/ignored"]
+dependencies.ctx_fixture_tools = { path = "crates/tools" }
 dependencies.ctx_fixture_extra.path = "crates/extra"
 dependencies.ctx_fixture_inline = { path = "crates/inline" }
+dependencies.ctx_fixture_quoted = { version = "0.1, still a string", path = "crates/quoted,comma" }
 
 [workspace.dependencies.ctx_fixture_replay]
 path = "crates/replay"
@@ -3330,19 +2939,61 @@ path = "crates/replay"
             deps.get("ctx_fixture_inline").map(String::as_str),
             Some("crates/inline")
         );
+        assert_eq!(
+            deps.get("ctx_fixture_quoted").map(String::as_str),
+            Some("crates/quoted,comma")
+        );
+        let root_dotted = r#"workspace.members = ["crates/app", "crates/replay"]
+workspace.dependencies.ctx_fixture_root = { path = "crates/root" }
+"#;
+        assert_eq!(
+            cargo_workspace_array_values(root_dotted, "members"),
+            vec!["crates/app".to_string(), "crates/replay".to_string()]
+        );
+        assert_eq!(
+            cargo_workspace_path_dependencies(root_dotted)
+                .get("ctx_fixture_root")
+                .map(String::as_str),
+            Some("crates/root")
+        );
 
-        let package = r#"[dependencies.ctx_fixture_replay]
+        let package = r#"[dependencies]
+ctx_fixture_replay.workspace = true
+ctx_fixture_tools.workspace = true
+ctx_fixture_inline = { version = "0.1, still a string", path = "crates/inline,comma" }
+
+[dependencies.ctx_fixture_table]
 workspace = true
 
-[dependencies]
-ctx_fixture_tools.workspace = true
+[target.'cfg(unix)'.dependencies.ctx_fixture_target]
+path = "crates/target"
+
+[package.metadata.fake.dependencies.ctx_fixture_ignored]
+path = "crates/ignored"
 "#;
         assert_eq!(
             cargo_workspace_dependency_names(package),
             vec![
                 "ctx_fixture_replay".to_string(),
+                "ctx_fixture_table".to_string(),
                 "ctx_fixture_tools".to_string()
             ]
+        );
+        let path_deps = cargo_path_dependencies(package);
+        assert!(
+            path_deps.iter().any(|(name, path)| {
+                name == "ctx_fixture_inline" && path == "crates/inline,comma"
+            })
+        );
+        assert!(
+            path_deps
+                .iter()
+                .any(|(name, path)| name == "ctx_fixture_target" && path == "crates/target")
+        );
+        assert!(
+            path_deps
+                .iter()
+                .all(|(name, _)| name != "ctx_fixture_ignored")
         );
         assert!(cargo_workspace_member_pattern_matches(
             "crates/renderer",
@@ -3352,6 +3003,21 @@ ctx_fixture_tools.workspace = true
             "crates/group/app",
             "crates/*/app"
         ));
+    }
+
+    #[test]
+    fn cargo_package_name_uses_structural_toml() {
+        assert_eq!(
+            cargo_package_name(
+                r#"[package]
+name = "ctx_fixture_renderer"
+version = "0.1.0"
+edition = "2024"
+"#
+            )
+            .as_deref(),
+            Some("ctx_fixture_renderer")
+        );
     }
 
     #[test]

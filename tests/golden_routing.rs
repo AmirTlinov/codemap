@@ -56,6 +56,19 @@ fn git(dir: &Path, args: &[&str]) {
         .status()
         .expect("git should run");
     assert!(status.success(), "git {:?} failed", args);
+    if args.first() == Some(&"init") {
+        for config_args in [
+            ["config", "user.email", "a@example.com"],
+            ["config", "user.name", "a"],
+        ] {
+            let status = Command::new("git")
+                .args(config_args)
+                .current_dir(dir)
+                .status()
+                .expect("git config should run");
+            assert!(status.success(), "git {:?} failed", config_args);
+        }
+    }
 }
 
 #[test]
