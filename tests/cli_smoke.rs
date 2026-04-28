@@ -789,6 +789,71 @@ boundaries:
 }
 
 #[test]
+fn transitive_package_manifest_boundary_edge_fails_closed_when_changed() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join(".ctx.yml"),
+        r#"version: 1
+boundaries:
+  forbidden:
+    - from: domains/replay/src/**
+      to: domains/renderer/src/**
+      reason: replay emits DTOs; renderer consumes DTOs
+"#,
+    );
+    write(
+        &repo.path().join("domains/replay/package.json"),
+        r#"{
+  "name": "@fixture/replay",
+  "dependencies": {
+    "@fixture/timeline": "workspace:*"
+  }
+}"#,
+    );
+    write(
+        &repo.path().join("domains/timeline/package.json"),
+        r#"{"name":"@fixture/timeline"}"#,
+    );
+    write(
+        &repo.path().join("domains/renderer/package.json"),
+        r#"{"name":"@fixture/renderer"}"#,
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let clean = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["boundaries", "--changed"])
+        .output()
+        .expect("ctx boundaries should run");
+    assert!(clean.status.success());
+
+    write(
+        &repo.path().join("domains/timeline/package.json"),
+        r#"{
+  "name": "@fixture/timeline",
+  "dependencies": {
+    "@fixture/renderer": "workspace:*"
+  }
+}"#,
+    );
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["boundaries", "--changed"])
+        .output()
+        .expect("ctx boundaries should run");
+    assert!(!output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be utf8");
+    assert!(stdout.contains("transitive package manifest dependency path"));
+    assert!(stdout.contains("@fixture/timeline -> @fixture/renderer"));
+    assert!(stdout.contains("domains/replay/package.json"));
+}
+
+#[test]
 fn nested_ctx_config_is_loaded_as_domain_anchor() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");

@@ -709,6 +709,11 @@ pub fn boundary_findings(
         }
     }
     for edge in &project.package_edges {
+        if let Some(changed) = changed_only
+            && !changed.contains(&edge.from_manifest)
+        {
+            continue;
+        }
         for rule in &project.anchors.boundaries.forbidden {
             if rule.from.is_empty() || rule.to.is_empty() {
                 continue;
@@ -741,7 +746,110 @@ pub fn boundary_findings(
             }
         }
     }
+    for path in package_transitive_paths(project, 4) {
+        if let Some(changed) = changed_only
+            && !path
+                .manifests
+                .iter()
+                .any(|manifest| changed.contains(manifest))
+        {
+            continue;
+        }
+        for rule in &project.anchors.boundaries.forbidden {
+            if rule.from.is_empty() || rule.to.is_empty() {
+                continue;
+            }
+            let from = resolve_domain_pattern(&root_domain, &rule.from);
+            let to = resolve_domain_pattern(&root_domain, &rule.to);
+            if package_edge_matches_rule(&from, &path.from)
+                && package_edge_matches_rule(&to, &path.to)
+            {
+                let mut reason = rule.reason.clone();
+                if !reason.is_empty() {
+                    reason.push_str("; ");
+                }
+                reason.push_str(&format!(
+                    "transitive package manifest dependency path `{}`",
+                    path.dependencies.join(" -> ")
+                ));
+                findings.push(BoundaryFinding {
+                    from: path.from_manifest.clone(),
+                    to: path.to_manifest.clone().unwrap_or_else(|| path.to.clone()),
+                    status: rule
+                        .status
+                        .clone()
+                        .unwrap_or_else(|| "forbidden".to_string()),
+                    reason,
+                    recovery: rule.recovery.clone(),
+                    provenance: "package_manifest_transitive+ctx_anchor".to_string(),
+                    confidence: "hard".to_string(),
+                });
+            }
+        }
+    }
     findings
+}
+
+struct PackageGraphPath {
+    from: String,
+    from_manifest: String,
+    to: String,
+    to_manifest: Option<String>,
+    dependencies: Vec<String>,
+    manifests: Vec<String>,
+}
+
+fn package_transitive_paths(project: &Project, max_depth: usize) -> Vec<PackageGraphPath> {
+    let mut outgoing: BTreeMap<&str, Vec<&crate::model::PackageDependency>> = BTreeMap::new();
+    for edge in &project.package_edges {
+        outgoing.entry(&edge.from).or_default().push(edge);
+    }
+    let mut paths = Vec::new();
+    for first in &project.package_edges {
+        let mut queue = VecDeque::from([(
+            first.to.clone(),
+            vec![first.dependency.clone()],
+            vec![first.from_manifest.clone()],
+            BTreeSet::from([first.from.clone(), first.to.clone()]),
+            1usize,
+        )]);
+        while let Some((current, dependencies, manifests, seen, depth)) = queue.pop_front() {
+            if depth >= max_depth {
+                continue;
+            }
+            let Some(next_edges) = outgoing.get(current.as_str()) else {
+                continue;
+            };
+            for edge in next_edges {
+                if seen.contains(&edge.to) {
+                    continue;
+                }
+                let mut next_dependencies = dependencies.clone();
+                next_dependencies.push(edge.dependency.clone());
+                let mut next_manifests = manifests.clone();
+                next_manifests.push(edge.from_manifest.clone());
+                let next_depth = depth + 1;
+                paths.push(PackageGraphPath {
+                    from: first.from.clone(),
+                    from_manifest: first.from_manifest.clone(),
+                    to: edge.to.clone(),
+                    to_manifest: edge.to_manifest.clone(),
+                    dependencies: next_dependencies.clone(),
+                    manifests: next_manifests.clone(),
+                });
+                let mut next_seen = seen.clone();
+                next_seen.insert(edge.to.clone());
+                queue.push_back((
+                    edge.to.clone(),
+                    next_dependencies,
+                    next_manifests,
+                    next_seen,
+                    next_depth,
+                ));
+            }
+        }
+    }
+    paths
 }
 
 fn package_edge_matches_rule(pattern: &str, package_path: &str) -> bool {
