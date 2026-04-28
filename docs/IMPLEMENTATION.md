@@ -48,7 +48,7 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - schema evolution policy in `docs/SCHEMA_POLICY.md`, with exported schema ownership in `schemas/manifest.json`
 - bundled schema printing from the installed binary, without loading a project or writing cache
 - root and nested `.ctx.yml` semantic anchor loading
-- YAML anchor parsing through `serde_yml`
+- YAML anchor parsing through maintained `yaml_serde`
 - unknown `.ctx.yml` fields are rejected instead of being silently ignored
 - absolute path-bearing arguments for `start`, `files`, `graph`, `explain`, `widen --path`, `widen --already`, `init --path`, `impact`, and `verify` select and normalize to the owning repo
 - safe `ctx init --write-minimal`: creates requested domain directories, refuses writes outside the repo, and writes no fake placeholder concepts

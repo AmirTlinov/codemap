@@ -266,7 +266,7 @@ fn load_ctx_config(path: &Path) -> Result<CtxConfig> {
     if path.extension().and_then(|x| x.to_str()) == Some("json") {
         Ok(serde_json::from_str(&text)?)
     } else {
-        Ok(serde_yml::from_str(&text)?)
+        Ok(yaml_serde::from_str(&text)?)
     }
 }
 
