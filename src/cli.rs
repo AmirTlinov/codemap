@@ -683,6 +683,20 @@ struct FilesReport {
 
 fn files_report(project: &crate::model::Project, path: Option<&str>, limit: usize) -> FilesReport {
     let normalized_path = path.and_then(|path| project_relative_arg(project, path).ok());
+    if let Some(rel) = normalized_path.as_deref()
+        && project.files.contains_key(rel)
+    {
+        let mut files = vec![rel.to_string()];
+        let count = files.len();
+        files.truncate(limit);
+        return FilesReport {
+            kind: "files",
+            schema_version: "1",
+            path: rel.to_string(),
+            files,
+            count,
+        };
+    }
     let prefix = normalized_path
         .as_deref()
         .filter(|p| *p != ".")

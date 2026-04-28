@@ -2178,6 +2178,24 @@ fn absolute_path_commands_select_target_repo_from_any_cwd() {
             .iter()
             .any(|item| { item.as_str() == Some("src/save.ts") })
     );
+    let file_scope = ctx()
+        .current_dir(outside.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "files",
+            "--path",
+            absolute_file.to_str().unwrap(),
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx files exact file should run");
+    assert!(file_scope.status.success());
+    let file_scope_json: Value =
+        serde_json::from_slice(&file_scope.stdout).expect("valid files json");
+    assert_eq!(file_scope_json["path"], "src/save.ts");
+    assert_eq!(file_scope_json["count"], 1);
+    assert_eq!(file_scope_json["files"][0], "src/save.ts");
 
     let explain = ctx()
         .current_dir(outside.path())

@@ -14,6 +14,7 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - file inventory from `git ls-files -co --exclude-standard`
 - filesystem fallback for non-git directories
 - common build/cache/vendor ignores
+- `ctx files --path` supports both directory scopes and exact indexed file paths
 - lightweight role classification
 - lightweight JS/TS, Python, Rust, and Go import extraction
 - JS/TS import resolution for relative imports, local workspace package imports, package entrypoints, and simple `tsconfig.json` path aliases
@@ -111,6 +112,7 @@ This is intentionally flatter than the final large-tree design. The next split s
 - support artifact roots such as `fixtures/**` and `examples/**` appear in negative context when they are not task owners;
 - default graph lenses exclude support artifacts unless the command is scoped into them;
 - absolute path-bearing commands work from outside the repo and normalize paths to repo-relative output;
+- exact file scopes for `ctx files --path` return that file instead of an empty directory-style listing;
 - `ctx init --write-minimal` writes a valid skeletal `.ctx.yml` and refuses absolute paths outside the repo.
 - invalid semantic anchors block `start`/`impact`/`verify` until fixed, while `ctx anchors validate` stays available for diagnosis.
 - semantic anchor validation catches missing/unsupported config versions, unknown fields, missing exact concept files, missing route read-first files, missing boundary reasons, and empty route declarations.
