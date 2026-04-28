@@ -81,9 +81,18 @@ pub fn write_status(project: &Project, version: &str) -> Result<()> {
                 config: d.config_path.clone(),
             })
             .collect(),
+        artifacts: vec![
+            "status.json",
+            "inventory.json",
+            "graph.json",
+            "fingerprints.json",
+        ],
     };
     let body = serde_json::to_string_pretty(&status)?;
     fs::write(project.cache_dir.join("status.json"), format!("{body}\n"))?;
+    write_inventory(project, version)?;
+    write_graph(project, version)?;
+    write_fingerprints(project, version)?;
     Ok(())
 }
 
@@ -94,6 +103,7 @@ struct CacheStatus<'a> {
     fingerprint: String,
     files: usize,
     domains: Vec<CachedDomain>,
+    artifacts: Vec<&'static str>,
 }
 
 #[derive(Serialize)]
@@ -101,6 +111,156 @@ struct CachedDomain {
     id: String,
     path: String,
     config: Option<String>,
+}
+
+fn write_inventory(project: &Project, version: &str) -> Result<()> {
+    let inventory = CachedInventory {
+        version,
+        root: project.root.to_string_lossy().to_string(),
+        fingerprint: fingerprint(project, None),
+        files: project
+            .files
+            .values()
+            .map(|file| CachedFile {
+                path: file.rel.clone(),
+                language: file.language.clone(),
+                ext: file.ext.clone(),
+                size: file.size,
+                roles: file.roles.iter().cloned().collect(),
+            })
+            .collect(),
+        packages: project.packages.clone(),
+        domains: project
+            .domains
+            .iter()
+            .map(|domain| CachedDomain {
+                id: domain.id.clone(),
+                path: domain.path.clone(),
+                config: domain.config_path.clone(),
+            })
+            .collect(),
+        scripts: project.scripts.clone(),
+        languages: project.languages.iter().cloned().collect(),
+    };
+    let body = serde_json::to_string_pretty(&inventory)?;
+    fs::write(
+        project.cache_dir.join("inventory.json"),
+        format!("{body}\n"),
+    )?;
+    Ok(())
+}
+
+fn write_graph(project: &Project, version: &str) -> Result<()> {
+    let mut edges = Vec::new();
+    for file in project.files.values() {
+        for target in &file.resolved_imports {
+            edges.push(CachedGraphEdge {
+                from: file.rel.clone(),
+                to: target.clone(),
+                kind: "imports".to_string(),
+                provenance: "source_import".to_string(),
+            });
+        }
+    }
+    for edge in &project.package_edges {
+        edges.push(CachedGraphEdge {
+            from: edge.from_manifest.clone(),
+            to: edge.to_manifest.clone().unwrap_or_else(|| edge.to.clone()),
+            kind: "package_depends".to_string(),
+            provenance: edge.source.clone(),
+        });
+    }
+    let graph = CachedGraph {
+        version,
+        root: project.root.to_string_lossy().to_string(),
+        fingerprint: fingerprint(project, None),
+        edges,
+    };
+    let body = serde_json::to_string_pretty(&graph)?;
+    fs::write(project.cache_dir.join("graph.json"), format!("{body}\n"))?;
+    Ok(())
+}
+
+fn write_fingerprints(project: &Project, version: &str) -> Result<()> {
+    let fingerprints = CachedFingerprints {
+        version,
+        root: project.root.to_string_lossy().to_string(),
+        fingerprint: fingerprint(project, None),
+        files: project
+            .files
+            .values()
+            .map(|file| CachedFileFingerprint {
+                path: file.rel.clone(),
+                size: file.size,
+                modified_secs: file_modified_secs(project, file),
+            })
+            .collect(),
+    };
+    let body = serde_json::to_string_pretty(&fingerprints)?;
+    fs::write(
+        project.cache_dir.join("fingerprints.json"),
+        format!("{body}\n"),
+    )?;
+    Ok(())
+}
+
+#[derive(Serialize)]
+struct CachedInventory<'a> {
+    version: &'a str,
+    root: String,
+    fingerprint: String,
+    files: Vec<CachedFile>,
+    packages: Vec<crate::model::PackageInfo>,
+    domains: Vec<CachedDomain>,
+    scripts: Vec<crate::model::ScriptInfo>,
+    languages: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct CachedFile {
+    path: String,
+    language: String,
+    ext: String,
+    size: u64,
+    roles: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct CachedGraph<'a> {
+    version: &'a str,
+    root: String,
+    fingerprint: String,
+    edges: Vec<CachedGraphEdge>,
+}
+
+#[derive(Serialize)]
+struct CachedGraphEdge {
+    from: String,
+    to: String,
+    kind: String,
+    provenance: String,
+}
+
+#[derive(Serialize)]
+struct CachedFingerprints<'a> {
+    version: &'a str,
+    root: String,
+    fingerprint: String,
+    files: Vec<CachedFileFingerprint>,
+}
+
+#[derive(Serialize)]
+struct CachedFileFingerprint {
+    path: String,
+    size: u64,
+    modified_secs: Option<u64>,
+}
+
+fn file_modified_secs(project: &Project, file: &crate::model::FileInfo) -> Option<u64> {
+    let meta = fs::metadata(file.rel_path(project)).ok()?;
+    let modified = meta.modified().ok()?;
+    let duration = modified.duration_since(std::time::UNIX_EPOCH).ok()?;
+    Some(duration.as_secs())
 }
 
 fn hex_prefix(bytes: &[u8], chars: usize) -> String {

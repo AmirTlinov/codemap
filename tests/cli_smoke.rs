@@ -157,6 +157,42 @@ fn start_routes_task_without_writing_to_project() {
         git_status(repo.path()).is_empty(),
         "ctx start must not write project files"
     );
+    let project_cache = fs::read_dir(cache.path())
+        .expect("cache dir")
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path())
+        .find(|path| path.is_dir())
+        .expect("project cache dir");
+    for artifact in [
+        "status.json",
+        "inventory.json",
+        "graph.json",
+        "fingerprints.json",
+    ] {
+        assert!(
+            project_cache.join(artifact).exists(),
+            "cache artifact {artifact} should be written outside the project"
+        );
+    }
+    let inventory: Value = serde_json::from_slice(
+        &fs::read(project_cache.join("inventory.json")).expect("read inventory cache"),
+    )
+    .expect("inventory cache json");
+    assert!(
+        inventory["files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["path"].as_str() == Some("src/save.ts"))
+    );
+    let graph: Value =
+        serde_json::from_slice(&fs::read(project_cache.join("graph.json")).expect("read graph"))
+            .expect("graph cache json");
+    assert!(graph["edges"].as_array().unwrap().iter().any(|edge| {
+        edge["from"].as_str() == Some("src/reopen.ts")
+            && edge["to"].as_str() == Some("src/save.ts")
+            && edge["kind"].as_str() == Some("imports")
+    }));
 }
 
 #[test]
