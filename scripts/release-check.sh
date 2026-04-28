@@ -28,6 +28,10 @@ for required in \
   "tests/schema_policy.rs" \
   "fixtures/mixed-monorepo/package.json" \
   "fixtures/mixed-monorepo/tsconfig.json" \
+  "fixtures/go-workspace/go.work.fixture" \
+  "fixtures/go-workspace/services/replay/go.mod.fixture" \
+  "fixtures/go-workspace/services/renderer/go.mod.fixture" \
+  "fixtures/go-workspace/apps/api/go.mod.fixture" \
   "fixtures/rust-workspace/Cargo.toml.fixture"
 do
   grep -qx "$required" <<<"$package_list"

@@ -774,12 +774,7 @@ fn extract_imports_exports(root: &Path, info: &mut FileInfo) {
             }
         }
         "go" => {
-            let import_re = go_import_re();
-            for cap in import_re.captures_iter(&text) {
-                if let Some(m) = cap.get(1) {
-                    info.imports.insert(m.as_str().trim().to_string());
-                }
-            }
+            info.imports.extend(extract_go_imports(&text));
         }
         _ => {}
     }
@@ -835,6 +830,7 @@ fn resolve_import(
         }
         "py" => resolve_python(spec, paths),
         "rs" => resolve_rust(from, spec, paths),
+        "go" => resolve_go(spec, paths, packages),
         _ => None,
     }
 }
@@ -1203,6 +1199,59 @@ fn resolve_rust(from: &str, spec: &str, paths: &BTreeSet<String>) -> Option<Stri
     .find(|c| paths.contains(c))
 }
 
+fn resolve_go(spec: &str, paths: &BTreeSet<String>, packages: &[PackageInfo]) -> Option<String> {
+    let package = packages
+        .iter()
+        .filter(|package| package.ecosystem == "go")
+        .filter(|package| spec == package.name || spec.starts_with(&format!("{}/", package.name)))
+        .max_by_key(|package| package.name.len())?;
+    let subpath = spec
+        .strip_prefix(&package.name)
+        .unwrap_or_default()
+        .trim_start_matches('/');
+    let base = if subpath.is_empty() {
+        package.path.clone()
+    } else {
+        normalize_rel_path(&format!("{}/{}", package.path, subpath))
+    };
+    resolve_go_package_dir(&base, paths)
+}
+
+fn resolve_go_package_dir(base: &str, paths: &BTreeSet<String>) -> Option<String> {
+    let base = normalize_rel_path(base);
+    let basename = Path::new(&base)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("main");
+    for candidate in [
+        format!("{base}/{basename}.go"),
+        format!("{base}/main.go"),
+        format!("{base}/lib.go"),
+    ] {
+        let candidate = normalize_rel_path(&candidate);
+        if paths.contains(&candidate) {
+            return Some(candidate);
+        }
+    }
+    let prefix = if base == "." {
+        String::new()
+    } else {
+        format!("{}/", base.trim_end_matches('/'))
+    };
+    paths
+        .iter()
+        .find(|path| {
+            path.starts_with(&prefix)
+                && path.ends_with(".go")
+                && !path.ends_with("_test.go")
+                && Path::new(path)
+                    .parent()
+                    .map(|parent| normalize_rel_path(&parent.to_string_lossy()) == base)
+                    .unwrap_or(base == ".")
+        })
+        .cloned()
+}
+
 fn build_reverse_imports(files: &BTreeMap<String, FileInfo>) -> BTreeMap<String, BTreeSet<String>> {
     let mut reverse: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     for file in files.values() {
@@ -1211,9 +1260,36 @@ fn build_reverse_imports(files: &BTreeMap<String, FileInfo>) -> BTreeMap<String,
                 .entry(target.clone())
                 .or_default()
                 .insert(file.rel.clone());
+            if target.ends_with(".go") {
+                for package_file in go_package_files(files, target) {
+                    reverse
+                        .entry(package_file)
+                        .or_default()
+                        .insert(file.rel.clone());
+                }
+            }
         }
     }
     reverse
+}
+
+fn go_package_files(files: &BTreeMap<String, FileInfo>, target: &str) -> Vec<String> {
+    let package_dir = Path::new(target)
+        .parent()
+        .map(|parent| normalize_rel_path(&parent.to_string_lossy()))
+        .unwrap_or_else(|| ".".to_string());
+    files
+        .values()
+        .filter(|file| {
+            file.ext == "go"
+                && !file.rel.ends_with("_test.go")
+                && Path::new(&file.rel)
+                    .parent()
+                    .map(|parent| normalize_rel_path(&parent.to_string_lossy()) == package_dir)
+                    .unwrap_or(package_dir == ".")
+        })
+        .map(|file| file.rel.clone())
+        .collect()
 }
 
 fn detect_packages(root: &Path, files: &BTreeMap<String, FileInfo>) -> Vec<PackageInfo> {
@@ -1228,6 +1304,11 @@ fn detect_packages(root: &Path, files: &BTreeMap<String, FileInfo>) -> Vec<Packa
             }
             Some("Cargo.toml") => {
                 if let Some(package) = read_cargo_package(root, rel) {
+                    packages.push(package);
+                }
+            }
+            Some("go.mod") => {
+                if let Some(package) = read_go_package(root, rel) {
                     packages.push(package);
                 }
             }
@@ -1266,6 +1347,17 @@ fn read_cargo_package(root: &Path, rel: &str) -> Option<PackageInfo> {
     })
 }
 
+fn read_go_package(root: &Path, rel: &str) -> Option<PackageInfo> {
+    let text = fs::read_to_string(root.join(rel)).ok()?;
+    let name = go_module_name(&text)?;
+    Some(PackageInfo {
+        name,
+        path: manifest_dir(rel),
+        manifest: rel.to_string(),
+        ecosystem: "go".to_string(),
+    })
+}
+
 fn detect_package_edges(root: &Path, packages: &[PackageInfo]) -> Vec<PackageDependency> {
     let mut edges = Vec::new();
     let by_name: BTreeMap<String, &PackageInfo> = packages
@@ -1284,6 +1376,9 @@ fn detect_package_edges(root: &Path, packages: &[PackageInfo]) -> Vec<PackageDep
             }
             "rust" => {
                 edges.extend(cargo_package_edges(root, package, &by_path));
+            }
+            "go" => {
+                edges.extend(go_package_edges(root, package, &by_name, &by_path));
             }
             _ => {}
         }
@@ -1364,6 +1459,61 @@ fn cargo_package_edges(
             })
         })
         .collect()
+}
+
+fn go_package_edges(
+    root: &Path,
+    package: &PackageInfo,
+    by_name: &BTreeMap<String, &PackageInfo>,
+    by_path: &BTreeMap<String, &PackageInfo>,
+) -> Vec<PackageDependency> {
+    let Ok(text) = fs::read_to_string(root.join(&package.manifest)) else {
+        return Vec::new();
+    };
+    let base = Path::new(&package.manifest)
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let replaces = go_replaces(&text);
+    let mut edges = Vec::new();
+    for dep in go_requires(&text) {
+        if let Some(replacement) = replaces.get(&dep) {
+            if let Some(target) = by_name.get(replacement) {
+                edges.push(PackageDependency {
+                    from: package.path.clone(),
+                    from_manifest: package.manifest.clone(),
+                    to: target.path.clone(),
+                    to_manifest: Some(target.manifest.clone()),
+                    dependency: dep,
+                    source: "go.mod replace".to_string(),
+                });
+                continue;
+            }
+            let target_path = normalize_rel_path(&base.join(replacement).to_string_lossy());
+            if let Some(target) = by_path.get(&target_path) {
+                edges.push(PackageDependency {
+                    from: package.path.clone(),
+                    from_manifest: package.manifest.clone(),
+                    to: target.path.clone(),
+                    to_manifest: Some(target.manifest.clone()),
+                    dependency: dep,
+                    source: "go.mod local replace".to_string(),
+                });
+                continue;
+            }
+        }
+        if let Some(target) = by_name.get(&dep) {
+            edges.push(PackageDependency {
+                from: package.path.clone(),
+                from_manifest: package.manifest.clone(),
+                to: target.path.clone(),
+                to_manifest: Some(target.manifest.clone()),
+                dependency: dep,
+                source: "go.mod require".to_string(),
+            });
+        }
+    }
+    edges
 }
 
 fn manifest_dir(rel: &str) -> String {
@@ -1514,6 +1664,150 @@ fn cargo_inline_path(value: &str) -> Option<String> {
     None
 }
 
+fn go_module_name(text: &str) -> Option<String> {
+    for line in text.lines() {
+        let trimmed = strip_go_mod_comment(line).trim();
+        if let Some(value) = trimmed.strip_prefix("module ") {
+            return value
+                .split_whitespace()
+                .next()
+                .map(str::to_string)
+                .filter(|value| !value.is_empty());
+        }
+    }
+    None
+}
+
+fn go_requires(text: &str) -> Vec<String> {
+    let mut deps = Vec::new();
+    let mut in_block = false;
+    for line in text.lines() {
+        let trimmed = strip_go_mod_comment(line).trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if in_block {
+            if trimmed.starts_with(')') {
+                in_block = false;
+                continue;
+            }
+            if let Some(module) = trimmed.split_whitespace().next()
+                && !module.is_empty()
+            {
+                deps.push(module.to_string());
+            }
+            continue;
+        }
+        if trimmed == "require (" {
+            in_block = true;
+            continue;
+        }
+        if let Some(value) = trimmed.strip_prefix("require ") {
+            if value.trim_start().starts_with('(') {
+                in_block = true;
+                continue;
+            }
+            if let Some(module) = value.split_whitespace().next()
+                && !module.is_empty()
+            {
+                deps.push(module.to_string());
+            }
+        }
+    }
+    unique_strings(deps)
+}
+
+fn go_replaces(text: &str) -> BTreeMap<String, String> {
+    let mut replaces = BTreeMap::new();
+    let mut in_block = false;
+    for line in text.lines() {
+        let trimmed = strip_go_mod_comment(line).trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if in_block {
+            if trimmed.starts_with(')') {
+                in_block = false;
+                continue;
+            }
+            if let Some((from, to)) = parse_go_replace(trimmed) {
+                replaces.insert(from, to);
+            }
+            continue;
+        }
+        if trimmed == "replace (" {
+            in_block = true;
+            continue;
+        }
+        if let Some(value) = trimmed.strip_prefix("replace ") {
+            if value.trim_start().starts_with('(') {
+                in_block = true;
+                continue;
+            }
+            if let Some((from, to)) = parse_go_replace(value) {
+                replaces.insert(from, to);
+            }
+        }
+    }
+    replaces
+}
+
+fn parse_go_replace(value: &str) -> Option<(String, String)> {
+    let (from, to) = value.split_once("=>")?;
+    let from = from.split_whitespace().next()?.to_string();
+    let to = to.split_whitespace().next()?.to_string();
+    (!from.is_empty() && !to.is_empty()).then_some((from, to))
+}
+
+fn strip_go_mod_comment(line: &str) -> &str {
+    line.split_once("//").map(|(head, _)| head).unwrap_or(line)
+}
+
+fn extract_go_imports(text: &str) -> BTreeSet<String> {
+    let mut imports = BTreeSet::new();
+    let mut in_block = false;
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if in_block {
+            if trimmed.starts_with(')') {
+                in_block = false;
+                continue;
+            }
+            if let Some(path) = quoted_go_import(trimmed) {
+                imports.insert(path);
+            }
+            continue;
+        }
+        let Some(value) = trimmed.strip_prefix("import") else {
+            continue;
+        };
+        let value = value.trim_start();
+        if value.starts_with('(') {
+            in_block = true;
+            let rest = value.trim_start_matches('(').trim();
+            if !rest.is_empty()
+                && !rest.starts_with(')')
+                && let Some(path) = quoted_go_import(rest)
+            {
+                imports.insert(path);
+            }
+            continue;
+        }
+        if let Some(path) = quoted_go_import(value) {
+            imports.insert(path);
+        }
+    }
+    imports
+}
+
+fn quoted_go_import(value: &str) -> Option<String> {
+    let quote_start = value.find('"')?;
+    let tail = &value[quote_start + 1..];
+    let quote_end = tail.find('"')?;
+    let path = &tail[..quote_end];
+    (!path.is_empty()).then_some(path.to_string())
+}
+
 fn unquote(value: &str) -> Option<String> {
     let trimmed = value.trim().trim_end_matches(',');
     trimmed
@@ -1538,7 +1832,7 @@ fn detect_package_manager(root: &Path) -> String {
         "npm"
     } else if root.join("Cargo.toml").exists() {
         "cargo"
-    } else if root.join("go.mod").exists() {
+    } else if root.join("go.mod").exists() || root.join("go.work").exists() {
         "go"
     } else if root.join("pyproject.toml").exists() || root.join("requirements.txt").exists() {
         "python"
@@ -2062,9 +2356,4 @@ fn rust_mod_re() -> &'static Regex {
     RE.get_or_init(|| {
         Regex::new(r#"(?m)^\s*(?:pub\s+)?mod\s+([A-Za-z0-9_]+)\s*;"#).expect("valid rust mod regex")
     })
-}
-
-fn go_import_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r#""([^"]+)""#).expect("valid go import regex"))
 }

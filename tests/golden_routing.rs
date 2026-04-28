@@ -27,10 +27,11 @@ fn copy_dir(from: &Path, to: &Path) {
         let entry = entry.expect("read fixture entry");
         let source = entry.path();
         let file_name = entry.file_name();
-        let target_name = if file_name == "Cargo.toml.fixture" {
-            "Cargo.toml".into()
-        } else {
-            file_name
+        let target_name = match file_name.to_str() {
+            Some("Cargo.toml.fixture") => "Cargo.toml".into(),
+            Some("go.mod.fixture") => "go.mod".into(),
+            Some("go.work.fixture") => "go.work".into(),
+            _ => file_name,
         };
         let target = to.join(target_name);
         if source.is_dir() {
@@ -700,6 +701,249 @@ boundaries:
                         .as_str()
                         .unwrap_or("")
                         .contains("Cargo.toml path dependency")
+            })
+    );
+}
+
+#[test]
+fn go_workspace_routes_replay_task_to_replay_module() {
+    let repo = fixture_copy("go-workspace");
+    let cache = TempDir::new().expect("cache tempdir");
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "start",
+            "--task",
+            "fix replay jumping to wrong frame after seek",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx start should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
+    assert_eq!(json["domain"]["path"], "services/replay");
+    assert_eq!(json["task_kind"], "playback_session");
+    assert!(
+        json["read_first"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["path"].as_str() == Some("services/replay/session/session.go"))
+    );
+    assert!(
+        json["read_first"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["path"].as_str() == Some("services/replay/timeline/timeline.go"))
+    );
+    assert!(
+        json["related_tests"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("services/replay/session/session_test.go"))
+    );
+    assert!(
+        json["do_not_read_yet"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["path"].as_str() == Some("services/renderer/**"))
+    );
+}
+
+#[test]
+fn go_workspace_module_imports_feed_file_impact() {
+    let repo = fixture_copy("go-workspace");
+    let cache = TempDir::new().expect("cache tempdir");
+
+    let explain = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "explain",
+            "services/renderer/render/render.go",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx explain should run");
+    assert!(explain.status.success());
+    let explain_json: Value = serde_json::from_slice(&explain.stdout).expect("valid explain json");
+    assert!(
+        explain_json["imports"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("services/replay/session/session.go")),
+        "Go module import should resolve to the imported package source file"
+    );
+
+    let non_import_string = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "explain",
+            "services/renderer/render/doc.go",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx explain should run");
+    assert!(non_import_string.status.success());
+    let non_import_json: Value =
+        serde_json::from_slice(&non_import_string.stdout).expect("valid explain json");
+    assert!(
+        non_import_json["imports"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item.as_str() != Some("services/replay/session/session.go")),
+        "Go string literals outside import declarations must not become graph imports"
+    );
+
+    let impact = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "impact",
+            "--files",
+            "services/replay/session/label.go",
+            "--depth",
+            "3",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx impact should run");
+    assert!(impact.status.success());
+    let impact_json: Value = serde_json::from_slice(&impact.stdout).expect("valid impact json");
+    assert!(
+        impact_json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("services/renderer/render/render.go")),
+        "changes to any non-test file in an imported Go package should reach package importers"
+    );
+    assert!(
+        impact_json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("apps/api/main.go"))
+    );
+}
+
+#[test]
+fn go_work_only_repo_infers_go_verification_plan() {
+    let repo = fixture_copy("go-workspace");
+    let cache = TempDir::new().expect("cache tempdir");
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "verify",
+            "--files",
+            "services/replay/go.mod",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx verify should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
+    assert!(
+        json["verification"]["minimal"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("go test ./...")),
+        "go.work-only repositories should be detected as Go projects for verification"
+    );
+}
+
+#[test]
+fn go_workspace_mod_replace_edges_feed_impact_and_boundaries() {
+    let repo = fixture_copy("go-workspace");
+    let cache = TempDir::new().expect("cache tempdir");
+
+    let impact = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "impact",
+            "--files",
+            "services/replay/go.mod",
+            "--depth",
+            "2",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx impact should run");
+    assert!(impact.status.success());
+    let impact_json: Value = serde_json::from_slice(&impact.stdout).expect("valid impact json");
+    assert!(
+        impact_json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("services/renderer/go.mod")),
+        "renderer consumes replay through go.mod require/replace"
+    );
+    assert!(
+        impact_json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("apps/api/go.mod")),
+        "api consumes renderer and should be reached at depth 2"
+    );
+    assert!(
+        impact_json["expansion_triggers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("package consumers affected"))
+    );
+
+    fs::write(
+        repo.path().join(".ctx.yml"),
+        r#"version: 1
+boundaries:
+  forbidden:
+    - from: services/renderer/go.mod
+      to: services/replay/go.mod
+      reason: renderer must not depend on replay in this fixture policy
+"#,
+    )
+    .expect("write ctx config");
+    let boundaries = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["boundaries", "--format", "json"])
+        .output()
+        .expect("ctx boundaries should run");
+    assert!(!boundaries.status.success());
+    let boundaries_json: Value =
+        serde_json::from_slice(&boundaries.stdout).expect("valid boundaries json");
+    assert!(
+        boundaries_json["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|finding| {
+                finding["from"].as_str() == Some("services/renderer/go.mod")
+                    && finding["to"].as_str() == Some("services/replay/go.mod")
+                    && finding["provenance"].as_str() == Some("package_manifest+ctx_anchor")
+                    && finding["reason"]
+                        .as_str()
+                        .unwrap_or("")
+                        .contains("go.mod local replace")
             })
     );
 }

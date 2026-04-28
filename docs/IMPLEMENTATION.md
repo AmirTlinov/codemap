@@ -15,6 +15,7 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - lightweight role classification
 - lightweight JS/TS, Python, Rust, and Go import extraction
 - JS/TS import resolution for relative imports, local workspace package imports, package entrypoints, and simple `tsconfig.json` path aliases
+- Go import resolution for local workspace module paths
 - reverse import graph
 - domain discovery from common workspace folders
 - `ctx locate`
@@ -46,10 +47,11 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - `ctx verify --changed` and `ctx verify --files` reuse the same impact traversal and `--depth`/`--limit` controls as `ctx impact`
 - `ctx impact` names public-boundary, schema/DTO, source-of-truth, unclassified-source, generated-file, and cross-domain expansion triggers explicitly
 - workspace domain discovery from root `package.json` workspaces, `pnpm-workspace.yaml`, Cargo workspace members, `go.work`, and simple Python workspace/member arrays
-- boundary checks include explicit forbidden file imports and local JS/Cargo package-manifest dependency edges
+- boundary checks include explicit forbidden file imports and local JS/Cargo/Go package-manifest dependency edges
 - `impact` expands public-boundary/package changes through local package-manifest consumer edges
 - Cargo package graph extraction covers inline path dependencies and `[dependencies.<crate>] path = ...` table dependencies
-- mixed-monorepo and materialized Rust-workspace golden fixtures cover replay/auth routing, bounded impact, JS/TS package/alias imports, and package-consumer traversal
+- Go package graph extraction covers `require` plus local/module `replace` edges
+- mixed-monorepo, materialized Rust-workspace, and materialized Go-workspace golden fixtures cover replay/auth routing, bounded impact, JS/TS package/alias imports, language package imports, and package-consumer traversal
 - release packaging check script verifies tests, clippy, doctor, bundled schemas, and crate package contents
 - printed global agent bootstrap does not advertise a separate `--for-agent` mode; Markdown is already the agent-facing default
 
@@ -97,7 +99,7 @@ This is intentionally flatter than the final large-tree design. The next split s
 - impact reports expose specific expansion triggers for schema/DTO, public boundary, and source-of-truth changes.
 - schema files are valid JSON, pinned to JSON Schema draft 2020-12, and validate real `locate`/`start`/`impact`/`verify`/`explain`/`widen`/`graph`/`boundaries` JSON outputs in tests.
 - `tests/schema_policy.rs` guards schema manifest coverage, `ctx schema <kind>` parity, route `schema_version`, anchor `version`, and root strictness.
-- `tests/golden_routing.rs` protects mixed-monorepo and Rust-workspace routing quality.
+- `tests/golden_routing.rs` protects mixed-monorepo, Rust-workspace, and Go-workspace routing quality.
 - root `--path` bootloader calls still use task routing, while narrower explicit paths constrain the route.
 - `tests/e2e_workflow.rs` protects the full agent loop: `start -> impact -> verify -> verify --run -> boundaries -> explain`.
 
