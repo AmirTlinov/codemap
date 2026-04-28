@@ -706,6 +706,85 @@ fn graph_verification_lens_connects_changed_files_tests_and_commands() {
 }
 
 #[test]
+fn graph_file_path_seeds_impact_and_verification_lenses() {
+    let repo = fixture_copy("mixed-monorepo");
+    let cache = TempDir::new().expect("cache tempdir");
+
+    let impact = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "graph",
+            "--lens",
+            "impact",
+            "--path",
+            "domains/replay/src/replay-timeline.ts",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx graph impact should run");
+    assert!(impact.status.success());
+    let impact_json: Value = serde_json::from_slice(&impact.stdout).expect("valid impact graph");
+    assert!(
+        impact_json["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("domains/replay/src/replay-timeline.ts")),
+        "file-level impact graph should include the exact requested file"
+    );
+    assert!(
+        impact_json["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("domains/replay/src/replay-session.ts")),
+        "file-level impact graph should include file importers"
+    );
+
+    let verification = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "graph",
+            "--lens",
+            "verification",
+            "--path",
+            "domains/replay/src/replay-timeline.ts",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx graph verification should run");
+    assert!(verification.status.success());
+    let verification_json: Value =
+        serde_json::from_slice(&verification.stdout).expect("valid verification graph");
+    assert!(
+        verification_json["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("domains/replay/src/replay-timeline.ts")),
+        "file-level verification graph should include the exact requested file"
+    );
+    assert!(
+        verification_json["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("domains/replay/tests/replay-session.test.ts"))
+    );
+    assert!(
+        verification_json["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("$ pnpm test domains/replay"))
+    );
+}
+
+#[test]
 fn graph_changed_lenses_do_not_invent_context_when_changed_set_is_empty() {
     let repo = fixture_copy("mixed-monorepo");
     let cache = TempDir::new().expect("cache tempdir");

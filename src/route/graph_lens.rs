@@ -16,10 +16,15 @@ pub fn graph_lens(
 ) -> GraphLens {
     let requested_domain = primary_domain(project, "", path);
     let lens_key = lens.to_ascii_lowercase();
+    let explicit_file_seed = path.and_then(|path| file_seed_for_path(project, path));
+    let path_seed = explicit_file_seed.as_ref().map(std::slice::from_ref);
+    let graph_changed = changed.or(path_seed);
     let (nodes, edges) = match lens_key.as_str() {
         "boundary" | "boundaries" => boundary_graph(project, limit),
-        "verification" | "verify" => verification_graph(project, &requested_domain, changed, limit),
-        "impact" => impact_graph(project, changed.unwrap_or(&[]), limit),
+        "verification" | "verify" => {
+            verification_graph(project, &requested_domain, graph_changed, limit)
+        }
+        "impact" => impact_graph(project, graph_changed.unwrap_or(&[]), limit),
         _ => causal_graph(project, &requested_domain, path, limit),
     };
     let domain = graph_output_domain(
@@ -70,6 +75,19 @@ fn graph_output_domain(
                 config_path: None,
             }),
     }
+}
+
+fn file_seed_for_path(project: &Project, path: &str) -> Option<String> {
+    let rel = if std::path::Path::new(path).is_absolute() {
+        let absolute = std::path::Path::new(path).canonicalize().ok()?;
+        absolute
+            .strip_prefix(&project.root)
+            .ok()
+            .map(|path| crate::repo::normalize_rel_path(&path.to_string_lossy()))?
+    } else {
+        crate::repo::normalize_rel_path(path)
+    };
+    project.files.contains_key(&rel).then_some(rel)
 }
 
 fn causal_graph(
