@@ -2337,6 +2337,170 @@ fn explicit_root_stays_inside_nested_project_under_git_repo() {
 }
 
 #[test]
+fn explicit_root_diff_inputs_ignore_enclosing_repo_changes() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(&repo.path().join("README.md"), "# host\n");
+    write(
+        &repo.path().join("nested/pnpm-workspace.yaml"),
+        "packages:\n  - domains/*\n",
+    );
+    write(
+        &repo.path().join("nested/domains/replay/package.json"),
+        r#"{"name":"@fixture/replay","scripts":{"test":"vitest run"}}"#,
+    );
+    write(
+        &repo
+            .path()
+            .join("nested/domains/replay/src/replay-session.ts"),
+        "export function seekFrame(frame: number) { return frame }\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    write(&repo.path().join("README.md"), "# host\n\noutside change\n");
+    let outside_impact = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "--root", "nested", "impact", "--since", "HEAD", "--format", "json",
+        ])
+        .output()
+        .expect("ctx impact should run");
+    assert!(outside_impact.status.success());
+    let outside_json: Value =
+        serde_json::from_slice(&outside_impact.stdout).expect("valid impact json");
+    assert_eq!(outside_json["changed"].as_array().unwrap().len(), 0);
+    assert_eq!(
+        outside_json["minimal_verification"]
+            .as_array()
+            .unwrap()
+            .len(),
+        0,
+        "outside enclosing-repo changes must not create nested-root verification work"
+    );
+
+    let outside_changed = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "--root",
+            "nested",
+            "impact",
+            "--changed",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx impact should run");
+    assert!(outside_changed.status.success());
+    let outside_changed_json: Value =
+        serde_json::from_slice(&outside_changed.stdout).expect("valid impact json");
+    assert_eq!(outside_changed_json["changed"].as_array().unwrap().len(), 0);
+
+    git(repo.path(), &["add", "README.md"]);
+    let staged_verify = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["--root", "nested", "verify", "--staged", "--format", "json"])
+        .output()
+        .expect("ctx verify should run");
+    assert!(staged_verify.status.success());
+    let staged_json: Value =
+        serde_json::from_slice(&staged_verify.stdout).expect("valid verify json");
+    assert_eq!(staged_json["changed"].as_array().unwrap().len(), 0);
+
+    write(
+        &repo
+            .path()
+            .join("nested/domains/replay/src/replay-session.ts"),
+        "export function seekFrame(frame: number) { return frame + 1 }\n",
+    );
+    let nested_changed = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "--root",
+            "nested",
+            "impact",
+            "--changed",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx impact should run");
+    assert!(nested_changed.status.success());
+    let nested_changed_json: Value =
+        serde_json::from_slice(&nested_changed.stdout).expect("valid impact json");
+    assert!(
+        nested_changed_json["changed"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("domains/replay/src/replay-session.ts")),
+        "nested unstaged status paths should be relative to the explicit root"
+    );
+    assert!(
+        !nested_changed_json["changed"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("nested/domains/replay/src/replay-session.ts")),
+        "explicit-root status paths must not leak the enclosing git-root prefix"
+    );
+    assert!(
+        nested_changed_json["minimal_verification"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("cd domains/replay && pnpm test")),
+        "properly normalized nested changes should select the package-local verification"
+    );
+    let nested_impact = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "--root", "nested", "impact", "--since", "HEAD", "--format", "json",
+        ])
+        .output()
+        .expect("ctx impact should run");
+    assert!(nested_impact.status.success());
+    let nested_json: Value =
+        serde_json::from_slice(&nested_impact.stdout).expect("valid impact json");
+    assert!(
+        nested_json["changed"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("domains/replay/src/replay-session.ts")),
+        "nested-root diff paths should stay relative to the explicit root"
+    );
+
+    git(
+        repo.path(),
+        &["add", "nested/domains/replay/src/replay-session.ts"],
+    );
+    let nested_staged = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["--root", "nested", "verify", "--staged", "--format", "json"])
+        .output()
+        .expect("ctx verify should run");
+    assert!(nested_staged.status.success());
+    let nested_staged_json: Value =
+        serde_json::from_slice(&nested_staged.stdout).expect("valid verify json");
+    assert!(
+        nested_staged_json["changed"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("domains/replay/src/replay-session.ts")),
+        "nested staged files should also be relative to the explicit root"
+    );
+}
+
+#[test]
 fn absolute_file_args_are_normalized_to_repo_relative_paths() {
     let repo = TempDir::new().expect("repo tempdir");
     let outside = TempDir::new().expect("outside tempdir");
