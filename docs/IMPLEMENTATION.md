@@ -60,6 +60,7 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - release packaging check script verifies tests, clippy, doctor, bundled schemas, and crate package contents
 - `scripts/package-release.sh` builds a target-specific tarball with the `ctx` binary, `README.md`, `LICENSE`, and a sha256 sidecar
 - GitHub Actions runs the release check on Linux and macOS
+- version tags matching the Cargo package version and belonging to `main` publish native Linux/macOS runner-target archives to GitHub Releases after asset verification
 - printed global agent bootstrap does not advertise a separate `--for-agent` mode; Markdown is already the agent-facing default
 
 ## Core Files
