@@ -56,6 +56,7 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - `ctx verify --run` fails closed when the plan contains only a non-runnable placeholder
 - `ctx verify --changed` and `ctx verify --files` reuse the same impact traversal and `--depth`/`--limit` controls as `ctx impact`
 - `ctx impact --changed` and `ctx verify --changed` keep verification empty when the changed set is empty instead of inferring a project-wide check
+- verification planning prefers the single affected package owner when a scoped nested package is clearer than the repository root runner
 - `ctx impact` names public-boundary, schema/DTO, source-of-truth, unclassified-source, generated-file, and cross-domain expansion triggers explicitly
 - workspace domain discovery from root `package.json` workspaces, `pnpm-workspace.yaml`, Cargo workspace members, `go.work`, and simple Python workspace/member arrays
 - boundary checks include explicit forbidden file imports and local JS/Cargo/Go/Python package-manifest dependency edges
@@ -118,6 +119,7 @@ This is intentionally flatter than the final large-tree design. The next split s
 - semantic anchor validation catches missing/unsupported config versions, unknown fields, missing exact concept files, missing route read-first files, missing boundary reasons, and empty route declarations.
 - `verify --run` returns non-zero when no concrete command can be inferred.
 - empty changed-file reports do not invent project-wide verification commands.
+- scoped nested package tasks do not inherit unrelated root verification runners.
 - explicit forbidden boundary edges have regression coverage.
 - package-manifest boundary edges have regression coverage.
 - `verify` recommends checks discovered through impacted files, not only directly changed files, including bounded multi-hop traversal when `--depth` is raised.

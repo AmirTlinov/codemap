@@ -1476,6 +1476,159 @@ fn verify_uses_impact_traversal_for_recommended_checks() {
 }
 
 #[test]
+fn scoped_nested_package_verification_does_not_use_unrelated_root_runner() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join("Cargo.toml"),
+        r#"[package]
+name = "host"
+version = "0.1.0"
+edition = "2021"
+"#,
+    );
+    write(
+        &repo.path().join("fixtures/mixed/pnpm-workspace.yaml"),
+        "packages:\n  - domains/*\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("fixtures/mixed/domains/replay/package.json"),
+        r#"{"name":"@fixture/replay","scripts":{"test":"vitest run"}}"#,
+    );
+    write(
+        &repo
+            .path()
+            .join("fixtures/mixed/domains/replay/src/replay-session.ts"),
+        "export function seekFrame(frame: number) { return frame }\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("fixtures/mixed/domains/replay/tests/replay-session.test.ts"),
+        "import { seekFrame } from '../src/replay-session';\nconsole.log(seekFrame(1));\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "start",
+            "--path",
+            "fixtures/mixed",
+            "--task",
+            "fix replay seek frame",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx start should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid start json");
+    assert_eq!(
+        json["domain"]["path"], "fixtures/mixed/domains/replay",
+        "explicit support scope should still narrow to the nested replay package"
+    );
+    assert_eq!(
+        json["verification"]["minimal"][0], "cd fixtures/mixed/domains/replay && pnpm test",
+        "package-local JS verification should beat unrelated root Cargo runner"
+    );
+}
+
+#[test]
+fn scoped_nested_rust_package_uses_local_cargo_when_not_workspace_member() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join("Cargo.toml"),
+        r#"[package]
+name = "host"
+version = "0.1.0"
+edition = "2021"
+"#,
+    );
+    write(
+        &repo.path().join("fixtures/mixed/crates/replay/Cargo.toml"),
+        r#"[package]
+name = "replay"
+version = "0.1.0"
+edition = "2021"
+"#,
+    );
+    write(
+        &repo.path().join("fixtures/mixed/crates/replay/src/lib.rs"),
+        "pub fn seek_frame(frame: u32) -> u32 { frame }\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "verify",
+            "--files",
+            "fixtures/mixed/crates/replay/src/lib.rs",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx verify should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid verify json");
+    assert_eq!(
+        json["verification"]["minimal"][0], "cd fixtures/mixed/crates/replay && cargo test",
+        "standalone nested Rust crates must not inherit root Cargo package commands"
+    );
+}
+
+#[test]
+fn package_verification_does_not_narrow_when_files_include_unowned_root_config() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join("packages/replay/package.json"),
+        r#"{"name":"@fixture/replay","scripts":{"test":"vitest run"}}"#,
+    );
+    write(
+        &repo.path().join("packages/replay/src/session.ts"),
+        "export const frame = 1;\n",
+    );
+    write(
+        &repo.path().join("tsconfig.base.json"),
+        r#"{"compilerOptions":{"strict":true}}"#,
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "verify",
+            "--files",
+            "packages/replay/src/session.ts",
+            "tsconfig.base.json",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx verify should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid verify json");
+    assert_ne!(
+        json["verification"]["minimal"][0], "cd packages/replay && npm test",
+        "package-local verification is unsafe when another changed file has no package owner"
+    );
+}
+
+#[test]
 fn global_instruction_does_not_advertise_fake_agent_mode_flag() {
     let output = ctx()
         .args(["bootstrap", "--global-instruction"])

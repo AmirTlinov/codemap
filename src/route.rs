@@ -502,7 +502,7 @@ pub fn verification_plan(
 
     let mut minimal = project.anchors.verification.default.clone();
     if minimal.is_empty() {
-        minimal = infer_minimal_commands(project, &domains);
+        minimal = infer_minimal_commands(project, &domains, &all_files);
     }
     let mut recommended = Vec::new();
     if matches!(max_risk, Risk::MediumHigh | Risk::High | Risk::Critical)
@@ -2137,8 +2137,15 @@ fn impacted_domains<'a>(project: &'a Project, files: &[String]) -> Vec<&'a Domai
     out
 }
 
-fn infer_minimal_commands(project: &Project, domains: &[&Domain]) -> Vec<String> {
-    if let Some(test) = find_script(project, &["test"]) {
+fn infer_minimal_commands(project: &Project, domains: &[&Domain], files: &[String]) -> Vec<String> {
+    let root_test = find_script(project, &["test"]);
+    if let Some(package) = single_package_for_files(project, files)
+        && let Some(command) =
+            package_minimal_command(project, package, domains, root_test.as_deref())
+    {
+        return vec![command];
+    }
+    if let Some(test) = root_test {
         if domains.len() == 1 && domains[0].path != "." && project.package_manager != "bun" {
             return vec![format!("{test} {}", domains[0].path)];
         }
@@ -2149,6 +2156,239 @@ fn infer_minimal_commands(project: &Project, domains: &[&Domain]) -> Vec<String>
         "go" => vec!["go test ./...".to_string()],
         "python" => vec!["pytest".to_string()],
         _ => vec!["run the nearest domain tests for the changed files".to_string()],
+    }
+}
+
+fn single_package_for_files<'a>(
+    project: &'a Project,
+    files: &[String],
+) -> Option<&'a crate::model::PackageInfo> {
+    let mut selected: Option<&crate::model::PackageInfo> = None;
+    for file in files {
+        let package = package_for_rel(project, file)?;
+        match selected {
+            Some(current) if current.path != package.path => return None,
+            Some(_) => {}
+            None => selected = Some(package),
+        }
+    }
+    selected
+}
+
+fn package_minimal_command(
+    project: &Project,
+    package: &crate::model::PackageInfo,
+    domains: &[&Domain],
+    root_test: Option<&str>,
+) -> Option<String> {
+    match package.ecosystem.as_str() {
+        "javascript" => javascript_package_test_command(project, package, domains, root_test),
+        "rust" => Some(if package.path == "." {
+            "cargo test".to_string()
+        } else if root_cargo_workspace_includes(project, &package.path) {
+            format!("cargo test -p {}", shell_quote(&package.name))
+        } else {
+            format!("cd {} && cargo test", shell_quote(&package.path))
+        }),
+        "go" => Some(if package.path == "." {
+            "go test ./...".to_string()
+        } else {
+            format!("cd {} && go test ./...", shell_quote(&package.path))
+        }),
+        "python" => Some(if package.path == "." {
+            "pytest".to_string()
+        } else {
+            format!("cd {} && pytest", shell_quote(&package.path))
+        }),
+        _ => None,
+    }
+}
+
+fn root_cargo_workspace_includes(project: &Project, package_path: &str) -> bool {
+    let Ok(text) = std::fs::read_to_string(project.root.join("Cargo.toml")) else {
+        return false;
+    };
+    cargo_workspace_values(&text, "members")
+        .into_iter()
+        .any(|pattern| cargo_workspace_pattern_matches(&pattern, package_path))
+        && !cargo_workspace_values(&text, "exclude")
+            .into_iter()
+            .any(|pattern| cargo_workspace_pattern_matches(&pattern, package_path))
+}
+
+fn cargo_workspace_values(text: &str, wanted_key: &str) -> Vec<String> {
+    let mut values = Vec::new();
+    let mut in_workspace = false;
+    let mut collecting = false;
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('#') || trimmed.is_empty() {
+            continue;
+        }
+        if trimmed.starts_with('[') && trimmed.ends_with(']') {
+            in_workspace = trimmed == "[workspace]";
+            collecting = false;
+            continue;
+        }
+        if !in_workspace {
+            continue;
+        }
+        if collecting {
+            values.extend(quoted_values(trimmed));
+            if trimmed.contains(']') {
+                collecting = false;
+            }
+            continue;
+        }
+        let Some((key, value)) = trimmed.split_once('=') else {
+            continue;
+        };
+        if key.trim() != wanted_key {
+            continue;
+        }
+        values.extend(quoted_values(value));
+        collecting = value.contains('[') && !value.contains(']');
+    }
+    values
+}
+
+fn cargo_workspace_pattern_matches(pattern: &str, package_path: &str) -> bool {
+    let pattern = repo::normalize_rel_path(pattern.trim().trim_start_matches("./"));
+    !pattern.is_empty() && (pattern == package_path || glob_match(&pattern, package_path))
+}
+
+fn quoted_values(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut current = String::new();
+    let mut quote: Option<char> = None;
+    for ch in text.chars() {
+        if let Some(active) = quote {
+            if ch == active {
+                if !current.is_empty() {
+                    out.push(current.clone());
+                }
+                current.clear();
+                quote = None;
+            } else {
+                current.push(ch);
+            }
+        } else if ch == '"' || ch == '\'' {
+            quote = Some(ch);
+        }
+    }
+    out
+}
+
+fn javascript_package_test_command(
+    project: &Project,
+    package: &crate::model::PackageInfo,
+    domains: &[&Domain],
+    root_test: Option<&str>,
+) -> Option<String> {
+    if !javascript_package_has_script(project, package, "test") {
+        return None;
+    }
+    if is_javascript_package_manager(&project.package_manager)
+        && let Some(test) = root_test
+        && domains.len() == 1
+        && domains[0].path == package.path
+        && package.path != "."
+        && project.package_manager != "bun"
+    {
+        return Some(format!("{test} {}", package.path));
+    }
+    let runner = javascript_runner_for_package(project, package);
+    let command = javascript_test_command(&runner);
+    Some(if package.path == "." {
+        command
+    } else {
+        format!("cd {} && {command}", shell_quote(&package.path))
+    })
+}
+
+fn javascript_package_has_script(
+    project: &Project,
+    package: &crate::model::PackageInfo,
+    script: &str,
+) -> bool {
+    let Ok(text) = std::fs::read_to_string(project.root.join(&package.manifest)) else {
+        return false;
+    };
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {
+        return false;
+    };
+    value
+        .get("scripts")
+        .and_then(|scripts| scripts.get(script))
+        .and_then(|value| value.as_str())
+        .map(|value| !value.trim().is_empty())
+        .unwrap_or(false)
+}
+
+fn javascript_runner_for_package(project: &Project, package: &crate::model::PackageInfo) -> String {
+    for rel in ancestor_paths(&package.path) {
+        let dir = if rel == "." {
+            project.root.clone()
+        } else {
+            project.root.join(&rel)
+        };
+        if dir.join("pnpm-workspace.yaml").exists() || dir.join("pnpm-lock.yaml").exists() {
+            return "pnpm".to_string();
+        }
+        if dir.join("yarn.lock").exists() {
+            return "yarn".to_string();
+        }
+        if dir.join("bun.lockb").exists() {
+            return "bun".to_string();
+        }
+        if dir.join("package-lock.json").exists() {
+            return "npm".to_string();
+        }
+    }
+    if is_javascript_package_manager(&project.package_manager) {
+        project.package_manager.clone()
+    } else {
+        "npm".to_string()
+    }
+}
+
+fn ancestor_paths(rel: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut current = repo::normalize_rel_path(rel);
+    loop {
+        out.push(if current.is_empty() {
+            ".".to_string()
+        } else {
+            current.clone()
+        });
+        if current.is_empty() || current == "." {
+            break;
+        }
+        let parent = Path::new(&current)
+            .parent()
+            .map(|path| repo::normalize_rel_path(&path.to_string_lossy()))
+            .unwrap_or_else(|| ".".to_string());
+        if parent == current {
+            break;
+        }
+        current = parent;
+    }
+    if !out.iter().any(|path| path == ".") {
+        out.push(".".to_string());
+    }
+    out
+}
+
+fn is_javascript_package_manager(value: &str) -> bool {
+    matches!(value, "npm" | "pnpm" | "yarn" | "bun")
+}
+
+fn javascript_test_command(runner: &str) -> String {
+    match runner {
+        "yarn" => "yarn test".to_string(),
+        "bun" => "bun test".to_string(),
+        "pnpm" => "pnpm test".to_string(),
+        _ => "npm test".to_string(),
     }
 }
 
