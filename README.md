@@ -105,6 +105,30 @@ ctx init --agents
 
 This writes a tiny `AGENTS.md` that tells agents to call `ctx`. It is not a project map, not generated architecture documentation, and not a Mermaid graph. Nested `AGENTS.md` files are treated as relevant local instructions, not as project-root markers.
 
+## Install
+
+Release archives contain one `ctx` binary plus `README.md` and `LICENSE`.
+
+```bash
+if command -v sha256sum >/dev/null 2>&1; then
+  sha256sum -c ctx-v*.tar.gz.sha256
+else
+  shasum -a 256 -c ctx-v*.tar.gz.sha256
+fi
+tar -xzf ctx-v*.tar.gz
+mkdir -p ~/.local/bin
+install ctx-v*/ctx ~/.local/bin/ctx
+~/.local/bin/ctx doctor
+```
+
+From a source checkout, build the same archive with:
+
+```bash
+./scripts/package-release.sh
+```
+
+The release script writes `dist/ctx-v<version>-<target>.tar.gz` and a `.sha256` sidecar.
+
 ## Optional `.ctx.yml`
 
 Zero-config works from files, manifests, tests, imports, scripts, and git diff. Use `.ctx.yml` only for semantic facts code cannot reliably reveal. A config can live at the repo root or inside a domain directory; nested config paths are treated as domain-local and normalized to repo-relative paths:

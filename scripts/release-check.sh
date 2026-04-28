@@ -1,6 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+sha256_check() {
+  checksum_file="$1"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum -c "$checksum_file"
+    return
+  fi
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 -c "$checksum_file"
+    return
+  fi
+  echo "missing sha256sum or shasum" >&2
+  exit 1
+}
+
 cargo fmt --check
 cargo test
 cargo clippy --all-targets -- -D warnings
@@ -24,6 +38,7 @@ for required in \
   "schemas/boundaries.schema.json" \
   "schemas/manifest.json" \
   "docs/SCHEMA_POLICY.md" \
+  "scripts/package-release.sh" \
   "tests/e2e_workflow.rs" \
   "tests/schema_policy.rs" \
   "fixtures/mixed-monorepo/package.json" \
@@ -40,3 +55,25 @@ for required in \
 do
   grep -qx "$required" <<<"$package_list"
 done
+
+release_dir="$(mktemp -d)"
+cleanup() {
+  rm -rf "$release_dir"
+}
+trap cleanup EXIT
+
+release_output="$release_dir/package-output.txt"
+./scripts/package-release.sh --out-dir "$release_dir" > "$release_output"
+archive="$(sed -n '1p' "$release_output")"
+checksum="$(sed -n '2p' "$release_output")"
+test -f "$archive"
+test -f "$checksum"
+(cd "$(dirname "$archive")" && sha256_check "$(basename "$checksum")")
+archive_list="$(tar -tf "$archive")"
+archive_base="$(basename "$archive" .tar.gz)"
+expected_list="$(printf '%s\n' \
+  "$archive_base/" \
+  "$archive_base/LICENSE" \
+  "$archive_base/README.md" \
+  "$archive_base/ctx")"
+diff -u <(printf '%s\n' "$expected_list") <(printf '%s\n' "$archive_list")

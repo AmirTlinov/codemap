@@ -57,6 +57,7 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - Python package graph extraction covers local `pyproject.toml` path dependencies from common uv/Poetry source tables
 - mixed-monorepo, materialized Rust-workspace, materialized Go-workspace, and Python-workspace golden fixtures cover replay/auth routing, bounded impact, JS/TS package/alias imports, language package imports, and package-consumer traversal
 - release packaging check script verifies tests, clippy, doctor, bundled schemas, and crate package contents
+- `scripts/package-release.sh` builds a target-specific tarball with the `ctx` binary, `README.md`, `LICENSE`, and a sha256 sidecar
 - printed global agent bootstrap does not advertise a separate `--for-agent` mode; Markdown is already the agent-facing default
 
 ## Core Files
@@ -111,5 +112,5 @@ This is intentionally flatter than the final large-tree design. The next split s
 ## Next Useful Slices
 
 1. Add deeper per-language adapters once JS/TS, Rust, Python, or Go extraction logic becomes hard to change in-place.
-2. Add Homebrew and npm wrapper distribution after the cargo package shape stabilizes.
+2. Add Homebrew and npm wrapper distribution after release archive publishing stabilizes.
 3. Split large route/repo modules only after the next behavior slice makes them hard to change safely.
