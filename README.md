@@ -1,74 +1,143 @@
 # ctx
 
-`ctx` is a zero-footprint context-kernel CLI for coding agents.
+`ctx` is an external context-kernel CLI for AI coding agents.
 
-It is installed once in `PATH`, runs inside any project, keeps generated cache outside the repository by default, and returns a task-specific route instead of a project encyclopedia.
-
-## Product Contract
-
-`ctx` should answer:
+It does not store context in projects, generate repo maps, require `AGENTS.md`, run project scripts without `--run`, or use an LLM as source of truth. It reads the project as data, keeps a lightweight index in the user cache, and returns a task-specific route:
 
 - what to read first;
-- what not to inspect yet;
-- what looks risky;
+- what not to read yet;
+- what is risky;
 - what to verify;
 - when to widen;
 - when to stop.
 
-It should not:
+## Product Contract
 
-- generate repository files by default;
-- require `ctx init` before being useful;
-- use embeddings or an LLM in the hard routing path;
-- treat `AGENTS.md` or README prose as hard architecture truth;
-- run project scripts unless explicitly requested with `--run`.
-
-## Commands
-
-Planned stable commands:
+`ctx` is installed once in `PATH` and works in any project:
 
 ```bash
-ctx doctor
-ctx status
-ctx init
-ctx scan
-ctx locate --task "fix broken save"
-ctx start --task "fix broken save" --path src
+ctx start --task "fix replay jumping to wrong frame after seek"
 ctx impact --changed
 ctx verify --changed
-ctx verify --changed --run
-ctx explain src/lib.rs
-ctx graph --lens boundary --format mermaid
-ctx boundaries
-ctx widen --reason "read-first set did not contain the bug"
+ctx explain replay.timeline
+ctx graph --lens causal
 ```
 
-## Architecture
-
-The global binary owns generic algorithms:
-
-- repo discovery;
-- file inventory;
-- language adapters;
-- graph building;
-- task routing;
-- impact analysis;
-- verification planning;
-- boundary checks;
-- markdown/json/mermaid rendering.
-
-Project-specific state is optional and local:
+Default behavior:
 
 ```txt
-.ctx.yml        # optional semantic anchors
-AGENTS.md       # optional tiny bootloader
+no project writes
+no required init
+no required AGENTS.md
+no generated artifacts in git
+no project script execution without --run
+no network
 ```
 
 Generated cache belongs outside the repo:
 
 ```txt
-macOS: ~/Library/Caches/agent-context/
-Linux: ~/.cache/agent-context/
+macOS:   ~/Library/Caches/agent-context/
+Linux:   ~/.cache/agent-context/
+Windows: %LOCALAPPDATA%/agent-context/
+```
+
+Use `CTX_CACHE_DIR=/path` to override and `CTX_NO_CACHE=1` to disable cache writes.
+
+## Commands
+
+```bash
+ctx doctor
+ctx status
+ctx files
+ctx locate --task "fix auth token refresh"
+ctx start --task "fix broken save" --path src
+ctx impact --changed
+ctx impact --staged
+ctx impact --since main
+ctx verify --changed
+ctx verify --changed --run
+ctx explain src/lib.rs
+ctx widen --reason "read-first set did not contain the cause"
+ctx graph --lens causal --format mermaid
+ctx boundaries
+ctx init --print
+ctx init --write-minimal
+ctx init --agents
+ctx bootstrap --global-instruction
+ctx anchors validate
+```
+
+Markdown is the default agent-facing format. JSON is available with `--format json`.
+
+## Agent Integration
+
+Preferred global instruction:
+
+```md
+For coding tasks, if `ctx` is available in PATH, begin with:
+
+`ctx start --task "<user task>" --path "$PWD"`
+
+After edits:
+
+`ctx impact --changed`
+`ctx verify --changed`
+
+Do not manually scan the repository before using `ctx` unless ctx confidence is low or an expansion trigger fires.
+```
+
+Optional project bootloader:
+
+```bash
+ctx init --agents
+```
+
+This writes a tiny `AGENTS.md` that tells agents to call `ctx`. It is not a project map, not generated architecture documentation, and not a Mermaid graph. Nested `AGENTS.md` files are treated as relevant local instructions, not as project-root markers.
+
+## Optional `.ctx.yml`
+
+Zero-config works from files, manifests, tests, imports, scripts, and git diff. Use `.ctx.yml` only for semantic facts code cannot reliably reveal. A config can live at the repo root or inside a domain directory; nested config paths are treated as domain-local and normalized to repo-relative paths:
+
+```yaml
+version: 1
+
+domain:
+  id: replay
+  purpose: deterministic replay truth and replay-derived DTOs
+
+concepts:
+  replay.timeline:
+    role: source_of_truth
+    files:
+      - src/replay-timeline.ts
+    invariants:
+      - deterministic_for_same_input
+      - no_wall_clock_time
+
+boundaries:
+  forbidden:
+    - from: src/**
+      to: ../renderer/src/**
+      reason: replay emits DTOs; renderer consumes DTOs
+      recovery:
+        - extend replay DTO
+        - update renderer adapter
+        - update contract tests
+
+task_routes:
+  playback_session:
+    match:
+      - frame
+      - seek
+      - cursor
+      - playback
+    read_first:
+      - src/replay-session.ts
+      - src/replay-timeline.ts
+      - tests/replay-session.test.ts
+    verify:
+      - pnpm test domains/replay -- session
 ```
 
 ## Development

@@ -1,88 +1,68 @@
-# Implementation Plan
+# Implementation Notes
 
-Build `ctx` as a fast deterministic CLI, then add adapters and routing depth without changing the user-facing contract.
+The current Rust implementation ports the useful behavior from `ctx-kernel` while preserving the stricter product invariant: no project writes by default and no generated project maps.
 
-## Phase 1: Repo Truth
+## Implemented Slice
 
-- repo root discovery;
-- git changed-file discovery;
-- ignored/build/generated file filtering;
-- manifest detection;
-- external cache fingerprints.
+- `ctx doctor` / `ctx status`
+- external cache under the platform cache directory
+- `CTX_CACHE_DIR` and `CTX_NO_CACHE`
+- git-root-first repo resolution
+- nested `AGENTS.md` detection without treating it as root
+- file inventory from `git ls-files -co --exclude-standard`
+- filesystem fallback for non-git directories
+- common build/cache/vendor ignores
+- lightweight role classification
+- lightweight JS/TS, Python, Rust, and Go import extraction
+- reverse import graph
+- domain discovery from common workspace folders
+- `ctx locate`
+- `ctx start`
+- `ctx impact`
+- `ctx verify` print-only by default
+- explicit `ctx verify --run`
+- `ctx explain`
+- `ctx widen`
+- `ctx graph`
+- `ctx boundaries`
+- `ctx init --print`
+- `ctx init --write-minimal`
+- `ctx init --agents`
+- `ctx bootstrap --global-instruction`
+- `ctx anchors validate`
+- root and nested `.ctx.yml` semantic anchor loading
 
-Proof:
+## Core Files
 
-```bash
-cargo test repo
-ctx status --json
+```txt
+src/main.rs
+src/cli.rs
+src/model.rs
+src/repo.rs
+src/route.rs
+src/render.rs
+src/cache.rs
 ```
 
-## Phase 2: Task Capsule
+This is intentionally flatter than the final large-tree design. The next split should happen only when a module becomes hard to change, not as ceremony.
 
-- scope scoring from task text, path, filenames, manifests, and nearby tests;
-- bounded `read_first`;
-- required `do_not_read_yet`;
-- confidence and stop rules.
+## Behavioral Tests
 
-Proof:
+`tests/cli_smoke.rs` protects the load-bearing contract:
 
-```bash
-ctx start --task "fix broken save" --format json
-```
+- `doctor` exposes zero-footprint default;
+- `start` routes a persistence task and writes nothing to the target repo;
+- nested `AGENTS.md` does not replace git root;
+- `verify --changed` prints a plan and does not run scripts without `--run`;
+- plain `ctx init` writes nothing;
+- domain-local `.ctx.yml` paths such as `src/replay-session.ts` resolve under `domain.path`, not repo root;
+- nested domain `.ctx.yml` files are loaded and normalized to repo-relative paths;
+- task keywords alone do not create high-confidence capsules without matching files or anchors.
 
-## Phase 3: Impact And Verification
+## Next Useful Slices
 
-- `ctx impact --changed`;
-- package/test/public-boundary risk;
-- `ctx verify --changed` print-only plan;
-- `ctx verify --changed --run` explicit execution.
-
-Proof:
-
-```bash
-ctx impact --changed --format json
-ctx verify --changed
-```
-
-## Phase 4: Adapters
-
-Start with robust lightweight adapters:
-
-- generic;
-- JavaScript/TypeScript;
-- Rust;
-- Python;
-- Go;
-- Swift.
-
-Adapters should provide imports, exports, tests, commands, and package boundaries. They should not try to become full compilers.
-
-## Phase 5: Optional Anchors
-
-Add `.ctx.yml` support for semantic facts that code cannot reliably reveal:
-
-- concepts;
-- source-of-truth roles;
-- derived state;
-- forbidden boundaries;
-- recovery paths;
-- verification rules.
-
-Hard architectural facts require explicit anchors. Heuristics can suggest, not enforce.
-
-## Phase 6: Lenses
-
-- `ctx explain`;
-- `ctx widen`;
-- `ctx graph --lens ownership|impact|boundary|verification`;
-- Markdown, JSON, Mermaid renderers.
-
-## Release Standard
-
-No release is acceptable unless:
-
-- `ctx` binary runs from PATH;
-- default mode writes nothing to the target project;
-- cache lives outside target repos;
-- fixture tests cover at least Rust, TypeScript, Python, Go, Swift-like, and mixed monorepo shapes;
-- low-confidence routing is explicit and actionable.
+1. Add golden fixtures for mixed monorepos and workspace package detection.
+2. Add public-boundary and DTO/schema impact rules with stronger tests.
+3. Add stronger boundary fixture coverage for explicit `.ctx.yml` forbidden edges.
+4. Split JS/TS, Rust, Python, and Go adapters once their extraction logic grows.
+5. Publish stable JSON schemas for task capsules and impact reports.
