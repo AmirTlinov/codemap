@@ -91,17 +91,13 @@ pub fn status_report(project: &Project) -> StatusReport {
 }
 
 pub fn locate_report(project: &Project, task: &str, limit: usize) -> LocateReport {
-    let task_tokens = repo::tokenize(task);
+    let task_tokens = route_text_tokens(task);
     let mut scored = Vec::new();
     for domain in &project.domains {
         let (kind, kind_conf, mut reasons) = task_kind(project, domain, task);
         let mut score = 0.0;
-        let domain_text = format!("{} {}", domain.id, domain.path).to_ascii_lowercase();
-        let overlap: Vec<_> = task_tokens
-            .iter()
-            .filter(|token| domain_text.contains(token.as_str()))
-            .cloned()
-            .collect();
+        let domain_tokens = route_text_tokens(&format!("{} {}", domain.id, domain.path));
+        let overlap = token_overlap(&task_tokens, &domain_tokens);
         let has_domain_overlap = !overlap.is_empty();
         if !overlap.is_empty() {
             score += 2.0 * overlap.len() as f64;
@@ -931,7 +927,7 @@ fn explicit_domain_for_path(project: &Project, path: &str, task: &str) -> Domain
     if rel == "." {
         return task_domain(project, task);
     }
-    if best.path != "." {
+    if best.path != "." && path_is_in_domain(&rel, best) {
         return best.clone();
     }
     if project.files.contains_key(&rel)
@@ -967,18 +963,15 @@ fn nested_package_domain_for_task(
     scope_path: &str,
     task: &str,
 ) -> Option<Domain> {
-    let task_tokens = repo::tokenize(task);
+    let task_tokens = route_text_tokens(task);
     let scope_prefix = format!("{}/", scope_path.trim_end_matches('/'));
     let mut best: Option<(f64, &crate::model::PackageInfo)> = None;
     for package in &project.packages {
         if package.path == scope_path || !package.path.starts_with(&scope_prefix) {
             continue;
         }
-        let hay = format!("{} {}", package.name, package.path).to_ascii_lowercase();
-        let overlap = task_tokens
-            .iter()
-            .filter(|token| hay.contains(token.as_str()))
-            .count();
+        let package_tokens = route_text_tokens(&format!("{} {}", package.name, package.path));
+        let overlap = token_overlap(&task_tokens, &package_tokens).len();
         if overlap == 0 {
             continue;
         }
@@ -989,6 +982,11 @@ fn nested_package_domain_for_task(
         }
     }
     best.map(|(_, package)| package_domain(package))
+}
+
+fn path_is_in_domain(rel: &str, domain: &Domain) -> bool {
+    let prefix = domain.path.trim_end_matches('/');
+    prefix == "." || rel == prefix || rel.starts_with(&format!("{prefix}/"))
 }
 
 fn enclosing_package_domain_for_path(project: &Project, rel: &str) -> Option<Domain> {
@@ -1067,8 +1065,8 @@ fn domain_for_path<'a>(project: &'a Project, path: &str) -> &'a Domain {
         .unwrap_or(&project.domains[0]);
     let mut best_len = 0usize;
     for domain in &project.domains {
-        let prefix = domain.path.trim_end_matches('/');
-        if prefix == "." || rel == prefix || rel.starts_with(&format!("{prefix}/")) {
+        if path_is_in_domain(&rel, domain) {
+            let prefix = domain.path.trim_end_matches('/');
             let len = if prefix == "." { 0 } else { prefix.len() };
             if len >= best_len {
                 best = domain;
@@ -1102,14 +1100,14 @@ fn domain_files<'a>(project: &'a Project, domain: &'a Domain) -> Vec<&'a FileInf
 }
 
 fn task_kind(project: &Project, domain: &Domain, task: &str) -> (String, f64, Vec<String>) {
-    let text = task.to_ascii_lowercase();
+    let task_tokens = route_text_tokens(task);
     let mut best: (String, f64, Vec<String>) = ("general".to_string(), 0.0, Vec::new());
     for (name, route) in &project.anchors.task_routes {
         let mut score = 0.0;
         let mut reasons = Vec::new();
         for word in &route.matches {
             let word_l = word.to_ascii_lowercase();
-            if !word_l.is_empty() && text.contains(&word_l) {
+            if task_keyword_matches(&task_tokens, &word_l) {
                 score += 2.7;
                 reasons.push(format!("matched configured route `{name}` via `{word}`"));
             }
@@ -1240,7 +1238,7 @@ fn task_kind(project: &Project, domain: &Domain, task: &str) -> (String, f64, Ve
         let mut score = 0.0;
         let mut reasons = Vec::new();
         for word in *words {
-            if text.contains(word) {
+            if task_keyword_matches(&task_tokens, word) {
                 score += 1.0;
                 reasons.push(format!("task mentions `{word}`"));
             }
@@ -1250,12 +1248,8 @@ fn task_kind(project: &Project, domain: &Domain, task: &str) -> (String, f64, Ve
         }
     }
     if best.1 == 0.0 {
-        let domain_text = format!("{} {}", domain.id, domain.path).to_ascii_lowercase();
-        for token in repo::tokenize(task) {
-            if domain_text.contains(&token) {
-                best.1 += 0.5;
-            }
-        }
+        let domain_tokens = route_text_tokens(&format!("{} {}", domain.id, domain.path));
+        best.1 += token_overlap(&task_tokens, &domain_tokens).len() as f64 * 0.5;
     }
     if best.1 == 0.0 {
         (
@@ -1266,6 +1260,22 @@ fn task_kind(project: &Project, domain: &Domain, task: &str) -> (String, f64, Ve
     } else {
         (best.0, (0.55 + best.1 / 8.0).min(0.95), best.2)
     }
+}
+
+fn task_keyword_matches(task_tokens: &BTreeSet<String>, keyword: &str) -> bool {
+    let keyword_tokens = route_text_tokens(keyword);
+    !keyword_tokens.is_empty()
+        && keyword_tokens
+            .iter()
+            .all(|token| task_tokens.contains(token))
+}
+
+fn route_text_tokens(text: &str) -> BTreeSet<String> {
+    repo::tokenize(&text.replace('_', " "))
+}
+
+fn token_overlap(left: &BTreeSet<String>, right: &BTreeSet<String>) -> Vec<String> {
+    left.intersection(right).cloned().collect()
 }
 
 fn route_for_kind<'a>(
@@ -1340,16 +1350,16 @@ fn select_read_first(
 }
 
 fn task_mentions_fixture(task: &str) -> bool {
-    let text = task.to_ascii_lowercase();
-    text.contains("fixture") || text.contains("fixtures")
+    let tokens = route_text_tokens(task);
+    tokens.contains("fixture") || tokens.contains("fixtures")
 }
 
 fn task_mentions_example(task: &str) -> bool {
-    let text = task.to_ascii_lowercase();
-    text.contains("example")
-        || text.contains("examples")
-        || text.contains("sample")
-        || text.contains("samples")
+    let tokens = route_text_tokens(task);
+    tokens.contains("example")
+        || tokens.contains("examples")
+        || tokens.contains("sample")
+        || tokens.contains("samples")
 }
 
 fn path_mentions_support(path: &str) -> bool {
@@ -1697,7 +1707,7 @@ fn do_not_read_yet(
     task: &str,
     limit: usize,
 ) -> Vec<DoNotRead> {
-    let task_l = task.to_ascii_lowercase();
+    let task_tokens = route_text_tokens(task);
     let mut out = Vec::new();
     let mut seen = BTreeSet::new();
     for package in sibling_support_packages(project, domain) {
@@ -1745,10 +1755,8 @@ fn do_not_read_yet(
             continue;
         }
         let lname = format!("{} {}", other.id, other.path).to_ascii_lowercase();
-        if repo::tokenize(&lname)
-            .iter()
-            .any(|tok| task_l.contains(tok))
-        {
+        let other_tokens = route_text_tokens(&lname);
+        if !token_overlap(&task_tokens, &other_tokens).is_empty() {
             continue;
         }
         let reason =
@@ -1760,9 +1768,9 @@ fn do_not_read_yet(
                 "inspect only if format/storage contract changes"
             } else if kind == "public_api" {
                 "inspect only if public consumer impact points here"
-            } else if lname.contains("renderer") {
+            } else if contains_any(&lname, &["renderer"]) {
                 "consumer/rendering path; inspect only if DTO/render-visible output changes"
-            } else if lname.contains("storage") {
+            } else if contains_any(&lname, &["storage"]) {
                 "persistence path; inspect only if package/schema format changes"
             } else if contains_any(&lname, &["web", "app", "ui"]) {
                 "application/UI path; inspect only if public API or UI task requires it"
@@ -2172,7 +2180,10 @@ fn confidence_from_score(score: f64) -> Confidence {
 }
 
 fn contains_any(text: &str, needles: &[&str]) -> bool {
-    needles.iter().any(|needle| text.contains(needle))
+    let tokens = route_text_tokens(text);
+    needles
+        .iter()
+        .any(|needle| task_keyword_matches(&tokens, needle))
 }
 
 fn glob_match(pattern: &str, value: &str) -> bool {

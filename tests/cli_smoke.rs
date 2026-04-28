@@ -370,6 +370,163 @@ fn context_routing_tasks_prefer_implementation_over_output_schemas() {
 }
 
 #[test]
+fn task_keyword_matching_does_not_match_inside_other_words() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join("Cargo.toml"),
+        "[package]\nname = \"keyword-fixture\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    );
+    write(&repo.path().join("src/render.rs"), "pub fn render() {}\n");
+    write(&repo.path().join("src/cli.rs"), "pub fn command() {}\n");
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let build = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["start", "--task", "fix build error", "--format", "json"])
+        .output()
+        .expect("ctx start should run");
+    assert!(build.status.success());
+    let build_json: Value = serde_json::from_slice(&build.stdout).expect("valid json");
+    assert_eq!(build_json["task_kind"], "build_ci");
+
+    let ui = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["start", "--task", "fix ui button", "--format", "json"])
+        .output()
+        .expect("ctx start should run");
+    assert!(ui.status.success());
+    let ui_json: Value = serde_json::from_slice(&ui.stdout).expect("valid json");
+    assert_eq!(ui_json["task_kind"], "ui_rendering");
+
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join("Cargo.toml"),
+        "[package]\nname = \"domain-keyword-fixture\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    );
+    write(
+        &repo.path().join("domains/guide/src/model.rs"),
+        "pub fn guide_model() {}\n",
+    );
+    write(
+        &repo.path().join("domains/ui/src/view.rs"),
+        "pub fn render_button() {}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("fixtures/mixed/domains/guide/package.json"),
+        r#"{"name":"@fixture/guide"}"#,
+    );
+    write(
+        &repo
+            .path()
+            .join("fixtures/mixed/domains/guide/src/model.ts"),
+        "export const guideModel = 1;\n",
+    );
+    write(
+        &repo.path().join("fixtures/mixed/domains/ui/package.json"),
+        r#"{"name":"@fixture/ui"}"#,
+    );
+    write(
+        &repo.path().join("fixtures/mixed/domains/ui/src/view.ts"),
+        "export const buttonView = 1;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let ui = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["start", "--task", "fix ui button", "--format", "json"])
+        .output()
+        .expect("ctx start should run");
+    assert!(ui.status.success());
+    let ui_json: Value = serde_json::from_slice(&ui.stdout).expect("valid json");
+    assert_eq!(ui_json["domain"]["path"], "domains/ui");
+
+    let guide = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["start", "--task", "fix guide docs", "--format", "json"])
+        .output()
+        .expect("ctx start should run");
+    assert!(guide.status.success());
+    let guide_json: Value = serde_json::from_slice(&guide.stdout).expect("valid json");
+    assert_eq!(guide_json["domain"]["path"], "domains/guide");
+    assert!(
+        guide_json["do_not_read_yet"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["path"].as_str() == Some("domains/ui/**"))
+    );
+
+    let scoped_ui = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "start",
+            "--path",
+            "fixtures/mixed",
+            "--task",
+            "fix ui button",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx start should run");
+    assert!(scoped_ui.status.success());
+    let scoped_ui_json: Value = serde_json::from_slice(&scoped_ui.stdout).expect("valid json");
+    assert_eq!(
+        scoped_ui_json["domain"]["path"],
+        "fixtures/mixed/domains/ui"
+    );
+    assert!(
+        scoped_ui_json["do_not_read_yet"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["path"].as_str() == Some("fixtures/mixed/domains/guide/**"))
+    );
+
+    let scoped_guide = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "start",
+            "--path",
+            "fixtures/mixed",
+            "--task",
+            "fix guide docs",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx start should run");
+    assert!(scoped_guide.status.success());
+    let scoped_guide_json: Value =
+        serde_json::from_slice(&scoped_guide.stdout).expect("valid json");
+    assert_eq!(
+        scoped_guide_json["domain"]["path"],
+        "fixtures/mixed/domains/guide"
+    );
+    assert!(
+        scoped_guide_json["do_not_read_yet"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["path"].as_str() == Some("fixtures/mixed/domains/ui/**"))
+    );
+}
+
+#[test]
 fn pnpm_workspace_globs_create_domains_outside_builtin_dirs() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");
