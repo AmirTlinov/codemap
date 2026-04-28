@@ -21,6 +21,8 @@ pub struct Project {
     pub scripts: Vec<ScriptInfo>,
     pub languages: BTreeSet<String>,
     pub anchors: CtxConfig,
+    pub cache_state: String,
+    pub cache_artifacts: Vec<CacheArtifactStatus>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -280,6 +282,15 @@ impl From<&Domain> for DomainRef {
 pub struct CacheInfo {
     pub path: String,
     pub fingerprint: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CacheArtifactStatus {
+    pub name: String,
+    pub path: String,
+    pub exists: bool,
+    pub bytes: Option<u64>,
+    pub fingerprint_match: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize)]

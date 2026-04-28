@@ -90,7 +90,16 @@ const DOMAIN_HINT_DIRS: &[&str] = &[
     "components",
 ];
 
-pub fn load_project(root_override: Option<PathBuf>) -> Result<Project> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CacheWriteMode {
+    Enabled,
+    ReadOnly,
+}
+
+pub fn load_project_with_cache(
+    root_override: Option<PathBuf>,
+    cache_write: CacheWriteMode,
+) -> Result<Project> {
     let cwd = if let Some(path) = &root_override {
         path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
     } else {
@@ -117,7 +126,7 @@ pub fn load_project(root_override: Option<PathBuf>) -> Result<Project> {
     };
     let cache_dir = cache::project_cache_dir(&root, remote.as_deref(), VERSION);
 
-    let project = Project {
+    let mut project = Project {
         root,
         cwd,
         vcs,
@@ -134,8 +143,16 @@ pub fn load_project(root_override: Option<PathBuf>) -> Result<Project> {
         scripts,
         languages,
         anchors,
+        cache_state: String::new(),
+        cache_artifacts: Vec::new(),
     };
-    cache::write_status(&project, VERSION)?;
+    let fingerprint = cache::fingerprint(&project, None);
+    let cache_artifacts = cache::artifact_statuses(&project, &fingerprint);
+    project.cache_state = cache::cache_state(&cache_artifacts);
+    project.cache_artifacts = cache_artifacts;
+    if cache_write == CacheWriteMode::Enabled {
+        cache::write_status(&project, VERSION)?;
+    }
     Ok(project)
 }
 

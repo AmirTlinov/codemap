@@ -4,9 +4,17 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use serde::Serialize;
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-use crate::model::Project;
+use crate::model::{CacheArtifactStatus, Project};
+
+const CACHE_ARTIFACTS: &[&str] = &[
+    "status.json",
+    "inventory.json",
+    "graph.json",
+    "fingerprints.json",
+];
 
 pub fn cache_base_dir() -> PathBuf {
     if let Ok(dir) = env::var("CTX_CACHE_DIR") {
@@ -19,6 +27,14 @@ pub fn cache_base_dir() -> PathBuf {
 
 pub fn project_cache_dir(root: &Path, remote: Option<&str>, version: &str) -> PathBuf {
     cache_base_dir().join(repo_key(root, remote, version))
+}
+
+pub fn cache_enabled() -> bool {
+    env::var_os("CTX_NO_CACHE").is_none()
+}
+
+pub fn expected_artifacts() -> &'static [&'static str] {
+    CACHE_ARTIFACTS
 }
 
 pub fn repo_key(root: &Path, remote: Option<&str>, version: &str) -> String {
@@ -63,7 +79,7 @@ pub fn fingerprint(project: &Project, domain_path: Option<&str>) -> String {
 }
 
 pub fn write_status(project: &Project, version: &str) -> Result<()> {
-    if env::var_os("CTX_NO_CACHE").is_some() {
+    if !cache_enabled() {
         return Ok(());
     }
     fs::create_dir_all(&project.cache_dir)?;
@@ -81,12 +97,7 @@ pub fn write_status(project: &Project, version: &str) -> Result<()> {
                 config: d.config_path.clone(),
             })
             .collect(),
-        artifacts: vec![
-            "status.json",
-            "inventory.json",
-            "graph.json",
-            "fingerprints.json",
-        ],
+        artifacts: CACHE_ARTIFACTS,
     };
     let body = serde_json::to_string_pretty(&status)?;
     fs::write(project.cache_dir.join("status.json"), format!("{body}\n"))?;
@@ -96,6 +107,54 @@ pub fn write_status(project: &Project, version: &str) -> Result<()> {
     Ok(())
 }
 
+pub fn artifact_statuses(project: &Project, fingerprint: &str) -> Vec<CacheArtifactStatus> {
+    expected_artifacts()
+        .iter()
+        .map(|name| {
+            let path = project.cache_dir.join(name);
+            let meta = fs::metadata(&path).ok();
+            let fingerprint_match = if meta.is_some() {
+                cached_fingerprint(&path).map(|cached| cached == fingerprint)
+            } else {
+                None
+            };
+            CacheArtifactStatus {
+                name: (*name).to_string(),
+                path: path.to_string_lossy().to_string(),
+                exists: meta.is_some(),
+                bytes: meta.map(|m| m.len()),
+                fingerprint_match,
+            }
+        })
+        .collect()
+}
+
+pub fn cache_state(artifacts: &[CacheArtifactStatus]) -> String {
+    if !cache_enabled() {
+        return "disabled".to_string();
+    }
+    if artifacts.iter().all(|artifact| artifact.exists)
+        && artifacts
+            .iter()
+            .all(|artifact| artifact.fingerprint_match == Some(true))
+    {
+        return "warm".to_string();
+    }
+    if artifacts.iter().any(|artifact| artifact.exists) {
+        return "stale".to_string();
+    }
+    "cold".to_string()
+}
+
+fn cached_fingerprint(path: &Path) -> Option<String> {
+    let text = fs::read_to_string(path).ok()?;
+    let value: Value = serde_json::from_str(&text).ok()?;
+    value
+        .get("fingerprint")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+}
+
 #[derive(Serialize)]
 struct CacheStatus<'a> {
     version: &'a str,
@@ -103,7 +162,7 @@ struct CacheStatus<'a> {
     fingerprint: String,
     files: usize,
     domains: Vec<CachedDomain>,
-    artifacts: Vec<&'static str>,
+    artifacts: &'static [&'static str],
 }
 
 #[derive(Serialize)]

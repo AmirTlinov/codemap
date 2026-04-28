@@ -257,7 +257,11 @@ pub fn run() -> Result<()> {
         return Ok(());
     }
 
-    let project = repo::load_project(root_hint)?;
+    let cache_write = match &cli.command {
+        CommandKind::Doctor(_) | CommandKind::Status(_) => repo::CacheWriteMode::ReadOnly,
+        _ => repo::CacheWriteMode::Enabled,
+    };
+    let project = repo::load_project_with_cache(root_hint, cache_write)?;
     match cli.command {
         CommandKind::Doctor(args) => {
             let report = route::status_report(&project);

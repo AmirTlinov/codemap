@@ -196,6 +196,121 @@ fn start_routes_task_without_writing_to_project() {
 }
 
 #[test]
+fn status_reports_external_cache_state_without_self_warming() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join("package.json"),
+        r#"{"scripts":{"test":"echo test ok"}}"#,
+    );
+    write(&repo.path().join("src/lib.ts"), "export const value = 1;\n");
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let cold = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["status", "--format", "json"])
+        .output()
+        .expect("ctx status should run");
+    assert!(cold.status.success());
+    let cold_json: Value = serde_json::from_slice(&cold.stdout).expect("valid status json");
+    assert_eq!(cold_json["cache_state"], "cold");
+    assert!(
+        cold_json["cache_artifacts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item["exists"] == false),
+        "fresh status should observe a cold cache instead of self-warming it"
+    );
+
+    let start = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["start", "--task", "inspect lib value"])
+        .output()
+        .expect("ctx start should run");
+    assert!(start.status.success());
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["status", "--format", "json"])
+        .output()
+        .expect("ctx status should run");
+    assert!(output.status.success());
+    assert!(
+        git_status(repo.path()).is_empty(),
+        "ctx status must not write project files"
+    );
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid status json");
+    assert_eq!(json["cache_state"], "warm");
+    let artifacts = json["cache_artifacts"]
+        .as_array()
+        .expect("cache artifacts array");
+    for artifact in [
+        "status.json",
+        "inventory.json",
+        "graph.json",
+        "fingerprints.json",
+    ] {
+        let status = artifacts
+            .iter()
+            .find(|item| item["name"].as_str() == Some(artifact))
+            .unwrap_or_else(|| panic!("missing cache artifact status for {artifact}"));
+        assert_eq!(status["exists"], true);
+        assert_eq!(status["fingerprint_match"], true);
+        assert!(
+            status["bytes"].as_u64().unwrap_or(0) > 0,
+            "cache artifact {artifact} should be non-empty"
+        );
+        let path = Path::new(status["path"].as_str().expect("artifact path"));
+        assert!(
+            path.starts_with(cache.path()),
+            "cache artifact should live under CTX_CACHE_DIR"
+        );
+    }
+
+    let status_artifact = artifacts
+        .iter()
+        .find(|item| item["name"].as_str() == Some("status.json"))
+        .expect("status artifact");
+    let status_path = Path::new(status_artifact["path"].as_str().expect("artifact path"));
+    write(status_path, r#"{"fingerprint":"stale"}"#);
+
+    let stale = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["status", "--format", "json"])
+        .output()
+        .expect("ctx status should run");
+    assert!(stale.status.success());
+    let stale_json: Value = serde_json::from_slice(&stale.stdout).expect("valid status json");
+    assert_eq!(stale_json["cache_state"], "stale");
+    assert!(
+        stale_json["cache_artifacts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["name"].as_str() == Some("status.json")
+                && item["fingerprint_match"] == false)
+    );
+
+    let disabled = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .env("CTX_NO_CACHE", "1")
+        .args(["status", "--format", "json"])
+        .output()
+        .expect("ctx status should run");
+    assert!(disabled.status.success());
+    let disabled_json: Value = serde_json::from_slice(&disabled.stdout).expect("valid status json");
+    assert_eq!(disabled_json["cache_state"], "disabled");
+}
+
+#[test]
 fn context_routing_tasks_prefer_implementation_over_output_schemas() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");

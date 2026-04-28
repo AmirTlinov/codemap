@@ -8,6 +8,7 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - external cache under the platform cache directory
 - `CTX_CACHE_DIR` and `CTX_NO_CACHE`
 - cache artifacts for repo status, inventory, graph edges, and file fingerprints
+- cache artifact observability in `ctx status` / `ctx doctor`, including cold/warm/stale/disabled state and fingerprint matching without self-warming first
 - git-root-first repo resolution
 - nested `AGENTS.md` detection without treating it as root
 - file inventory from `git ls-files -co --exclude-standard`
@@ -77,6 +78,7 @@ This is intentionally flatter than the final large-tree design. The next split s
 `tests/cli_smoke.rs` protects the load-bearing contract:
 
 - `doctor` exposes zero-footprint default;
+- `status` exposes cold/warm/stale/disabled external cache artifacts without project writes or self-warming;
 - `start` routes a persistence task and writes nothing to the target repo;
 - nested `AGENTS.md` does not replace git root;
 - `verify --changed` prints a plan and does not run scripts without `--run`;

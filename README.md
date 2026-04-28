@@ -43,6 +43,7 @@ Windows: %LOCALAPPDATA%/agent-context/
 ```
 
 Use `CTX_CACHE_DIR=/path` to override and `CTX_NO_CACHE=1` to disable cache writes.
+`ctx status --format json` reports the observed external cache state (`cold`, `warm`, `stale`, or `disabled`) plus expected cache artifacts and whether their fingerprints match the current project scan. `status` and `doctor` observe cache without warming it first.
 
 ## Commands
 

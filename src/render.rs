@@ -49,6 +49,7 @@ pub fn status(report: &StatusReport, doctor: bool) {
                         .unwrap_or_else(|| "none".to_string()),
                 ],
                 vec!["Cache".to_string(), code(&report.cache_dir)],
+                vec!["Cache state".to_string(), report.cache_state.clone()],
                 vec![
                     "Zero-footprint default".to_string(),
                     report.zero_footprint_default.to_string()
@@ -94,6 +95,31 @@ pub fn status(report: &StatusReport, doctor: bool) {
             })
             .collect();
         println!("{}", table(&["ID", "Path", "Semantic config"], rows));
+    }
+    if !report.cache_artifacts.is_empty() {
+        println!("\n## Cache Artifacts\n");
+        let rows = report
+            .cache_artifacts
+            .iter()
+            .map(|artifact| {
+                vec![
+                    code(&artifact.name),
+                    artifact.exists.to_string(),
+                    artifact
+                        .bytes
+                        .map(|bytes| bytes.to_string())
+                        .unwrap_or_else(|| "-".to_string()),
+                    artifact
+                        .fingerprint_match
+                        .map(|matches| matches.to_string())
+                        .unwrap_or_else(|| "-".to_string()),
+                ]
+            })
+            .collect();
+        println!(
+            "{}",
+            table(&["Artifact", "Exists", "Bytes", "Fingerprint match"], rows)
+        );
     }
     if !report.config_errors.is_empty() {
         println!("\n## Anchor Config Errors\n");
