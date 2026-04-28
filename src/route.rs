@@ -764,6 +764,8 @@ pub fn graph_lens(
     changed: &[String],
 ) -> GraphLens {
     let domain = primary_domain(project, "", path);
+    let include_support =
+        path.map(path_mentions_support).unwrap_or(false) || path_mentions_support(&domain.path);
     let nodes: Vec<String> = if lens == "impact" && !changed.is_empty() {
         let mut nodes = changed.to_vec();
         nodes.extend(impacted_files(project, changed, 1, limit));
@@ -783,7 +785,11 @@ pub fn graph_lens(
     } else {
         let mut scored = domain_files(project, domain)
             .into_iter()
-            .filter(|file| !file.has_role("test") && !file.has_role("generated"))
+            .filter(|file| {
+                !file.has_role("test")
+                    && !file.has_role("generated")
+                    && (include_support || (!file.has_role("fixture") && !file.has_role("example")))
+            })
             .map(|file| {
                 let mut score = 0.0;
                 for (role, boost) in [
@@ -1160,6 +1166,14 @@ fn task_mentions_example(task: &str) -> bool {
         || text.contains("examples")
         || text.contains("sample")
         || text.contains("samples")
+}
+
+fn path_mentions_support(path: &str) -> bool {
+    path.contains("fixtures")
+        || path.contains("examples")
+        || path.contains("samples")
+        || path.contains("fixture")
+        || path.contains("sample")
 }
 
 fn score_file(_project: &Project, file: &FileInfo, task: &str, kind: &str) -> Candidate {

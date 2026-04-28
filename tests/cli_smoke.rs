@@ -1151,6 +1151,19 @@ fn start_does_not_route_into_top_level_fixtures_by_default() {
             .any(|item| item["path"].as_str() == Some("examples/**"))
     );
 
+    let graph_output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["graph", "--lens", "causal", "--format", "json"])
+        .output()
+        .expect("ctx graph should run");
+    assert!(graph_output.status.success());
+    let graph_json: Value = serde_json::from_slice(&graph_output.stdout).expect("valid graph json");
+    assert!(graph_json["nodes"].as_array().unwrap().iter().all(|item| {
+        let path = item.as_str().unwrap_or("");
+        !path.starts_with("fixtures/") && !path.starts_with("examples/")
+    }));
+
     let locate = ctx()
         .current_dir(repo.path())
         .env("CTX_CACHE_DIR", cache.path())
