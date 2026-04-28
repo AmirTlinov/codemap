@@ -68,6 +68,7 @@ The installed binary must be enough to operate the agent contract:
 
 - `ctx schema <kind>` prints bundled schemas for route outputs and anchors without loading a project;
 - route output schemas are versioned with `schema_version`, and `.ctx.yml` anchors are versioned with `version: 1`;
+- schema evolution is governed by `docs/SCHEMA_POLICY.md` and `schemas/manifest.json`;
 - release checks must prove the crate contains `schemas/`, `fixtures/`, and the end-to-end workflow test.
 
 ## Anchor Contract

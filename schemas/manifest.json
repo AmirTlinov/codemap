@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "route_schema_version": "1",
+  "anchor_config_version": 1,
+  "schemas": [
+    {
+      "kind": "capsule",
+      "file": "schemas/capsule.schema.json",
+      "contract": "route_output",
+      "json_kind": "task_context_capsule"
+    },
+    {
+      "kind": "impact",
+      "file": "schemas/impact.schema.json",
+      "contract": "route_output",
+      "json_kind": "impact_report"
+    },
+    {
+      "kind": "verify",
+      "file": "schemas/verify.schema.json",
+      "contract": "route_output",
+      "json_kind": "verification_plan"
+    },
+    {
+      "kind": "locate",
+      "file": "schemas/locate.schema.json",
+      "contract": "route_output",
+      "json_kind": "location_candidates"
+    },
+    {
+      "kind": "explain",
+      "file": "schemas/explain.schema.json",
+      "contract": "route_output",
+      "json_kind_values": ["file", "concept", "missing"]
+    },
+    {
+      "kind": "widen",
+      "file": "schemas/widen.schema.json",
+      "contract": "route_output",
+      "json_kind": "widened_context"
+    },
+    {
+      "kind": "graph",
+      "file": "schemas/graph.schema.json",
+      "contract": "route_output",
+      "json_kind": "graph_lens"
+    },
+    {
+      "kind": "boundaries",
+      "file": "schemas/boundaries.schema.json",
+      "contract": "route_output",
+      "json_kind": "boundary_report"
+    },
+    {
+      "kind": "anchors",
+      "file": "schemas/anchors.schema.json",
+      "contract": "semantic_anchor_config"
+    }
+  ]
+}

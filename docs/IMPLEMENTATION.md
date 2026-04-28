@@ -32,6 +32,7 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - `ctx schema <capsule|impact|verify|anchors|locate|explain|widen|graph|boundaries>`
 - `ctx anchors validate`
 - stable JSON schemas for agent-facing route JSON outputs and `.ctx.yml` semantic anchors under `schemas/`
+- schema evolution policy in `docs/SCHEMA_POLICY.md`, with exported schema ownership in `schemas/manifest.json`
 - bundled schema printing from the installed binary, without loading a project or writing cache
 - root and nested `.ctx.yml` semantic anchor loading
 - YAML anchor parsing through `serde_yml`
@@ -87,6 +88,7 @@ This is intentionally flatter than the final large-tree design. The next split s
 - workspace globs outside the built-in `apps/`, `domains/`, `services/`, `packages/`, and `crates/` shapes become routeable domains.
 - impact reports expose specific expansion triggers for schema/DTO, public boundary, and source-of-truth changes.
 - schema files are valid JSON, pinned to JSON Schema draft 2020-12, and validate real `locate`/`start`/`impact`/`verify`/`explain`/`widen`/`graph`/`boundaries` JSON outputs in tests.
+- `tests/schema_policy.rs` guards schema manifest coverage, `ctx schema <kind>` parity, route `schema_version`, anchor `version`, and root strictness.
 - `tests/golden_routing.rs` protects mixed-monorepo routing quality.
 - `tests/e2e_workflow.rs` protects the full agent loop: `start -> impact -> verify -> verify --run -> boundaries -> explain`.
 
@@ -94,4 +96,4 @@ This is intentionally flatter than the final large-tree design. The next split s
 
 1. Add deeper per-language adapters once JS/TS, Rust, Python, or Go extraction logic becomes hard to change in-place.
 2. Add Homebrew and npm wrapper distribution after the cargo package shape stabilizes.
-3. Add stricter semver policy for schema evolution before a `1.0` release.
+3. Split large route/repo modules only after the next behavior slice makes them hard to change safely.

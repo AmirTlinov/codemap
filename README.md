@@ -77,6 +77,7 @@ Markdown is the default agent-facing format. JSON is available with `--format js
 Stable JSON schemas live under `schemas/` for agent-facing route outputs and `.ctx.yml` semantic anchors.
 Schema-backed outputs include `schema_version: "1"`.
 Installed binaries can print bundled schemas with `ctx schema <kind>`, including `capsule`, `impact`, `verify`, `anchors`, `locate`, `explain`, `widen`, `graph`, and `boundaries`.
+Schema evolution rules are documented in `docs/SCHEMA_POLICY.md` and guarded by `tests/schema_policy.rs`.
 
 ## Agent Integration
 

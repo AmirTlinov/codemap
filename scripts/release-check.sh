@@ -22,7 +22,10 @@ for required in \
   "schemas/widen.schema.json" \
   "schemas/graph.schema.json" \
   "schemas/boundaries.schema.json" \
+  "schemas/manifest.json" \
+  "docs/SCHEMA_POLICY.md" \
   "tests/e2e_workflow.rs" \
+  "tests/schema_policy.rs" \
   "fixtures/mixed-monorepo/package.json"
 do
   grep -qx "$required" <<<"$package_list"
