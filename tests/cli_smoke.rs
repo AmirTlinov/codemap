@@ -104,6 +104,50 @@ fn schema_command_outputs_bundled_contract_without_repo_load() {
 }
 
 #[test]
+fn mermaid_format_is_graph_only() {
+    let outside = TempDir::new().expect("outside tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+
+    for args in [
+        vec!["start", "--task", "fix save", "--format", "mermaid"],
+        vec!["impact", "--files", "src/save.ts", "--format", "mermaid"],
+        vec!["verify", "--files", "src/save.ts", "--format", "mermaid"],
+        vec!["status", "--format", "mermaid"],
+    ] {
+        let output = ctx()
+            .current_dir(outside.path())
+            .env("CTX_CACHE_DIR", cache.path())
+            .args(&args)
+            .output()
+            .expect("ctx should run");
+        assert!(
+            !output.status.success(),
+            "{} should reject mermaid format outside graph",
+            args.join(" ")
+        );
+        let stderr = String::from_utf8(output.stderr).expect("stderr should be utf8");
+        assert!(
+            stderr.contains("possible values: markdown, json"),
+            "non-graph format help should only advertise markdown/json: {stderr}"
+        );
+    }
+
+    write(
+        &outside.path().join("src/lib.ts"),
+        "export const value = 1;\n",
+    );
+    let graph = ctx()
+        .current_dir(outside.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["graph", "--lens", "causal", "--format", "mermaid"])
+        .output()
+        .expect("ctx graph should run");
+    assert!(graph.status.success());
+    let stdout = String::from_utf8(graph.stdout).expect("stdout should be utf8");
+    assert!(stdout.starts_with("graph TD"));
+}
+
+#[test]
 fn start_routes_task_without_writing_to_project() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");

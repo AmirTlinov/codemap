@@ -32,6 +32,7 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - `ctx graph --lens verification` renders changed/impacted files, related tests, and verification commands as a bounded verification graph
 - `ctx graph --lens impact --changed` and `ctx graph --lens verification --changed` preserve an explicitly empty changed set instead of falling back to unrelated general context
 - `ctx graph --lens impact` stays empty when no changed-file input is provided, because impact evidence must come from a diff or explicit file set
+- Mermaid output is accepted only by `ctx graph`; route/status/report commands expose Markdown and JSON only
 - `ctx graph --lens boundaries` renders forbidden file/package findings as graph edges, not only as loose nodes
 - `ctx boundaries`
 - `ctx init --print`
@@ -125,6 +126,7 @@ This is intentionally flatter than the final large-tree design. The next split s
 - graph golden tests protect package-boundary graph edges and changed-file verification lenses.
 - graph golden tests protect explicitly empty `--changed` graph lenses from inventing fallback context.
 - graph golden tests protect `impact` from silently falling back to causal context when no changed input exists.
+- smoke tests protect the output-format contract: Mermaid is graph-only, while agent reports remain Markdown/JSON.
 - root `--path` bootloader calls still use task routing, while narrower explicit paths constrain the route.
 - `tests/e2e_workflow.rs` protects the full agent loop: `start -> impact -> verify -> verify --run -> boundaries -> explain`.
 

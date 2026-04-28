@@ -196,8 +196,8 @@ struct GraphArgs {
     changed: bool,
     #[arg(long, default_value_t = 12)]
     limit: usize,
-    #[arg(long, value_enum, default_value_t = OutputFormat::Mermaid)]
-    format: OutputFormat,
+    #[arg(long, value_enum, default_value_t = GraphOutputFormat::Mermaid)]
+    format: GraphOutputFormat,
 }
 
 #[derive(Debug, Args)]
@@ -223,6 +223,12 @@ enum AnchorAction {
 
 #[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
 enum OutputFormat {
+    Markdown,
+    Json,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
+enum GraphOutputFormat {
     Markdown,
     Json,
     Mermaid,
@@ -341,12 +347,12 @@ pub fn run() -> Result<()> {
                 args.changed.then_some(changed.as_slice()),
             );
             match args.format {
-                OutputFormat::Json => render::print_json(&graph),
-                OutputFormat::Mermaid => {
+                GraphOutputFormat::Json => render::print_json(&graph),
+                GraphOutputFormat::Mermaid => {
                     render::graph_mermaid(&graph);
                     Ok(())
                 }
-                OutputFormat::Markdown => {
+                GraphOutputFormat::Markdown => {
                     render::graph_markdown(&graph);
                     Ok(())
                 }
@@ -659,7 +665,7 @@ fn output<T: serde::Serialize>(
 ) -> Result<()> {
     match format {
         OutputFormat::Json => render::print_json(value),
-        OutputFormat::Markdown | OutputFormat::Mermaid => {
+        OutputFormat::Markdown => {
             markdown();
             Ok(())
         }
