@@ -141,6 +141,12 @@ ctx doctor
 
 It downloads and verifies the matching archive during install. It does not make Node a project dependency for repositories where `ctx` is used.
 
+The release workflow also publishes a generated Homebrew formula asset with checksums derived from the release archives:
+
+```bash
+brew install --formula https://github.com/AmirTlinov/ctx/releases/download/v0.1.0/ctx.rb
+```
+
 ## Optional `.ctx.yml`
 
 Zero-config works from files, manifests, tests, imports, scripts, and git diff. Use `.ctx.yml` only for semantic facts code cannot reliably reveal. A config can live at the repo root or inside a domain directory; nested config paths are treated as domain-local and normalized to repo-relative paths:
@@ -199,4 +205,4 @@ cargo run --bin ctx -- doctor
 ./scripts/release-check.sh
 ```
 
-CI runs the release check on Linux and macOS. Version tags publish Linux x64 and macOS arm64 archives after confirming the tag matches the crate version and belongs to `main`.
+CI runs the release check on Linux and macOS. Version tags publish Linux x64 and macOS arm64 archives plus a generated Homebrew formula after confirming the tag matches the crate version and belongs to `main`.

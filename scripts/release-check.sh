@@ -20,6 +20,7 @@ cargo test
 cargo clippy --all-targets -- -D warnings
 cargo run --bin ctx -- doctor
 ./scripts/check-npm-wrapper.sh
+./scripts/check-homebrew-formula.sh
 
 for schema in status files capsule impact verify anchors locate explain widen graph boundaries; do
   cargo run --bin ctx -- schema "$schema" >/dev/null
@@ -54,6 +55,8 @@ for required in \
   "docs/SCHEMA_POLICY.md" \
   "scripts/package-release.sh" \
   "scripts/check-npm-wrapper.sh" \
+  "scripts/generate-homebrew-formula.sh" \
+  "scripts/check-homebrew-formula.sh" \
   "npm/agent-context-cli/package.json" \
   "npm/agent-context-cli/bin/ctx" \
   "npm/agent-context-cli/scripts/install.js" \

@@ -86,6 +86,9 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
       - name: Download release assets
         uses: actions/download-artifact@v7
         with:
@@ -116,6 +119,11 @@ jobs:
             test -f "${archive}.sha256"
             grep -F "  $(basename "$archive")" "${archive}.sha256" >/dev/null
           done
+          ./scripts/generate-homebrew-formula.sh \
+            --release-dir release-assets \
+            --tag "$TAG" \
+            --output release-assets/ctx.rb
+          ruby -c release-assets/ctx.rb
 
       - name: Create draft release, verify assets, and publish
         env:
