@@ -1669,6 +1669,119 @@ boundaries:
 }
 
 #[test]
+fn changed_semantic_anchor_rechecks_existing_package_boundary_edges() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join("domains/replay/package.json"),
+        r#"{
+  "name": "@fixture/replay",
+  "dependencies": {
+    "@fixture/renderer": "workspace:*"
+  }
+}"#,
+    );
+    write(
+        &repo.path().join("domains/replay/src/session.ts"),
+        "export const session = 1;\n",
+    );
+    write(
+        &repo.path().join("domains/renderer/package.json"),
+        r#"{"name":"@fixture/renderer"}"#,
+    );
+    write(
+        &repo.path().join("domains/renderer/src/replay-renderer.ts"),
+        "export const renderer = 1;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    write(
+        &repo.path().join(".ctx.yml"),
+        r#"version: 1
+boundaries:
+  forbidden:
+    - from: domains/replay/src/**
+      to: domains/renderer/src/**
+      reason: replay emits DTOs; renderer consumes DTOs
+"#,
+    );
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["boundaries", "--changed", "--format", "json"])
+        .output()
+        .expect("ctx boundaries should run");
+    assert!(
+        !output.status.success(),
+        "changed semantic anchors must re-check existing package edges against the new rule"
+    );
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid boundaries json");
+    let findings = json["findings"].as_array().expect("findings array");
+    assert!(findings.iter().any(|finding| {
+        finding["from"].as_str() == Some("domains/replay/package.json")
+            && finding["to"].as_str() == Some("domains/renderer/package.json")
+            && finding["provenance"].as_str() == Some("package_manifest+ctx_anchor")
+            && finding["reason"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("package manifest dependency `@fixture/renderer`")
+    }));
+}
+
+#[test]
+fn changed_semantic_anchor_keeps_generated_file_findings_scoped() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join("src/schema.generated.ts"),
+        "export const v = 1;\n",
+    );
+    write(&repo.path().join("src/index.ts"), "export const ok = 1;\n");
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    write(
+        &repo.path().join("src/schema.generated.ts"),
+        "export const v = 2;\n",
+    );
+    write(
+        &repo.path().join(".ctx.yml"),
+        r#"version: 1
+boundaries:
+  forbidden:
+    - from: src/**
+      to: vendor/**
+      reason: source must not depend on vendor
+"#,
+    );
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["boundaries", "--changed", "--format", "json"])
+        .output()
+        .expect("ctx boundaries should run");
+    assert!(
+        !output.status.success(),
+        "changed semantic anchors must not hide generated-file direct edits"
+    );
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid boundaries json");
+    let findings = json["findings"].as_array().expect("findings array");
+    assert!(
+        findings.iter().any(|finding| {
+            finding["from"].as_str() == Some("src/schema.generated.ts")
+                && finding["provenance"].as_str() == Some("heuristic")
+                && finding["reason"].as_str() == Some("generated file edited directly")
+        }),
+        "generated-file findings must keep using the original changed set"
+    );
+}
+
+#[test]
 fn changed_target_package_manifest_boundary_edge_fails_closed() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");

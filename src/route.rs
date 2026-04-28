@@ -685,6 +685,18 @@ pub fn boundary_findings(
 ) -> Vec<BoundaryFinding> {
     let mut findings = Vec::new();
     let root_domain = primary_domain(project, "", None);
+    let semantic_anchor_changed = changed_only
+        .map(|changed| {
+            changed
+                .iter()
+                .any(|rel| is_semantic_anchor_path(project, rel))
+        })
+        .unwrap_or(false);
+    let edge_scope = if semantic_anchor_changed {
+        None
+    } else {
+        changed_only
+    };
     for file in project.files.values() {
         if file.has_role("generated")
             && let Some(changed) = changed_only
@@ -707,7 +719,7 @@ pub fn boundary_findings(
                 }
                 let from = resolve_domain_pattern(&root_domain, &rule.from);
                 let to = resolve_domain_pattern(&root_domain, &rule.to);
-                if let Some(changed) = changed_only
+                if let Some(changed) = edge_scope
                     && !file_boundary_edge_touched(file, target, changed)
                 {
                     continue;
@@ -730,7 +742,7 @@ pub fn boundary_findings(
         }
     }
     for edge in &project.package_edges {
-        if let Some(changed) = changed_only
+        if let Some(changed) = edge_scope
             && !package_edge_touched(edge, changed)
         {
             continue;
@@ -768,7 +780,7 @@ pub fn boundary_findings(
         }
     }
     for path in package_transitive_paths(project, 4) {
-        if let Some(changed) = changed_only
+        if let Some(changed) = edge_scope
             && !path
                 .manifests
                 .iter()
@@ -809,6 +821,19 @@ pub fn boundary_findings(
         }
     }
     findings
+}
+
+fn is_semantic_anchor_path(project: &Project, rel: &str) -> bool {
+    project
+        .files
+        .get(rel)
+        .map(|file| file.has_role("semantic_anchor"))
+        .unwrap_or_else(|| {
+            matches!(
+                Path::new(rel).file_name().and_then(|name| name.to_str()),
+                Some(".ctx.yml" | ".ctx.yaml" | ".ctx.json")
+            )
+        })
 }
 
 fn file_boundary_edge_touched(
