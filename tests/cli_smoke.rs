@@ -1113,6 +1113,30 @@ fn start_does_not_route_into_top_level_fixtures_by_default() {
         &repo.path().join("examples/replay/src/replay-session.ts"),
         "export const replayExample = 1;\n",
     );
+    write(
+        &repo
+            .path()
+            .join("fixtures/mixed/domains/replay/package.json"),
+        r#"{"name":"@fixture/replay"}"#,
+    );
+    write(
+        &repo
+            .path()
+            .join("fixtures/mixed/domains/replay/src/replay-session.ts"),
+        "export const replaySession = 1;\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("fixtures/mixed/services/auth/package.json"),
+        r#"{"name":"@fixture/auth"}"#,
+    );
+    write(
+        &repo
+            .path()
+            .join("fixtures/mixed/services/auth/src/session.ts"),
+        "export const authSession = 1;\n",
+    );
     write(&repo.path().join("src/model.rs"), "pub struct Model;\n");
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["commit", "-qm", "init"]);
@@ -1220,6 +1244,76 @@ fn start_does_not_route_into_top_level_fixtures_by_default() {
             .unwrap()
             .iter()
             .all(|item| item["path"].as_str() != Some("fixtures/**"))
+    );
+
+    let nested_fixture_output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "start",
+            "--path",
+            "fixtures/mixed",
+            "--task",
+            "fix replay fixture seek behavior",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx start nested fixture should run");
+    assert!(nested_fixture_output.status.success());
+    let nested_fixture_json: Value =
+        serde_json::from_slice(&nested_fixture_output.stdout).expect("valid nested fixture json");
+    assert_eq!(
+        nested_fixture_json["domain"]["path"],
+        "fixtures/mixed/domains/replay"
+    );
+    assert!(
+        nested_fixture_json["read_first"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| {
+                item["path"]
+                    .as_str()
+                    .unwrap_or("")
+                    .starts_with("fixtures/mixed/domains/replay/")
+            })
+    );
+    assert!(
+        nested_fixture_json["do_not_read_yet"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["path"].as_str() == Some("fixtures/mixed/services/auth/**"))
+    );
+    assert!(
+        nested_fixture_json["do_not_read_yet"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item["path"].as_str() != Some("."))
+    );
+
+    let nested_file_output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "start",
+            "--path",
+            "fixtures/mixed/domains/replay/src/replay-session.ts",
+            "--task",
+            "fix replay fixture seek behavior",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx start nested fixture file should run");
+    assert!(nested_file_output.status.success());
+    let nested_file_json: Value =
+        serde_json::from_slice(&nested_file_output.stdout).expect("valid nested file json");
+    assert_eq!(
+        nested_file_json["domain"]["path"],
+        "fixtures/mixed/domains/replay"
     );
 
     let example_output = ctx()

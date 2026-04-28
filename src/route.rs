@@ -165,13 +165,13 @@ pub fn start_capsule(
     limit: usize,
 ) -> TaskCapsule {
     let domain = primary_domain(project, task, path);
-    let (kind, score_conf, mut reasons) = task_kind(project, domain, task);
+    let (kind, score_conf, mut reasons) = task_kind(project, &domain, task);
     let route = route_for_kind(project, &kind);
     let mut matched_configured_route = false;
     let mut read = Vec::<Candidate>::new();
     if let Some(route) = route {
         for rel in &route.read_first {
-            let full = resolve_domain_pattern(domain, rel);
+            let full = resolve_domain_pattern(&domain, rel);
             if project.files.contains_key(&full) {
                 read.push(Candidate {
                     path: full,
@@ -186,13 +186,20 @@ pub fn start_capsule(
         }
     }
     if read.is_empty() {
-        read = select_read_first(project, domain, task, &kind, limit.min(5), &BTreeSet::new());
+        read = select_read_first(
+            project,
+            &domain,
+            task,
+            &kind,
+            limit.min(5),
+            &BTreeSet::new(),
+        );
     }
     let mut read_paths: Vec<String> = read.iter().map(|c| c.path.clone()).collect();
     for test in test_files_for(
         project,
         &read_paths,
-        Some(domain),
+        Some(&domain),
         7 - read_paths.len().min(7),
     ) {
         if read_paths.len() >= limit {
@@ -218,15 +225,15 @@ pub fn start_capsule(
         read.clear();
         read_paths.clear();
     }
-    let related_tests = test_files_for(project, &read_paths, Some(domain), 3);
+    let related_tests = test_files_for(project, &read_paths, Some(&domain), 3);
     let source_of_truth =
         if matched_configured_route || has_specific_read_evidence || general_orientation_route {
-            source_truths(project, domain)
+            source_truths(project, &domain)
         } else {
             Vec::new()
         };
-    let public_boundaries = public_boundaries(project, domain);
-    let invariants = invariants_for(project, domain, &read_paths);
+    let public_boundaries = public_boundaries(project, &domain);
+    let invariants = invariants_for(project, &domain, &read_paths);
     let mut conf_score = score_conf;
     if read.is_empty() {
         conf_score -= 0.25;
@@ -278,7 +285,7 @@ pub fn start_capsule(
         kind: "task_context_capsule",
         schema_version: "1",
         task: task.to_string(),
-        domain: domain.into(),
+        domain: (&domain).into(),
         task_kind: kind.clone(),
         confidence: confidence.as_str().to_string(),
         risk: risk.as_str().to_string(),
@@ -286,8 +293,8 @@ pub fn start_capsule(
         related_tests,
         source_of_truth,
         public_boundaries,
-        do_not_read_yet: do_not_read_yet(project, domain, &kind, task, 8),
-        forbidden_moves: forbidden_moves(project, domain, &kind),
+        do_not_read_yet: do_not_read_yet(project, &domain, &kind, task, 8),
+        forbidden_moves: forbidden_moves(project, &domain, &kind),
         invariants,
         verification,
         expansion_triggers: expansion_triggers(&kind),
@@ -552,14 +559,14 @@ pub fn explain_target(project: &Project, target: &str) -> ExplainReport {
             let files = concept
                 .files
                 .iter()
-                .map(|f| resolve_domain_pattern(domain, f))
+                .map(|f| resolve_domain_pattern(&domain, f))
                 .collect();
             return ExplainReport {
                 kind: "concept".to_string(),
                 schema_version: "1",
                 path: None,
                 id: Some(id.clone()),
-                domain: Some(domain.into()),
+                domain: Some((&domain).into()),
                 roles: concept.role.iter().cloned().collect(),
                 risk: None,
                 risk_reasons: Vec::new(),
@@ -606,12 +613,12 @@ pub fn widen_context(
     limit: usize,
 ) -> WidenReport {
     let domain = primary_domain(project, task, path);
-    let (kind, conf, _) = task_kind(project, domain, task);
+    let (kind, conf, _) = task_kind(project, &domain, task);
     let exclude: BTreeSet<String> = already
         .iter()
         .map(|f| repo::normalize_rel_path(f))
         .collect();
-    let mut add: Vec<String> = select_read_first(project, domain, task, &kind, limit, &exclude)
+    let mut add: Vec<String> = select_read_first(project, &domain, task, &kind, limit, &exclude)
         .into_iter()
         .map(|c| c.path)
         .collect();
@@ -632,9 +639,9 @@ pub fn widen_context(
         kind: "widened_context",
         schema_version: "1",
         reason: reason.to_string(),
-        domain: domain.into(),
+        domain: (&domain).into(),
         add,
-        still_do_not_read_yet: do_not_read_yet(project, domain, &kind, task, 8),
+        still_do_not_read_yet: do_not_read_yet(project, &domain, &kind, task, 8),
         confidence: confidence_from_score((conf - 0.05).max(0.1)).as_str().to_string(),
         stop_rule: "Stop after this widened set plus minimal verification unless a new expansion trigger fires.".to_string(),
     }
@@ -656,6 +663,7 @@ pub fn boundary_findings(
     changed_only: Option<&BTreeSet<String>>,
 ) -> Vec<BoundaryFinding> {
     let mut findings = Vec::new();
+    let root_domain = primary_domain(project, "", None);
     for file in project.files.values() {
         if let Some(changed) = changed_only
             && !changed.contains(&file.rel)
@@ -681,8 +689,8 @@ pub fn boundary_findings(
                 if rule.from.is_empty() || rule.to.is_empty() {
                     continue;
                 }
-                let from = resolve_domain_pattern(primary_domain(project, "", None), &rule.from);
-                let to = resolve_domain_pattern(primary_domain(project, "", None), &rule.to);
+                let from = resolve_domain_pattern(&root_domain, &rule.from);
+                let to = resolve_domain_pattern(&root_domain, &rule.to);
                 if glob_match(&from, &file.rel) && glob_match(&to, target) {
                     findings.push(BoundaryFinding {
                         from: file.rel.clone(),
@@ -705,8 +713,8 @@ pub fn boundary_findings(
             if rule.from.is_empty() || rule.to.is_empty() {
                 continue;
             }
-            let from = resolve_domain_pattern(primary_domain(project, "", None), &rule.from);
-            let to = resolve_domain_pattern(primary_domain(project, "", None), &rule.to);
+            let from = resolve_domain_pattern(&root_domain, &rule.from);
+            let to = resolve_domain_pattern(&root_domain, &rule.to);
             if package_edge_matches_rule(&from, &edge.from)
                 && package_edge_matches_rule(&to, &edge.to)
             {
@@ -783,7 +791,7 @@ pub fn graph_lens(
         .take(limit)
         .collect()
     } else {
-        let mut scored = domain_files(project, domain)
+        let mut scored = domain_files(project, &domain)
             .into_iter()
             .filter(|file| {
                 !file.has_role("test")
@@ -836,23 +844,24 @@ pub fn graph_lens(
     GraphLens {
         kind: "graph_lens",
         schema_version: "1",
-        domain: domain.into(),
+        domain: (&domain).into(),
         lens: lens.to_string(),
         nodes,
         edges,
     }
 }
 
-fn primary_domain<'a>(project: &'a Project, task: &str, path: Option<&str>) -> &'a Domain {
+fn primary_domain(project: &Project, task: &str, path: Option<&str>) -> Domain {
     if let Some(path) = path {
-        return domain_for_path(project, path);
+        return explicit_domain_for_path(project, path, task);
     }
     if task.is_empty() {
         return project
             .domains
             .iter()
             .find(|d| d.path == ".")
-            .unwrap_or(&project.domains[0]);
+            .unwrap_or(&project.domains[0])
+            .clone();
     }
     locate_report(project, task, 1)
         .candidates
@@ -863,13 +872,135 @@ fn primary_domain<'a>(project: &'a Project, task: &str, path: Option<&str>) -> &
                 .iter()
                 .find(|d| d.id == candidate.domain.id && d.path == candidate.domain.path)
         })
+        .cloned()
         .unwrap_or_else(|| {
             project
                 .domains
                 .iter()
                 .find(|d| d.path == ".")
                 .unwrap_or(&project.domains[0])
+                .clone()
         })
+}
+
+fn explicit_domain_for_path(project: &Project, path: &str, task: &str) -> Domain {
+    let rel = match normalize_path_in_repo(project, path) {
+        Some(rel) => rel,
+        None => return domain_for_path(project, path).clone(),
+    };
+    let best = domain_for_path(project, &rel);
+    if best.path != "." || rel == "." {
+        return best.clone();
+    }
+    if project.files.contains_key(&rel)
+        && let Some(package_domain) = enclosing_package_domain_for_path(project, &rel)
+    {
+        return package_domain;
+    }
+    let scoped_path = explicit_scope_path(project, &rel);
+    if scoped_path == "." {
+        return best.clone();
+    }
+    if !task.is_empty()
+        && let Some(package_domain) = nested_package_domain_for_task(project, &scoped_path, task)
+    {
+        return package_domain;
+    }
+    if let Some(package_domain) = enclosing_package_domain_for_path(project, &scoped_path) {
+        return package_domain;
+    }
+    Domain {
+        id: Path::new(&scoped_path)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("scope")
+            .to_string(),
+        path: scoped_path,
+        config_path: None,
+    }
+}
+
+fn nested_package_domain_for_task(
+    project: &Project,
+    scope_path: &str,
+    task: &str,
+) -> Option<Domain> {
+    let task_tokens = repo::tokenize(task);
+    let scope_prefix = format!("{}/", scope_path.trim_end_matches('/'));
+    let mut best: Option<(f64, &crate::model::PackageInfo)> = None;
+    for package in &project.packages {
+        if package.path == scope_path || !package.path.starts_with(&scope_prefix) {
+            continue;
+        }
+        let hay = format!("{} {}", package.name, package.path).to_ascii_lowercase();
+        let overlap = task_tokens
+            .iter()
+            .filter(|token| hay.contains(token.as_str()))
+            .count();
+        if overlap == 0 {
+            continue;
+        }
+        let score = overlap as f64 * 2.0 + package.path.matches('/').count() as f64 * 0.05;
+        match best {
+            Some((best_score, _)) if best_score >= score => {}
+            _ => best = Some((score, package)),
+        }
+    }
+    best.map(|(_, package)| package_domain(package))
+}
+
+fn enclosing_package_domain_for_path(project: &Project, rel: &str) -> Option<Domain> {
+    project
+        .packages
+        .iter()
+        .filter(|package| {
+            package.path != "."
+                && (rel == package.path
+                    || rel == package.manifest
+                    || rel.starts_with(&format!("{}/", package.path.trim_end_matches('/'))))
+        })
+        .max_by_key(|package| package.path.len())
+        .map(package_domain)
+}
+
+fn package_domain(package: &crate::model::PackageInfo) -> Domain {
+    Domain {
+        id: Path::new(&package.path)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("scope")
+            .to_string(),
+        path: package.path.clone(),
+        config_path: None,
+    }
+}
+
+fn normalize_path_in_repo(project: &Project, path: &str) -> Option<String> {
+    if Path::new(path).is_absolute() {
+        Path::new(path)
+            .strip_prefix(&project.root)
+            .ok()
+            .map(|p| repo::normalize_rel_path(&p.to_string_lossy()))
+    } else {
+        Some(repo::normalize_rel_path(path))
+    }
+}
+
+fn explicit_scope_path(project: &Project, rel: &str) -> String {
+    let rel = rel.trim_end_matches('/');
+    if project.files.contains_key(rel) {
+        return Path::new(rel)
+            .parent()
+            .map(|p| repo::normalize_rel_path(&p.to_string_lossy()))
+            .filter(|p| !p.is_empty())
+            .unwrap_or_else(|| ".".to_string());
+    }
+    let prefix = format!("{rel}/");
+    if project.files.keys().any(|file| file.starts_with(&prefix)) {
+        rel.to_string()
+    } else {
+        ".".to_string()
+    }
 }
 
 fn domain_for_path<'a>(project: &'a Project, path: &str) -> &'a Domain {
@@ -1493,6 +1624,15 @@ fn do_not_read_yet(
     let task_l = task.to_ascii_lowercase();
     let mut out = Vec::new();
     let mut seen = BTreeSet::new();
+    for package in sibling_support_packages(project, domain) {
+        push_do_not_read(
+            &mut out,
+            &mut seen,
+            format!("{}/**", package.path),
+            "sibling package inside the scoped support artifact; inspect only if the task or an expansion trigger points there",
+            limit,
+        );
+    }
     if !task_mentions_fixture(task) && !domain.path.contains("fixtures") {
         for path in support_roots_for_role(project, domain, "fixture", &["fixtures"]) {
             push_do_not_read(
@@ -1523,6 +1663,9 @@ fn do_not_read_yet(
             break;
         }
         if other.id == domain.id && other.path == domain.path {
+            continue;
+        }
+        if other.path == "." && domain.path != "." {
             continue;
         }
         let lname = format!("{} {}", other.id, other.path).to_ascii_lowercase();
@@ -1558,6 +1701,37 @@ fn do_not_read_yet(
         push_do_not_read(&mut out, &mut seen, path, reason, limit);
     }
     out
+}
+
+fn sibling_support_packages<'a>(
+    project: &'a Project,
+    domain: &Domain,
+) -> Vec<&'a crate::model::PackageInfo> {
+    let Some(container) = support_container_scope(&domain.path) else {
+        return Vec::new();
+    };
+    let container_prefix = format!("{}/", container.trim_end_matches('/'));
+    project
+        .packages
+        .iter()
+        .filter(|package| {
+            package.path != "."
+                && package.path != domain.path
+                && package.path.starts_with(&container_prefix)
+        })
+        .take(6)
+        .collect()
+}
+
+fn support_container_scope(path: &str) -> Option<String> {
+    let parts = path.split('/').collect::<Vec<_>>();
+    for (idx, part) in parts.iter().enumerate() {
+        if matches!(*part, "fixtures" | "examples" | "samples") {
+            let end = (idx + 2).min(parts.len());
+            return Some(parts[..end].join("/"));
+        }
+    }
+    None
 }
 
 fn push_do_not_read(
@@ -1879,7 +2053,8 @@ fn find_script(project: &Project, names: &[&str]) -> Option<String> {
 }
 
 pub fn resolve_anchor_path(project: &Project, pattern: &str) -> String {
-    resolve_domain_pattern(primary_domain(project, "", None), pattern)
+    let domain = primary_domain(project, "", None);
+    resolve_domain_pattern(&domain, pattern)
 }
 
 fn resolve_domain_pattern(domain: &Domain, pattern: &str) -> String {

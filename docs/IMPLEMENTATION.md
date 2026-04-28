@@ -79,6 +79,7 @@ This is intentionally flatter than the final large-tree design. The next split s
 - task keywords alone do not create high-confidence capsules without matching files or anchors;
 - broad low-confidence general tasks still receive a bounded orientation route instead of an empty read-first set;
 - top-level fixtures/examples/samples are excluded from normal task routing unless the task explicitly asks for them;
+- explicit `--path` scopes into support artifact containers can narrow to the nested package whose manifest/path matches the task, and explicit file paths inside nested packages resolve to that package owner;
 - support artifact roots such as `fixtures/**` and `examples/**` appear in negative context when they are not task owners;
 - default graph lenses exclude support artifacts unless the command is scoped into them;
 - absolute start paths and file arguments work from outside the repo;
