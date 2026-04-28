@@ -1032,7 +1032,6 @@ fn rust_workspace_cargo_table_dependencies_feed_impact_and_boundaries() {
             .iter()
             .any(|item| item.as_str() == Some("package consumers affected"))
     );
-
     fs::write(
         repo.path().join(".ctx.yml"),
         r#"version: 1
@@ -1067,6 +1066,698 @@ boundaries:
                         .unwrap_or("")
                         .contains("Cargo.toml path dependency")
             })
+    );
+}
+
+#[test]
+fn rust_workspace_dependencies_feed_package_impact_and_boundaries() {
+    let repo = fixture_copy("rust-workspace");
+    let cache = TempDir::new().expect("cache tempdir");
+    write(
+        &repo.path().join("Cargo.toml"),
+        r#"[workspace]
+members = [
+  "crates/app",
+  "crates/renderer",
+  "crates/replay",
+]
+resolver = "3"
+
+[workspace.dependencies.ctx_fixture_replay]
+path = "crates/replay" # valid TOML comment
+"#,
+    );
+    write(
+        &repo.path().join("crates/renderer/Cargo.toml"),
+        r#"[package]
+name = "ctx_fixture_renderer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies.ctx_fixture_replay]
+workspace = true # valid TOML comment
+"#,
+    );
+
+    let impact = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "impact",
+            "--files",
+            "crates/replay/Cargo.toml",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx impact should run");
+    assert!(impact.status.success());
+    let impact_json: Value = serde_json::from_slice(&impact.stdout).expect("valid impact json");
+    assert!(
+        impact_json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("crates/renderer/Cargo.toml")),
+        "renderer consumes replay through a workspace dependency"
+    );
+    assert!(
+        impact_json["expansion_triggers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("package consumers affected"))
+    );
+    let workspace_impact = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["impact", "--files", "Cargo.toml", "--format", "json"])
+        .output()
+        .expect("ctx impact should run");
+    assert!(workspace_impact.status.success());
+    let workspace_json: Value =
+        serde_json::from_slice(&workspace_impact.stdout).expect("valid impact json");
+    assert!(
+        workspace_json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("crates/renderer/Cargo.toml")),
+        "workspace dependency declaration changes should reach workspace=true consumers"
+    );
+    assert!(
+        workspace_json["expansion_triggers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("package consumers affected"))
+    );
+
+    fs::write(
+        repo.path().join(".ctx.yml"),
+        r#"version: 1
+boundaries:
+  forbidden:
+    - from: crates/renderer/src/**
+      to: crates/replay/src/**
+      reason: renderer must not depend on replay in this fixture policy
+"#,
+    )
+    .expect("write ctx config");
+    git(repo.path(), &["init"]);
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-m", "baseline"]);
+    write(
+        &repo.path().join("Cargo.toml"),
+        r#"[workspace]
+members = [
+  "crates/app",
+  "crates/renderer",
+  "crates/replay",
+]
+resolver = "3"
+
+[workspace.dependencies.ctx_fixture_replay]
+path = "crates/replay"
+"#,
+    );
+    let changed_boundaries = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["boundaries", "--changed", "--format", "json"])
+        .output()
+        .expect("ctx boundaries should run");
+    assert!(!changed_boundaries.status.success());
+    let changed_boundaries_json: Value =
+        serde_json::from_slice(&changed_boundaries.stdout).expect("valid boundaries json");
+    assert!(
+        changed_boundaries_json["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|finding| {
+                finding["from"].as_str() == Some("crates/renderer/Cargo.toml")
+                    && finding["to"].as_str() == Some("crates/replay/Cargo.toml")
+                    && finding["provenance"].as_str() == Some("package_manifest+ctx_anchor")
+                    && finding["reason"]
+                        .as_str()
+                        .unwrap_or("")
+                        .contains("Cargo.toml workspace dependency")
+            }),
+        "changed-scoped boundaries should treat workspace manifest changes as touching the edge"
+    );
+
+    let boundaries = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["boundaries", "--format", "json"])
+        .output()
+        .expect("ctx boundaries should run");
+    assert!(!boundaries.status.success());
+    let boundaries_json: Value =
+        serde_json::from_slice(&boundaries.stdout).expect("valid boundaries json");
+    assert!(
+        boundaries_json["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|finding| {
+                finding["from"].as_str() == Some("crates/renderer/Cargo.toml")
+                    && finding["to"].as_str() == Some("crates/replay/Cargo.toml")
+                    && finding["provenance"].as_str() == Some("package_manifest+ctx_anchor")
+                    && finding["reason"]
+                        .as_str()
+                        .unwrap_or("")
+                        .contains("Cargo.toml workspace dependency")
+            })
+    );
+}
+
+#[test]
+fn rust_workspace_metadata_dependencies_are_not_package_edges() {
+    let repo = fixture_copy("rust-workspace");
+    let cache = TempDir::new().expect("cache tempdir");
+    write(
+        &repo.path().join("Cargo.toml"),
+        r#"[workspace]
+members = [
+  "crates/app",
+  "crates/renderer",
+  "crates/replay",
+]
+resolver = "3"
+
+[workspace.dependencies.ctx_fixture_replay]
+path = "crates/replay"
+"#,
+    );
+    write(
+        &repo.path().join("crates/renderer/Cargo.toml"),
+        r#"[package]
+name = "ctx_fixture_renderer"
+version = "0.1.0"
+edition = "2024"
+
+[package.metadata.fake.dependencies.ctx_fixture_replay]
+workspace = true
+
+[target.'cfg(unix)'.package.metadata.fake.dependencies.ctx_fixture_replay]
+workspace = true
+"#,
+    );
+
+    let impact = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "impact",
+            "--files",
+            "crates/replay/Cargo.toml",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx impact should run");
+    assert!(impact.status.success());
+    let impact_json: Value = serde_json::from_slice(&impact.stdout).expect("valid impact json");
+    assert!(
+        impact_json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item.as_str() != Some("crates/renderer/Cargo.toml")),
+        "Cargo package metadata tables must not create package dependency edges"
+    );
+    assert!(
+        impact_json["expansion_triggers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item.as_str() != Some("package consumers affected"))
+    );
+}
+
+#[test]
+fn rust_workspace_dependencies_do_not_escape_repo_root() {
+    let repo = fixture_copy("rust-workspace");
+    let cache = TempDir::new().expect("cache tempdir");
+    write(
+        &repo.path().join("Cargo.toml"),
+        r#"[workspace]
+members = [
+  "crates/app",
+  "external",
+]
+resolver = "3"
+
+[workspace.dependencies.ctx_fixture_external]
+path = "../external"
+"#,
+    );
+    write(
+        &repo.path().join("crates/app/Cargo.toml"),
+        r#"[package]
+name = "ctx_fixture_app"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies.ctx_fixture_external]
+workspace = true
+"#,
+    );
+    write(
+        &repo.path().join("external/Cargo.toml"),
+        r#"[package]
+name = "ctx_fixture_external"
+version = "0.1.0"
+edition = "2024"
+"#,
+    );
+    write(
+        &repo.path().join("external/src/lib.rs"),
+        "pub fn value() -> usize { 1 }\n",
+    );
+
+    let impact = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "impact",
+            "--files",
+            "external/Cargo.toml",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx impact should run");
+    assert!(impact.status.success());
+    let impact_json: Value = serde_json::from_slice(&impact.stdout).expect("valid impact json");
+    assert!(
+        impact_json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item.as_str() != Some("crates/app/Cargo.toml")),
+        "Cargo workspace dependency paths that escape the repo root must not be remapped inside the repo"
+    );
+    assert!(
+        impact_json["expansion_triggers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item.as_str() != Some("package consumers affected"))
+    );
+
+    fs::write(
+        repo.path().join(".ctx.yml"),
+        r#"version: 1
+boundaries:
+  forbidden:
+    - from: crates/app/src/**
+      to: external/src/**
+      reason: app must not depend on external in this fixture policy
+"#,
+    )
+    .expect("write ctx config");
+    let boundaries = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["boundaries", "--format", "json"])
+        .output()
+        .expect("ctx boundaries should run");
+    assert!(
+        boundaries.status.success(),
+        "outside-repo Cargo paths must not create false package boundary findings: {}",
+        String::from_utf8_lossy(&boundaries.stdout)
+    );
+}
+
+#[test]
+fn rust_workspace_dependencies_are_scoped_to_nearest_workspace() {
+    let repo = fixture_copy("rust-workspace");
+    let cache = TempDir::new().expect("cache tempdir");
+    write(
+        &repo.path().join("Cargo.toml"),
+        r#"[workspace]
+members = [
+  "crates/app",
+  "crates/renderer",
+  "crates/replay",
+]
+resolver = "3"
+
+[workspace.dependencies.ctx_fixture_replay]
+path = "crates/replay"
+"#,
+    );
+    write(
+        &repo.path().join("crates/renderer/Cargo.toml"),
+        r#"[package]
+name = "ctx_fixture_renderer"
+version = "0.1.0"
+edition = "2024"
+"#,
+    );
+    write(
+        &repo.path().join("crates/app/Cargo.toml"),
+        r#"[package]
+name = "ctx_fixture_app"
+version = "0.1.0"
+edition = "2024"
+"#,
+    );
+    write(
+        &repo.path().join("nested/Cargo.toml"),
+        r#"[package]
+name = "ctx_fixture_nested"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+members = ["deps/replay"]
+resolver = "3"
+
+[workspace.dependencies.ctx_fixture_replay]
+path = "deps/replay"
+
+[dependencies.ctx_fixture_replay]
+workspace = true
+"#,
+    );
+    write(
+        &repo.path().join("nested/src/lib.rs"),
+        "pub fn nested() -> usize { ctx_fixture_replay::value() }\n",
+    );
+    write(
+        &repo.path().join("nested/deps/replay/Cargo.toml"),
+        r#"[package]
+name = "ctx_fixture_replay"
+version = "0.1.0"
+edition = "2024"
+"#,
+    );
+    write(
+        &repo.path().join("nested/deps/replay/src/lib.rs"),
+        "pub fn value() -> usize { 1 }\n",
+    );
+
+    let root_impact = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "impact",
+            "--files",
+            "crates/replay/Cargo.toml",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx impact should run");
+    assert!(root_impact.status.success());
+    let root_json: Value = serde_json::from_slice(&root_impact.stdout).expect("valid json");
+    assert!(
+        root_json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item.as_str() != Some("nested/Cargo.toml")),
+        "nested package must not consume the root workspace dependency"
+    );
+    assert!(
+        root_json["expansion_triggers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item.as_str() != Some("package consumers affected"))
+    );
+
+    let nested_impact = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "impact",
+            "--files",
+            "nested/deps/replay/Cargo.toml",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx impact should run");
+    assert!(nested_impact.status.success());
+    let nested_json: Value = serde_json::from_slice(&nested_impact.stdout).expect("valid json");
+    assert!(
+        nested_json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("nested/Cargo.toml")),
+        "nested package should consume its own nearest workspace dependency"
+    );
+    assert!(
+        nested_json["expansion_triggers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("package consumers affected"))
+    );
+}
+
+#[test]
+fn rust_workspace_member_globs_feed_package_impact() {
+    let repo = fixture_copy("rust-workspace");
+    let cache = TempDir::new().expect("cache tempdir");
+    write(
+        &repo.path().join("Cargo.toml"),
+        r#"[workspace]
+members = [
+  "crates/*/app",
+  "crates/replay",
+]
+resolver = "3"
+
+[workspace.dependencies.ctx_fixture_replay]
+path = "crates/replay"
+"#,
+    );
+    write(
+        &repo.path().join("crates/group/app/Cargo.toml"),
+        r#"[package]
+name = "ctx_fixture_group_app"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies.ctx_fixture_replay]
+workspace = true
+"#,
+    );
+    write(
+        &repo.path().join("crates/group/app/src/lib.rs"),
+        "pub fn value() -> usize { ctx_fixture_replay::value() }\n",
+    );
+
+    let impact = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "impact",
+            "--files",
+            "crates/replay/Cargo.toml",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx impact should run");
+    assert!(impact.status.success());
+    let json: Value = serde_json::from_slice(&impact.stdout).expect("valid json");
+    assert!(
+        json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("crates/group/app/Cargo.toml")),
+        "Cargo workspace member globs should inherit workspace dependencies"
+    );
+    assert!(
+        json["expansion_triggers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("package consumers affected"))
+    );
+}
+
+#[test]
+fn rust_workspace_path_dependencies_become_members() {
+    let repo = fixture_copy("rust-workspace");
+    let cache = TempDir::new().expect("cache tempdir");
+    write(
+        &repo.path().join("Cargo.toml"),
+        r#"[workspace]
+members = ["crates/app"]
+resolver = "3"
+
+[workspace.dependencies.ctx_fixture_replay]
+path = "crates/replay"
+"#,
+    );
+    write(
+        &repo.path().join("crates/app/Cargo.toml"),
+        r#"[package]
+name = "ctx_fixture_app"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies.ctx_fixture_renderer]
+path = "../renderer"
+"#,
+    );
+    write(
+        &repo.path().join("crates/renderer/Cargo.toml"),
+        r#"[package]
+name = "ctx_fixture_renderer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies.ctx_fixture_replay]
+workspace = true
+"#,
+    );
+
+    let impact = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "impact",
+            "--files",
+            "crates/replay/Cargo.toml",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx impact should run");
+    assert!(impact.status.success());
+    let json: Value = serde_json::from_slice(&impact.stdout).expect("valid json");
+    assert!(
+        json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("crates/renderer/Cargo.toml")),
+        "Cargo path dependencies inside a workspace should become workspace members"
+    );
+    assert!(
+        json["expansion_triggers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("package consumers affected"))
+    );
+}
+
+#[test]
+fn rust_workspace_dotted_cargo_syntax_feeds_package_impact() {
+    let repo = fixture_copy("rust-workspace");
+    let cache = TempDir::new().expect("cache tempdir");
+    write(
+        &repo.path().join("Cargo.toml"),
+        r#"workspace.members = ["crates/app", "crates/replay"]
+workspace.dependencies.ctx_fixture_replay = { path = "crates/replay" }
+"#,
+    );
+    write(
+        &repo.path().join("crates/app/Cargo.toml"),
+        r#"[package]
+name = "ctx_fixture_app"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ctx_fixture_replay.workspace = true
+"#,
+    );
+
+    let impact = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "impact",
+            "--files",
+            "crates/replay/Cargo.toml",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx impact should run");
+    assert!(impact.status.success());
+    let json: Value = serde_json::from_slice(&impact.stdout).expect("valid json");
+    assert!(
+        json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("crates/app/Cargo.toml")),
+        "Cargo dotted key syntax should create the same package edge"
+    );
+    assert!(
+        json["expansion_triggers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("package consumers affected"))
+    );
+}
+
+#[test]
+fn rust_workspace_table_local_dotted_cargo_syntax_feeds_package_impact() {
+    let repo = fixture_copy("rust-workspace");
+    let cache = TempDir::new().expect("cache tempdir");
+    write(
+        &repo.path().join("Cargo.toml"),
+        r#"[workspace]
+members = ["crates/app", "crates/replay"]
+dependencies.ctx_fixture_replay.path = "crates/replay"
+"#,
+    );
+    write(
+        &repo.path().join("crates/app/Cargo.toml"),
+        r#"[package]
+name = "ctx_fixture_app"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ctx_fixture_replay.workspace = true
+"#,
+    );
+
+    let impact = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "impact",
+            "--files",
+            "crates/replay/Cargo.toml",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx impact should run");
+    assert!(impact.status.success());
+    let json: Value = serde_json::from_slice(&impact.stdout).expect("valid json");
+    assert!(
+        json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("crates/app/Cargo.toml")),
+        "Cargo table-local dotted workspace dependencies should create package edges"
+    );
+    assert!(
+        json["expansion_triggers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("package consumers affected"))
     );
 }
 

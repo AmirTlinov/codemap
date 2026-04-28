@@ -6,6 +6,7 @@ use std::process::Command;
 use std::sync::OnceLock;
 
 use anyhow::{Context, Result};
+use globset::GlobBuilder;
 use ignore::WalkBuilder;
 use regex::Regex;
 
@@ -125,7 +126,7 @@ pub fn load_project_with_cache(
     let ts_path_aliases = detect_ts_path_aliases(&root, &files);
     resolve_imports(&root, &mut files, &packages, &ts_path_aliases);
     let reverse_imports = build_reverse_imports(&files);
-    let package_edges = detect_package_edges(&root, &packages);
+    let package_edges = detect_package_edges(&root, &files, &packages);
     let scripts = detect_scripts(&root);
     let package_manager = detect_package_manager(&root);
     let languages = detect_languages(&files);
@@ -1508,7 +1509,11 @@ fn read_python_package(root: &Path, rel: &str) -> Option<PackageInfo> {
     })
 }
 
-fn detect_package_edges(root: &Path, packages: &[PackageInfo]) -> Vec<PackageDependency> {
+fn detect_package_edges(
+    root: &Path,
+    files: &BTreeMap<String, FileInfo>,
+    packages: &[PackageInfo],
+) -> Vec<PackageDependency> {
     let mut edges = Vec::new();
     let by_name: BTreeMap<String, &PackageInfo> = packages
         .iter()
@@ -1518,6 +1523,7 @@ fn detect_package_edges(root: &Path, packages: &[PackageInfo]) -> Vec<PackageDep
         .iter()
         .map(|package| (package.path.clone(), package))
         .collect();
+    let cargo_workspaces = cargo_workspace_infos(root, files, packages, &by_path);
 
     for package in packages {
         match package.ecosystem.as_str() {
@@ -1525,7 +1531,12 @@ fn detect_package_edges(root: &Path, packages: &[PackageInfo]) -> Vec<PackageDep
                 edges.extend(js_package_edges(root, package, &by_name));
             }
             "rust" => {
-                edges.extend(cargo_package_edges(root, package, &by_path));
+                edges.extend(cargo_package_edges(
+                    root,
+                    package,
+                    &by_path,
+                    &cargo_workspaces,
+                ));
             }
             "go" => {
                 edges.extend(go_package_edges(root, package, &by_name, &by_path));
@@ -1576,6 +1587,7 @@ fn js_package_edges(
                     from_manifest: package.manifest.clone(),
                     to: target.path.clone(),
                     to_manifest: Some(target.manifest.clone()),
+                    workspace_manifest: None,
                     dependency: dep.clone(),
                     source: format!("package.json {section}"),
                 });
@@ -1589,6 +1601,7 @@ fn cargo_package_edges(
     root: &Path,
     package: &PackageInfo,
     by_path: &BTreeMap<String, &PackageInfo>,
+    workspaces: &[CargoWorkspaceInfo],
 ) -> Vec<PackageDependency> {
     let Ok(text) = fs::read_to_string(root.join(&package.manifest)) else {
         return Vec::new();
@@ -1597,21 +1610,283 @@ fn cargo_package_edges(
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."));
-    cargo_path_dependencies(&text)
+    let mut edges: Vec<PackageDependency> = cargo_path_dependencies(&text)
         .into_iter()
         .filter_map(|(name, path)| {
-            let target_path = normalize_rel_path(&base.join(path).to_string_lossy());
+            let target_path = cargo_resolve_repo_relative_path(base, &path)?;
             let target = by_path.get(&target_path)?;
             Some(PackageDependency {
                 from: package.path.clone(),
                 from_manifest: package.manifest.clone(),
                 to: target.path.clone(),
                 to_manifest: Some(target.manifest.clone()),
+                workspace_manifest: None,
                 dependency: name,
                 source: "Cargo.toml path dependency".to_string(),
             })
         })
-        .collect()
+        .collect();
+    let workspace = cargo_workspace_for_package(package, workspaces);
+    let workspace_dependencies = workspace
+        .map(|workspace| &workspace.dependencies)
+        .cloned()
+        .unwrap_or_default();
+    let workspace_manifest = workspace.map(|workspace| workspace.manifest.clone());
+    for name in cargo_workspace_dependency_names(&text) {
+        let Some(path) = workspace_dependencies.get(&name) else {
+            continue;
+        };
+        let Some(target) = by_path.get(path) else {
+            continue;
+        };
+        edges.push(PackageDependency {
+            from: package.path.clone(),
+            from_manifest: package.manifest.clone(),
+            to: target.path.clone(),
+            to_manifest: Some(target.manifest.clone()),
+            workspace_manifest: workspace_manifest.clone(),
+            dependency: name,
+            source: "Cargo.toml workspace dependency".to_string(),
+        });
+    }
+    edges
+}
+
+#[derive(Debug, Clone)]
+struct CargoWorkspaceInfo {
+    manifest: String,
+    path: String,
+    dependencies: BTreeMap<String, String>,
+    members: Vec<String>,
+    exclude: Vec<String>,
+    member_paths: BTreeSet<String>,
+}
+
+fn cargo_workspace_infos(
+    root: &Path,
+    files: &BTreeMap<String, FileInfo>,
+    packages: &[PackageInfo],
+    by_path: &BTreeMap<String, &PackageInfo>,
+) -> Vec<CargoWorkspaceInfo> {
+    let mut workspaces = Vec::new();
+    for rel in files.keys() {
+        if Path::new(rel).file_name().and_then(|name| name.to_str()) != Some("Cargo.toml") {
+            continue;
+        }
+        let Ok(text) = fs::read_to_string(root.join(rel)) else {
+            continue;
+        };
+        if !cargo_workspace_declared(&text) {
+            continue;
+        }
+        let path = manifest_dir(rel);
+        let dependencies = cargo_workspace_path_dependencies(&text)
+            .into_iter()
+            .filter_map(|(name, dependency_path)| {
+                cargo_resolve_repo_relative_path(Path::new(&path), &dependency_path)
+                    .map(|resolved| (name, resolved))
+            })
+            .collect();
+        workspaces.push(CargoWorkspaceInfo {
+            manifest: rel.clone(),
+            path,
+            dependencies,
+            members: cargo_workspace_array_values(&text, "members"),
+            exclude: cargo_workspace_array_values(&text, "exclude"),
+            member_paths: BTreeSet::new(),
+        });
+    }
+    workspaces.sort_by(|a, b| a.path.cmp(&b.path));
+    for workspace in &mut workspaces {
+        workspace.member_paths = cargo_workspace_member_paths(root, workspace, packages, by_path);
+    }
+    workspaces
+}
+
+fn cargo_workspace_for_package<'a>(
+    package: &PackageInfo,
+    workspaces: &'a [CargoWorkspaceInfo],
+) -> Option<&'a CargoWorkspaceInfo> {
+    workspaces
+        .iter()
+        .filter(|workspace| cargo_workspace_contains_package(workspace, &package.path))
+        .max_by_key(|workspace| workspace.path.len())
+}
+
+fn cargo_workspace_contains_package(workspace: &CargoWorkspaceInfo, package_path: &str) -> bool {
+    workspace.member_paths.contains(package_path)
+}
+
+fn cargo_workspace_member_paths(
+    root: &Path,
+    workspace: &CargoWorkspaceInfo,
+    packages: &[PackageInfo],
+    by_path: &BTreeMap<String, &PackageInfo>,
+) -> BTreeSet<String> {
+    let mut members: BTreeSet<String> = packages
+        .iter()
+        .filter(|package| cargo_workspace_explicitly_contains_package(workspace, &package.path))
+        .map(|package| package.path.clone())
+        .collect();
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for package_path in members.iter().cloned().collect::<Vec<_>>() {
+            let Some(package) = by_path.get(&package_path) else {
+                continue;
+            };
+            let Ok(text) = fs::read_to_string(root.join(&package.manifest)) else {
+                continue;
+            };
+            let base = Path::new(&package.manifest)
+                .parent()
+                .filter(|p| !p.as_os_str().is_empty())
+                .unwrap_or_else(|| Path::new("."));
+            for (_, path) in cargo_path_dependencies(&text) {
+                let Some(target_path) = cargo_resolve_repo_relative_path(base, &path) else {
+                    continue;
+                };
+                if by_path.contains_key(&target_path)
+                    && cargo_workspace_path_allowed(workspace, &target_path)
+                    && members.insert(target_path)
+                {
+                    changed = true;
+                }
+            }
+            for name in cargo_workspace_dependency_names(&text) {
+                let Some(target_path) = workspace.dependencies.get(&name) else {
+                    continue;
+                };
+                if by_path.contains_key(target_path)
+                    && cargo_workspace_path_allowed(workspace, target_path)
+                    && members.insert(target_path.clone())
+                {
+                    changed = true;
+                }
+            }
+        }
+    }
+    members
+}
+
+fn cargo_workspace_explicitly_contains_package(
+    workspace: &CargoWorkspaceInfo,
+    package_path: &str,
+) -> bool {
+    let rel = match path_relative_to(package_path, &workspace.path) {
+        Some(rel) => rel,
+        None => return false,
+    };
+    if !cargo_workspace_rel_allowed(workspace, &rel) {
+        return false;
+    }
+    if rel == "." {
+        return true;
+    }
+    workspace
+        .members
+        .iter()
+        .any(|pattern| cargo_workspace_member_pattern_matches(&rel, pattern))
+}
+
+fn cargo_workspace_path_allowed(workspace: &CargoWorkspaceInfo, package_path: &str) -> bool {
+    path_relative_to(package_path, &workspace.path)
+        .map(|rel| cargo_workspace_rel_allowed(workspace, &rel))
+        .unwrap_or(false)
+}
+
+fn cargo_workspace_rel_allowed(workspace: &CargoWorkspaceInfo, rel: &str) -> bool {
+    !workspace
+        .exclude
+        .iter()
+        .any(|pattern| cargo_workspace_member_pattern_matches(rel, pattern))
+}
+
+fn path_relative_to(path: &str, base: &str) -> Option<String> {
+    let path = normalize_rel_path(path);
+    let base = normalize_rel_path(base);
+    if base == "." {
+        return Some(path);
+    }
+    if path == base {
+        return Some(".".to_string());
+    }
+    let prefix = format!("{}/", base.trim_end_matches('/'));
+    path.strip_prefix(&prefix).map(str::to_string)
+}
+
+fn cargo_workspace_member_pattern_matches(rel: &str, pattern: &str) -> bool {
+    let rel = normalize_rel_path(rel.trim().trim_start_matches("./"));
+    let Some(pattern) = cargo_normalize_workspace_member_pattern(pattern) else {
+        return false;
+    };
+    if pattern == "." {
+        return rel == ".";
+    }
+    let mut builder = GlobBuilder::new(&pattern);
+    builder.literal_separator(true);
+    builder
+        .build()
+        .map(|glob| glob.compile_matcher().is_match(&rel))
+        .unwrap_or(rel == pattern)
+}
+
+fn cargo_resolve_repo_relative_path(base: &Path, path: &str) -> Option<String> {
+    let raw = path.trim().replace('\\', "/");
+    if raw.is_empty() || cargo_path_is_absolute_like(&raw) {
+        return None;
+    }
+    let base = normalize_rel_path(&base.to_string_lossy());
+    let mut parts: Vec<String> = if base == "." {
+        Vec::new()
+    } else {
+        base.split('/').map(str::to_string).collect()
+    };
+    for part in raw.split('/') {
+        match part {
+            "" | "." => {}
+            ".." => {
+                parts.pop()?;
+            }
+            other => parts.push(other.to_string()),
+        }
+    }
+    Some(if parts.is_empty() {
+        ".".to_string()
+    } else {
+        parts.join("/")
+    })
+}
+
+fn cargo_normalize_workspace_member_pattern(pattern: &str) -> Option<String> {
+    let raw = pattern.trim().trim_start_matches("./").replace('\\', "/");
+    if raw.is_empty() || cargo_path_is_absolute_like(&raw) {
+        return None;
+    }
+    let mut parts: Vec<String> = Vec::new();
+    for part in raw.split('/') {
+        match part {
+            "" | "." => {}
+            ".." => {
+                parts.pop()?;
+            }
+            other => parts.push(other.to_string()),
+        }
+    }
+    Some(if parts.is_empty() {
+        ".".to_string()
+    } else {
+        parts.join("/")
+    })
+}
+
+fn cargo_path_is_absolute_like(path: &str) -> bool {
+    path.starts_with('/')
+        || path.starts_with("//")
+        || path
+            .split('/')
+            .next()
+            .is_some_and(|part| part.ends_with(':'))
 }
 
 fn go_package_edges(
@@ -1637,6 +1912,7 @@ fn go_package_edges(
                     from_manifest: package.manifest.clone(),
                     to: target.path.clone(),
                     to_manifest: Some(target.manifest.clone()),
+                    workspace_manifest: None,
                     dependency: dep,
                     source: "go.mod replace".to_string(),
                 });
@@ -1649,6 +1925,7 @@ fn go_package_edges(
                     from_manifest: package.manifest.clone(),
                     to: target.path.clone(),
                     to_manifest: Some(target.manifest.clone()),
+                    workspace_manifest: None,
                     dependency: dep,
                     source: "go.mod local replace".to_string(),
                 });
@@ -1661,6 +1938,7 @@ fn go_package_edges(
                 from_manifest: package.manifest.clone(),
                 to: target.path.clone(),
                 to_manifest: Some(target.manifest.clone()),
+                workspace_manifest: None,
                 dependency: dep,
                 source: "go.mod require".to_string(),
             });
@@ -1690,6 +1968,7 @@ fn python_package_edges(
                 from_manifest: package.manifest.clone(),
                 to: target.path.clone(),
                 to_manifest: Some(target.manifest.clone()),
+                workspace_manifest: None,
                 dependency: dep,
                 source: "pyproject local path dependency".to_string(),
             });
@@ -1739,11 +2018,14 @@ fn cargo_package_name(text: &str) -> Option<String> {
 fn cargo_path_dependencies(text: &str) -> Vec<(String, String)> {
     let mut deps = Vec::new();
     let mut section = CargoDependencySection::Outside;
+    let mut in_root = true;
     for line in text.lines() {
-        let trimmed = line.trim();
+        let cleaned = strip_toml_comment(line);
+        let trimmed = cleaned.trim();
         if trimmed.starts_with('[') && trimmed.ends_with(']') {
             let name = trimmed.trim_matches(&['[', ']'][..]);
             section = cargo_dependency_section(name);
+            in_root = false;
             continue;
         }
         if trimmed.is_empty() || trimmed.starts_with('#') {
@@ -1754,10 +2036,13 @@ fn cargo_path_dependencies(text: &str) -> Vec<(String, String)> {
         };
         match &section {
             CargoDependencySection::InlineMap => {
-                let Some(path) = cargo_inline_path(value) else {
-                    continue;
-                };
-                deps.push((name.trim().to_string(), path));
+                if let Some(path) = cargo_inline_path(value) {
+                    deps.push((name.trim().to_string(), path));
+                } else if let Some(dep_name) = cargo_dotted_property_name(name, "path")
+                    && let Some(path) = unquote(value.trim()).filter(|s| !s.is_empty())
+                {
+                    deps.push((dep_name, path));
+                }
             }
             CargoDependencySection::DependencyTable(dep_name) => {
                 if name.trim() != "path" {
@@ -1768,10 +2053,195 @@ fn cargo_path_dependencies(text: &str) -> Vec<(String, String)> {
                 };
                 deps.push((dep_name.clone(), path));
             }
-            CargoDependencySection::Outside => {}
+            CargoDependencySection::Outside => {
+                if in_root
+                    && let Some(dep_name) = cargo_full_dotted_dependency_property(name, "path")
+                    && let Some(path) = unquote(value.trim()).filter(|s| !s.is_empty())
+                {
+                    deps.push((dep_name, path));
+                }
+            }
         }
     }
     deps
+}
+
+fn cargo_workspace_path_dependencies(text: &str) -> BTreeMap<String, String> {
+    let mut deps = BTreeMap::new();
+    let mut section = CargoWorkspaceDependencySection::Outside;
+    let mut in_root = true;
+    for line in text.lines() {
+        let cleaned = strip_toml_comment(line);
+        let trimmed = cleaned.trim();
+        if trimmed.starts_with('[') && trimmed.ends_with(']') {
+            let name = trimmed.trim_matches(&['[', ']'][..]);
+            section = cargo_workspace_dependency_section(name);
+            in_root = false;
+            continue;
+        }
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        let Some((name, value)) = trimmed.split_once('=') else {
+            continue;
+        };
+        match &section {
+            CargoWorkspaceDependencySection::InlineMap => {
+                if let Some(path) = cargo_inline_path(value) {
+                    deps.insert(name.trim().to_string(), path);
+                } else if let Some(dep_name) = cargo_dotted_property_name(name, "path")
+                    && let Some(path) = unquote(value.trim()).filter(|s| !s.is_empty())
+                {
+                    deps.insert(dep_name, path);
+                }
+            }
+            CargoWorkspaceDependencySection::WorkspaceTable => {
+                if let Some(dep_name) = cargo_workspace_table_dependency_property(name, "path")
+                    && let Some(path) = unquote(value.trim()).filter(|s| !s.is_empty())
+                {
+                    deps.insert(dep_name, path);
+                } else if let Some(dep_name) = cargo_workspace_table_dependency_name(name)
+                    && let Some(path) = cargo_inline_path(value)
+                {
+                    deps.insert(dep_name, path);
+                }
+            }
+            CargoWorkspaceDependencySection::DependencyTable(dep_name) => {
+                if name.trim() == "path"
+                    && let Some(path) = unquote(value.trim()).filter(|s| !s.is_empty())
+                {
+                    deps.insert(dep_name.clone(), path);
+                }
+            }
+            CargoWorkspaceDependencySection::Outside => {
+                if in_root
+                    && let Some(dep_name) =
+                        cargo_full_dotted_workspace_dependency_property(name, "path")
+                    && let Some(path) = unquote(value.trim()).filter(|s| !s.is_empty())
+                {
+                    deps.insert(dep_name, path);
+                } else if in_root
+                    && let Some(dep_name) = cargo_full_dotted_workspace_dependency_name(name)
+                    && let Some(path) = cargo_inline_path(value)
+                {
+                    deps.insert(dep_name, path);
+                }
+            }
+        }
+    }
+    deps
+}
+
+fn cargo_workspace_dependency_names(text: &str) -> Vec<String> {
+    let mut deps = Vec::new();
+    let mut section = CargoDependencySection::Outside;
+    let mut in_root = true;
+    for line in text.lines() {
+        let cleaned = strip_toml_comment(line);
+        let trimmed = cleaned.trim();
+        if trimmed.starts_with('[') && trimmed.ends_with(']') {
+            let name = trimmed.trim_matches(&['[', ']'][..]);
+            section = cargo_dependency_section(name);
+            in_root = false;
+            continue;
+        }
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        let Some((name, value)) = trimmed.split_once('=') else {
+            continue;
+        };
+        match &section {
+            CargoDependencySection::InlineMap => {
+                if cargo_inline_bool(value, "workspace") == Some(true) {
+                    deps.push(name.trim().to_string());
+                } else if let Some(dep_name) = cargo_dotted_property_name(name, "workspace")
+                    && bare_toml_bool(value) == Some(true)
+                {
+                    deps.push(dep_name);
+                }
+            }
+            CargoDependencySection::DependencyTable(dep_name) => {
+                if name.trim() == "workspace" && bare_toml_bool(value) == Some(true) {
+                    deps.push(dep_name.clone());
+                }
+            }
+            CargoDependencySection::Outside => {
+                if in_root
+                    && let Some(dep_name) = cargo_full_dotted_dependency_property(name, "workspace")
+                    && bare_toml_bool(value) == Some(true)
+                {
+                    deps.push(dep_name);
+                }
+            }
+        }
+    }
+    unique_strings(deps)
+}
+
+fn cargo_workspace_declared(text: &str) -> bool {
+    let mut in_root = true;
+    for line in text.lines() {
+        let cleaned = strip_toml_comment(line);
+        let trimmed = cleaned.trim();
+        if trimmed.starts_with('[') && trimmed.ends_with(']') {
+            let name = trimmed.trim_matches(&['[', ']'][..]);
+            let parts = split_toml_dotted_key(name);
+            if parts.first().is_some_and(|part| part == "workspace") {
+                return true;
+            }
+            in_root = false;
+            continue;
+        }
+        if in_root && let Some((name, _)) = trimmed.split_once('=') {
+            let parts = split_toml_dotted_key(name);
+            if parts.first().is_some_and(|part| part == "workspace") {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn cargo_workspace_array_values(text: &str, key: &str) -> Vec<String> {
+    let mut values = Vec::new();
+    let mut in_workspace = false;
+    let mut in_root = true;
+    let mut collecting = false;
+    for line in text.lines() {
+        let cleaned = strip_toml_comment(line);
+        let trimmed = cleaned.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if trimmed.starts_with('[') && trimmed.ends_with(']') {
+            let name = trimmed.trim_matches(&['[', ']'][..]);
+            let parts = split_toml_dotted_key(name);
+            in_workspace = parts.as_slice() == ["workspace"];
+            in_root = false;
+            collecting = false;
+            continue;
+        }
+        if collecting {
+            values.extend(quoted_values(trimmed));
+            if trimmed.contains(']') {
+                collecting = false;
+            }
+            continue;
+        }
+        let Some((name, value)) = trimmed.split_once('=') else {
+            continue;
+        };
+        let parts = split_toml_dotted_key(name);
+        let matches_key = (in_workspace && name.trim() == key)
+            || (in_root && parts.len() == 2 && parts[0] == "workspace" && parts[1] == key);
+        if !matches_key {
+            continue;
+        }
+        values.extend(quoted_values(value));
+        collecting = value.contains('[') && !value.contains(']');
+    }
+    values
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1779,6 +2249,32 @@ enum CargoDependencySection {
     Outside,
     InlineMap,
     DependencyTable(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum CargoWorkspaceDependencySection {
+    Outside,
+    WorkspaceTable,
+    InlineMap,
+    DependencyTable(String),
+}
+
+fn cargo_workspace_dependency_section(section: &str) -> CargoWorkspaceDependencySection {
+    let parts = split_toml_dotted_key(section);
+    if parts.as_slice() == ["workspace"] {
+        return CargoWorkspaceDependencySection::WorkspaceTable;
+    }
+    if parts.as_slice() == ["workspace", "dependencies"] {
+        return CargoWorkspaceDependencySection::InlineMap;
+    }
+    if parts.len() == 3
+        && parts[0] == "workspace"
+        && parts[1] == "dependencies"
+        && let Some(name) = clean_cargo_table_key(&parts[2])
+    {
+        return CargoWorkspaceDependencySection::DependencyTable(name);
+    }
+    CargoWorkspaceDependencySection::Outside
 }
 
 fn cargo_dependency_section(section: &str) -> CargoDependencySection {
@@ -1796,25 +2292,146 @@ fn cargo_dependency_section(section: &str) -> CargoDependencySection {
 }
 
 fn cargo_dependency_map_section(section: &str) -> bool {
-    matches!(
-        section,
-        "dependencies" | "dev-dependencies" | "build-dependencies"
-    ) || section.ends_with(".dependencies")
-        || section.ends_with(".dev-dependencies")
-        || section.ends_with(".build-dependencies")
+    let parts = split_toml_dotted_key(section);
+    if parts.len() == 1 {
+        return cargo_dependency_section_name(&parts[0]);
+    }
+    parts.len() == 3
+        && parts[0] == "target"
+        && !parts[1].trim().is_empty()
+        && cargo_dependency_section_name(&parts[2])
 }
 
 fn cargo_dependency_table_name(section: &str) -> Option<String> {
-    for marker in ["dependencies.", "dev-dependencies.", "build-dependencies."] {
-        if let Some(raw) = section.strip_prefix(marker) {
-            return clean_cargo_table_key(raw);
-        }
-        let nested_marker = format!(".{marker}");
-        if let Some((_, raw)) = section.split_once(&nested_marker) {
-            return clean_cargo_table_key(raw);
-        }
+    let parts = split_toml_dotted_key(section);
+    if parts.len() == 2 && cargo_dependency_section_name(&parts[0]) {
+        return clean_cargo_table_key(&parts[1]);
+    }
+    if parts.len() == 4
+        && parts[0] == "target"
+        && !parts[1].trim().is_empty()
+        && cargo_dependency_section_name(&parts[2])
+    {
+        return clean_cargo_table_key(&parts[3]);
     }
     None
+}
+
+fn cargo_dependency_section_name(name: &str) -> bool {
+    matches!(
+        name,
+        "dependencies" | "dev-dependencies" | "build-dependencies"
+    )
+}
+
+fn cargo_dotted_property_name(key: &str, property: &str) -> Option<String> {
+    let parts = split_toml_dotted_key(key);
+    if parts.len() == 2 && parts[1] == property {
+        return clean_cargo_table_key(&parts[0]);
+    }
+    None
+}
+
+fn cargo_full_dotted_dependency_property(key: &str, property: &str) -> Option<String> {
+    let parts = split_toml_dotted_key(key);
+    if parts.len() == 3 && cargo_dependency_section_name(&parts[0]) && parts[2] == property {
+        return clean_cargo_table_key(&parts[1]);
+    }
+    None
+}
+
+fn cargo_full_dotted_workspace_dependency_property(key: &str, property: &str) -> Option<String> {
+    let parts = split_toml_dotted_key(key);
+    if parts.len() == 4
+        && parts[0] == "workspace"
+        && parts[1] == "dependencies"
+        && parts[3] == property
+    {
+        return clean_cargo_table_key(&parts[2]);
+    }
+    None
+}
+
+fn cargo_full_dotted_workspace_dependency_name(key: &str) -> Option<String> {
+    let parts = split_toml_dotted_key(key);
+    if parts.len() == 3 && parts[0] == "workspace" && parts[1] == "dependencies" {
+        return clean_cargo_table_key(&parts[2]);
+    }
+    None
+}
+
+fn cargo_workspace_table_dependency_property(key: &str, property: &str) -> Option<String> {
+    let parts = split_toml_dotted_key(key);
+    if parts.len() == 3 && parts[0] == "dependencies" && parts[2] == property {
+        return clean_cargo_table_key(&parts[1]);
+    }
+    None
+}
+
+fn cargo_workspace_table_dependency_name(key: &str) -> Option<String> {
+    let parts = split_toml_dotted_key(key);
+    if parts.len() == 2 && parts[0] == "dependencies" {
+        return clean_cargo_table_key(&parts[1]);
+    }
+    None
+}
+
+fn split_toml_dotted_key(key: &str) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut current = String::new();
+    let mut quote: Option<char> = None;
+    let mut escaped = false;
+    for ch in key.chars() {
+        if let Some(q) = quote {
+            current.push(ch);
+            if escaped {
+                escaped = false;
+            } else if q == '"' && ch == '\\' {
+                escaped = true;
+            } else if ch == q {
+                quote = None;
+            }
+            continue;
+        }
+        if ch == '.' {
+            parts.push(current.trim().to_string());
+            current.clear();
+            continue;
+        }
+        if ch == '"' || ch == '\'' {
+            quote = Some(ch);
+        }
+        current.push(ch);
+    }
+    parts.push(current.trim().to_string());
+    parts
+}
+
+fn strip_toml_comment(line: &str) -> String {
+    let mut out = String::new();
+    let mut quote: Option<char> = None;
+    let mut escaped = false;
+    for ch in line.chars() {
+        if let Some(q) = quote {
+            out.push(ch);
+            if escaped {
+                escaped = false;
+            } else if q == '"' && ch == '\\' {
+                escaped = true;
+            } else if ch == q {
+                quote = None;
+            }
+            continue;
+        }
+        if ch == '#' {
+            break;
+        }
+        if ch == '"' || ch == '\'' {
+            quote = Some(ch);
+        }
+        out.push(ch);
+    }
+    out
 }
 
 fn clean_cargo_table_key(raw: &str) -> Option<String> {
@@ -1844,6 +2461,30 @@ fn cargo_inline_path(value: &str) -> Option<String> {
         }
     }
     None
+}
+
+fn cargo_inline_bool(value: &str, wanted_key: &str) -> Option<bool> {
+    let value = value.trim();
+    if !(value.starts_with('{') && value.ends_with('}')) {
+        return None;
+    }
+    for part in value.trim_matches(&['{', '}'][..]).split(',') {
+        let Some((key, raw_value)) = part.split_once('=') else {
+            continue;
+        };
+        if key.trim() == wanted_key {
+            return bare_toml_bool(raw_value);
+        }
+    }
+    None
+}
+
+fn bare_toml_bool(value: &str) -> Option<bool> {
+    match value.trim() {
+        "true" => Some(true),
+        "false" => Some(false),
+        _ => None,
+    }
 }
 
 fn go_module_name(text: &str) -> Option<String> {
@@ -2642,4 +3283,169 @@ fn rust_mod_re() -> &'static Regex {
     RE.get_or_init(|| {
         Regex::new(r#"(?m)^\s*(?:pub\s+)?mod\s+([A-Za-z0-9_]+)\s*;"#).expect("valid rust mod regex")
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cargo_workspace_table_and_dotted_forms_parse() {
+        let workspace = r#"workspace.dependencies.ctx_fixture_tools = { path = "crates/tools" }
+
+[workspace]
+members = [
+  "crates/app",
+  "crates/renderer",
+]
+exclude = ["crates/ignored"]
+dependencies.ctx_fixture_extra.path = "crates/extra"
+dependencies.ctx_fixture_inline = { path = "crates/inline" }
+
+[workspace.dependencies.ctx_fixture_replay]
+path = "crates/replay"
+"#;
+        assert_eq!(
+            cargo_workspace_array_values(workspace, "members"),
+            vec!["crates/app".to_string(), "crates/renderer".to_string()]
+        );
+        assert_eq!(
+            cargo_workspace_array_values(workspace, "exclude"),
+            vec!["crates/ignored".to_string()]
+        );
+        let deps = cargo_workspace_path_dependencies(workspace);
+        assert_eq!(
+            deps.get("ctx_fixture_replay").map(String::as_str),
+            Some("crates/replay")
+        );
+        assert_eq!(
+            deps.get("ctx_fixture_tools").map(String::as_str),
+            Some("crates/tools")
+        );
+        assert_eq!(
+            deps.get("ctx_fixture_extra").map(String::as_str),
+            Some("crates/extra")
+        );
+        assert_eq!(
+            deps.get("ctx_fixture_inline").map(String::as_str),
+            Some("crates/inline")
+        );
+
+        let package = r#"[dependencies.ctx_fixture_replay]
+workspace = true
+
+[dependencies]
+ctx_fixture_tools.workspace = true
+"#;
+        assert_eq!(
+            cargo_workspace_dependency_names(package),
+            vec![
+                "ctx_fixture_replay".to_string(),
+                "ctx_fixture_tools".to_string()
+            ]
+        );
+        assert!(cargo_workspace_member_pattern_matches(
+            "crates/renderer",
+            "crates/renderer"
+        ));
+        assert!(cargo_workspace_member_pattern_matches(
+            "crates/group/app",
+            "crates/*/app"
+        ));
+    }
+
+    #[test]
+    fn cargo_workspace_edges_use_workspace_dependency_tables() {
+        let repo = tempfile::TempDir::new().expect("temp repo");
+        write_test_file(
+            &repo.path().join("Cargo.toml"),
+            r#"[workspace]
+members = [
+  "crates/renderer",
+  "crates/replay",
+]
+
+[workspace.dependencies.ctx_fixture_replay]
+path = "crates/replay"
+"#,
+        );
+        write_test_file(
+            &repo.path().join("crates/renderer/Cargo.toml"),
+            r#"[package]
+name = "ctx_fixture_renderer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies.ctx_fixture_replay]
+workspace = true
+"#,
+        );
+        write_test_file(
+            &repo.path().join("crates/replay/Cargo.toml"),
+            r#"[package]
+name = "ctx_fixture_replay"
+version = "0.1.0"
+edition = "2024"
+"#,
+        );
+        let project = load_project_with_cache(
+            RootSelection::Exact(repo.path().to_path_buf()),
+            CacheWriteMode::ReadOnly,
+        )
+        .expect("load project");
+        let by_path: BTreeMap<String, &PackageInfo> = project
+            .packages
+            .iter()
+            .map(|package| (package.path.clone(), package))
+            .collect();
+        let workspaces =
+            cargo_workspace_infos(repo.path(), &project.files, &project.packages, &by_path);
+        assert!(
+            project.package_edges.iter().any(|edge| {
+                edge.from == "crates/renderer"
+                    && edge.to == "crates/replay"
+                    && edge.source == "Cargo.toml workspace dependency"
+            }),
+            "files: {:#?}; packages: {:#?}; workspaces: {:#?}; package edges: {:#?}",
+            project.files.keys().collect::<Vec<_>>(),
+            project.packages,
+            workspaces,
+            project.package_edges
+        );
+    }
+
+    #[test]
+    fn cargo_paths_resolve_inside_repo_without_root_escape() {
+        assert_eq!(
+            cargo_resolve_repo_relative_path(Path::new("crates/app"), "../renderer").as_deref(),
+            Some("crates/renderer")
+        );
+        assert_eq!(
+            cargo_resolve_repo_relative_path(Path::new("."), "crates/replay").as_deref(),
+            Some("crates/replay")
+        );
+        assert_eq!(
+            cargo_resolve_repo_relative_path(Path::new("."), "../external"),
+            None
+        );
+        assert_eq!(
+            cargo_resolve_repo_relative_path(Path::new("nested"), "../../external"),
+            None
+        );
+        assert_eq!(
+            cargo_resolve_repo_relative_path(Path::new("."), "/tmp/external"),
+            None
+        );
+        assert!(!cargo_workspace_member_pattern_matches(
+            "external",
+            "../external"
+        ));
+    }
+
+    fn write_test_file(path: &Path, body: &str) {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).expect("create parent");
+        }
+        fs::write(path, body).expect("write test file");
+    }
 }

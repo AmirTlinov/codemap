@@ -837,6 +837,7 @@ fn package_transitive_paths(project: &Project, max_depth: usize) -> Vec<PackageG
     for first in &project.package_edges {
         let mut first_manifests = vec![first.from_manifest.clone()];
         append_manifest(&mut first_manifests, first.to_manifest.as_deref());
+        append_manifest(&mut first_manifests, first.workspace_manifest.as_deref());
         let mut queue = VecDeque::from([(
             first.to.clone(),
             vec![first.dependency.clone()],
@@ -860,6 +861,7 @@ fn package_transitive_paths(project: &Project, max_depth: usize) -> Vec<PackageG
                 let mut next_manifests = manifests.clone();
                 append_manifest(&mut next_manifests, Some(&edge.from_manifest));
                 append_manifest(&mut next_manifests, edge.to_manifest.as_deref());
+                append_manifest(&mut next_manifests, edge.workspace_manifest.as_deref());
                 let next_depth = depth + 1;
                 paths.push(PackageGraphPath {
                     from: first.from.clone(),
@@ -891,6 +893,11 @@ fn package_edge_touched(
     changed.contains(&edge.from_manifest)
         || edge
             .to_manifest
+            .as_ref()
+            .map(|manifest| changed.contains(manifest))
+            .unwrap_or(false)
+        || edge
+            .workspace_manifest
             .as_ref()
             .map(|manifest| changed.contains(manifest))
             .unwrap_or(false)
@@ -2095,13 +2102,18 @@ fn package_consumer_manifests(
         }
     }
     if roots.is_empty() {
-        return Vec::new();
+        let workspace_roots = workspace_manifest_consumers(project, changed, depth, limit);
+        return workspace_roots;
     }
-    let mut seen = roots.clone();
-    let mut queue: VecDeque<(String, usize)> = roots.into_iter().map(|path| (path, 0)).collect();
-    let mut out = Vec::new();
-    while let Some((package_path, d)) = queue.pop_front() {
-        if out.len() >= limit {
+    let mut traversal = PackageConsumerTraversal {
+        seen: roots.clone(),
+        queue: roots.into_iter().map(|path| (path, 0)).collect(),
+        out: Vec::new(),
+        out_seen: BTreeSet::new(),
+    };
+    seed_workspace_manifest_consumers(project, changed, depth, limit, &mut traversal);
+    while let Some((package_path, d)) = traversal.queue.pop_front() {
+        if traversal.out.len() >= limit {
             break;
         }
         for edge in project
@@ -2109,18 +2121,99 @@ fn package_consumer_manifests(
             .iter()
             .filter(|edge| edge.to == package_path)
         {
-            if seen.insert(edge.from.clone()) {
-                out.push(edge.from_manifest.clone());
-                if d + 1 < depth {
-                    queue.push_back((edge.from.clone(), d + 1));
+            if traversal.seen.insert(edge.from.clone()) {
+                if traversal.out_seen.insert(edge.from_manifest.clone()) {
+                    traversal.out.push(edge.from_manifest.clone());
                 }
-                if out.len() >= limit {
+                if d + 1 < depth {
+                    traversal.queue.push_back((edge.from.clone(), d + 1));
+                }
+                if traversal.out.len() >= limit {
                     break;
                 }
             }
         }
     }
-    out
+    traversal.out
+}
+
+struct PackageConsumerTraversal {
+    seen: BTreeSet<String>,
+    queue: VecDeque<(String, usize)>,
+    out: Vec<String>,
+    out_seen: BTreeSet<String>,
+}
+
+fn workspace_manifest_consumers(
+    project: &Project,
+    changed: &[String],
+    depth: usize,
+    limit: usize,
+) -> Vec<String> {
+    let mut traversal = PackageConsumerTraversal {
+        seen: BTreeSet::new(),
+        queue: VecDeque::new(),
+        out: Vec::new(),
+        out_seen: BTreeSet::new(),
+    };
+    seed_workspace_manifest_consumers(project, changed, depth, limit, &mut traversal);
+    while let Some((package_path, d)) = traversal.queue.pop_front() {
+        if traversal.out.len() >= limit {
+            break;
+        }
+        for edge in project
+            .package_edges
+            .iter()
+            .filter(|edge| edge.to == package_path)
+        {
+            if traversal.seen.insert(edge.from.clone()) {
+                if traversal.out_seen.insert(edge.from_manifest.clone()) {
+                    traversal.out.push(edge.from_manifest.clone());
+                }
+                if d + 1 < depth {
+                    traversal.queue.push_back((edge.from.clone(), d + 1));
+                }
+                if traversal.out.len() >= limit {
+                    break;
+                }
+            }
+        }
+    }
+    traversal.out
+}
+
+fn seed_workspace_manifest_consumers(
+    project: &Project,
+    changed: &[String],
+    depth: usize,
+    limit: usize,
+    traversal: &mut PackageConsumerTraversal,
+) {
+    if depth == 0 || limit == 0 {
+        return;
+    }
+    for rel in changed {
+        if !requires_package_consumer_expansion(project, rel) {
+            continue;
+        }
+        for edge in project
+            .package_edges
+            .iter()
+            .filter(|edge| edge.workspace_manifest.as_deref() == Some(rel.as_str()))
+        {
+            if traversal.seen.insert(edge.from.clone()) {
+                if traversal.out_seen.insert(edge.from_manifest.clone()) {
+                    traversal.out.push(edge.from_manifest.clone());
+                }
+                if 1 < depth {
+                    traversal.queue.push_back((edge.from.clone(), 1));
+                }
+                if traversal.out.len() >= limit {
+                    return;
+                }
+            }
+        }
+    }
 }
 
 fn requires_package_consumer_expansion(project: &Project, rel: &str) -> bool {

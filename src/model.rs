@@ -78,6 +78,7 @@ pub struct PackageDependency {
     pub from_manifest: String,
     pub to: String,
     pub to_manifest: Option<String>,
+    pub workspace_manifest: Option<String>,
     pub dependency: String,
     pub source: String,
 }
