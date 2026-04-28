@@ -476,6 +476,18 @@ fn absolute_file_root_hint(value: &str) -> Option<PathBuf> {
 }
 
 fn init(project: &crate::model::Project, args: InitArgs) -> Result<()> {
+    let action_count = [args.agents, args.print, args.write_minimal]
+        .into_iter()
+        .filter(|enabled| *enabled)
+        .count();
+    if action_count > 1 {
+        bail!("ctx init accepts only one of --agents, --print, or --write-minimal");
+    }
+    if args.agents && args.path.is_some() {
+        bail!(
+            "ctx init --agents writes the repository bootloader; use --root to select a different repository root"
+        );
+    }
     if args.agents {
         let target = project.root.join("AGENTS.md");
         if target.exists() && !args.force {

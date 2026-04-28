@@ -943,6 +943,38 @@ fn init_default_writes_nothing() {
 }
 
 #[test]
+fn init_refuses_ambiguous_write_actions_without_writing() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(&repo.path().join("main.py"), "print('x')\n");
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let conflicting = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["init", "--agents", "--print"])
+        .output()
+        .expect("ctx init should run");
+    assert!(!conflicting.status.success());
+    assert!(git_status(repo.path()).is_empty());
+    let stderr = String::from_utf8(conflicting.stderr).expect("stderr should be utf8");
+    assert!(stderr.contains("only one of --agents, --print, or --write-minimal"));
+
+    let agents_with_path = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["init", "--agents", "--path", "domains/replay"])
+        .output()
+        .expect("ctx init should run");
+    assert!(!agents_with_path.status.success());
+    assert!(git_status(repo.path()).is_empty());
+    let stderr = String::from_utf8(agents_with_path.stderr).expect("stderr should be utf8");
+    assert!(stderr.contains("use --root to select a different repository root"));
+}
+
+#[test]
 fn invalid_ctx_config_is_reported_and_blocks_routing() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");
