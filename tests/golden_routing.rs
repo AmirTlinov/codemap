@@ -706,6 +706,38 @@ fn graph_verification_lens_connects_changed_files_tests_and_commands() {
 }
 
 #[test]
+fn graph_changed_lenses_do_not_invent_context_when_changed_set_is_empty() {
+    let repo = fixture_copy("mixed-monorepo");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    for lens in ["verification", "impact"] {
+        let graph = ctx()
+            .current_dir(repo.path())
+            .env("CTX_CACHE_DIR", cache.path())
+            .args(["graph", "--lens", lens, "--changed", "--format", "json"])
+            .output()
+            .unwrap_or_else(|error| panic!("ctx graph {lens} should run: {error}"));
+        assert!(graph.status.success(), "ctx graph {lens} should succeed");
+        let graph_json: Value = serde_json::from_slice(&graph.stdout).expect("valid graph json");
+        assert_eq!(
+            graph_json["nodes"].as_array().unwrap().len(),
+            0,
+            "{lens} graph should stay empty for an explicitly empty changed set"
+        );
+        assert_eq!(
+            graph_json["edges"].as_array().unwrap().len(),
+            0,
+            "{lens} graph should not synthesize edges for an empty changed set"
+        );
+    }
+}
+
+#[test]
 fn rust_workspace_routes_replay_task_to_replay_crate() {
     let repo = fixture_copy("rust-workspace");
     let cache = TempDir::new().expect("cache tempdir");

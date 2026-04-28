@@ -338,7 +338,7 @@ pub fn run() -> Result<()> {
                 graph_path.as_deref(),
                 &args.lens,
                 args.limit,
-                &changed,
+                args.changed.then_some(changed.as_slice()),
             );
             match args.format {
                 OutputFormat::Json => render::print_json(&graph),

@@ -12,14 +12,14 @@ pub fn graph_lens(
     path: Option<&str>,
     lens: &str,
     limit: usize,
-    changed: &[String],
+    changed: Option<&[String]>,
 ) -> GraphLens {
     let requested_domain = primary_domain(project, "", path);
     let lens_key = lens.to_ascii_lowercase();
     let (nodes, edges) = match lens_key.as_str() {
         "boundary" | "boundaries" => boundary_graph(project, limit),
         "verification" | "verify" => verification_graph(project, &requested_domain, changed, limit),
-        "impact" if !changed.is_empty() => impact_graph(project, changed, limit),
+        "impact" if changed.is_some() => impact_graph(project, changed.unwrap_or(&[]), limit),
         _ => causal_graph(project, &requested_domain, path, limit),
     };
     let domain = graph_output_domain(
@@ -139,34 +139,40 @@ fn impact_graph(
 fn verification_graph(
     project: &Project,
     domain: &Domain,
-    changed: &[String],
+    changed: Option<&[String]>,
     limit: usize,
 ) -> (Vec<String>, Vec<GraphEdge>) {
-    let (seed_files, related_tests, plan) = if changed.is_empty() {
-        let seeds = select_read_first(
-            project,
-            domain,
-            "",
-            "general",
-            limit.min(5),
-            &BTreeSet::new(),
-        )
-        .into_iter()
-        .map(|candidate| candidate.path)
-        .collect::<Vec<_>>();
-        let tests = test_files_for(project, &seeds, Some(domain), 5);
-        let plan = verification_plan(project, &seeds, &[]);
-        (seeds, tests, plan)
-    } else {
-        let report = impact_report(project, changed.to_vec(), 2, limit);
-        let seeds = unique([report.changed.clone(), report.impacted.clone()].concat());
-        let tests = report.related_tests.clone();
-        let plan = VerificationPlan {
-            minimal: report.minimal_verification,
-            recommended: report.recommended_verification,
-            full_only_if_triggered: report.full_verification,
-        };
-        (seeds, tests, plan)
+    let (seed_files, related_tests, plan) = match changed {
+        Some(changed) => {
+            if changed.is_empty() {
+                return (Vec::new(), Vec::new());
+            }
+            let report = impact_report(project, changed.to_vec(), 2, limit);
+            let seeds = unique([report.changed.clone(), report.impacted.clone()].concat());
+            let tests = report.related_tests.clone();
+            let plan = VerificationPlan {
+                minimal: report.minimal_verification,
+                recommended: report.recommended_verification,
+                full_only_if_triggered: report.full_verification,
+            };
+            (seeds, tests, plan)
+        }
+        None => {
+            let seeds = select_read_first(
+                project,
+                domain,
+                "",
+                "general",
+                limit.min(5),
+                &BTreeSet::new(),
+            )
+            .into_iter()
+            .map(|candidate| candidate.path)
+            .collect::<Vec<_>>();
+            let tests = test_files_for(project, &seeds, Some(domain), 5);
+            let plan = verification_plan(project, &seeds, &[]);
+            (seeds, tests, plan)
+        }
     };
     let command_nodes = plan
         .minimal
