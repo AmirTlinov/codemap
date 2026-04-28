@@ -620,7 +620,7 @@ pub fn widen_context(
     let (kind, conf, _) = task_kind(project, &domain, task);
     let exclude: BTreeSet<String> = already
         .iter()
-        .map(|f| repo::normalize_rel_path(f))
+        .filter_map(|f| normalize_path_in_repo(project, f))
         .collect();
     let mut add: Vec<String> = select_read_first(project, &domain, task, &kind, limit, &exclude)
         .into_iter()

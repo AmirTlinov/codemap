@@ -45,7 +45,7 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - root and nested `.ctx.yml` semantic anchor loading
 - YAML anchor parsing through `serde_yml`
 - unknown `.ctx.yml` fields are rejected instead of being silently ignored
-- absolute path-bearing arguments for `start`, `files`, `graph`, `explain`, `init --path`, `impact`, and `verify` select and normalize to the owning repo
+- absolute path-bearing arguments for `start`, `files`, `graph`, `explain`, `widen --path`, `widen --already`, `init --path`, `impact`, and `verify` select and normalize to the owning repo
 - safe `ctx init --write-minimal`: creates requested domain directories, refuses writes outside the repo, and writes no fake placeholder concepts
 - invalid `.ctx.yml` files are reported by `ctx anchors validate` and block routing commands instead of being silently ignored
 - semantically invalid `.ctx.yml` anchors fail closed before routing when `version: 1`, exact concept files, route read-first files, boundary reasons, or route match/read declarations are missing

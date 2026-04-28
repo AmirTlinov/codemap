@@ -410,7 +410,7 @@ fn command_root_hint(command: &CommandKind, ambient_root: Option<&Path>) -> Opti
         CommandKind::Files(args) => absolute_path_hint(args.path.as_deref()),
         CommandKind::Init(args) => init_root_hint(args.path.as_deref(), ambient_root),
         CommandKind::Start(args) => absolute_path_hint(args.path.as_deref()),
-        CommandKind::Widen(args) => absolute_path_hint(args.path.as_deref()),
+        CommandKind::Widen(args) => widen_root_hint(args),
         CommandKind::Impact(args) => {
             absolute_files_hint(args.files.as_deref(), &args.positional_files)
         }
@@ -430,6 +430,14 @@ fn init_root_hint(path: Option<&str>, ambient_root: Option<&Path>) -> Option<Pat
     } else {
         Some(hint)
     }
+}
+
+fn widen_root_hint(args: &WidenArgs) -> Option<PathBuf> {
+    absolute_path_hint(args.path.as_deref()).or_else(|| {
+        args.already
+            .iter()
+            .find_map(|file| absolute_file_root_hint(file))
+    })
 }
 
 fn absolute_path_hint(path: Option<&str>) -> Option<PathBuf> {

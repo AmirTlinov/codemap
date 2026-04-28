@@ -2116,6 +2116,32 @@ fn absolute_path_commands_select_target_repo_from_any_cwd() {
     assert!(init.status.success());
     assert!(repo.path().join("domains/replay/.ctx.yml").exists());
     assert!(!outside.path().join(".ctx.yml").exists());
+
+    let widen = ctx()
+        .current_dir(outside.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "widen",
+            "--task",
+            "fix broken save",
+            "--reason",
+            "read-first set did not contain the cause",
+            "--already",
+            absolute_file.to_str().unwrap(),
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx widen should run");
+    assert!(widen.status.success());
+    let widen_json: Value = serde_json::from_slice(&widen.stdout).expect("valid widen json");
+    assert!(
+        widen_json["add"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| { item.as_str() != Some("src/save.ts") })
+    );
 }
 
 #[test]
