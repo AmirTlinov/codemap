@@ -912,6 +912,52 @@ fn verify_prints_plan_and_does_not_run_without_run() {
 }
 
 #[test]
+fn verification_prefers_exact_test_script_over_broader_test_scripts() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join("package.json"),
+        r#"{"scripts":{"test:e2e":"echo e2e","test":"echo unit"}}"#,
+    );
+    write(
+        &repo.path().join("packages/replay/package.json"),
+        r#"{"name":"replay","scripts":{"test":"echo replay"}}"#,
+    );
+    write(
+        &repo.path().join("packages/renderer/package.json"),
+        r#"{"name":"renderer","scripts":{"test":"echo renderer"}}"#,
+    );
+    write(
+        &repo.path().join("packages/replay/src/session.ts"),
+        "export const session = 1;\n",
+    );
+    write(
+        &repo.path().join("packages/renderer/src/render.ts"),
+        "export const render = 1;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "verify",
+            "--files",
+            "packages/replay/src/session.ts",
+            "packages/renderer/src/render.ts",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx verify should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid verify json");
+    assert_eq!(json["verification"]["minimal"][0], "npm test");
+}
+
+#[test]
 fn changed_reports_do_not_infer_project_checks_when_diff_is_empty() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");

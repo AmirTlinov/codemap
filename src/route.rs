@@ -2419,11 +2419,38 @@ fn find_script(project: &Project, names: &[&str]) -> Option<String> {
     project
         .scripts
         .iter()
-        .find(|script| {
-            let hay = format!("{} {}", script.name, script.command).to_ascii_lowercase();
-            names.iter().any(|name| hay.contains(name))
+        .filter_map(|script| {
+            script_match_rank(script, names).map(|rank| (rank, script.command.clone()))
         })
-        .map(|script| script.command.clone())
+        .min_by(|(left_rank, left_command), (right_rank, right_command)| {
+            left_rank
+                .cmp(right_rank)
+                .then_with(|| left_command.cmp(right_command))
+        })
+        .map(|(_, command)| command)
+}
+
+fn script_match_rank(script: &crate::model::ScriptInfo, names: &[&str]) -> Option<usize> {
+    let script_name = script.name.to_ascii_lowercase();
+    let script_command = script.command.to_ascii_lowercase();
+    let wanted: Vec<String> = names.iter().map(|name| name.to_ascii_lowercase()).collect();
+
+    for (index, name) in wanted.iter().enumerate() {
+        if script_name == name.as_str() {
+            return Some(index);
+        }
+    }
+    for (index, name) in wanted.iter().enumerate() {
+        if script_name.contains(name) {
+            return Some(10 + index);
+        }
+    }
+    for (index, name) in wanted.iter().enumerate() {
+        if script_command.contains(name) {
+            return Some(20 + index);
+        }
+    }
+    None
 }
 
 pub fn resolve_anchor_path(project: &Project, pattern: &str) -> String {
