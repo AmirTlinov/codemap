@@ -859,6 +859,7 @@ fn package_edge_matches_rule(pattern: &str, package_path: &str) -> bool {
             "package.json".to_string(),
             "Cargo.toml".to_string(),
             "go.mod".to_string(),
+            "pyproject.toml".to_string(),
             "src/__package_dependency__".to_string(),
             "__package_dependency__".to_string(),
         ]
@@ -867,6 +868,7 @@ fn package_edge_matches_rule(pattern: &str, package_path: &str) -> bool {
             format!("{package_path}/package.json"),
             format!("{package_path}/Cargo.toml"),
             format!("{package_path}/go.mod"),
+            format!("{package_path}/pyproject.toml"),
             format!("{package_path}/src/__package_dependency__"),
             format!("{package_path}/__package_dependency__"),
         ]

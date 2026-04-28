@@ -1,0 +1,9 @@
+[project]
+name = "ctx-renderer"
+version = "0.1.0"
+dependencies = [
+    "ctx-replay",
+]
+
+[tool.uv.sources]
+ctx-replay = { path = "../replay" }

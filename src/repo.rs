@@ -821,14 +821,14 @@ fn resolve_import(
     packages: &[PackageInfo],
     ts_path_aliases: &[TsPathAlias],
 ) -> Option<String> {
-    if spec.starts_with('.') {
+    if spec.starts_with('.') && ext != "py" {
         return resolve_relative(from, spec, paths);
     }
     match ext {
         "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte" => {
             resolve_javascript(root, from, spec, paths, packages, ts_path_aliases)
         }
-        "py" => resolve_python(spec, paths),
+        "py" => resolve_python(from, spec, paths, packages),
         "rs" => resolve_rust(from, spec, paths),
         "go" => resolve_go(spec, paths, packages),
         _ => None,
@@ -1166,9 +1166,17 @@ fn match_pattern_wildcard(pattern: &str, value: &str) -> Option<Option<String>> 
     Some(Some(value[prefix.len()..end].to_string()))
 }
 
-fn resolve_python(spec: &str, paths: &BTreeSet<String>) -> Option<String> {
+fn resolve_python(
+    from: &str,
+    spec: &str,
+    paths: &BTreeSet<String>,
+    packages: &[PackageInfo],
+) -> Option<String> {
+    if spec.starts_with('.') {
+        return resolve_python_relative(from, spec, paths);
+    }
     let base = spec.replace('.', "/");
-    [format!("{base}.py"), format!("{base}/__init__.py")]
+    for candidate in [format!("{base}.py"), format!("{base}/__init__.py")]
         .into_iter()
         .chain([
             format!("src/{base}.py"),
@@ -1176,7 +1184,44 @@ fn resolve_python(spec: &str, paths: &BTreeSet<String>) -> Option<String> {
             format!("app/{base}.py"),
             format!("app/{base}/__init__.py"),
         ])
-        .find(|c| paths.contains(c))
+    {
+        if paths.contains(&candidate) {
+            return Some(candidate);
+        }
+    }
+    for package in packages
+        .iter()
+        .filter(|package| package.ecosystem == "python")
+    {
+        for candidate in [
+            format!("{}/{base}.py", package.path),
+            format!("{}/{base}/__init__.py", package.path),
+            format!("{}/src/{base}.py", package.path),
+            format!("{}/src/{base}/__init__.py", package.path),
+        ] {
+            let candidate = normalize_rel_path(&candidate);
+            if paths.contains(&candidate) {
+                return Some(candidate);
+            }
+        }
+    }
+    None
+}
+
+fn resolve_python_relative(from: &str, spec: &str, paths: &BTreeSet<String>) -> Option<String> {
+    let level = spec.chars().take_while(|ch| *ch == '.').count();
+    let rest = spec.trim_start_matches('.');
+    let mut dir = Path::new(from).parent().unwrap_or_else(|| Path::new("."));
+    for _ in 1..level {
+        dir = dir.parent().unwrap_or_else(|| Path::new("."));
+    }
+    let rest = rest.replace('.', "/");
+    let base = if rest.is_empty() {
+        normalize_rel_path(&dir.to_string_lossy())
+    } else {
+        normalize_rel_path(&format!("{}/{}", dir.to_string_lossy(), rest))
+    };
+    resolve_path_like(&base, paths)
 }
 
 fn resolve_rust(from: &str, spec: &str, paths: &BTreeSet<String>) -> Option<String> {
@@ -1312,6 +1357,11 @@ fn detect_packages(root: &Path, files: &BTreeMap<String, FileInfo>) -> Vec<Packa
                     packages.push(package);
                 }
             }
+            Some("pyproject.toml") => {
+                if let Some(package) = read_python_package(root, rel) {
+                    packages.push(package);
+                }
+            }
             _ => {}
         }
     }
@@ -1358,6 +1408,18 @@ fn read_go_package(root: &Path, rel: &str) -> Option<PackageInfo> {
     })
 }
 
+fn read_python_package(root: &Path, rel: &str) -> Option<PackageInfo> {
+    let text = fs::read_to_string(root.join(rel)).ok()?;
+    let path = manifest_dir(rel);
+    let name = pyproject_package_name(&text).unwrap_or_else(|| package_name_from_path(&path));
+    Some(PackageInfo {
+        name,
+        path,
+        manifest: rel.to_string(),
+        ecosystem: "python".to_string(),
+    })
+}
+
 fn detect_package_edges(root: &Path, packages: &[PackageInfo]) -> Vec<PackageDependency> {
     let mut edges = Vec::new();
     let by_name: BTreeMap<String, &PackageInfo> = packages
@@ -1379,6 +1441,9 @@ fn detect_package_edges(root: &Path, packages: &[PackageInfo]) -> Vec<PackageDep
             }
             "go" => {
                 edges.extend(go_package_edges(root, package, &by_name, &by_path));
+            }
+            "python" => {
+                edges.extend(python_package_edges(root, package, &by_path));
             }
             _ => {}
         }
@@ -1510,6 +1575,35 @@ fn go_package_edges(
                 to_manifest: Some(target.manifest.clone()),
                 dependency: dep,
                 source: "go.mod require".to_string(),
+            });
+        }
+    }
+    edges
+}
+
+fn python_package_edges(
+    root: &Path,
+    package: &PackageInfo,
+    by_path: &BTreeMap<String, &PackageInfo>,
+) -> Vec<PackageDependency> {
+    let Ok(text) = fs::read_to_string(root.join(&package.manifest)) else {
+        return Vec::new();
+    };
+    let base = Path::new(&package.manifest)
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let mut edges = Vec::new();
+    for (dep, path) in pyproject_path_dependencies(&text) {
+        let target_path = normalize_rel_path(&base.join(path).to_string_lossy());
+        if let Some(target) = by_path.get(&target_path) {
+            edges.push(PackageDependency {
+                from: package.path.clone(),
+                from_manifest: package.manifest.clone(),
+                to: target.path.clone(),
+                to_manifest: Some(target.manifest.clone()),
+                dependency: dep,
+                source: "pyproject local path dependency".to_string(),
             });
         }
     }
@@ -1806,6 +1900,75 @@ fn quoted_go_import(value: &str) -> Option<String> {
     let quote_end = tail.find('"')?;
     let path = &tail[..quote_end];
     (!path.is_empty()).then_some(path.to_string())
+}
+
+fn pyproject_package_name(text: &str) -> Option<String> {
+    let mut section = String::new();
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('[') && trimmed.ends_with(']') {
+            section = trimmed.trim_matches(&['[', ']'][..]).to_string();
+            continue;
+        }
+        if !matches!(section.as_str(), "project" | "tool.poetry") {
+            continue;
+        }
+        let Some((key, value)) = trimmed.split_once('=') else {
+            continue;
+        };
+        if key.trim() == "name" {
+            return unquote(value.trim()).filter(|name| !name.is_empty());
+        }
+    }
+    None
+}
+
+fn pyproject_path_dependencies(text: &str) -> Vec<(String, String)> {
+    let mut deps = Vec::new();
+    let mut section = String::new();
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('[') && trimmed.ends_with(']') {
+            section = trimmed.trim_matches(&['[', ']'][..]).to_string();
+            continue;
+        }
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        if !matches!(
+            section.as_str(),
+            "tool.uv.sources" | "tool.poetry.dependencies"
+        ) {
+            continue;
+        }
+        let Some((name, value)) = trimmed.split_once('=') else {
+            continue;
+        };
+        let Some(path) = inline_path_value(value) else {
+            continue;
+        };
+        let name = name.trim().trim_matches('"').trim_matches('\'').to_string();
+        if !name.is_empty() {
+            deps.push((name, path));
+        }
+    }
+    unique_pairs(deps)
+}
+
+fn inline_path_value(value: &str) -> Option<String> {
+    let value = value.trim();
+    if !(value.starts_with('{') && value.ends_with('}')) {
+        return None;
+    }
+    for part in value.trim_matches(&['{', '}'][..]).split(',') {
+        let Some((key, raw_value)) = part.split_once('=') else {
+            continue;
+        };
+        if key.trim() == "path" {
+            return unquote(raw_value.trim()).filter(|path| !path.is_empty());
+        }
+    }
+    None
 }
 
 fn unquote(value: &str) -> Option<String> {
@@ -2299,6 +2462,17 @@ pub fn path_tokens(rel: &str) -> BTreeSet<String> {
 }
 
 fn unique_strings(items: Vec<String>) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    let mut out = Vec::new();
+    for item in items {
+        if seen.insert(item.clone()) {
+            out.push(item);
+        }
+    }
+    out
+}
+
+fn unique_pairs(items: Vec<(String, String)>) -> Vec<(String, String)> {
     let mut seen = BTreeSet::new();
     let mut out = Vec::new();
     for item in items {

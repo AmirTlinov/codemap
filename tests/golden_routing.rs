@@ -947,3 +947,253 @@ boundaries:
             })
     );
 }
+
+#[test]
+fn python_workspace_routes_replay_task_to_replay_package() {
+    let repo = fixture_copy("python-workspace");
+    let cache = TempDir::new().expect("cache tempdir");
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "start",
+            "--task",
+            "fix replay jumping to wrong frame after seek",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx start should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
+    assert_eq!(json["domain"]["path"], "services/replay");
+    assert_eq!(json["task_kind"], "playback_session");
+    assert!(
+        json["read_first"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["path"].as_str() == Some("services/replay/replay/session.py"))
+    );
+    assert!(
+        json["read_first"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["path"].as_str() == Some("services/replay/replay/timeline.py"))
+    );
+    assert!(
+        json["related_tests"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("services/replay/tests/test_session.py"))
+    );
+}
+
+#[test]
+fn python_workspace_imports_feed_file_impact() {
+    let repo = fixture_copy("python-workspace");
+    let cache = TempDir::new().expect("cache tempdir");
+
+    let explain = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "explain",
+            "services/renderer/renderer/render.py",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx explain should run");
+    assert!(explain.status.success());
+    let explain_json: Value = serde_json::from_slice(&explain.stdout).expect("valid explain json");
+    assert!(
+        explain_json["imports"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("services/replay/replay/session.py")),
+        "Python src-layout imports should resolve through workspace package roots"
+    );
+
+    let non_import_string = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "explain",
+            "services/renderer/renderer/doc.py",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx explain should run");
+    assert!(non_import_string.status.success());
+    let non_import_json: Value =
+        serde_json::from_slice(&non_import_string.stdout).expect("valid explain json");
+    assert!(
+        non_import_json["imports"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item.as_str() != Some("services/replay/replay/session.py")),
+        "Python string literals must not become imports"
+    );
+
+    let impact = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "impact",
+            "--files",
+            "services/replay/replay/timeline.py",
+            "--depth",
+            "3",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx impact should run");
+    assert!(impact.status.success());
+    let impact_json: Value = serde_json::from_slice(&impact.stdout).expect("valid impact json");
+    assert!(
+        impact_json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("services/replay/replay/session.py"))
+    );
+    assert!(
+        impact_json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("services/renderer/renderer/render.py"))
+    );
+    assert!(
+        impact_json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("apps/api/api/main.py"))
+    );
+
+    let relative_explain = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "explain",
+            "services/replay/replay/session.py",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx explain should run");
+    assert!(relative_explain.status.success());
+    let relative_json: Value =
+        serde_json::from_slice(&relative_explain.stdout).expect("valid explain json");
+    assert!(
+        relative_json["imports"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("services/replay/replay/timeline.py")),
+        "Python relative imports should resolve through the Python resolver"
+    );
+}
+
+#[test]
+fn python_workspace_pyproject_edges_feed_impact_and_boundaries() {
+    let repo = fixture_copy("python-workspace");
+    let cache = TempDir::new().expect("cache tempdir");
+
+    let impact = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "impact",
+            "--files",
+            "services/replay/pyproject.toml",
+            "--depth",
+            "2",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx impact should run");
+    assert!(impact.status.success());
+    let impact_json: Value = serde_json::from_slice(&impact.stdout).expect("valid impact json");
+    assert!(
+        impact_json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("services/renderer/pyproject.toml")),
+        "renderer consumes replay through pyproject local source"
+    );
+    assert!(
+        impact_json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("apps/api/pyproject.toml")),
+        "api consumes renderer and should be reached at depth 2"
+    );
+    assert!(
+        impact_json["expansion_triggers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("package consumers affected"))
+    );
+
+    fs::write(
+        repo.path().join(".ctx.yml"),
+        r#"version: 1
+boundaries:
+  forbidden:
+    - from: services/renderer/pyproject.toml
+      to: services/replay/pyproject.toml
+      reason: renderer must not depend on replay in this fixture policy
+"#,
+    )
+    .expect("write ctx config");
+    let boundaries = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["boundaries", "--format", "json"])
+        .output()
+        .expect("ctx boundaries should run");
+    assert!(!boundaries.status.success());
+    let boundaries_json: Value =
+        serde_json::from_slice(&boundaries.stdout).expect("valid boundaries json");
+    assert!(
+        boundaries_json["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|finding| {
+                finding["from"].as_str() == Some("services/renderer/pyproject.toml")
+                    && finding["to"].as_str() == Some("services/replay/pyproject.toml")
+                    && finding["provenance"].as_str() == Some("package_manifest+ctx_anchor")
+                    && finding["reason"]
+                        .as_str()
+                        .unwrap_or("")
+                        .contains("pyproject local path dependency")
+            })
+    );
+    assert!(
+        boundaries_json["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|finding| {
+                !finding["reason"]
+                    .as_str()
+                    .unwrap_or("")
+                    .contains("pyproject dependency")
+            }),
+        "plain project dependencies must not be overclaimed as local package edges"
+    );
+}

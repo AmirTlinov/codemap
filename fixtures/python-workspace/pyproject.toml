@@ -1,0 +1,9 @@
+[project]
+name = "ctx-python-workspace"
+version = "0.1.0"
+
+members = [
+    "apps/api",
+    "services/renderer",
+    "services/replay",
+]

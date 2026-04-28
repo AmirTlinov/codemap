@@ -1,0 +1,9 @@
+[project]
+name = "ctx-api"
+version = "0.1.0"
+dependencies = [
+    "ctx-renderer",
+]
+
+[tool.uv.sources]
+ctx-renderer = { path = "../../services/renderer" }

@@ -32,6 +32,10 @@ for required in \
   "fixtures/go-workspace/services/replay/go.mod.fixture" \
   "fixtures/go-workspace/services/renderer/go.mod.fixture" \
   "fixtures/go-workspace/apps/api/go.mod.fixture" \
+  "fixtures/python-workspace/pyproject.toml" \
+  "fixtures/python-workspace/services/replay/pyproject.toml" \
+  "fixtures/python-workspace/services/renderer/pyproject.toml" \
+  "fixtures/python-workspace/apps/api/pyproject.toml" \
   "fixtures/rust-workspace/Cargo.toml.fixture"
 do
   grep -qx "$required" <<<"$package_list"
