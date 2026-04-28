@@ -254,10 +254,13 @@ pub fn run() -> Result<()> {
     let ambient_root = env::current_dir()
         .ok()
         .and_then(|cwd| repo::ambient_root(&cwd));
-    let root_hint = cli
-        .root
-        .clone()
-        .or_else(|| command_root_hint(&cli.command, ambient_root.as_deref()));
+    let root_selection = if let Some(root) = cli.root.clone() {
+        repo::RootSelection::Exact(root)
+    } else if let Some(hint) = command_root_hint(&cli.command, ambient_root.as_deref()) {
+        repo::RootSelection::Discover(hint)
+    } else {
+        repo::RootSelection::Auto
+    };
 
     if let CommandKind::Bootstrap(args) = &cli.command {
         if args.global_instruction {
@@ -276,7 +279,7 @@ pub fn run() -> Result<()> {
         CommandKind::Doctor(_) | CommandKind::Status(_) => repo::CacheWriteMode::ReadOnly,
         _ => repo::CacheWriteMode::Enabled,
     };
-    let project = repo::load_project_with_cache(root_hint, cache_write)?;
+    let project = repo::load_project_with_cache(root_selection, cache_write)?;
     match cli.command {
         CommandKind::Doctor(args) => {
             let report = route::status_report(&project);

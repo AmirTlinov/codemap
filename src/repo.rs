@@ -96,16 +96,27 @@ pub enum CacheWriteMode {
     ReadOnly,
 }
 
+#[derive(Debug, Clone)]
+pub enum RootSelection {
+    Auto,
+    Exact(PathBuf),
+    Discover(PathBuf),
+}
+
 pub fn load_project_with_cache(
-    root_override: Option<PathBuf>,
+    root_selection: RootSelection,
     cache_write: CacheWriteMode,
 ) -> Result<Project> {
-    let cwd = if let Some(path) = &root_override {
+    let root_hint = match &root_selection {
+        RootSelection::Auto => None,
+        RootSelection::Exact(path) | RootSelection::Discover(path) => Some(path),
+    };
+    let cwd = if let Some(path) = root_hint {
         path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
     } else {
         env::current_dir().context("failed to read current directory")?
     };
-    let root = resolve_root(root_override.as_deref(), &cwd)?;
+    let root = resolve_root(&root_selection, &cwd)?;
     let remote = git_remote(&root);
     let (anchors, config_path, config_errors) = load_ctx_configs(&root);
     let nearest_agents = nearest_agents(&cwd, &root);
@@ -156,18 +167,25 @@ pub fn load_project_with_cache(
     Ok(project)
 }
 
-fn resolve_root(root_override: Option<&Path>, cwd: &Path) -> Result<PathBuf> {
-    if let Some(path) = root_override {
-        let base = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
-        if let Some(git_root) = git_root(&base) {
-            return Ok(git_root);
+fn resolve_root(root_selection: &RootSelection, cwd: &Path) -> Result<PathBuf> {
+    match root_selection {
+        RootSelection::Exact(path) => {
+            Ok(path.canonicalize().unwrap_or_else(|_| path.to_path_buf()))
         }
-        return Ok(marker_root(&base).unwrap_or(base));
+        RootSelection::Discover(path) => {
+            let base = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+            if let Some(git_root) = git_root(&base) {
+                return Ok(git_root);
+            }
+            Ok(marker_root(&base).unwrap_or(base))
+        }
+        RootSelection::Auto => {
+            if let Some(git_root) = git_root(cwd) {
+                return Ok(git_root);
+            }
+            Ok(marker_root(cwd).unwrap_or_else(|| cwd.to_path_buf()))
+        }
     }
-    if let Some(git_root) = git_root(cwd) {
-        return Ok(git_root);
-    }
-    Ok(marker_root(cwd).unwrap_or_else(|| cwd.to_path_buf()))
 }
 
 pub fn ambient_root(start: &Path) -> Option<PathBuf> {

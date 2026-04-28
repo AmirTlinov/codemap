@@ -2260,6 +2260,83 @@ fn absolute_start_path_selects_target_repo_from_any_cwd() {
 }
 
 #[test]
+fn explicit_root_stays_inside_nested_project_under_git_repo() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join("nested/pnpm-workspace.yaml"),
+        "packages:\n  - domains/*\n",
+    );
+    write(
+        &repo.path().join("nested/domains/replay/package.json"),
+        r#"{"name":"@fixture/replay","scripts":{"test":"vitest run"}}"#,
+    );
+    write(
+        &repo
+            .path()
+            .join("nested/domains/replay/src/replay-session.ts"),
+        "export function seekFrame(frame: number) { return frame }\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("nested/domains/replay/src/replay-timeline.ts"),
+        "export const timeline = [0, 1]\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let status = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["--root", "nested", "status", "--format", "json"])
+        .output()
+        .expect("ctx status should run");
+    assert!(status.status.success());
+    let status_json: Value = serde_json::from_slice(&status.stdout).expect("valid status json");
+    let nested_root = repo
+        .path()
+        .join("nested")
+        .canonicalize()
+        .expect("nested root should exist");
+    assert_eq!(
+        status_json["root"].as_str(),
+        Some(nested_root.to_str().unwrap())
+    );
+    assert_eq!(status_json["package_manager"], "pnpm");
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "--root",
+            "nested",
+            "start",
+            "--task",
+            "fix replay jumping to wrong frame after seek",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx start should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid start json");
+    assert_eq!(json["domain"]["path"], "domains/replay");
+    assert!(
+        json["read_first"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["path"].as_str() == Some("domains/replay/src/replay-session.ts"))
+    );
+    assert_eq!(
+        json["verification"]["minimal"][0],
+        "cd domains/replay && pnpm test"
+    );
+}
+
+#[test]
 fn absolute_file_args_are_normalized_to_repo_relative_paths() {
     let repo = TempDir::new().expect("repo tempdir");
     let outside = TempDir::new().expect("outside tempdir");

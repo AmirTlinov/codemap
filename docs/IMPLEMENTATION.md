@@ -10,6 +10,7 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - cache artifacts for repo status, inventory, graph edges, and file fingerprints
 - cache artifact observability in `ctx status` / `ctx doctor`, including cold/warm/stale/disabled state and fingerprint matching without self-warming first
 - git-root-first repo resolution
+- explicit global `--root <dir>` uses that directory as the project root instead of climbing to an enclosing git root
 - nested `AGENTS.md` detection without treating it as root
 - file inventory from `git ls-files -co --exclude-standard`
 - filesystem fallback for non-git directories
