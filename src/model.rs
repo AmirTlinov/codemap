@@ -285,6 +285,7 @@ pub struct CacheInfo {
 #[derive(Debug, Clone, Serialize)]
 pub struct LocateReport {
     pub kind: &'static str,
+    pub schema_version: &'static str,
     pub task: String,
     pub candidates: Vec<LocateCandidate>,
 }
@@ -338,6 +339,7 @@ pub struct FileRisk {
 #[derive(Debug, Clone, Serialize)]
 pub struct ExplainReport {
     pub kind: String,
+    pub schema_version: &'static str,
     pub path: Option<String>,
     pub id: Option<String>,
     pub domain: Option<DomainRef>,
@@ -358,6 +360,7 @@ pub struct ExplainReport {
 #[derive(Debug, Clone, Serialize)]
 pub struct WidenReport {
     pub kind: &'static str,
+    pub schema_version: &'static str,
     pub reason: String,
     pub domain: DomainRef,
     pub add: Vec<String>,
@@ -378,8 +381,16 @@ pub struct BoundaryFinding {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct BoundaryReport {
+    pub kind: &'static str,
+    pub schema_version: &'static str,
+    pub findings: Vec<BoundaryFinding>,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct GraphLens {
     pub kind: &'static str,
+    pub schema_version: &'static str,
     pub domain: DomainRef,
     pub lens: String,
     pub nodes: Vec<String>,

@@ -5,9 +5,10 @@ use serde::Serialize;
 
 use crate::cache;
 use crate::model::{
-    BoundaryFinding, CacheInfo, Candidate, Confidence, DoNotRead, Domain, DomainRef, ExplainReport,
-    FileInfo, FileRisk, GraphEdge, GraphLens, ImpactReport, LocateCandidate, LocateReport, Project,
-    Risk, TaskCapsule, VerificationPlan, VerifyReport, WidenReport,
+    BoundaryFinding, BoundaryReport, CacheInfo, Candidate, Confidence, DoNotRead, Domain,
+    DomainRef, ExplainReport, FileInfo, FileRisk, GraphEdge, GraphLens, ImpactReport,
+    LocateCandidate, LocateReport, Project, Risk, TaskCapsule, VerificationPlan, VerifyReport,
+    WidenReport,
 };
 use crate::repo;
 
@@ -126,6 +127,7 @@ pub fn locate_report(project: &Project, task: &str, limit: usize) -> LocateRepor
     });
     LocateReport {
         kind: "location_candidates",
+        schema_version: "1",
         task: task.to_string(),
         candidates: scored.into_iter().take(limit).collect(),
     }
@@ -466,6 +468,7 @@ pub fn explain_target(project: &Project, target: &str) -> ExplainReport {
         let (risk, risk_reasons) = risk_for_file(project, &info.rel);
         return ExplainReport {
             kind: "file".to_string(),
+            schema_version: "1",
             path: Some(info.rel.clone()),
             id: None,
             domain,
@@ -507,6 +510,7 @@ pub fn explain_target(project: &Project, target: &str) -> ExplainReport {
                 .collect();
             return ExplainReport {
                 kind: "concept".to_string(),
+                schema_version: "1",
                 path: None,
                 id: Some(id.clone()),
                 domain: Some(domain.into()),
@@ -528,6 +532,7 @@ pub fn explain_target(project: &Project, target: &str) -> ExplainReport {
 
     ExplainReport {
         kind: "missing".to_string(),
+        schema_version: "1",
         path: None,
         id: None,
         domain: None,
@@ -579,12 +584,24 @@ pub fn widen_context(
     }
     WidenReport {
         kind: "widened_context",
+        schema_version: "1",
         reason: reason.to_string(),
         domain: domain.into(),
         add,
         still_do_not_read_yet: do_not_read_yet(project, domain, &kind, task, 8),
         confidence: confidence_from_score((conf - 0.05).max(0.1)).as_str().to_string(),
         stop_rule: "Stop after this widened set plus minimal verification unless a new expansion trigger fires.".to_string(),
+    }
+}
+
+pub fn boundary_report(
+    project: &Project,
+    changed_only: Option<&BTreeSet<String>>,
+) -> BoundaryReport {
+    BoundaryReport {
+        kind: "boundary_report",
+        schema_version: "1",
+        findings: boundary_findings(project, changed_only),
     }
 }
 
@@ -766,6 +783,7 @@ pub fn graph_lens(
     }
     GraphLens {
         kind: "graph_lens",
+        schema_version: "1",
         domain: domain.into(),
         lens: lens.to_string(),
         nodes,

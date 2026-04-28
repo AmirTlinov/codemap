@@ -6,7 +6,7 @@ cargo test
 cargo clippy --all-targets -- -D warnings
 cargo run --bin ctx -- doctor
 
-for schema in capsule impact verify anchors; do
+for schema in capsule impact verify anchors locate explain widen graph boundaries; do
   cargo run --bin ctx -- schema "$schema" >/dev/null
 done
 
@@ -17,6 +17,11 @@ for required in \
   "schemas/impact.schema.json" \
   "schemas/verify.schema.json" \
   "schemas/anchors.schema.json" \
+  "schemas/locate.schema.json" \
+  "schemas/explain.schema.json" \
+  "schemas/widen.schema.json" \
+  "schemas/graph.schema.json" \
+  "schemas/boundaries.schema.json" \
   "tests/e2e_workflow.rs" \
   "fixtures/mixed-monorepo/package.json"
 do

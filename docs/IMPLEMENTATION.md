@@ -29,9 +29,9 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - `ctx init --write-minimal`
 - `ctx init --agents`
 - `ctx bootstrap --global-instruction`
-- `ctx schema <capsule|impact|verify|anchors>`
+- `ctx schema <capsule|impact|verify|anchors|locate|explain|widen|graph|boundaries>`
 - `ctx anchors validate`
-- stable JSON schemas for `ctx start --format json`, `ctx impact --format json`, `ctx verify --format json`, and `.ctx.yml` semantic anchors under `schemas/`
+- stable JSON schemas for agent-facing route JSON outputs and `.ctx.yml` semantic anchors under `schemas/`
 - bundled schema printing from the installed binary, without loading a project or writing cache
 - root and nested `.ctx.yml` semantic anchor loading
 - YAML anchor parsing through `serde_yml`
@@ -86,7 +86,7 @@ This is intentionally flatter than the final large-tree design. The next split s
 - `ctx schema` exposes bundled schemas without repo/cache side effects.
 - workspace globs outside the built-in `apps/`, `domains/`, `services/`, `packages/`, and `crates/` shapes become routeable domains.
 - impact reports expose specific expansion triggers for schema/DTO, public boundary, and source-of-truth changes.
-- schema files are valid JSON, pinned to JSON Schema draft 2020-12, and validate real `start`/`impact`/`verify` JSON outputs in tests.
+- schema files are valid JSON, pinned to JSON Schema draft 2020-12, and validate real `locate`/`start`/`impact`/`verify`/`explain`/`widen`/`graph`/`boundaries` JSON outputs in tests.
 - `tests/golden_routing.rs` protects mixed-monorepo routing quality.
 - `tests/e2e_workflow.rs` protects the full agent loop: `start -> impact -> verify -> verify --run -> boundaries -> explain`.
 

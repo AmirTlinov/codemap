@@ -85,6 +85,17 @@ fn schema_command_outputs_bundled_contract_without_repo_load() {
     assert_eq!(anchors_json["title"], "ctx semantic anchors");
     assert_eq!(anchors_json["properties"]["version"]["const"], 1);
 
+    let graph = ctx()
+        .current_dir(outside.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["schema", "graph"])
+        .output()
+        .expect("ctx schema graph should run");
+    assert!(graph.status.success());
+    let graph_json: Value = serde_json::from_slice(&graph.stdout).expect("graph schema json");
+    assert_eq!(graph_json["properties"]["kind"]["const"], "graph_lens");
+    assert_eq!(graph_json["properties"]["schema_version"]["const"], "1");
+
     assert_eq!(
         fs::read_dir(cache.path()).expect("cache dir").count(),
         0,
@@ -844,6 +855,11 @@ fn json_schemas_are_present_and_parse() {
         "schemas/impact.schema.json",
         "schemas/verify.schema.json",
         "schemas/anchors.schema.json",
+        "schemas/locate.schema.json",
+        "schemas/explain.schema.json",
+        "schemas/widen.schema.json",
+        "schemas/graph.schema.json",
+        "schemas/boundaries.schema.json",
     ] {
         let text = fs::read_to_string(root.join(rel)).expect("schema should exist");
         let json: Value = serde_json::from_str(&text).expect("schema should be valid json");
@@ -925,6 +941,67 @@ fn json_schemas_are_present_and_parse() {
     assert!(verify.status.success());
     let verify_json: Value = serde_json::from_slice(&verify.stdout).expect("valid verify json");
     assert_schema_accepts("schemas/verify.schema.json", &verify_json);
+
+    let locate = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["locate", "--task", "fix broken save", "--format", "json"])
+        .output()
+        .expect("ctx locate should run");
+    assert!(locate.status.success());
+    let locate_json: Value = serde_json::from_slice(&locate.stdout).expect("valid locate json");
+    assert_schema_accepts("schemas/locate.schema.json", &locate_json);
+
+    let explain = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["explain", "src/save.ts", "--format", "json"])
+        .output()
+        .expect("ctx explain should run");
+    assert!(explain.status.success());
+    let explain_json: Value = serde_json::from_slice(&explain.stdout).expect("valid explain json");
+    assert_schema_accepts("schemas/explain.schema.json", &explain_json);
+
+    let widen = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "widen",
+            "--task",
+            "fix broken save",
+            "--reason",
+            "read-first set did not contain the cause",
+            "--already",
+            "src/save.ts",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx widen should run");
+    assert!(widen.status.success());
+    let widen_json: Value = serde_json::from_slice(&widen.stdout).expect("valid widen json");
+    assert_schema_accepts("schemas/widen.schema.json", &widen_json);
+
+    let graph = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["graph", "--lens", "causal", "--format", "json"])
+        .output()
+        .expect("ctx graph should run");
+    assert!(graph.status.success());
+    let graph_json: Value = serde_json::from_slice(&graph.stdout).expect("valid graph json");
+    assert_schema_accepts("schemas/graph.schema.json", &graph_json);
+
+    let boundaries = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["boundaries", "--format", "json"])
+        .output()
+        .expect("ctx boundaries should run");
+    assert!(boundaries.status.success());
+    let boundaries_json: Value =
+        serde_json::from_slice(&boundaries.stdout).expect("valid boundaries json");
+    assert_schema_accepts("schemas/boundaries.schema.json", &boundaries_json);
 }
 
 fn assert_schema_accepts(schema_rel: &str, instance: &Value) {

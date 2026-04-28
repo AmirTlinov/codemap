@@ -233,6 +233,11 @@ enum SchemaKind {
     Impact,
     Verify,
     Anchors,
+    Locate,
+    Explain,
+    Widen,
+    Graph,
+    Boundaries,
 }
 
 pub fn run() -> Result<()> {
@@ -341,14 +346,18 @@ pub fn run() -> Result<()> {
             } else {
                 None
             };
-            let findings = route::boundary_findings(&project, changed.as_ref());
-            let hard = findings
+            let report = route::boundary_report(&project, changed.as_ref());
+            let hard = report
+                .findings
                 .iter()
                 .any(|f| f.status != "warn" && f.status != "warning");
-            let warns = findings
+            let warns = report
+                .findings
                 .iter()
                 .any(|f| f.status == "warn" || f.status == "warning");
-            output(args.format, &findings, || render::boundaries(&findings))?;
+            output(args.format, &report, || {
+                render::boundaries(&report.findings)
+            })?;
             if hard || (args.strict_warnings && warns) {
                 bail!("boundary findings detected");
             }
@@ -369,6 +378,11 @@ fn schema_text(kind: SchemaKind) -> &'static str {
         SchemaKind::Impact => include_str!("../schemas/impact.schema.json"),
         SchemaKind::Verify => include_str!("../schemas/verify.schema.json"),
         SchemaKind::Anchors => include_str!("../schemas/anchors.schema.json"),
+        SchemaKind::Locate => include_str!("../schemas/locate.schema.json"),
+        SchemaKind::Explain => include_str!("../schemas/explain.schema.json"),
+        SchemaKind::Widen => include_str!("../schemas/widen.schema.json"),
+        SchemaKind::Graph => include_str!("../schemas/graph.schema.json"),
+        SchemaKind::Boundaries => include_str!("../schemas/boundaries.schema.json"),
     }
 }
 

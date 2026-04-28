@@ -52,6 +52,7 @@ ctx status
 ctx files
 ctx schema capsule
 ctx schema anchors
+ctx schema graph
 ctx locate --task "fix auth token refresh"
 ctx start --task "fix broken save" --path src
 ctx impact --changed
@@ -73,9 +74,9 @@ ctx anchors validate
 ```
 
 Markdown is the default agent-facing format. JSON is available with `--format json`.
-Stable JSON schemas live under `schemas/` for task capsules, impact reports, verification plans, and `.ctx.yml` semantic anchors.
+Stable JSON schemas live under `schemas/` for agent-facing route outputs and `.ctx.yml` semantic anchors.
 Schema-backed outputs include `schema_version: "1"`.
-Installed binaries can print the bundled schemas with `ctx schema capsule`, `ctx schema impact`, `ctx schema verify`, and `ctx schema anchors`.
+Installed binaries can print bundled schemas with `ctx schema <kind>`, including `capsule`, `impact`, `verify`, `anchors`, `locate`, `explain`, `widen`, `graph`, and `boundaries`.
 
 ## Agent Integration
 
