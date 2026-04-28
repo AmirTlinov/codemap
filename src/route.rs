@@ -192,14 +192,12 @@ pub fn start_capsule(
         }
     }
     if read.is_empty() {
-        read = select_read_first(
-            project,
-            &domain,
-            task,
-            &kind,
-            limit.min(5),
-            &BTreeSet::new(),
-        );
+        let seed_limit = if kind == "build_ci" {
+            limit
+        } else {
+            limit.min(5)
+        };
+        read = select_read_first(project, &domain, task, &kind, seed_limit, &BTreeSet::new());
     }
     let mut read_paths: Vec<String> = read.iter().map(|c| c.path.clone()).collect();
     for test in test_files_for(

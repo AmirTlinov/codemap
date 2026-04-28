@@ -567,6 +567,59 @@ fn build_ci_tasks_read_build_surfaces_instead_of_empty_context() {
 }
 
 #[test]
+fn build_ci_tasks_recognize_common_non_github_build_surfaces() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join("package.json"),
+        r#"{"scripts":{"test":"vitest","build":"vite build"}}"#,
+    );
+    write(
+        &repo.path().join(".circleci/config.yml"),
+        "version: 2.1\njobs:\n  test:\n    docker: []\n",
+    );
+    write(
+        &repo.path().join("Jenkinsfile"),
+        "pipeline { agent any; stages { stage('test') { steps { sh 'npm test' } } } }\n",
+    );
+    write(
+        &repo.path().join("Taskfile.yml"),
+        "version: '3'\ntasks: {}\n",
+    );
+    write(&repo.path().join("Taskfile"), "version: '3'\ntasks: {}\n");
+    write(&repo.path().join("Dockerfile"), "FROM scratch\n");
+    write(
+        &repo.path().join("src/model.ts"),
+        "export const model = 1;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["start", "--task", "fix ci pipeline", "--format", "json"])
+        .output()
+        .expect("ctx start should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
+    assert_eq!(json["task_kind"], "build_ci");
+    let read_first = json["read_first"].as_array().expect("read_first array");
+    let read_paths: Vec<_> = read_first
+        .iter()
+        .filter_map(|item| item["path"].as_str())
+        .collect();
+    assert!(read_paths.contains(&".circleci/config.yml"));
+    assert!(read_paths.contains(&"Jenkinsfile"));
+    assert!(read_paths.contains(&"Taskfile"));
+    assert!(read_paths.contains(&"Taskfile.yml"));
+    assert!(read_paths.contains(&"Dockerfile"));
+    assert!(read_paths.contains(&"package.json"));
+    assert!(!read_paths.contains(&"src/model.ts"));
+}
+
+#[test]
 fn pnpm_workspace_globs_create_domains_outside_builtin_dirs() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");

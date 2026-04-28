@@ -521,18 +521,28 @@ fn should_scan_file(path: &Path, size: u64) -> bool {
     if size > 900_000 {
         return false;
     }
-    let name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
+    let name = path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
     if matches!(
-        name,
+        name.as_str(),
         "package.json"
             | "pyproject.toml"
-            | "Cargo.toml"
+            | "cargo.toml"
             | "go.mod"
             | "go.work"
-            | "AGENTS.md"
-            | "README.md"
-            | "Makefile"
+            | "agents.md"
+            | "readme.md"
+            | "makefile"
             | "justfile"
+            | "jenkinsfile"
+            | "dockerfile"
+            | "earthfile"
+            | "taskfile"
+            | "taskfile.yml"
+            | "taskfile.yaml"
             | ".ctx.yml"
             | ".ctx.yaml"
             | ".ctx.json"
@@ -682,12 +692,7 @@ fn classify_roles(info: &mut FileInfo) {
     }
     add_role_if(&mut info.roles, &rel, &["cache", "fingerprint"], "cache");
     add_role_if(&mut info.roles, &rel, &["cli", "command"], "cli_surface");
-    if rel.starts_with(".github/workflows/")
-        || info.tokens.contains("build")
-        || info.tokens.contains("ci")
-        || info.tokens.contains("workflow")
-        || matches!(name.as_str(), "makefile" | "justfile")
-    {
+    if is_build_ci_surface(&rel, &name, &info.tokens) {
         info.roles.insert("build_ci".to_string());
     }
     if name == "agents.md" {
@@ -721,6 +726,41 @@ fn add_role_if(roles: &mut BTreeSet<String>, haystack: &str, needles: &[&str], r
     if needles.iter().any(|needle| haystack.contains(needle)) {
         roles.insert(role.to_string());
     }
+}
+
+fn is_build_ci_surface(rel: &str, name: &str, tokens: &BTreeSet<String>) -> bool {
+    rel.starts_with(".github/workflows/")
+        || rel.starts_with(".circleci/")
+        || rel.starts_with(".buildkite/")
+        || rel.starts_with(".teamcity/")
+        || matches!(
+            name,
+            ".gitlab-ci.yml"
+                | ".gitlab-ci.yaml"
+                | "azure-pipelines.yml"
+                | "azure-pipelines.yaml"
+                | "bitbucket-pipelines.yml"
+                | "bitbucket-pipelines.yaml"
+                | ".drone.yml"
+                | ".drone.yaml"
+                | ".woodpecker.yml"
+                | ".woodpecker.yaml"
+                | "jenkinsfile"
+                | "dockerfile"
+                | "docker-compose.yml"
+                | "docker-compose.yaml"
+                | "compose.yml"
+                | "compose.yaml"
+                | "makefile"
+                | "justfile"
+                | "taskfile"
+                | "taskfile.yml"
+                | "taskfile.yaml"
+                | "earthfile"
+        )
+        || tokens.contains("build")
+        || tokens.contains("ci")
+        || tokens.contains("workflow")
 }
 
 fn is_generated(rel: &str) -> bool {
