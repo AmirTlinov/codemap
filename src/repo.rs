@@ -2580,7 +2580,7 @@ fn workspace_patterns(root: &Path) -> Vec<String> {
         patterns.extend(go_work_uses(&text));
     }
     if let Ok(text) = fs::read_to_string(root.join("pyproject.toml")) {
-        patterns.extend(toml_array_values(&text, &["members", "packages"]));
+        patterns.extend(pyproject_workspace_patterns(&text));
     }
     patterns
         .into_iter()
@@ -2642,29 +2642,33 @@ fn workspace_path_has_project(root: &Path, files: &BTreeMap<String, FileInfo>, r
         .any(|marker| root.join(&rel).join(marker).exists())
 }
 
-fn toml_array_values(text: &str, keys: &[&str]) -> Vec<String> {
+fn pyproject_workspace_patterns(text: &str) -> Vec<String> {
     let Some(value) = parse_toml_value(text) else {
         return Vec::new();
     };
     let mut out = Vec::new();
-    collect_toml_array_values(&value, keys, &mut out);
-    unique_strings(out)
-}
-
-fn collect_toml_array_values(value: &toml::Value, keys: &[&str], out: &mut Vec<String>) {
-    let Some(table) = value.as_table() else {
-        return;
-    };
-    for (key, value) in table {
-        if keys.iter().any(|wanted| key == wanted)
-            && let Some(values) = toml_string_array(value)
+    for key in ["members", "packages"] {
+        if let Some(values) = value.get(key).and_then(toml_string_array) {
+            out.extend(values);
+        }
+        if let Some(values) = value
+            .get("project")
+            .and_then(|project| project.get(key))
+            .and_then(toml_string_array)
         {
             out.extend(values);
         }
-        if value.is_table() {
-            collect_toml_array_values(value, keys, out);
-        }
     }
+    if let Some(values) = value
+        .get("tool")
+        .and_then(|tool| tool.get("uv"))
+        .and_then(|uv| uv.get("workspace"))
+        .and_then(|workspace| workspace.get("members"))
+        .and_then(toml_string_array)
+    {
+        out.extend(values);
+    }
+    unique_strings(out)
 }
 
 fn go_work_uses(text: &str) -> Vec<String> {
@@ -3115,6 +3119,32 @@ ctx-version-only = "^1"
                 .any(|(name, path)| name == "ctx-tools" && path == "../tools")
         );
         assert!(deps.iter().all(|(name, _)| name != "ctx-version-only"));
+    }
+
+    #[test]
+    fn pyproject_workspace_patterns_ignore_unrelated_tool_metadata() {
+        let pyproject = r#"[project]
+name = "ctx-python-workspace"
+members = ["services/replay"]
+packages = ["apps/api"]
+
+[tool.uv.workspace]
+members = ["libs/*"]
+
+[tool.unrelated]
+members = ["shadow/replay"]
+packages = ["shadow/renderer"]
+
+[tool.poetry]
+packages = ["not-a-workspace"]
+"#;
+        let patterns = pyproject_workspace_patterns(pyproject);
+        assert!(patterns.iter().any(|item| item == "services/replay"));
+        assert!(patterns.iter().any(|item| item == "apps/api"));
+        assert!(patterns.iter().any(|item| item == "libs/*"));
+        assert!(patterns.iter().all(|item| item != "shadow/replay"));
+        assert!(patterns.iter().all(|item| item != "shadow/renderer"));
+        assert!(patterns.iter().all(|item| item != "not-a-workspace"));
     }
 
     fn write_test_file(path: &Path, body: &str) {

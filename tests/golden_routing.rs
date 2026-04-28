@@ -2303,6 +2303,72 @@ version = "0.1.0"
 }
 
 #[test]
+fn python_workspace_unrelated_tool_packages_do_not_create_domains() {
+    let repo = fixture_copy("python-workspace");
+    let cache = TempDir::new().expect("cache tempdir");
+    write(
+        &repo.path().join("pyproject.toml"),
+        r#"[project]
+name = "ctx-python-workspace"
+version = "0.1.0"
+members = [
+    "apps/api",
+    "services/renderer",
+    "services/replay",
+]
+
+[tool.unrelated]
+members = ["shadow/member"]
+packages = ["shadow/package"]
+"#,
+    );
+    write(
+        &repo.path().join("shadow/member/pyproject.toml"),
+        r#"[project]
+name = "ctx-shadow-member"
+version = "0.1.0"
+"#,
+    );
+    write(
+        &repo.path().join("shadow/member/member/__init__.py"),
+        "def value():\n    return 1\n",
+    );
+    write(
+        &repo.path().join("shadow/package/pyproject.toml"),
+        r#"[project]
+name = "ctx-shadow-package"
+version = "0.1.0"
+"#,
+    );
+    write(
+        &repo.path().join("shadow/package/package/__init__.py"),
+        "def value():\n    return 1\n",
+    );
+
+    let status = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["status", "--format", "json"])
+        .output()
+        .expect("ctx status should run");
+    assert!(status.status.success());
+    let status_json: Value = serde_json::from_slice(&status.stdout).expect("valid status json");
+    let domains = status_json["domains"].as_array().unwrap();
+    assert!(
+        domains
+            .iter()
+            .all(|domain| domain["path"].as_str() != Some("shadow/member")),
+        "unrelated tool.members metadata must not create a workspace domain"
+    );
+    assert!(
+        domains
+            .iter()
+            .all(|domain| domain["path"].as_str() != Some("shadow/package")),
+        "unrelated tool.packages metadata must not create a workspace domain"
+    );
+}
+
+#[test]
 fn python_workspace_pyproject_edges_feed_impact_and_boundaries() {
     let repo = fixture_copy("python-workspace");
     let cache = TempDir::new().expect("cache tempdir");
