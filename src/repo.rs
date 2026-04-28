@@ -1081,26 +1081,98 @@ fn cargo_package_name(text: &str) -> Option<String> {
 
 fn cargo_path_dependencies(text: &str) -> Vec<(String, String)> {
     let mut deps = Vec::new();
-    let mut section: Option<String> = None;
+    let mut section = CargoDependencySection::Outside;
     for line in text.lines() {
         let trimmed = line.trim();
         if trimmed.starts_with('[') && trimmed.ends_with(']') {
-            let name = trimmed.trim_matches(&['[', ']'][..]).to_string();
-            section = (name.contains("dependencies")).then_some(name);
+            let name = trimmed.trim_matches(&['[', ']'][..]);
+            section = cargo_dependency_section(name);
             continue;
         }
-        if section.is_none() || trimmed.is_empty() || trimmed.starts_with('#') {
+        if trimmed.is_empty() || trimmed.starts_with('#') {
             continue;
         }
         let Some((name, value)) = trimmed.split_once('=') else {
             continue;
         };
-        let Some(path) = cargo_inline_path(value) else {
-            continue;
-        };
-        deps.push((name.trim().to_string(), path));
+        match &section {
+            CargoDependencySection::InlineMap => {
+                let Some(path) = cargo_inline_path(value) else {
+                    continue;
+                };
+                deps.push((name.trim().to_string(), path));
+            }
+            CargoDependencySection::DependencyTable(dep_name) => {
+                if name.trim() != "path" {
+                    continue;
+                }
+                let Some(path) = unquote(value.trim()).filter(|s| !s.is_empty()) else {
+                    continue;
+                };
+                deps.push((dep_name.clone(), path));
+            }
+            CargoDependencySection::Outside => {}
+        }
     }
     deps
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum CargoDependencySection {
+    Outside,
+    InlineMap,
+    DependencyTable(String),
+}
+
+fn cargo_dependency_section(section: &str) -> CargoDependencySection {
+    if section.starts_with("workspace.") {
+        return CargoDependencySection::Outside;
+    }
+    if let Some(name) = cargo_dependency_table_name(section) {
+        return CargoDependencySection::DependencyTable(name);
+    }
+    if cargo_dependency_map_section(section) {
+        CargoDependencySection::InlineMap
+    } else {
+        CargoDependencySection::Outside
+    }
+}
+
+fn cargo_dependency_map_section(section: &str) -> bool {
+    matches!(
+        section,
+        "dependencies" | "dev-dependencies" | "build-dependencies"
+    ) || section.ends_with(".dependencies")
+        || section.ends_with(".dev-dependencies")
+        || section.ends_with(".build-dependencies")
+}
+
+fn cargo_dependency_table_name(section: &str) -> Option<String> {
+    for marker in ["dependencies.", "dev-dependencies.", "build-dependencies."] {
+        if let Some(raw) = section.strip_prefix(marker) {
+            return clean_cargo_table_key(raw);
+        }
+        let nested_marker = format!(".{marker}");
+        if let Some((_, raw)) = section.split_once(&nested_marker) {
+            return clean_cargo_table_key(raw);
+        }
+    }
+    None
+}
+
+fn clean_cargo_table_key(raw: &str) -> Option<String> {
+    let value = raw.trim();
+    if value.is_empty() || value.contains('.') {
+        return None;
+    }
+    Some(
+        value
+            .trim_matches('"')
+            .trim_matches('\'')
+            .trim()
+            .to_string(),
+    )
+    .filter(|value| !value.is_empty())
 }
 
 fn cargo_inline_path(value: &str) -> Option<String> {

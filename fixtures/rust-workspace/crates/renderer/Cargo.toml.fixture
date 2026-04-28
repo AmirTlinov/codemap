@@ -1,0 +1,7 @@
+[package]
+name = "ctx_fixture_renderer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies.ctx_fixture_replay]
+path = "../replay"

@@ -26,7 +26,13 @@ fn copy_dir(from: &Path, to: &Path) {
     for entry in fs::read_dir(from).expect("read fixture dir") {
         let entry = entry.expect("read fixture entry");
         let source = entry.path();
-        let target = to.join(entry.file_name());
+        let file_name = entry.file_name();
+        let target_name = if file_name == "Cargo.toml.fixture" {
+            "Cargo.toml".into()
+        } else {
+            file_name
+        };
+        let target = to.join(target_name);
         if source.is_dir() {
             copy_dir(&source, &target);
         } else {
@@ -275,5 +281,137 @@ fn mixed_monorepo_impact_expands_package_consumers_when_internal_change_reaches_
             .unwrap()
             .iter()
             .any(|item| item.as_str() == Some("domains/replay/tests/replay-session.test.ts"))
+    );
+}
+
+#[test]
+fn rust_workspace_routes_replay_task_to_replay_crate() {
+    let repo = fixture_copy("rust-workspace");
+    let cache = TempDir::new().expect("cache tempdir");
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "start",
+            "--task",
+            "fix replay jumping to wrong frame after seek",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx start should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
+    assert_eq!(json["domain"]["path"], "crates/replay");
+    assert_eq!(json["task_kind"], "playback_session");
+    assert!(
+        json["read_first"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["path"].as_str() == Some("crates/replay/src/session.rs"))
+    );
+    assert!(
+        json["read_first"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["path"].as_str() == Some("crates/replay/src/timeline.rs"))
+    );
+    assert!(
+        json["related_tests"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("crates/replay/tests/session_test.rs"))
+    );
+    assert!(
+        json["do_not_read_yet"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["path"].as_str() == Some("crates/renderer/**"))
+    );
+}
+
+#[test]
+fn rust_workspace_cargo_table_dependencies_feed_impact_and_boundaries() {
+    let repo = fixture_copy("rust-workspace");
+    let cache = TempDir::new().expect("cache tempdir");
+
+    let impact = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "impact",
+            "--files",
+            "crates/replay/Cargo.toml",
+            "--depth",
+            "2",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx impact should run");
+    assert!(impact.status.success());
+    let impact_json: Value = serde_json::from_slice(&impact.stdout).expect("valid impact json");
+    assert!(
+        impact_json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("crates/renderer/Cargo.toml")),
+        "renderer consumes replay through a Cargo table dependency"
+    );
+    assert!(
+        impact_json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("crates/app/Cargo.toml")),
+        "app consumes renderer and should be reached at depth 2"
+    );
+    assert!(
+        impact_json["expansion_triggers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("package consumers affected"))
+    );
+
+    fs::write(
+        repo.path().join(".ctx.yml"),
+        r#"version: 1
+boundaries:
+  forbidden:
+    - from: crates/renderer/src/**
+      to: crates/replay/src/**
+      reason: renderer must not depend on replay in this fixture policy
+"#,
+    )
+    .expect("write ctx config");
+    let boundaries = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["boundaries", "--format", "json"])
+        .output()
+        .expect("ctx boundaries should run");
+    assert!(!boundaries.status.success());
+    let boundaries_json: Value =
+        serde_json::from_slice(&boundaries.stdout).expect("valid boundaries json");
+    assert!(
+        boundaries_json["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|finding| {
+                finding["from"].as_str() == Some("crates/renderer/Cargo.toml")
+                    && finding["to"].as_str() == Some("crates/replay/Cargo.toml")
+                    && finding["provenance"].as_str() == Some("package_manifest+ctx_anchor")
+                    && finding["reason"]
+                        .as_str()
+                        .unwrap_or("")
+                        .contains("Cargo.toml path dependency")
+            })
     );
 }

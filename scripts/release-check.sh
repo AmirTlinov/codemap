@@ -26,7 +26,8 @@ for required in \
   "docs/SCHEMA_POLICY.md" \
   "tests/e2e_workflow.rs" \
   "tests/schema_policy.rs" \
-  "fixtures/mixed-monorepo/package.json"
+  "fixtures/mixed-monorepo/package.json" \
+  "fixtures/rust-workspace/Cargo.toml.fixture"
 do
   grep -qx "$required" <<<"$package_list"
 done
