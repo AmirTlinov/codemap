@@ -270,7 +270,7 @@ pub fn start_capsule(
     if let Some(route) = route_for_kind(project, &kind)
         && !route.verify.is_empty()
     {
-        verification.minimal = route.verify.clone();
+        verification.minimal = unique(route.verify.clone()).into_iter().take(3).collect();
     }
     let mut provenance = BTreeMap::new();
     provenance.insert(

@@ -1756,6 +1756,52 @@ task_routes:
 }
 
 #[test]
+fn task_route_verification_respects_output_budget() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join("domains/replay/.ctx.yml"),
+        r#"version: 1
+domain:
+  id: replay
+task_routes:
+  playback_session:
+    match:
+      - seek
+    read_first:
+      - src/replay-session.ts
+    verify:
+      - echo one
+      - echo two
+      - echo two
+      - echo three
+      - echo four
+"#,
+    );
+    write(
+        &repo.path().join("domains/replay/src/replay-session.ts"),
+        "export const frame = 1;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["start", "--task", "fix seek frame", "--format", "json"])
+        .output()
+        .expect("ctx start should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid start json");
+    assert_schema_accepts("schemas/capsule.schema.json", &json);
+    assert_eq!(
+        json["verification"]["minimal"],
+        serde_json::json!(["echo one", "echo two", "echo three"])
+    );
+}
+
+#[test]
 fn verify_uses_impact_traversal_for_recommended_checks() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");
