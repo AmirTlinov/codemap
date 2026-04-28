@@ -2366,39 +2366,12 @@ fn root_cargo_workspace_includes(project: &Project, package_path: &str) -> bool 
 }
 
 fn cargo_workspace_values(text: &str, wanted_key: &str) -> Vec<String> {
-    let mut values = Vec::new();
-    let mut in_workspace = false;
-    let mut collecting = false;
-    for line in text.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with('#') || trimmed.is_empty() {
-            continue;
-        }
-        if trimmed.starts_with('[') && trimmed.ends_with(']') {
-            in_workspace = trimmed == "[workspace]";
-            collecting = false;
-            continue;
-        }
-        if !in_workspace {
-            continue;
-        }
-        if collecting {
-            values.extend(quoted_values(trimmed));
-            if trimmed.contains(']') {
-                collecting = false;
-            }
-            continue;
-        }
-        let Some((key, value)) = trimmed.split_once('=') else {
-            continue;
-        };
-        if key.trim() != wanted_key {
-            continue;
-        }
-        values.extend(quoted_values(value));
-        collecting = value.contains('[') && !value.contains(']');
-    }
-    values
+    toml::from_str::<toml::Value>(text)
+        .ok()
+        .and_then(|value| value.get("workspace").cloned())
+        .and_then(|workspace| workspace.get(wanted_key).cloned())
+        .and_then(|value| toml_string_array(&value))
+        .unwrap_or_default()
 }
 
 fn cargo_workspace_pattern_matches(pattern: &str, package_path: &str) -> bool {
@@ -2406,26 +2379,15 @@ fn cargo_workspace_pattern_matches(pattern: &str, package_path: &str) -> bool {
     !pattern.is_empty() && (pattern == package_path || glob_match(&pattern, package_path))
 }
 
-fn quoted_values(text: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut current = String::new();
-    let mut quote: Option<char> = None;
-    for ch in text.chars() {
-        if let Some(active) = quote {
-            if ch == active {
-                if !current.is_empty() {
-                    out.push(current.clone());
-                }
-                current.clear();
-                quote = None;
-            } else {
-                current.push(ch);
-            }
-        } else if ch == '"' || ch == '\'' {
-            quote = Some(ch);
-        }
-    }
-    out
+fn toml_string_array(value: &toml::Value) -> Option<Vec<String>> {
+    Some(
+        value
+            .as_array()?
+            .iter()
+            .filter_map(|item| item.as_str().map(str::to_string))
+            .filter(|item| !item.is_empty())
+            .collect(),
+    )
 }
 
 fn javascript_package_test_command(

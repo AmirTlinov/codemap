@@ -2256,6 +2256,52 @@ edition = "2021"
 }
 
 #[test]
+fn scoped_rust_package_uses_root_workspace_command_for_dotted_cargo_syntax() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join("Cargo.toml"),
+        r#"workspace.members = ["crates/replay"]
+workspace.resolver = "3"
+"#,
+    );
+    write(
+        &repo.path().join("crates/replay/Cargo.toml"),
+        r#"[package]
+name = "replay"
+version = "0.1.0"
+edition = "2021"
+"#,
+    );
+    write(
+        &repo.path().join("crates/replay/src/lib.rs"),
+        "pub fn seek_frame(frame: u32) -> u32 { frame }\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "verify",
+            "--files",
+            "crates/replay/src/lib.rs",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx verify should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid verify json");
+    assert_eq!(
+        json["verification"]["minimal"][0], "cargo test -p replay",
+        "dotted Cargo workspace syntax should use the root package selector"
+    );
+}
+
+#[test]
 fn package_verification_does_not_narrow_when_files_include_unowned_root_config() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");
