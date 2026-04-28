@@ -738,6 +738,41 @@ fn graph_changed_lenses_do_not_invent_context_when_changed_set_is_empty() {
 }
 
 #[test]
+fn graph_impact_lens_without_changed_input_stays_empty() {
+    let repo = fixture_copy("mixed-monorepo");
+    let cache = TempDir::new().expect("cache tempdir");
+
+    let impact = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["graph", "--lens", "impact", "--format", "json"])
+        .output()
+        .expect("ctx graph impact should run");
+    assert!(impact.status.success());
+    let impact_json: Value = serde_json::from_slice(&impact.stdout).expect("valid impact graph");
+    assert_eq!(
+        impact_json["nodes"].as_array().unwrap().len(),
+        0,
+        "impact lens should not fall back to causal context without changed input"
+    );
+    assert_eq!(impact_json["edges"].as_array().unwrap().len(), 0);
+
+    let verification = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["graph", "--lens", "verification", "--format", "json"])
+        .output()
+        .expect("ctx graph verification should run");
+    assert!(verification.status.success());
+    let verification_json: Value =
+        serde_json::from_slice(&verification.stdout).expect("valid verification graph");
+    assert!(
+        !verification_json["nodes"].as_array().unwrap().is_empty(),
+        "verification lens keeps its no-changed general orientation graph"
+    );
+}
+
+#[test]
 fn rust_workspace_routes_replay_task_to_replay_crate() {
     let repo = fixture_copy("rust-workspace");
     let cache = TempDir::new().expect("cache tempdir");

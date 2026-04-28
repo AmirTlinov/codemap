@@ -19,7 +19,7 @@ pub fn graph_lens(
     let (nodes, edges) = match lens_key.as_str() {
         "boundary" | "boundaries" => boundary_graph(project, limit),
         "verification" | "verify" => verification_graph(project, &requested_domain, changed, limit),
-        "impact" if changed.is_some() => impact_graph(project, changed.unwrap_or(&[]), limit),
+        "impact" => impact_graph(project, changed.unwrap_or(&[]), limit),
         _ => causal_graph(project, &requested_domain, path, limit),
     };
     let domain = graph_output_domain(
