@@ -10,7 +10,11 @@ Bundled schemas live in `schemas/` and are exported by:
 ctx schema <kind>
 ```
 
-The exported schema list is owned by `schemas/manifest.json`.
+The exported schema list is owned by `schemas/manifest.json` and is printable from installed binaries with:
+
+```bash
+ctx schema manifest
+```
 
 Route output contracts use:
 
@@ -45,6 +49,7 @@ Unknown `.ctx.yml` fields stay rejected. New anchor fields require a config vers
 
 - every `*.schema.json` file is listed in `schemas/manifest.json`;
 - every manifest entry is printable through `ctx schema <kind>`;
+- the manifest itself is printable through `ctx schema manifest`;
 - printed schemas match the bundled files;
 - route schemas require `schema_version: "1"`;
 - anchor schemas require `version: 1`;

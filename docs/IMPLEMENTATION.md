@@ -41,12 +41,13 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - `ctx init --write-minimal`
 - `ctx init --agents`
 - `ctx bootstrap --global-instruction`
+- `ctx schema manifest`
 - `ctx schema <status|files|capsule|impact|verify|anchors|locate|explain|widen|graph|boundaries>`
 - `ctx anchors validate`
 - stable JSON schemas for agent-facing route JSON outputs and `.ctx.yml` semantic anchors under `schemas/`
 - stable JSON schemas for `status` and `files` JSON reports
 - schema evolution policy in `docs/SCHEMA_POLICY.md`, with exported schema ownership in `schemas/manifest.json`
-- bundled schema printing from the installed binary, without loading a project or writing cache
+- bundled schema and schema-manifest printing from the installed binary, without loading a project or writing cache
 - root and nested `.ctx.yml` semantic anchor loading
 - YAML anchor parsing through maintained `yaml_serde`
 - unknown `.ctx.yml` fields are rejected instead of being silently ignored

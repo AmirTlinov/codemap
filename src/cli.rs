@@ -32,7 +32,7 @@ enum CommandKind {
     Init(InitArgs),
     #[command(about = "Print one-time global agent instruction text")]
     Bootstrap(BootstrapArgs),
-    #[command(about = "Print a bundled stable JSON schema")]
+    #[command(about = "Print a bundled stable JSON schema or schema manifest")]
     Schema(SchemaArgs),
     #[command(about = "Find likely domain or package for a task")]
     Locate(LocateArgs),
@@ -236,6 +236,7 @@ enum GraphOutputFormat {
 
 #[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
 enum SchemaKind {
+    Manifest,
     Status,
     Files,
     Capsule,
@@ -251,17 +252,6 @@ enum SchemaKind {
 
 pub fn run() -> Result<()> {
     let cli = Cli::parse();
-    let ambient_root = env::current_dir()
-        .ok()
-        .and_then(|cwd| repo::ambient_root(&cwd));
-    let root_selection = if let Some(root) = cli.root.clone() {
-        repo::RootSelection::Exact(root)
-    } else if let Some(hint) = command_root_hint(&cli.command, ambient_root.as_deref()) {
-        repo::RootSelection::Discover(hint)
-    } else {
-        repo::RootSelection::Auto
-    };
-
     if let CommandKind::Bootstrap(args) = &cli.command {
         if args.global_instruction {
             print!("{}", render::global_instruction());
@@ -274,6 +264,17 @@ pub fn run() -> Result<()> {
         print!("{}", schema_text(args.kind));
         return Ok(());
     }
+
+    let ambient_root = env::current_dir()
+        .ok()
+        .and_then(|cwd| repo::ambient_root(&cwd));
+    let root_selection = if let Some(root) = cli.root.clone() {
+        repo::RootSelection::Exact(root)
+    } else if let Some(hint) = command_root_hint(&cli.command, ambient_root.as_deref()) {
+        repo::RootSelection::Discover(hint)
+    } else {
+        repo::RootSelection::Auto
+    };
 
     let cache_write = match &cli.command {
         CommandKind::Doctor(_) | CommandKind::Status(_) => repo::CacheWriteMode::ReadOnly,
@@ -400,6 +401,7 @@ pub fn run() -> Result<()> {
 
 fn schema_text(kind: SchemaKind) -> &'static str {
     match kind {
+        SchemaKind::Manifest => include_str!("../schemas/manifest.json"),
         SchemaKind::Status => include_str!("../schemas/status.schema.json"),
         SchemaKind::Files => include_str!("../schemas/files.schema.json"),
         SchemaKind::Capsule => include_str!("../schemas/capsule.schema.json"),

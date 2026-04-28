@@ -22,7 +22,7 @@ cargo run --bin ctx -- doctor
 ./scripts/check-npm-wrapper.sh
 ./scripts/check-homebrew-formula.sh
 
-for schema in status files capsule impact verify anchors locate explain widen graph boundaries; do
+for schema in manifest status files capsule impact verify anchors locate explain widen graph boundaries; do
   cargo run --bin ctx -- schema "$schema" >/dev/null
 done
 

@@ -52,6 +52,24 @@ fn schema_manifest_is_the_exported_contract_guard() {
     let outside = TempDir::new().expect("outside tempdir");
     let cache = TempDir::new().expect("cache tempdir");
 
+    let manifest_output = ctx()
+        .current_dir(outside.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["schema", "manifest"])
+        .output()
+        .expect("ctx schema manifest should run");
+    assert!(
+        manifest_output.status.success(),
+        "ctx schema manifest should succeed: {}",
+        String::from_utf8_lossy(&manifest_output.stderr)
+    );
+    let printed_manifest: Value =
+        serde_json::from_slice(&manifest_output.stdout).expect("printed manifest should be json");
+    assert_eq!(
+        printed_manifest, manifest,
+        "ctx schema manifest drifted from bundled manifest"
+    );
+
     for entry in schemas {
         let kind = entry["kind"]
             .as_str()

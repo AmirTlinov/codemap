@@ -1,4 +1,7 @@
+use std::env;
 use std::fs;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::process::Command;
 
@@ -61,6 +64,25 @@ fn doctor_runs_with_zero_footprint_contract() {
 fn schema_command_outputs_bundled_contract_without_repo_load() {
     let outside = TempDir::new().expect("outside tempdir");
     let cache = TempDir::new().expect("cache tempdir");
+    let manifest = ctx()
+        .current_dir(outside.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["schema", "manifest"])
+        .output()
+        .expect("ctx schema manifest should run");
+    assert!(manifest.status.success());
+    let manifest_json: Value =
+        serde_json::from_slice(&manifest.stdout).expect("manifest should be json");
+    assert_eq!(manifest_json["version"], 1);
+    assert_eq!(manifest_json["route_schema_version"], "1");
+    assert!(
+        manifest_json["schemas"]
+            .as_array()
+            .expect("schemas array")
+            .iter()
+            .any(|entry| entry["kind"].as_str() == Some("capsule"))
+    );
+
     let capsule = ctx()
         .current_dir(outside.path())
         .env("CTX_CACHE_DIR", cache.path())
@@ -100,6 +122,67 @@ fn schema_command_outputs_bundled_contract_without_repo_load() {
         fs::read_dir(cache.path()).expect("cache dir").count(),
         0,
         "ctx schema must not load a project or write cache"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn schema_and_bootstrap_do_not_probe_git_or_cache() {
+    let outside = TempDir::new().expect("outside tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    let fakebin = outside.path().join("bin");
+    let git_log = outside.path().join("git.log");
+    let fake_git = fakebin.join("git");
+    write(
+        &fake_git,
+        "#!/usr/bin/env bash\nprintf '%s\\n' \"$*\" >> \"$TMP_FAKE_GIT_LOG\"\nexit 1\n",
+    );
+    let mut permissions = fs::metadata(&fake_git)
+        .expect("fake git metadata")
+        .permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&fake_git, permissions).expect("chmod fake git");
+
+    let mut paths = vec![fakebin];
+    if let Some(path) = env::var_os("PATH") {
+        paths.extend(env::split_paths(&path));
+    }
+    let path = env::join_paths(paths).expect("join PATH");
+
+    let manifest = ctx()
+        .current_dir(outside.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .env("TMP_FAKE_GIT_LOG", &git_log)
+        .env("PATH", &path)
+        .args(["schema", "manifest"])
+        .output()
+        .expect("ctx schema manifest should run");
+    assert!(manifest.status.success());
+    let manifest_json: Value =
+        serde_json::from_slice(&manifest.stdout).expect("manifest should be json");
+    assert_eq!(manifest_json["version"], 1);
+
+    let bootstrap = ctx()
+        .current_dir(outside.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .env("TMP_FAKE_GIT_LOG", &git_log)
+        .env("PATH", &path)
+        .args(["bootstrap", "--global-instruction"])
+        .output()
+        .expect("ctx bootstrap should run");
+    assert!(bootstrap.status.success());
+    let stdout = String::from_utf8(bootstrap.stdout).expect("bootstrap stdout");
+    assert!(stdout.contains("ctx start --task"));
+
+    assert!(
+        !git_log.exists(),
+        "schema/bootstrap must not invoke git before returning: {}",
+        fs::read_to_string(&git_log).unwrap_or_default()
+    );
+    assert_eq!(
+        fs::read_dir(cache.path()).expect("cache dir").count(),
+        0,
+        "schema/bootstrap must not load a project or write cache"
     );
 }
 
