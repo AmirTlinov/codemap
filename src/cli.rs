@@ -618,11 +618,7 @@ fn changed_from_args(project: &crate::model::Project, args: &ImpactArgs) -> Resu
     if let Some(since) = &args.since {
         return Ok(repo::changed_files(&project.root, false, Some(since)));
     }
-    Ok(parse_files(
-        project,
-        args.files.as_deref(),
-        &args.positional_files,
-    ))
+    parse_files(project, args.files.as_deref(), &args.positional_files)
 }
 
 fn changed_from_verify_args(
@@ -645,11 +641,7 @@ fn changed_from_verify_args(
     if let Some(since) = &args.since {
         return Ok(repo::changed_files(&project.root, false, Some(since)));
     }
-    Ok(parse_files(
-        project,
-        args.files.as_deref(),
-        &args.positional_files,
-    ))
+    parse_files(project, args.files.as_deref(), &args.positional_files)
 }
 
 fn ensure_single_diff_selector(
@@ -675,29 +667,26 @@ fn parse_files(
     project: &crate::model::Project,
     files: Option<&str>,
     positional: &[String],
-) -> Vec<String> {
+) -> Result<Vec<String>> {
     let mut out = Vec::new();
     if let Some(files) = files {
-        out.extend(
-            files
-                .split(',')
-                .filter_map(|file| project_relative_arg(project, file).ok()),
-        );
+        for file in files.split(',') {
+            out.push(project_relative_arg(project, file)?);
+        }
     }
-    out.extend(
-        positional
-            .iter()
-            .filter_map(|file| project_relative_arg(project, file).ok()),
-    );
-    out.into_iter().filter(|s| s != ".").collect()
+    for file in positional {
+        out.push(project_relative_arg(project, file)?);
+    }
+    Ok(out.into_iter().filter(|s| s != ".").collect())
 }
 
 fn project_relative_arg(project: &crate::model::Project, value: &str) -> Result<String> {
     let path = Path::new(value);
     if path.is_absolute() {
-        let absolute = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+        let absolute = normalize_absolute_arg(path);
+        let root = normalize_absolute_arg(&project.root);
         absolute
-            .strip_prefix(&project.root)
+            .strip_prefix(root)
             .map(|rel| repo::normalize_rel_path(&rel.to_string_lossy()))
             .map_err(|_| anyhow::anyhow!("path is outside project root: {value}"))
     } else {
@@ -705,11 +694,58 @@ fn project_relative_arg(project: &crate::model::Project, value: &str) -> Result<
     }
 }
 
+fn normalize_absolute_arg(path: &Path) -> PathBuf {
+    if let Ok(canonical) = path.canonicalize() {
+        return canonical;
+    }
+    let mut tail = Vec::new();
+    let mut cursor = path;
+    loop {
+        if cursor.exists() {
+            let mut out = cursor
+                .canonicalize()
+                .unwrap_or_else(|_| lexical_normalize_absolute(cursor));
+            for part in tail.iter().rev() {
+                out.push(part);
+            }
+            return lexical_normalize_absolute(&out);
+        }
+        let Some(parent) = cursor.parent() else {
+            return lexical_normalize_absolute(path);
+        };
+        if parent == cursor {
+            return lexical_normalize_absolute(path);
+        }
+        let Some(name) = cursor.file_name() else {
+            return lexical_normalize_absolute(path);
+        };
+        tail.push(PathBuf::from(name));
+        cursor = parent;
+    }
+}
+
+fn lexical_normalize_absolute(path: &Path) -> PathBuf {
+    let mut out = PathBuf::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::Prefix(prefix) => out.push(prefix.as_os_str()),
+            std::path::Component::RootDir => out.push(std::path::MAIN_SEPARATOR.to_string()),
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                out.pop();
+            }
+            std::path::Component::Normal(part) => out.push(part),
+        }
+    }
+    out
+}
+
 fn scoped_project_path(project: &crate::model::Project, value: &str) -> Result<PathBuf> {
     let path = Path::new(value);
     if path.is_absolute() {
-        let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
-        if canonical == project.root || canonical.starts_with(&project.root) {
+        let canonical = normalize_absolute_arg(path);
+        let root = normalize_absolute_arg(&project.root);
+        if canonical == root || canonical.starts_with(&root) {
             return Ok(canonical);
         }
         bail!("refusing to write outside project root: {}", path.display());

@@ -2626,6 +2626,96 @@ fn absolute_file_args_are_normalized_to_repo_relative_paths() {
 }
 
 #[test]
+fn explicit_file_scopes_fail_closed_outside_selected_root() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let outside = TempDir::new().expect("outside tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(&repo.path().join("src/save.ts"), "export const save = 1;\n");
+    write(
+        &outside.path().join("outside.ts"),
+        "export const outside = 1;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+    let outside_file = outside.path().join("outside.ts");
+
+    let impact = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "--root",
+            repo.path().to_str().unwrap(),
+            "impact",
+            "--files",
+            outside_file.to_str().unwrap(),
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx impact should run");
+    assert!(!impact.status.success());
+    let stderr = String::from_utf8(impact.stderr).expect("stderr should be utf8");
+    assert!(stderr.contains("path is outside project root"));
+
+    let verify = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "--root",
+            repo.path().to_str().unwrap(),
+            "verify",
+            outside_file.to_str().unwrap(),
+            "--run",
+        ])
+        .output()
+        .expect("ctx verify should run");
+    assert!(!verify.status.success());
+    let stdout = String::from_utf8(verify.stdout).expect("stdout should be utf8");
+    assert!(!stdout.contains("Verification Plan"));
+    let stderr = String::from_utf8(verify.stderr).expect("stderr should be utf8");
+    assert!(stderr.contains("path is outside project root"));
+
+    let missing_outside = repo.path().join("../__ctx_outside_missing_review_probe.ts");
+    assert!(!missing_outside.exists());
+    let missing_impact = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "--root",
+            repo.path().to_str().unwrap(),
+            "impact",
+            "--files",
+            missing_outside.to_str().unwrap(),
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx impact should run");
+    assert!(!missing_impact.status.success());
+    let stderr = String::from_utf8(missing_impact.stderr).expect("stderr should be utf8");
+    assert!(stderr.contains("path is outside project root"));
+
+    let missing_verify = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "--root",
+            repo.path().to_str().unwrap(),
+            "verify",
+            missing_outside.to_str().unwrap(),
+            "--run",
+        ])
+        .output()
+        .expect("ctx verify should run");
+    assert!(!missing_verify.status.success());
+    let stdout = String::from_utf8(missing_verify.stdout).expect("stdout should be utf8");
+    assert!(!stdout.contains("Verification Plan"));
+    let stderr = String::from_utf8(missing_verify.stderr).expect("stderr should be utf8");
+    assert!(stderr.contains("path is outside project root"));
+}
+
+#[test]
 fn absolute_path_commands_select_target_repo_from_any_cwd() {
     let repo = TempDir::new().expect("repo tempdir");
     let outside = TempDir::new().expect("outside tempdir");
@@ -2788,6 +2878,25 @@ fn init_write_minimal_refuses_absolute_path_outside_repo() {
         .expect("ctx init should run");
     assert!(!output.status.success());
     assert!(!outside.path().join(".ctx.yml").exists());
+
+    let canonical_repo = fs::canonicalize(repo.path()).expect("canonical temp repo");
+    let missing_outside = canonical_repo.join("../__ctx_outside_missing_write_probe");
+    assert!(!missing_outside.exists());
+    let missing_output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "init",
+            "--write-minimal",
+            "--path",
+            missing_outside.to_str().unwrap(),
+        ])
+        .output()
+        .expect("ctx init should run");
+    assert!(!missing_output.status.success());
+    assert!(!missing_outside.join(".ctx.yml").exists());
+    let stderr = String::from_utf8(missing_output.stderr).expect("stderr should be utf8");
+    assert!(stderr.contains("refusing to write outside project root"));
 }
 
 #[test]
