@@ -1,6 +1,6 @@
 {
   "name": "agent-context-cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Deterministic task-specific context router for coding agents",
   "license": "MIT",
   "repository": {

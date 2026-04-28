@@ -130,7 +130,7 @@ From a source checkout, build the same archive with:
 ```
 
 The release script writes `dist/ctx-v<version>-<target>.tar.gz` and a `.sha256` sidecar.
-Pushing a version tag from `main`, for example `v0.1.0`, publishes Linux x64 and macOS arm64 archives to GitHub Releases after asset verification.
+Pushing a version tag from `main`, for example `v0.1.1`, publishes Linux x64 and macOS arm64 archives to GitHub Releases after asset verification.
 
 The npm package is a thin installer wrapper around those same release archives:
 
@@ -145,7 +145,7 @@ For private GitHub releases, run install with `GH_TOKEN`, `GITHUB_TOKEN`, or `CT
 The release workflow also publishes a generated Homebrew formula asset with checksums derived from the release archives:
 
 ```bash
-brew install --formula https://github.com/AmirTlinov/ctx/releases/download/v0.1.0/ctx.rb
+brew install --formula https://github.com/AmirTlinov/ctx/releases/download/v0.1.1/ctx.rb
 ```
 
 ## Optional `.ctx.yml`
