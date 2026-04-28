@@ -1485,6 +1485,64 @@ boundaries:
 }
 
 #[test]
+fn changed_target_file_boundary_edge_fails_closed() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join(".ctx.yml"),
+        r#"version: 1
+boundaries:
+  forbidden:
+    - from: domains/replay/src/**
+      to: domains/renderer/src/**
+      reason: replay emits DTOs; renderer consumes DTOs
+"#,
+    );
+    write(
+        &repo.path().join("domains/replay/src/session.ts"),
+        "import { renderReplay } from '../../renderer/src/replay-renderer';\nexport const session = renderReplay;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let clean = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["boundaries", "--changed"])
+        .output()
+        .expect("ctx boundaries should run");
+    assert!(clean.status.success());
+
+    write(
+        &repo.path().join("domains/renderer/src/replay-renderer.ts"),
+        "export function renderReplay() { return 'rendered'; }\n",
+    );
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["boundaries", "--changed", "--format", "json"])
+        .output()
+        .expect("ctx boundaries should run");
+    assert!(
+        !output.status.success(),
+        "target file changes can introduce forbidden resolved imports"
+    );
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid boundaries json");
+    let findings = json["findings"].as_array().expect("findings array");
+    assert!(findings.iter().any(|finding| {
+        finding["from"].as_str() == Some("domains/replay/src/session.ts")
+            && finding["to"].as_str() == Some("domains/renderer/src/replay-renderer.ts")
+            && finding["provenance"].as_str() == Some("ctx_anchor")
+            && finding["reason"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("replay emits DTOs")
+    }));
+}
+
+#[test]
 fn package_manifest_boundary_edge_fails_closed() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");

@@ -686,11 +686,6 @@ pub fn boundary_findings(
     let mut findings = Vec::new();
     let root_domain = primary_domain(project, "", None);
     for file in project.files.values() {
-        if let Some(changed) = changed_only
-            && !changed.contains(&file.rel)
-        {
-            continue;
-        }
         if file.has_role("generated")
             && let Some(changed) = changed_only
             && changed.contains(&file.rel)
@@ -712,6 +707,11 @@ pub fn boundary_findings(
                 }
                 let from = resolve_domain_pattern(&root_domain, &rule.from);
                 let to = resolve_domain_pattern(&root_domain, &rule.to);
+                if let Some(changed) = changed_only
+                    && !file_boundary_edge_touched(file, target, changed)
+                {
+                    continue;
+                }
                 if glob_match(&from, &file.rel) && glob_match(&to, target) {
                     findings.push(BoundaryFinding {
                         from: file.rel.clone(),
@@ -809,6 +809,14 @@ pub fn boundary_findings(
         }
     }
     findings
+}
+
+fn file_boundary_edge_touched(
+    file: &crate::model::FileInfo,
+    target: &str,
+    changed: &BTreeSet<String>,
+) -> bool {
+    changed.contains(&file.rel) || changed.contains(target)
 }
 
 struct PackageGraphPath {
