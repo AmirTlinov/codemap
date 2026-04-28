@@ -92,20 +92,45 @@ pub fn locate_report(project: &Project, task: &str, limit: usize) -> LocateRepor
             .filter(|token| domain_text.contains(token.as_str()))
             .cloned()
             .collect();
+        let has_domain_overlap = !overlap.is_empty();
         if !overlap.is_empty() {
             score += 2.0 * overlap.len() as f64;
             reasons.push(format!("task/domain overlap: {}", overlap.join(", ")));
         }
         let candidates = select_read_first(project, domain, task, &kind, 3, &BTreeSet::new());
         if let Some(best) = candidates.first() {
-            score += best.score;
-            reasons.push(format!("best local file: `{}`", best.path));
+            if candidate_has_specific_evidence(best, &kind) {
+                score += best.score;
+                reasons.push(format!("best local file: `{}`", best.path));
+            } else if kind == "general" {
+                score += 0.4;
+                reasons.push(format!("orientation file available: `{}`", best.path));
+            } else {
+                reasons.push("no task-specific file evidence found".to_string());
+            }
         }
-        if domain.config_path.is_some() || project.config_path.is_some() {
+        let has_semantic_anchor = domain.config_path.is_some() || project.config_path.is_some();
+        if has_semantic_anchor {
             score += 1.2;
             reasons.push("has semantic anchors".to_string());
         }
-        let confidence = confidence_from_score((kind_conf + score / 22.0).min(1.0));
+        let has_specific_file_evidence = candidates
+            .iter()
+            .any(|candidate| candidate_has_specific_evidence(candidate, &kind));
+        let has_configured_route = reasons
+            .iter()
+            .any(|reason| reason.starts_with("matched configured route"));
+        let mut confidence_score = (kind_conf + score / 22.0).min(1.0);
+        if !has_specific_file_evidence
+            && !has_domain_overlap
+            && !has_semantic_anchor
+            && !has_configured_route
+        {
+            confidence_score = confidence_score.min(0.45);
+        } else if !has_specific_file_evidence && !has_semantic_anchor && !has_configured_route {
+            confidence_score = confidence_score.min(0.68);
+        }
+        let confidence = confidence_from_score(confidence_score);
         scored.push(LocateCandidate {
             domain: domain.into(),
             score: round2(score),

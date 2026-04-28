@@ -1136,6 +1136,31 @@ fn start_does_not_route_into_top_level_fixtures_by_default() {
             .all(|item| !item["path"].as_str().unwrap_or("").starts_with("fixtures/"))
     );
 
+    let locate = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "locate",
+            "--task",
+            "fix replay jumping to wrong frame after seek",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx locate should run");
+    assert!(locate.status.success());
+    let locate_json: Value = serde_json::from_slice(&locate.stdout).expect("valid locate json");
+    let first_candidate = &locate_json["candidates"][0];
+    assert_eq!(first_candidate["task_kind"], "playback_session");
+    assert_ne!(first_candidate["confidence"], "high");
+    assert!(
+        first_candidate["reasons"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|reason| reason.as_str() == Some("no task-specific file evidence found"))
+    );
+
     let fixture_output = ctx()
         .current_dir(repo.path())
         .env("CTX_CACHE_DIR", cache.path())
