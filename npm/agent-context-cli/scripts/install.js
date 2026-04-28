@@ -10,6 +10,11 @@ const { spawnSync } = require("node:child_process");
 
 const packageRoot = path.resolve(__dirname, "..");
 const pkg = JSON.parse(fs.readFileSync(path.join(packageRoot, "package.json"), "utf8"));
+const githubToken =
+  process.env.CTX_NPM_GITHUB_TOKEN ||
+  process.env.GH_TOKEN ||
+  process.env.GITHUB_TOKEN ||
+  "";
 
 const TARGETS = {
   "darwin-arm64": "aarch64-apple-darwin",
@@ -49,9 +54,27 @@ function verifyChecksum(archive, checksumFile) {
   }
 }
 
-function downloadFile(url, destination, redirects = 0) {
+function requestHeaders(accept = "application/octet-stream", withAuth = false) {
+  const headers = {
+    "Accept": accept,
+    "User-Agent": "agent-context-cli-npm-installer"
+  };
+  if (githubToken && withAuth) {
+    headers.Authorization = `Bearer ${githubToken}`;
+    headers["X-GitHub-Api-Version"] = "2022-11-28";
+  }
+  return headers;
+}
+
+function downloadFile(
+  url,
+  destination,
+  redirects = 0,
+  accept = "application/octet-stream",
+  withAuth = false
+) {
   return new Promise((resolve, reject) => {
-    https.get(url, (response) => {
+    https.get(url, { headers: requestHeaders(accept, withAuth) }, (response) => {
       if (
         response.statusCode >= 300 &&
         response.statusCode < 400 &&
@@ -60,7 +83,7 @@ function downloadFile(url, destination, redirects = 0) {
       ) {
         response.resume();
         const nextUrl = new URL(response.headers.location, url).toString();
-        downloadFile(nextUrl, destination, redirects + 1).then(resolve, reject);
+        downloadFile(nextUrl, destination, redirects + 1, accept, false).then(resolve, reject);
         return;
       }
 
@@ -76,6 +99,53 @@ function downloadFile(url, destination, redirects = 0) {
       file.on("error", reject);
     }).on("error", reject);
   });
+}
+
+function getJson(url, redirects = 0, withAuth = true) {
+  return new Promise((resolve, reject) => {
+    https.get(url, { headers: requestHeaders("application/vnd.github+json", withAuth) }, (response) => {
+      if (
+        response.statusCode >= 300 &&
+        response.statusCode < 400 &&
+        response.headers.location &&
+        redirects < 5
+      ) {
+        response.resume();
+        const nextUrl = new URL(response.headers.location, url).toString();
+        getJson(nextUrl, redirects + 1, false).then(resolve, reject);
+        return;
+      }
+
+      let body = "";
+      response.setEncoding("utf8");
+      response.on("data", (chunk) => {
+        body += chunk;
+      });
+      response.on("end", () => {
+        if (response.statusCode !== 200) {
+          reject(new Error(`GitHub API request failed (${response.statusCode}): ${url}`));
+          return;
+        }
+        try {
+          resolve(JSON.parse(body));
+        } catch (error) {
+          reject(error);
+        }
+      });
+    }).on("error", reject);
+  });
+}
+
+async function downloadGitHubReleaseAsset(tag, assetName, destination) {
+  const apiUrl =
+    process.env.CTX_NPM_RELEASE_API_URL ||
+    `https://api.github.com/repos/AmirTlinov/ctx/releases/tags/${encodeURIComponent(tag)}`;
+  const release = await getJson(apiUrl);
+  const asset = (release.assets || []).find((candidate) => candidate.name === assetName);
+  if (!asset || !asset.url) {
+    fail(`release asset not found for ${tag}: ${assetName}`);
+  }
+  await downloadFile(asset.url, destination, 0, "application/octet-stream", true);
 }
 
 function extractArchive(archive, archiveBase, vendorDir) {
@@ -115,14 +185,19 @@ async function main() {
   let checksum = archive ? `${archive}.sha256` : "";
 
   if (!archive) {
-    const baseUrl = (
-      process.env.CTX_NPM_RELEASE_BASE_URL ||
-      `https://github.com/AmirTlinov/ctx/releases/download/${tag}`
-    ).replace(/\/$/, "");
     archive = path.join(tempDir, archiveName);
     checksum = `${archive}.sha256`;
-    await downloadFile(`${baseUrl}/${archiveName}`, archive);
-    await downloadFile(`${baseUrl}/${archiveName}.sha256`, checksum);
+    if (githubToken && !process.env.CTX_NPM_RELEASE_BASE_URL) {
+      await downloadGitHubReleaseAsset(tag, archiveName, archive);
+      await downloadGitHubReleaseAsset(tag, `${archiveName}.sha256`, checksum);
+    } else {
+      const baseUrl = (
+        process.env.CTX_NPM_RELEASE_BASE_URL ||
+        `https://github.com/AmirTlinov/ctx/releases/download/${tag}`
+      ).replace(/\/$/, "");
+      await downloadFile(`${baseUrl}/${archiveName}`, archive);
+      await downloadFile(`${baseUrl}/${archiveName}.sha256`, checksum);
+    }
   }
 
   if (!fs.existsSync(archive)) {

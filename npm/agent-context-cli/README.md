@@ -15,3 +15,5 @@ Supported prebuilt targets:
 - `darwin-arm64` -> `aarch64-apple-darwin`
 
 For local testing, set `CTX_NPM_INSTALL_ARCHIVE=/path/to/ctx-v<version>-<target>.tar.gz`.
+
+For private GitHub releases, expose `GH_TOKEN`, `GITHUB_TOKEN`, or `CTX_NPM_GITHUB_TOKEN` during install.

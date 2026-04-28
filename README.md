@@ -140,6 +140,7 @@ ctx doctor
 ```
 
 It downloads and verifies the matching archive during install. It does not make Node a project dependency for repositories where `ctx` is used.
+For private GitHub releases, run install with `GH_TOKEN`, `GITHUB_TOKEN`, or `CTX_NPM_GITHUB_TOKEN` available so the wrapper can download assets through the GitHub API.
 
 The release workflow also publishes a generated Homebrew formula asset with checksums derived from the release archives:
 
