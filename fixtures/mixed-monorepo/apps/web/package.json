@@ -1,0 +1,8 @@
+{
+  "name": "@ctx-fixture/web",
+  "private": true,
+  "dependencies": {
+    "@ctx-fixture/auth": "workspace:*",
+    "@ctx-fixture/renderer": "workspace:*"
+  }
+}

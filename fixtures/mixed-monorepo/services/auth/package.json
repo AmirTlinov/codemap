@@ -1,0 +1,7 @@
+{
+  "name": "@ctx-fixture/auth",
+  "private": true,
+  "scripts": {
+    "test": "echo auth tests"
+  }
+}

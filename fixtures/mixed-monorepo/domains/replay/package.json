@@ -1,0 +1,7 @@
+{
+  "name": "@ctx-fixture/replay",
+  "private": true,
+  "scripts": {
+    "test": "echo replay tests"
+  }
+}

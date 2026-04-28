@@ -143,6 +143,10 @@ struct VerifyArgs {
     files: Option<String>,
     #[arg()]
     positional_files: Vec<String>,
+    #[arg(long, default_value_t = 1)]
+    depth: usize,
+    #[arg(long, default_value_t = 30)]
+    limit: usize,
     #[arg(long)]
     run: bool,
     #[arg(long)]
@@ -425,8 +429,12 @@ fn init(project: &crate::model::Project, args: InitArgs) -> Result<()> {
 fn verify(project: &crate::model::Project, args: VerifyArgs) -> Result<()> {
     ensure_valid_config(project)?;
     let changed = changed_from_verify_args(project, &args);
-    let impacted = Vec::new();
-    let plan = route::verification_plan(project, &changed, &impacted);
+    let impact = route::impact_report(project, changed.clone(), args.depth, args.limit);
+    let plan = VerificationPlan {
+        minimal: impact.minimal_verification.clone(),
+        recommended: impact.recommended_verification.clone(),
+        full_only_if_triggered: impact.full_verification.clone(),
+    };
     if args.run {
         render::verify(&changed, &plan);
         return run_plan(project, &plan, args.recommended);

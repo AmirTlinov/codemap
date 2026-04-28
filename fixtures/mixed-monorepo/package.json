@@ -1,0 +1,13 @@
+{
+  "name": "ctx-fixture-mixed-monorepo",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "domains/*",
+    "services/*"
+  ],
+  "scripts": {
+    "test": "echo fixture tests",
+    "typecheck": "echo fixture typecheck"
+  }
+}

@@ -14,6 +14,8 @@ pub struct Project {
     pub nearest_agents: Option<String>,
     pub files: BTreeMap<String, FileInfo>,
     pub reverse_imports: BTreeMap<String, BTreeSet<String>>,
+    pub packages: Vec<PackageInfo>,
+    pub package_edges: Vec<PackageDependency>,
     pub domains: Vec<Domain>,
     pub package_manager: String,
     pub scripts: Vec<ScriptInfo>,
@@ -58,6 +60,24 @@ pub struct ScriptInfo {
     pub name: String,
     pub command: String,
     pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PackageInfo {
+    pub name: String,
+    pub path: String,
+    pub manifest: String,
+    pub ecosystem: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PackageDependency {
+    pub from: String,
+    pub from_manifest: String,
+    pub to: String,
+    pub to_manifest: Option<String>,
+    pub dependency: String,
+    pub source: String,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]

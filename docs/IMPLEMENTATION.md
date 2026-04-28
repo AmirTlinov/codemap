@@ -30,11 +30,16 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - `ctx init --agents`
 - `ctx bootstrap --global-instruction`
 - `ctx anchors validate`
+- stable JSON schemas for `ctx start --format json` and `ctx impact --format json` under `schemas/`
 - root and nested `.ctx.yml` semantic anchor loading
+- YAML anchor parsing through `serde_yml`
 - absolute `--path` and `--files` arguments normalized to the owning repo
 - safe `ctx init --write-minimal`: creates requested domain directories, refuses writes outside the repo, and writes no fake placeholder concepts
 - invalid `.ctx.yml` files are reported by `ctx anchors validate` and block routing commands instead of being silently ignored
 - `ctx verify --run` fails closed when the plan contains only a non-runnable placeholder
+- `ctx verify --changed` and `ctx verify --files` reuse the same impact traversal and `--depth`/`--limit` controls as `ctx impact`
+- boundary checks include explicit forbidden file imports and local package-manifest dependency edges
+- mixed-monorepo golden fixtures cover replay/auth routing and bounded replay impact
 - printed global agent bootstrap does not advertise a separate `--for-agent` mode; Markdown is already the agent-facing default
 
 ## Core Files
@@ -68,11 +73,14 @@ This is intentionally flatter than the final large-tree design. The next split s
 - invalid semantic anchors block `start`/`impact`/`verify` until fixed, while `ctx anchors validate` stays available for diagnosis.
 - `verify --run` returns non-zero when no concrete command can be inferred.
 - explicit forbidden boundary edges have regression coverage.
+- package-manifest boundary edges have regression coverage.
+- `verify` recommends checks discovered through impacted files, not only directly changed files, including bounded multi-hop traversal when `--depth` is raised.
+- schema files are valid JSON, pinned to JSON Schema draft 2020-12, and validate real `start`/`impact` JSON outputs in tests.
+- `tests/golden_routing.rs` protects mixed-monorepo routing quality.
 
 ## Next Useful Slices
 
-1. Add golden fixtures for mixed monorepos and workspace package detection.
+1. Add richer workspace package discovery for `pnpm-workspace.yaml`, Cargo workspace members, Go workspaces, and Python projects.
 2. Add public-boundary and DTO/schema impact rules with stronger tests.
 3. Split JS/TS, Rust, Python, and Go adapters once their extraction logic grows.
-4. Publish stable JSON schemas for task capsules and impact reports.
-5. Replace deprecated `serde_yaml` before distribution hardening.
+4. Add release packaging checks for cargo/homebrew/npm wrapper distribution.

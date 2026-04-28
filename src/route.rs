@@ -356,7 +356,7 @@ pub fn verification_plan(
     } else {
         impacted_domains(project, &all_files)
     };
-    let max_risk = changed
+    let max_risk = all_files
         .iter()
         .map(|f| risk_for_file(project, f).0)
         .max()
@@ -575,7 +575,60 @@ pub fn boundary_findings(
             }
         }
     }
+    for edge in &project.package_edges {
+        for rule in &project.anchors.boundaries.forbidden {
+            if rule.from.is_empty() || rule.to.is_empty() {
+                continue;
+            }
+            let from = resolve_domain_pattern(primary_domain(project, "", None), &rule.from);
+            let to = resolve_domain_pattern(primary_domain(project, "", None), &rule.to);
+            if package_edge_matches_rule(&from, &edge.from)
+                && package_edge_matches_rule(&to, &edge.to)
+            {
+                let mut reason = rule.reason.clone();
+                if !reason.is_empty() {
+                    reason.push_str("; ");
+                }
+                reason.push_str(&format!(
+                    "package manifest dependency `{}` from {}",
+                    edge.dependency, edge.source
+                ));
+                findings.push(BoundaryFinding {
+                    from: edge.from_manifest.clone(),
+                    to: edge.to_manifest.clone().unwrap_or_else(|| edge.to.clone()),
+                    status: rule
+                        .status
+                        .clone()
+                        .unwrap_or_else(|| "forbidden".to_string()),
+                    reason,
+                    recovery: rule.recovery.clone(),
+                    provenance: "package_manifest+ctx_anchor".to_string(),
+                    confidence: "hard".to_string(),
+                });
+            }
+        }
+    }
     findings
+}
+
+fn package_edge_matches_rule(pattern: &str, package_path: &str) -> bool {
+    let package_path = package_path.trim_end_matches('/');
+    let probes = if package_path == "." {
+        vec![
+            "package.json".to_string(),
+            "Cargo.toml".to_string(),
+            "src/__package_dependency__".to_string(),
+            "__package_dependency__".to_string(),
+        ]
+    } else {
+        vec![
+            format!("{package_path}/package.json"),
+            format!("{package_path}/Cargo.toml"),
+            format!("{package_path}/src/__package_dependency__"),
+            format!("{package_path}/__package_dependency__"),
+        ]
+    };
+    probes.iter().any(|probe| glob_match(pattern, probe))
 }
 
 pub fn graph_lens(
@@ -994,7 +1047,12 @@ fn score_file(_project: &Project, file: &FileInfo, task: &str, kind: &str) -> Ca
         ),
         (
             "parser",
-            &[("parser", 5.0), ("schema_contract", 2.0), ("test", 1.5)],
+            &[
+                ("parser", 5.0),
+                ("repo_discovery", 2.5),
+                ("schema_contract", 2.0),
+                ("test", 1.5),
+            ],
         ),
         (
             "serialization_schema",
@@ -1074,6 +1132,21 @@ fn score_file(_project: &Project, file: &FileInfo, task: &str, kind: &str) -> Ca
     if file.has_role("test") && kind != "test" {
         score -= 0.7;
     }
+    let name = Path::new(&file.rel)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("");
+    if matches!(
+        name,
+        "package.json" | "Cargo.toml" | "go.mod" | "pyproject.toml"
+    ) && !matches!(kind, "public_api" | "build_ci" | "serialization_schema")
+    {
+        score -= 2.0;
+    }
+    if file.has_role("fixture") && kind != "test" && !task.to_ascii_lowercase().contains("fixture")
+    {
+        score -= 4.0;
+    }
     Candidate {
         path: file.rel.clone(),
         score,
@@ -1090,7 +1163,7 @@ fn candidate_has_specific_evidence(candidate: &Candidate, kind: &str) -> bool {
     let specific_roles: &[&str] = match kind {
         "context_routing" => &["routing", "repo_discovery", "cli_surface", "cache"],
         "playback_session" => &["runtime_state"],
-        "parser" => &["parser"],
+        "parser" => &["parser", "repo_discovery"],
         "serialization_schema" | "public_api" => &["schema_contract", "public_boundary"],
         "ui_rendering" => &["renderer_ui"],
         "auth" => &["runtime_state", "adapter"],
@@ -1119,9 +1192,19 @@ fn test_files_for(
         .filter_map(|r| Path::new(r).file_stem().and_then(|s| s.to_str()))
         .map(|s| s.replace(".test", "").replace(".spec", ""))
         .collect();
+    let allow_fixture_tests = rels.iter().any(|rel| {
+        project
+            .files
+            .get(rel)
+            .map(|file| file.has_role("fixture"))
+            .unwrap_or(false)
+    });
     let mut scored = Vec::new();
     for file in project.files.values() {
         if !file.has_role("test") {
+            continue;
+        }
+        if file.has_role("fixture") && !allow_fixture_tests {
             continue;
         }
         let mut score = 0.0;
@@ -1169,6 +1252,9 @@ fn source_truths(project: &Project, domain: &Domain) -> Vec<String> {
         }
     }
     for file in domain_files(project, domain) {
+        if file.has_role("fixture") {
+            continue;
+        }
         if file.has_role("source_of_truth") || file.has_role("persistence") {
             out.push(file.rel.clone());
         }
@@ -1179,7 +1265,7 @@ fn source_truths(project: &Project, domain: &Domain) -> Vec<String> {
 fn public_boundaries(project: &Project, domain: &Domain) -> Vec<String> {
     domain_files(project, domain)
         .into_iter()
-        .filter(|file| file.has_role("public_boundary"))
+        .filter(|file| file.has_role("public_boundary") && !file.has_role("fixture"))
         .map(|file| file.rel.clone())
         .take(8)
         .collect()

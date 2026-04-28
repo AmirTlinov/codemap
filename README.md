@@ -57,6 +57,7 @@ ctx impact --staged
 ctx impact --since main
 ctx impact --files /abs/path/to/file.ts
 ctx verify --changed
+ctx verify --changed --depth 2
 ctx verify --changed --run
 ctx explain src/lib.rs
 ctx widen --reason "read-first set did not contain the cause"
@@ -70,6 +71,7 @@ ctx anchors validate
 ```
 
 Markdown is the default agent-facing format. JSON is available with `--format json`.
+Stable JSON schemas for the task capsule and impact report live in `schemas/capsule.schema.json` and `schemas/impact.schema.json`.
 
 ## Agent Integration
 

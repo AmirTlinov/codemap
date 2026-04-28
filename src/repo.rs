@@ -11,7 +11,8 @@ use regex::Regex;
 
 use crate::cache;
 use crate::model::{
-    AnchorDomain, ConfigLoadError, CtxConfig, Domain, FileInfo, Project, ScriptInfo,
+    AnchorDomain, ConfigLoadError, CtxConfig, Domain, FileInfo, PackageDependency, PackageInfo,
+    Project, ScriptInfo,
 };
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -102,6 +103,8 @@ pub fn load_project(root_override: Option<PathBuf>) -> Result<Project> {
     let mut files = scan_files(&root)?;
     resolve_imports(&mut files);
     let reverse_imports = build_reverse_imports(&files);
+    let packages = detect_packages(&root, &files);
+    let package_edges = detect_package_edges(&root, &packages);
     let scripts = detect_scripts(&root);
     let package_manager = detect_package_manager(&root);
     let languages = detect_languages(&files);
@@ -123,6 +126,8 @@ pub fn load_project(root_override: Option<PathBuf>) -> Result<Project> {
         nearest_agents,
         files,
         reverse_imports,
+        packages,
+        package_edges,
         domains,
         package_manager,
         scripts,
@@ -221,7 +226,7 @@ fn load_ctx_config(path: &Path) -> Result<CtxConfig> {
     if path.extension().and_then(|x| x.to_str()) == Some("json") {
         Ok(serde_json::from_str(&text)?)
     } else {
-        Ok(serde_yaml::from_str(&text)?)
+        Ok(serde_yml::from_str(&text)?)
     }
 }
 
@@ -533,6 +538,9 @@ fn classify_roles(info: &mut FileInfo) {
     if is_generated(&rel) {
         info.roles.insert("generated".to_string());
     }
+    if rel.starts_with("fixtures/") || rel.contains("/fixtures/") {
+        info.roles.insert("fixture".to_string());
+    }
     if is_test_path(&rel) {
         info.roles.insert("test".to_string());
     }
@@ -627,9 +635,12 @@ fn classify_roles(info: &mut FileInfo) {
     add_role_if(
         &mut info.roles,
         &rel,
-        &["repo", "root", "inventory", "files", "discover"],
+        &["root", "inventory", "files", "discover"],
         "repo_discovery",
     );
+    if matches!(name.as_str(), "repo.rs" | "repo.ts" | "repo.js") {
+        info.roles.insert("repo_discovery".to_string());
+    }
     add_role_if(&mut info.roles, &rel, &["cache", "fingerprint"], "cache");
     add_role_if(&mut info.roles, &rel, &["cli", "command"], "cli_surface");
     if name == "agents.md" {
@@ -859,6 +870,245 @@ fn build_reverse_imports(files: &BTreeMap<String, FileInfo>) -> BTreeMap<String,
     reverse
 }
 
+fn detect_packages(root: &Path, files: &BTreeMap<String, FileInfo>) -> Vec<PackageInfo> {
+    let mut packages = Vec::new();
+    for rel in files.keys() {
+        let name = Path::new(rel).file_name().and_then(|s| s.to_str());
+        match name {
+            Some("package.json") => {
+                if let Some(package) = read_js_package(root, rel) {
+                    packages.push(package);
+                }
+            }
+            Some("Cargo.toml") => {
+                if let Some(package) = read_cargo_package(root, rel) {
+                    packages.push(package);
+                }
+            }
+            _ => {}
+        }
+    }
+    packages.sort_by(|a, b| a.path.cmp(&b.path).then_with(|| a.name.cmp(&b.name)));
+    packages
+}
+
+fn read_js_package(root: &Path, rel: &str) -> Option<PackageInfo> {
+    let text = fs::read_to_string(root.join(rel)).ok()?;
+    let value = serde_json::from_str::<serde_json::Value>(&text).ok()?;
+    let path = manifest_dir(rel);
+    let name = value
+        .get("name")
+        .and_then(|v| v.as_str())
+        .map(str::to_string)
+        .unwrap_or_else(|| package_name_from_path(&path));
+    Some(PackageInfo {
+        name,
+        path,
+        manifest: rel.to_string(),
+        ecosystem: "javascript".to_string(),
+    })
+}
+
+fn read_cargo_package(root: &Path, rel: &str) -> Option<PackageInfo> {
+    let text = fs::read_to_string(root.join(rel)).ok()?;
+    let name = cargo_package_name(&text)?;
+    Some(PackageInfo {
+        name,
+        path: manifest_dir(rel),
+        manifest: rel.to_string(),
+        ecosystem: "rust".to_string(),
+    })
+}
+
+fn detect_package_edges(root: &Path, packages: &[PackageInfo]) -> Vec<PackageDependency> {
+    let mut edges = Vec::new();
+    let by_name: BTreeMap<String, &PackageInfo> = packages
+        .iter()
+        .map(|package| (package.name.clone(), package))
+        .collect();
+    let by_path: BTreeMap<String, &PackageInfo> = packages
+        .iter()
+        .map(|package| (package.path.clone(), package))
+        .collect();
+
+    for package in packages {
+        match package.ecosystem.as_str() {
+            "javascript" => {
+                edges.extend(js_package_edges(root, package, &by_name));
+            }
+            "rust" => {
+                edges.extend(cargo_package_edges(root, package, &by_path));
+            }
+            _ => {}
+        }
+    }
+    edges.sort_by(|a, b| {
+        a.from
+            .cmp(&b.from)
+            .then_with(|| a.to.cmp(&b.to))
+            .then_with(|| a.dependency.cmp(&b.dependency))
+    });
+    edges.dedup_by(|a, b| {
+        a.from == b.from && a.to == b.to && a.dependency == b.dependency && a.source == b.source
+    });
+    edges
+}
+
+fn js_package_edges(
+    root: &Path,
+    package: &PackageInfo,
+    by_name: &BTreeMap<String, &PackageInfo>,
+) -> Vec<PackageDependency> {
+    let Ok(text) = fs::read_to_string(root.join(&package.manifest)) else {
+        return Vec::new();
+    };
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {
+        return Vec::new();
+    };
+    let mut edges = Vec::new();
+    for section in [
+        "dependencies",
+        "devDependencies",
+        "peerDependencies",
+        "optionalDependencies",
+    ] {
+        let Some(map) = value.get(section).and_then(|v| v.as_object()) else {
+            continue;
+        };
+        for dep in map.keys() {
+            if let Some(target) = by_name.get(dep) {
+                edges.push(PackageDependency {
+                    from: package.path.clone(),
+                    from_manifest: package.manifest.clone(),
+                    to: target.path.clone(),
+                    to_manifest: Some(target.manifest.clone()),
+                    dependency: dep.clone(),
+                    source: format!("package.json {section}"),
+                });
+            }
+        }
+    }
+    edges
+}
+
+fn cargo_package_edges(
+    root: &Path,
+    package: &PackageInfo,
+    by_path: &BTreeMap<String, &PackageInfo>,
+) -> Vec<PackageDependency> {
+    let Ok(text) = fs::read_to_string(root.join(&package.manifest)) else {
+        return Vec::new();
+    };
+    let base = Path::new(&package.manifest)
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    cargo_path_dependencies(&text)
+        .into_iter()
+        .filter_map(|(name, path)| {
+            let target_path = normalize_rel_path(&base.join(path).to_string_lossy());
+            let target = by_path.get(&target_path)?;
+            Some(PackageDependency {
+                from: package.path.clone(),
+                from_manifest: package.manifest.clone(),
+                to: target.path.clone(),
+                to_manifest: Some(target.manifest.clone()),
+                dependency: name,
+                source: "Cargo.toml path dependency".to_string(),
+            })
+        })
+        .collect()
+}
+
+fn manifest_dir(rel: &str) -> String {
+    Path::new(rel)
+        .parent()
+        .map(|p| normalize_rel_path(&p.to_string_lossy()))
+        .filter(|p| p != ".")
+        .unwrap_or_else(|| ".".to_string())
+}
+
+fn package_name_from_path(path: &str) -> String {
+    if path == "." {
+        "repo".to_string()
+    } else {
+        Path::new(path)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or(path)
+            .to_string()
+    }
+}
+
+fn cargo_package_name(text: &str) -> Option<String> {
+    let mut in_package = false;
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('[') && trimmed.ends_with(']') {
+            in_package = trimmed == "[package]";
+            continue;
+        }
+        if in_package
+            && let Some(raw) = trimmed.strip_prefix("name")
+            && let Some(value) = raw.split_once('=').map(|(_, value)| value.trim())
+        {
+            return unquote(value).filter(|s| !s.is_empty());
+        }
+    }
+    None
+}
+
+fn cargo_path_dependencies(text: &str) -> Vec<(String, String)> {
+    let mut deps = Vec::new();
+    let mut section: Option<String> = None;
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('[') && trimmed.ends_with(']') {
+            let name = trimmed.trim_matches(&['[', ']'][..]).to_string();
+            section = (name.contains("dependencies")).then_some(name);
+            continue;
+        }
+        if section.is_none() || trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        let Some((name, value)) = trimmed.split_once('=') else {
+            continue;
+        };
+        let Some(path) = cargo_inline_path(value) else {
+            continue;
+        };
+        deps.push((name.trim().to_string(), path));
+    }
+    deps
+}
+
+fn cargo_inline_path(value: &str) -> Option<String> {
+    let value = value.trim();
+    if !(value.starts_with('{') && value.ends_with('}')) {
+        return None;
+    }
+    for part in value.trim_matches(&['{', '}'][..]).split(',') {
+        let (key, raw_value) = part.split_once('=')?;
+        if key.trim() == "path" {
+            return unquote(raw_value.trim()).filter(|s| !s.is_empty());
+        }
+    }
+    None
+}
+
+fn unquote(value: &str) -> Option<String> {
+    let trimmed = value.trim().trim_end_matches(',');
+    trimmed
+        .strip_prefix('"')
+        .and_then(|s| s.strip_suffix('"'))
+        .or_else(|| {
+            trimmed
+                .strip_prefix('\'')
+                .and_then(|s| s.strip_suffix('\''))
+        })
+        .map(str::to_string)
+}
+
 fn detect_package_manager(root: &Path) -> String {
     if root.join("pnpm-lock.yaml").exists() || root.join("pnpm-workspace.yaml").exists() {
         "pnpm"
@@ -1068,7 +1318,7 @@ pub fn changed_files(root: &Path, staged: bool, since: Option<&str>) -> Vec<Stri
     let output = Command::new("git")
         .arg("-C")
         .arg(root)
-        .args(["status", "--porcelain"])
+        .args(["status", "--porcelain", "-uall"])
         .output();
     let Ok(output) = output else {
         return Vec::new();

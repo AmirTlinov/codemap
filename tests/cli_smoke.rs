@@ -370,6 +370,57 @@ boundaries:
 }
 
 #[test]
+fn package_manifest_boundary_edge_fails_closed() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join(".ctx.yml"),
+        r#"version: 1
+boundaries:
+  forbidden:
+    - from: domains/replay/src/**
+      to: domains/renderer/src/**
+      reason: replay emits DTOs; renderer consumes DTOs
+"#,
+    );
+    write(
+        &repo.path().join("domains/replay/package.json"),
+        r#"{
+  "name": "@fixture/replay",
+  "dependencies": {
+    "@fixture/renderer": "workspace:*"
+  }
+}"#,
+    );
+    write(
+        &repo.path().join("domains/replay/src/session.ts"),
+        "export const session = 1;\n",
+    );
+    write(
+        &repo.path().join("domains/renderer/package.json"),
+        r#"{"name":"@fixture/renderer"}"#,
+    );
+    write(
+        &repo.path().join("domains/renderer/src/replay-renderer.ts"),
+        "export const renderer = 1;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .arg("boundaries")
+        .output()
+        .expect("ctx boundaries should run");
+    assert!(!output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be utf8");
+    assert!(stdout.contains("package manifest dependency `@fixture/renderer`"));
+    assert!(stdout.contains("domains/replay/package.json"));
+}
+
+#[test]
 fn nested_ctx_config_is_loaded_as_domain_anchor() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");
@@ -418,6 +469,55 @@ task_routes:
 }
 
 #[test]
+fn verify_uses_impact_traversal_for_recommended_checks() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join("package.json"),
+        r#"{"scripts":{"test":"echo test ok","typecheck":"echo typecheck ok"}}"#,
+    );
+    write(
+        &repo.path().join("src/token.ts"),
+        "export const token = 'old';\n",
+    );
+    write(
+        &repo.path().join("src/session.ts"),
+        "import { token } from './token';\nexport { token };\n",
+    );
+    write(
+        &repo.path().join("src/index.ts"),
+        "import { token } from './session';\nexport { token };\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "verify",
+            "--files",
+            "src/token.ts",
+            "--depth",
+            "2",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx verify should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
+    let recommended = json[1]["recommended"].as_array().unwrap();
+    assert!(
+        recommended
+            .iter()
+            .any(|cmd| cmd.as_str() == Some("npm run typecheck")),
+        "verify should recommend typecheck because impact traversal reaches public src/index.ts"
+    );
+}
+
+#[test]
 fn global_instruction_does_not_advertise_fake_agent_mode_flag() {
     let output = ctx()
         .args(["bootstrap", "--global-instruction"])
@@ -427,6 +527,64 @@ fn global_instruction_does_not_advertise_fake_agent_mode_flag() {
     let stdout = String::from_utf8(output.stdout).expect("stdout should be utf8");
     assert!(!stdout.contains("--for-agent"));
     assert!(stdout.contains("ctx start --task"));
+}
+
+#[test]
+fn json_schemas_are_present_and_parse() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    for rel in ["schemas/capsule.schema.json", "schemas/impact.schema.json"] {
+        let text = fs::read_to_string(root.join(rel)).expect("schema should exist");
+        let json: Value = serde_json::from_str(&text).expect("schema should be valid json");
+        assert_eq!(
+            json["$schema"],
+            "https://json-schema.org/draft/2020-12/schema"
+        );
+        assert!(json["required"].as_array().unwrap().len() >= 10);
+    }
+
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join("package.json"),
+        r#"{"scripts":{"test":"echo test ok"}}"#,
+    );
+    write(
+        &repo.path().join("src/save.ts"),
+        "export function saveGame(x: string) { return x }\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let capsule = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["start", "--task", "fix broken save", "--format", "json"])
+        .output()
+        .expect("ctx start should run");
+    assert!(capsule.status.success());
+    let capsule_json: Value = serde_json::from_slice(&capsule.stdout).expect("valid capsule json");
+    assert_schema_accepts("schemas/capsule.schema.json", &capsule_json);
+
+    let impact = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["impact", "--files", "src/save.ts", "--format", "json"])
+        .output()
+        .expect("ctx impact should run");
+    assert!(impact.status.success());
+    let impact_json: Value = serde_json::from_slice(&impact.stdout).expect("valid impact json");
+    assert_schema_accepts("schemas/impact.schema.json", &impact_json);
+}
+
+fn assert_schema_accepts(schema_rel: &str, instance: &Value) {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let text = fs::read_to_string(root.join(schema_rel)).expect("schema should exist");
+    let schema: Value = serde_json::from_str(&text).expect("schema should be valid json");
+    let validator = jsonschema::validator_for(&schema).expect("schema should compile");
+    validator
+        .validate(instance)
+        .unwrap_or_else(|error| panic!("{schema_rel} rejected instance: {error}"));
 }
 
 #[test]
