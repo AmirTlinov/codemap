@@ -60,3 +60,30 @@ then
   echo "invalid Homebrew formula tag unexpectedly passed" >&2
   exit 1
 fi
+
+tap="$tmp/tap"
+mkdir -p "$tap/Formula"
+git -C "$tap" init -q
+git -C "$tap" config user.email "ctx@example.com"
+git -C "$tap" config user.name "ctx"
+"$repo_root/scripts/update-homebrew-tap.sh" \
+  --tap-dir "$tap" \
+  --formula-file "$formula" >/dev/null
+cmp "$formula" "$tap/Formula/ctx.rb"
+git -C "$tap" status --short | grep -Fq "?? Formula/"
+
+git -C "$tap" add .
+git -C "$tap" commit -qm "initial tap"
+"$repo_root/scripts/update-homebrew-tap.sh" \
+  --tap-dir "$tap" \
+  --formula-file "$formula" \
+  --commit >/dev/null
+test -z "$(git -C "$tap" status --short)"
+
+sed 's/ctx-v/ctx-v-test-/' "$formula" > "$tmp/ctx-updated.rb"
+"$repo_root/scripts/update-homebrew-tap.sh" \
+  --tap-dir "$tap" \
+  --formula-file "$tmp/ctx-updated.rb" \
+  --commit >/dev/null
+git -C "$tap" log -1 --format=%s | grep -Fq "Update ctx Homebrew formula"
+cmp "$tmp/ctx-updated.rb" "$tap/Formula/ctx.rb"

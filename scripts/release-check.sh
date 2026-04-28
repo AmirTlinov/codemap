@@ -58,6 +58,7 @@ for required in \
   "scripts/package-npm-wrapper.sh" \
   "scripts/generate-homebrew-formula.sh" \
   "scripts/check-homebrew-formula.sh" \
+  "scripts/update-homebrew-tap.sh" \
   "npm/agent-context-cli/package.json" \
   "npm/agent-context-cli/bin/ctx" \
   "npm/agent-context-cli/scripts/install.js" \

@@ -157,6 +157,14 @@ brew install --formula https://github.com/AmirTlinov/ctx/releases/download/v0.1.
 
 For private or restricted GitHub releases, use the native archive install above or the npm wrapper with `GH_TOKEN` instead; Homebrew's plain release URLs are not an authenticated install path.
 
+To update a local Homebrew tap checkout from a published formula asset:
+
+```bash
+scripts/update-homebrew-tap.sh --tap-dir ../homebrew-tap --tag v0.1.3 --commit
+```
+
+The tap updater modifies only the requested formula path and never pushes.
+
 ## Optional `.ctx.yml`
 
 Zero-config works from files, manifests, tests, imports, scripts, and git diff. Use `.ctx.yml` only for semantic facts code cannot reliably reveal. A config can live at the repo root or inside a domain directory; nested config paths are treated as domain-local and normalized to repo-relative paths:

@@ -62,6 +62,7 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - `npm/agent-context-cli` is a thin npm installer wrapper that downloads and verifies those release archives instead of shipping a JS implementation
 - `scripts/package-npm-wrapper.sh` builds the packed npm wrapper tarball for GitHub Release assets without bundling a native binary
 - `scripts/generate-homebrew-formula.sh` derives a Homebrew formula from release archive checksum sidecars, so formula sha256 values are never guessed before artifacts exist
+- `scripts/update-homebrew-tap.sh` updates a local Homebrew tap checkout from a release formula asset, with local commit support but no push
 - GitHub Actions runs the release check on Linux and macOS
 - version tags matching the Cargo package version and belonging to `main` publish Linux x64 and macOS arm64 archives, the npm wrapper tarball, and a generated Homebrew formula to GitHub Releases after asset verification
 - README install guidance separates public Homebrew formula URLs from private-release installs, which should use native archives or the npm wrapper with GitHub API authentication
@@ -120,5 +121,5 @@ This is intentionally flatter than the final large-tree design. The next split s
 
 1. Add deeper per-language adapters once JS/TS, Rust, Python, or Go extraction logic becomes hard to change in-place.
 2. Publish `agent-context-cli` to npm and/or crates.io after registry credentials are available; until then, GitHub Releases carry the native archives and npm tarball.
-3. Add a dedicated Homebrew tap update workflow after the formula asset has been exercised in a release.
+3. Add a dedicated Homebrew tap publish workflow only after there is a real tap repository and credentials; until then, use `scripts/update-homebrew-tap.sh` locally.
 4. Split large route/repo modules only after the next behavior slice makes them hard to change safely.

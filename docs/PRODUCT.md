@@ -77,6 +77,7 @@ The installed binary must be enough to operate the agent contract:
 - release checks must prove the crate contains `schemas/`, `fixtures/`, and the end-to-end workflow test.
 - GitHub Releases must carry enough install artifacts to work without a registry publish: native archives, checksum sidecars, generated Homebrew formula, and the packed npm wrapper.
 - Private or restricted GitHub Releases must document authenticated install paths explicitly; plain Homebrew release URLs are only a public-release or public-mirror path.
+- Homebrew tap mutation stays outside the release workflow until a real tap remote exists; local tap updates are explicit and never push by default.
 
 ## Anchor Contract
 
