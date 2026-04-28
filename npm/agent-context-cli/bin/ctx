@@ -1,0 +1,32 @@
+#!/usr/bin/env node
+"use strict";
+
+const fs = require("node:fs");
+const path = require("node:path");
+const { spawnSync } = require("node:child_process");
+
+const packageRoot = path.resolve(__dirname, "..");
+const nativeName = process.platform === "win32" ? "ctx.exe" : "ctx";
+const nativePath = process.env.CTX_NATIVE_BINARY || path.join(packageRoot, "vendor", nativeName);
+
+if (!fs.existsSync(nativePath)) {
+  console.error(`ctx native binary is missing: ${nativePath}`);
+  console.error("Reinstall the npm package or set CTX_NATIVE_BINARY to a ctx executable.");
+  process.exit(127);
+}
+
+const result = spawnSync(nativePath, process.argv.slice(2), {
+  stdio: "inherit",
+  env: process.env
+});
+
+if (result.error) {
+  console.error(result.error.message);
+  process.exit(1);
+}
+
+if (result.signal) {
+  process.kill(process.pid, result.signal);
+}
+
+process.exit(result.status === null ? 1 : result.status);

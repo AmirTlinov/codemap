@@ -1,0 +1,36 @@
+{
+  "name": "agent-context-cli",
+  "version": "0.1.0",
+  "description": "Deterministic task-specific context router for coding agents",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AmirTlinov/ctx.git",
+    "directory": "npm/agent-context-cli"
+  },
+  "homepage": "https://github.com/AmirTlinov/ctx#readme",
+  "bugs": {
+    "url": "https://github.com/AmirTlinov/ctx/issues"
+  },
+  "bin": {
+    "ctx": "bin/ctx"
+  },
+  "scripts": {
+    "postinstall": "node scripts/install.js"
+  },
+  "files": [
+    "bin/ctx",
+    "scripts/install.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "ai",
+    "agents",
+    "cli",
+    "context"
+  ]
+}

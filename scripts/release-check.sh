@@ -19,6 +19,7 @@ cargo fmt --check
 cargo test
 cargo clippy --all-targets -- -D warnings
 cargo run --bin ctx -- doctor
+./scripts/check-npm-wrapper.sh
 
 for schema in status files capsule impact verify anchors locate explain widen graph boundaries; do
   cargo run --bin ctx -- schema "$schema" >/dev/null
@@ -26,6 +27,17 @@ done
 
 cargo package --allow-dirty --no-verify
 package_list="$(cargo package --allow-dirty --list)"
+for forbidden in \
+  "npm/agent-context-cli/vendor/" \
+  "npm/agent-context-cli/node_modules/" \
+  "npm/agent-context-cli/agent-context-cli-" \
+  ".tgz"
+do
+  if grep -F "$forbidden" <<<"$package_list"; then
+    echo "cargo package contains forbidden generated npm artifact matching: $forbidden" >&2
+    exit 1
+  fi
+done
 for required in \
   "schemas/capsule.schema.json" \
   "schemas/status.schema.json" \
@@ -41,6 +53,12 @@ for required in \
   "schemas/manifest.json" \
   "docs/SCHEMA_POLICY.md" \
   "scripts/package-release.sh" \
+  "scripts/check-npm-wrapper.sh" \
+  "npm/agent-context-cli/package.json" \
+  "npm/agent-context-cli/bin/ctx" \
+  "npm/agent-context-cli/scripts/install.js" \
+  "npm/agent-context-cli/README.md" \
+  "npm/agent-context-cli/LICENSE" \
   "tests/e2e_workflow.rs" \
   "tests/schema_policy.rs" \
   "fixtures/mixed-monorepo/package.json" \

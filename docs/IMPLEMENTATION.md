@@ -59,8 +59,9 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - mixed-monorepo, materialized Rust-workspace, materialized Go-workspace, and Python-workspace golden fixtures cover replay/auth routing, bounded impact, JS/TS package/alias imports, language package imports, and package-consumer traversal
 - release packaging check script verifies tests, clippy, doctor, bundled schemas, and crate package contents
 - `scripts/package-release.sh` builds a target-specific tarball with the `ctx` binary, `README.md`, `LICENSE`, and a sha256 sidecar
+- `npm/agent-context-cli` is a thin npm installer wrapper that downloads and verifies those release archives instead of shipping a JS implementation
 - GitHub Actions runs the release check on Linux and macOS
-- version tags matching the Cargo package version and belonging to `main` publish native Linux/macOS runner-target archives to GitHub Releases after asset verification
+- version tags matching the Cargo package version and belonging to `main` publish Linux x64 and macOS arm64 archives to GitHub Releases after asset verification
 - printed global agent bootstrap does not advertise a separate `--for-agent` mode; Markdown is already the agent-facing default
 
 ## Core Files
@@ -115,5 +116,5 @@ This is intentionally flatter than the final large-tree design. The next split s
 ## Next Useful Slices
 
 1. Add deeper per-language adapters once JS/TS, Rust, Python, or Go extraction logic becomes hard to change in-place.
-2. Add Homebrew and npm wrapper distribution after release archive publishing stabilizes.
+2. Add Homebrew tap/formula distribution after release archive publishing stabilizes.
 3. Split large route/repo modules only after the next behavior slice makes them hard to change safely.

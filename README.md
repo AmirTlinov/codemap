@@ -130,7 +130,16 @@ From a source checkout, build the same archive with:
 ```
 
 The release script writes `dist/ctx-v<version>-<target>.tar.gz` and a `.sha256` sidecar.
-Pushing a version tag from `main`, for example `v0.1.0`, publishes the native Linux and macOS runner-target archives to GitHub Releases after asset verification.
+Pushing a version tag from `main`, for example `v0.1.0`, publishes Linux x64 and macOS arm64 archives to GitHub Releases after asset verification.
+
+The npm package is a thin installer wrapper around those same release archives:
+
+```bash
+npm install -g agent-context-cli
+ctx doctor
+```
+
+It downloads and verifies the matching archive during install. It does not make Node a project dependency for repositories where `ctx` is used.
 
 ## Optional `.ctx.yml`
 
@@ -190,4 +199,4 @@ cargo run --bin ctx -- doctor
 ./scripts/release-check.sh
 ```
 
-CI runs the release check on Linux and macOS. Version tags publish release archives after confirming the tag matches the crate version and belongs to `main`.
+CI runs the release check on Linux and macOS. Version tags publish Linux x64 and macOS arm64 archives after confirming the tag matches the crate version and belongs to `main`.
