@@ -64,6 +64,7 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - `scripts/generate-homebrew-formula.sh` derives a Homebrew formula from release archive checksum sidecars, so formula sha256 values are never guessed before artifacts exist
 - GitHub Actions runs the release check on Linux and macOS
 - version tags matching the Cargo package version and belonging to `main` publish Linux x64 and macOS arm64 archives, the npm wrapper tarball, and a generated Homebrew formula to GitHub Releases after asset verification
+- README install guidance separates public Homebrew formula URLs from private-release installs, which should use native archives or the npm wrapper with GitHub API authentication
 - printed global agent bootstrap does not advertise a separate `--for-agent` mode; Markdown is already the agent-facing default
 
 ## Core Files

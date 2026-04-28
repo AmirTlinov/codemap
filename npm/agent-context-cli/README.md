@@ -12,8 +12,8 @@ ctx doctor
 Published GitHub Releases also include the packed wrapper tarball:
 
 ```bash
-gh release download v0.1.2 --repo AmirTlinov/ctx --pattern 'agent-context-cli-0.1.2.tgz'
-GH_TOKEN="$(gh auth token)" npm install -g ./agent-context-cli-0.1.2.tgz
+gh release download v0.1.3 --repo AmirTlinov/ctx --pattern 'agent-context-cli-0.1.3.tgz'
+GH_TOKEN="$(gh auth token)" npm install -g ./agent-context-cli-0.1.3.tgz
 ctx doctor
 ```
 

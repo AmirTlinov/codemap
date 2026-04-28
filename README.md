@@ -130,13 +130,13 @@ From a source checkout, build the same archive with:
 ```
 
 The release script writes `dist/ctx-v<version>-<target>.tar.gz` and a `.sha256` sidecar.
-Pushing a version tag from `main`, for example `v0.1.2`, publishes Linux x64 and macOS arm64 archives, a packed npm wrapper tarball, and a generated Homebrew formula to GitHub Releases after asset verification.
+Pushing a version tag from `main`, for example `v0.1.3`, publishes Linux x64 and macOS arm64 archives, a packed npm wrapper tarball, and a generated Homebrew formula to GitHub Releases after asset verification.
 
 The npm wrapper is a thin installer around those same release archives. Published releases include a packed npm tarball, so the wrapper can be installed from GitHub Releases even before the package is published to the npm registry:
 
 ```bash
-gh release download v0.1.2 --repo AmirTlinov/ctx --pattern 'agent-context-cli-0.1.2.tgz'
-GH_TOKEN="$(gh auth token)" npm install -g ./agent-context-cli-0.1.2.tgz
+gh release download v0.1.3 --repo AmirTlinov/ctx --pattern 'agent-context-cli-0.1.3.tgz'
+GH_TOKEN="$(gh auth token)" npm install -g ./agent-context-cli-0.1.3.tgz
 ctx doctor
 ```
 
@@ -149,11 +149,13 @@ npm install -g agent-context-cli
 The wrapper downloads and verifies the matching archive during install. It does not make Node a project dependency for repositories where `ctx` is used.
 For private GitHub releases, install with `GH_TOKEN`, `GITHUB_TOKEN`, or `CTX_NPM_GITHUB_TOKEN` available so the wrapper can download assets through the GitHub API.
 
-The release workflow also publishes a generated Homebrew formula asset with checksums derived from the release archives:
+The release workflow also publishes a generated Homebrew formula asset with checksums derived from the release archives. Use it when the release assets are publicly downloadable, or when `CTX_HOMEBREW_REPO_URL` points at a public mirror before formula generation:
 
 ```bash
-brew install --formula https://github.com/AmirTlinov/ctx/releases/download/v0.1.2/ctx.rb
+brew install --formula https://github.com/AmirTlinov/ctx/releases/download/v0.1.3/ctx.rb
 ```
+
+For private or restricted GitHub releases, use the native archive install above or the npm wrapper with `GH_TOKEN` instead; Homebrew's plain release URLs are not an authenticated install path.
 
 ## Optional `.ctx.yml`
 
@@ -213,4 +215,4 @@ cargo run --bin ctx -- doctor
 ./scripts/release-check.sh
 ```
 
-CI runs the release check on Linux and macOS. Version tags publish Linux x64 and macOS arm64 archives plus a generated Homebrew formula after confirming the tag matches the crate version and belongs to `main`.
+CI runs the release check on Linux and macOS. Version tags publish Linux x64 and macOS arm64 archives, the npm wrapper tarball, and a generated Homebrew formula after confirming the tag matches the crate version and belongs to `main`.
