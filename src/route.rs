@@ -335,8 +335,23 @@ pub fn impact_report(
         .collect();
     let verification = verification_plan(project, &changed, &impacted);
     let mut triggers = Vec::new();
+    let impacted_and_changed = [changed.clone(), impacted.clone()].concat();
     if matches!(max_risk, Risk::High | Risk::Critical) {
         triggers.push("high/critical risk change".to_string());
+    }
+    if has_role(project, &changed, "public_boundary") {
+        triggers.push("public boundary changed".to_string());
+    } else if has_role(project, &impacted, "public_boundary") {
+        triggers.push("impact reaches public boundary".to_string());
+    }
+    if has_role(project, &changed, "schema_contract") {
+        triggers.push("DTO/schema contract changed".to_string());
+    }
+    if has_role(project, &changed, "source_of_truth") {
+        triggers.push("source of truth changed".to_string());
+    }
+    if has_unclassified_source(project, &impacted_and_changed) {
+        triggers.push("unclassified source file participates".to_string());
     }
     if !external_domains.is_empty() {
         triggers.push("impact crosses domain boundary".to_string());
@@ -350,6 +365,7 @@ pub fn impact_report(
     }) {
         triggers.push("generated file changed".to_string());
     }
+    triggers = unique(triggers);
     ImpactReport {
         kind: "impact_report",
         schema_version: "1",
@@ -365,6 +381,26 @@ pub fn impact_report(
         full_verification: verification.full_only_if_triggered,
         expansion_triggers: triggers,
     }
+}
+
+fn has_role(project: &Project, files: &[String], role: &str) -> bool {
+    files.iter().any(|file| {
+        project
+            .files
+            .get(file)
+            .map(|info| info.has_role(role))
+            .unwrap_or(false)
+    })
+}
+
+fn has_unclassified_source(project: &Project, files: &[String]) -> bool {
+    files.iter().any(|file| {
+        project
+            .files
+            .get(file)
+            .map(|info| repo::is_source_ext(&info.ext) && info.roles.is_empty())
+            .unwrap_or(false)
+    })
 }
 
 pub fn verification_plan(

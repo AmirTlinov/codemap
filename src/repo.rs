@@ -1240,6 +1240,19 @@ fn discover_domains(
         );
     }
 
+    for rel in workspace_domain_paths(root, files) {
+        let id = Path::new(&rel)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or(&rel)
+            .to_string();
+        domains.entry(id.clone()).or_insert(Domain {
+            id,
+            path: rel,
+            config_path: None,
+        });
+    }
+
     for hint in DOMAIN_HINT_DIRS {
         let base = root.join(hint);
         if !base.is_dir() {
@@ -1304,6 +1317,184 @@ fn discover_domains(
     }
 
     domains.into_values().collect()
+}
+
+fn workspace_domain_paths(root: &Path, files: &BTreeMap<String, FileInfo>) -> BTreeSet<String> {
+    let mut out = BTreeSet::new();
+    for pattern in workspace_patterns(root) {
+        expand_workspace_pattern(root, files, &pattern, &mut out);
+    }
+    out
+}
+
+fn workspace_patterns(root: &Path) -> Vec<String> {
+    let mut patterns = Vec::new();
+    if let Ok(text) = fs::read_to_string(root.join("package.json"))
+        && let Ok(value) = serde_json::from_str::<serde_json::Value>(&text)
+        && let Some(workspaces) = value.get("workspaces")
+    {
+        if let Some(array) = workspaces.as_array() {
+            patterns.extend(
+                array
+                    .iter()
+                    .filter_map(|item| item.as_str().map(str::to_string)),
+            );
+        } else if let Some(array) = workspaces.get("packages").and_then(|v| v.as_array()) {
+            patterns.extend(
+                array
+                    .iter()
+                    .filter_map(|item| item.as_str().map(str::to_string)),
+            );
+        }
+    }
+    if let Ok(text) = fs::read_to_string(root.join("pnpm-workspace.yaml")) {
+        for line in text.lines() {
+            let trimmed = line.trim();
+            if let Some(value) = trimmed.strip_prefix("- ") {
+                patterns.push(unquote(value.trim()).unwrap_or_else(|| value.trim().to_string()));
+            }
+        }
+    }
+    if let Ok(text) = fs::read_to_string(root.join("Cargo.toml")) {
+        patterns.extend(toml_array_values(&text, &["members"]));
+    }
+    if let Ok(text) = fs::read_to_string(root.join("go.work")) {
+        patterns.extend(go_work_uses(&text));
+    }
+    if let Ok(text) = fs::read_to_string(root.join("pyproject.toml")) {
+        patterns.extend(toml_array_values(&text, &["members", "packages"]));
+    }
+    patterns
+        .into_iter()
+        .map(|pattern| normalize_rel_path(pattern.trim().trim_start_matches("./")))
+        .filter(|pattern| !pattern.is_empty() && pattern != ".")
+        .collect()
+}
+
+fn expand_workspace_pattern(
+    root: &Path,
+    files: &BTreeMap<String, FileInfo>,
+    pattern: &str,
+    out: &mut BTreeSet<String>,
+) {
+    if pattern.starts_with('!') || pattern.contains("**") || pattern.contains('{') {
+        return;
+    }
+    if let Some(base) = pattern.strip_suffix("/*") {
+        let base = normalize_rel_path(base);
+        let Ok(children) = fs::read_dir(root.join(&base)) else {
+            return;
+        };
+        for child in children.flatten() {
+            let child_path = child.path();
+            if child_path.is_dir() {
+                let rel = normalize_rel_path(
+                    &child_path
+                        .strip_prefix(root)
+                        .unwrap_or(&child_path)
+                        .to_string_lossy(),
+                );
+                if workspace_path_has_project(root, files, &rel) {
+                    out.insert(rel);
+                }
+            }
+        }
+        return;
+    }
+    if !pattern.contains('*') && workspace_path_has_project(root, files, pattern) {
+        out.insert(normalize_rel_path(pattern));
+    }
+}
+
+fn workspace_path_has_project(root: &Path, files: &BTreeMap<String, FileInfo>, rel: &str) -> bool {
+    let rel = normalize_rel_path(rel);
+    if !root.join(&rel).is_dir() || should_ignore_rel(&rel) {
+        return false;
+    }
+    let prefix = format!("{}/", rel.trim_end_matches('/'));
+    files.keys().any(|file| file.starts_with(&prefix))
+        || [
+            "package.json",
+            "Cargo.toml",
+            "go.mod",
+            "pyproject.toml",
+            "src",
+        ]
+        .iter()
+        .any(|marker| root.join(&rel).join(marker).exists())
+}
+
+fn toml_array_values(text: &str, keys: &[&str]) -> Vec<String> {
+    let mut values = Vec::new();
+    let mut collecting = false;
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('#') || trimmed.is_empty() {
+            continue;
+        }
+        if collecting {
+            values.extend(quoted_values(trimmed));
+            if trimmed.contains(']') {
+                collecting = false;
+            }
+            continue;
+        }
+        let Some((key, value)) = trimmed.split_once('=') else {
+            continue;
+        };
+        if !keys.iter().any(|wanted| key.trim() == *wanted) {
+            continue;
+        }
+        values.extend(quoted_values(value));
+        collecting = value.contains('[') && !value.contains(']');
+    }
+    values
+}
+
+fn quoted_values(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut current = String::new();
+    let mut quote: Option<char> = None;
+    for ch in text.chars() {
+        if let Some(active) = quote {
+            if ch == active {
+                if !current.is_empty() {
+                    out.push(current.clone());
+                }
+                current.clear();
+                quote = None;
+            } else {
+                current.push(ch);
+            }
+        } else if ch == '"' || ch == '\'' {
+            quote = Some(ch);
+        }
+    }
+    out
+}
+
+fn go_work_uses(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut in_block = false;
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("use (") {
+            in_block = true;
+            continue;
+        }
+        if in_block {
+            if trimmed.starts_with(')') {
+                in_block = false;
+            } else if !trimmed.is_empty() {
+                out.push(trimmed.to_string());
+            }
+            continue;
+        }
+        if let Some(value) = trimmed.strip_prefix("use ") {
+            out.push(value.trim().to_string());
+        }
+    }
+    out
 }
 
 pub fn changed_files(root: &Path, staged: bool, since: Option<&str>) -> Vec<String> {

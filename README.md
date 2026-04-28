@@ -50,6 +50,7 @@ Use `CTX_CACHE_DIR=/path` to override and `CTX_NO_CACHE=1` to disable cache writ
 ctx doctor
 ctx status
 ctx files
+ctx schema capsule
 ctx locate --task "fix auth token refresh"
 ctx start --task "fix broken save" --path src
 ctx impact --changed
@@ -73,6 +74,7 @@ ctx anchors validate
 Markdown is the default agent-facing format. JSON is available with `--format json`.
 Stable JSON schemas live under `schemas/` for task capsules, impact reports, and verification plans.
 Schema-backed outputs include `schema_version: "1"`.
+Installed binaries can print the bundled schemas with `ctx schema capsule`, `ctx schema impact`, and `ctx schema verify`.
 
 ## Agent Integration
 
@@ -154,4 +156,5 @@ task_routes:
 cargo fmt --check
 cargo test
 cargo run --bin ctx -- doctor
+./scripts/release-check.sh
 ```

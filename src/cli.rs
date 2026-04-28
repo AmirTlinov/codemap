@@ -31,6 +31,8 @@ enum CommandKind {
     Init(InitArgs),
     #[command(about = "Print one-time global agent instruction text")]
     Bootstrap(BootstrapArgs),
+    #[command(about = "Print a bundled stable JSON schema")]
+    Schema(SchemaArgs),
     #[command(about = "Find likely domain or package for a task")]
     Locate(LocateArgs),
     #[command(about = "Return a task-specific context capsule")]
@@ -86,6 +88,12 @@ struct InitArgs {
 struct BootstrapArgs {
     #[arg(long)]
     global_instruction: bool,
+}
+
+#[derive(Debug, Args)]
+struct SchemaArgs {
+    #[arg(value_enum)]
+    kind: SchemaKind,
 }
 
 #[derive(Debug, Args)]
@@ -219,6 +227,13 @@ enum OutputFormat {
     Mermaid,
 }
 
+#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
+enum SchemaKind {
+    Capsule,
+    Impact,
+    Verify,
+}
+
 pub fn run() -> Result<()> {
     let cli = Cli::parse();
     let root_hint = cli.root.clone().or_else(|| command_root_hint(&cli.command));
@@ -229,6 +244,10 @@ pub fn run() -> Result<()> {
         } else {
             println!("Use `ctx bootstrap --global-instruction`.");
         }
+        return Ok(());
+    }
+    if let CommandKind::Schema(args) = &cli.command {
+        print!("{}", schema_text(args.kind));
         return Ok(());
     }
 
@@ -248,6 +267,7 @@ pub fn run() -> Result<()> {
         }
         CommandKind::Init(args) => init(&project, args),
         CommandKind::Bootstrap(_) => Ok(()),
+        CommandKind::Schema(_) => Ok(()),
         CommandKind::Locate(args) => {
             ensure_valid_config(&project)?;
             let report = route::locate_report(&project, &args.task, args.limit);
@@ -339,6 +359,14 @@ pub fn run() -> Result<()> {
                 output(format.format, &report, || anchors_markdown(&report))
             }
         },
+    }
+}
+
+fn schema_text(kind: SchemaKind) -> &'static str {
+    match kind {
+        SchemaKind::Capsule => include_str!("../schemas/capsule.schema.json"),
+        SchemaKind::Impact => include_str!("../schemas/impact.schema.json"),
+        SchemaKind::Verify => include_str!("../schemas/verify.schema.json"),
     }
 }
 

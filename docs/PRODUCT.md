@@ -61,3 +61,11 @@ Agents should stop after minimal verification passes unless:
 - confidence drops below medium;
 - an unclassified or generated file participates;
 - the read-first set did not contain the cause.
+
+## Distribution Contract
+
+The installed binary must be enough to operate the agent contract:
+
+- `ctx schema capsule`, `ctx schema impact`, and `ctx schema verify` print the bundled schemas without loading a project;
+- schemas are versioned with `schema_version`;
+- release checks must prove the crate contains `schemas/`, `fixtures/`, and the end-to-end workflow test.

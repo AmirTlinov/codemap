@@ -58,6 +58,28 @@ fn doctor_runs_with_zero_footprint_contract() {
 }
 
 #[test]
+fn schema_command_outputs_bundled_contract_without_repo_load() {
+    let outside = TempDir::new().expect("outside tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    let output = ctx()
+        .current_dir(outside.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["schema", "capsule"])
+        .output()
+        .expect("ctx schema should run");
+
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("schema should be json");
+    assert_eq!(json["properties"]["kind"]["const"], "task_context_capsule");
+    assert_eq!(json["properties"]["schema_version"]["const"], "1");
+    assert_eq!(
+        fs::read_dir(cache.path()).expect("cache dir").count(),
+        0,
+        "ctx schema must not load a project or write cache"
+    );
+}
+
+#[test]
 fn start_routes_task_without_writing_to_project() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");
@@ -114,6 +136,40 @@ fn start_routes_task_without_writing_to_project() {
 }
 
 #[test]
+fn pnpm_workspace_globs_create_domains_outside_builtin_dirs() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - workstreams/*\n",
+    );
+    write(
+        &repo.path().join("workstreams/ledger/package.json"),
+        r#"{"name":"@fixture/ledger"}"#,
+    );
+    write(
+        &repo.path().join("workstreams/ledger/src/balance.ts"),
+        "export function balance() { return 1; }\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["locate", "--task", "fix ledger balance", "--format", "json"])
+        .output()
+        .expect("ctx locate should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
+    assert_eq!(
+        json["candidates"][0]["domain"]["path"],
+        "workstreams/ledger"
+    );
+}
+
+#[test]
 fn nested_agents_does_not_replace_git_root() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");
@@ -143,6 +199,77 @@ fn nested_agents_does_not_replace_git_root() {
     assert_eq!(
         json["nearest_agents"].as_str(),
         Some("packages/foo/AGENTS.md")
+    );
+}
+
+#[test]
+fn impact_names_public_schema_and_source_truth_expansion_triggers() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join("package.json"),
+        r#"{"scripts":{"test":"echo test ok","typecheck":"echo typecheck ok"}}"#,
+    );
+    write(
+        &repo.path().join("src/types.ts"),
+        "export type ReplayDto = { frame: number };\n",
+    );
+    write(
+        &repo.path().join("src/index.ts"),
+        "export type { ReplayDto } from './types';\n",
+    );
+    write(
+        &repo.path().join("src/timeline.ts"),
+        "export const timeline = 1;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let schema_output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "impact",
+            "--files",
+            "src/types.ts",
+            "--depth",
+            "1",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx impact should run");
+    assert!(schema_output.status.success());
+    let schema_json: Value =
+        serde_json::from_slice(&schema_output.stdout).expect("valid impact json");
+    let triggers = schema_json["expansion_triggers"].as_array().unwrap();
+    assert!(
+        triggers
+            .iter()
+            .any(|trigger| trigger.as_str() == Some("DTO/schema contract changed"))
+    );
+    assert!(
+        triggers
+            .iter()
+            .any(|trigger| trigger.as_str() == Some("impact reaches public boundary"))
+    );
+
+    let truth_output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["impact", "--files", "src/timeline.ts", "--format", "json"])
+        .output()
+        .expect("ctx impact should run");
+    assert!(truth_output.status.success());
+    let truth_json: Value =
+        serde_json::from_slice(&truth_output.stdout).expect("valid impact json");
+    assert!(
+        truth_json["expansion_triggers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|trigger| trigger.as_str() == Some("source of truth changed"))
     );
 }
 

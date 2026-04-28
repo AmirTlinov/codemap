@@ -5,6 +5,21 @@ edition = "2024"
 description = "Deterministic task-specific context router for coding agents"
 license = "MIT"
 repository = "https://github.com/AmirTlinov/ctx"
+readme = "README.md"
+keywords = ["ai", "agents", "cli", "context"]
+categories = ["command-line-utilities", "development-tools"]
+include = [
+  "/Cargo.toml",
+  "/Cargo.lock",
+  "/LICENSE",
+  "/README.md",
+  "/docs/**",
+  "/schemas/**",
+  "/scripts/**",
+  "/src/**",
+  "/fixtures/**",
+  "/tests/**",
+]
 
 [dependencies]
 anyhow = "1.0.100"

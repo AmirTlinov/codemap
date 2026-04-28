@@ -29,8 +29,10 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - `ctx init --write-minimal`
 - `ctx init --agents`
 - `ctx bootstrap --global-instruction`
+- `ctx schema <capsule|impact|verify>`
 - `ctx anchors validate`
 - stable JSON schemas for `ctx start --format json`, `ctx impact --format json`, and `ctx verify --format json` under `schemas/`
+- bundled schema printing from the installed binary, without loading a project or writing cache
 - root and nested `.ctx.yml` semantic anchor loading
 - YAML anchor parsing through `serde_yml`
 - absolute `--path` and `--files` arguments normalized to the owning repo
@@ -38,8 +40,11 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - invalid `.ctx.yml` files are reported by `ctx anchors validate` and block routing commands instead of being silently ignored
 - `ctx verify --run` fails closed when the plan contains only a non-runnable placeholder
 - `ctx verify --changed` and `ctx verify --files` reuse the same impact traversal and `--depth`/`--limit` controls as `ctx impact`
+- `ctx impact` names public-boundary, schema/DTO, source-of-truth, unclassified-source, generated-file, and cross-domain expansion triggers explicitly
+- workspace domain discovery from root `package.json` workspaces, `pnpm-workspace.yaml`, Cargo workspace members, `go.work`, and simple Python workspace/member arrays
 - boundary checks include explicit forbidden file imports and local package-manifest dependency edges
 - mixed-monorepo golden fixtures cover replay/auth routing and bounded replay impact
+- release packaging check script verifies tests, clippy, doctor, bundled schemas, and crate package contents
 - printed global agent bootstrap does not advertise a separate `--for-agent` mode; Markdown is already the agent-facing default
 
 ## Core Files
@@ -75,13 +80,15 @@ This is intentionally flatter than the final large-tree design. The next split s
 - explicit forbidden boundary edges have regression coverage.
 - package-manifest boundary edges have regression coverage.
 - `verify` recommends checks discovered through impacted files, not only directly changed files, including bounded multi-hop traversal when `--depth` is raised.
+- `ctx schema` exposes bundled schemas without repo/cache side effects.
+- workspace globs outside the built-in `apps/`, `domains/`, `services/`, `packages/`, and `crates/` shapes become routeable domains.
+- impact reports expose specific expansion triggers for schema/DTO, public boundary, and source-of-truth changes.
 - schema files are valid JSON, pinned to JSON Schema draft 2020-12, and validate real `start`/`impact`/`verify` JSON outputs in tests.
 - `tests/golden_routing.rs` protects mixed-monorepo routing quality.
 - `tests/e2e_workflow.rs` protects the full agent loop: `start -> impact -> verify -> verify --run -> boundaries -> explain`.
 
 ## Next Useful Slices
 
-1. Add richer workspace package discovery for `pnpm-workspace.yaml`, Cargo workspace members, Go workspaces, and Python projects.
-2. Add public-boundary and DTO/schema impact rules with stronger tests.
-3. Split JS/TS, Rust, Python, and Go adapters once their extraction logic grows.
-4. Add release packaging checks for cargo/homebrew/npm wrapper distribution.
+1. Add deeper per-language adapters once JS/TS, Rust, Python, or Go extraction logic becomes hard to change in-place.
+2. Add Homebrew and npm wrapper distribution after the cargo package shape stabilizes.
+3. Add stricter semver policy for schema evolution before a `1.0` release.
