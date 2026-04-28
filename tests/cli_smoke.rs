@@ -335,32 +335,38 @@ fn context_routing_tasks_prefer_implementation_over_output_schemas() {
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["commit", "-qm", "init"]);
 
-    let output = ctx()
-        .current_dir(repo.path())
-        .env("CTX_CACHE_DIR", cache.path())
-        .args([
-            "start",
-            "--path",
-            repo.path().to_str().unwrap(),
-            "--task",
-            "improve ctx routing quality",
-            "--format",
-            "json",
-        ])
-        .output()
-        .expect("ctx start should run");
-    assert!(output.status.success());
-    let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
-    assert_eq!(json["task_kind"], "context_routing");
-    assert_eq!(json["read_first"][0]["path"], "src/route.rs");
-    assert!(
-        json["read_first"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .take(3)
-            .all(|item| item["path"].as_str().unwrap_or("").starts_with("src/"))
-    );
+    for task in [
+        "improve ctx routing quality",
+        "continue ctx end-to-end implementation",
+    ] {
+        let output = ctx()
+            .current_dir(repo.path())
+            .env("CTX_CACHE_DIR", cache.path())
+            .args([
+                "start",
+                "--path",
+                repo.path().to_str().unwrap(),
+                "--task",
+                task,
+                "--format",
+                "json",
+            ])
+            .output()
+            .expect("ctx start should run");
+        assert!(output.status.success(), "{task}");
+        let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
+        assert_eq!(json["task_kind"], "context_routing", "{task}");
+        assert_eq!(json["read_first"][0]["path"], "src/route.rs", "{task}");
+        assert!(
+            json["read_first"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .take(3)
+                .all(|item| item["path"].as_str().unwrap_or("").starts_with("src/")),
+            "{task}"
+        );
+    }
 }
 
 #[test]

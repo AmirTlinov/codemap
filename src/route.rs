@@ -1221,6 +1221,7 @@ fn task_kind(project: &Project, domain: &Domain, task: &str) -> (String, f64, Ve
         (
             "context_routing",
             &[
+                "ctx",
                 "route",
                 "routing",
                 "locate",
