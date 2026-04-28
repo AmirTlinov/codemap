@@ -630,6 +630,93 @@ boundaries:
 }
 
 #[test]
+fn graph_boundaries_changed_lens_respects_changed_scope() {
+    let repo = fixture_copy("mixed-monorepo");
+    let cache = TempDir::new().expect("cache tempdir");
+    write(
+        &repo.path().join(".ctx.yml"),
+        r#"version: 1
+boundaries:
+  forbidden:
+    - from: apps/web/package.json
+      to: domains/renderer/package.json
+      reason: app must not package-depend on renderer in this fixture policy
+"#,
+    );
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+    write(
+        &repo.path().join("services/auth/src/token.ts"),
+        "export function token() { return 'changed'; }\n",
+    );
+
+    let unrelated = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "graph",
+            "--lens",
+            "boundaries",
+            "--changed",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx graph should run");
+    assert!(unrelated.status.success());
+    let unrelated_json: Value =
+        serde_json::from_slice(&unrelated.stdout).expect("valid graph json");
+    assert_eq!(
+        unrelated_json["nodes"].as_array().unwrap().len(),
+        0,
+        "changed-only boundary graph must not show unrelated committed findings"
+    );
+    assert_eq!(unrelated_json["edges"].as_array().unwrap().len(), 0);
+
+    write(
+        &repo.path().join("domains/renderer/package.json"),
+        r#"{
+  "name": "@ctx-fixture/renderer",
+  "private": true,
+  "exports": "./src/replay-renderer.ts",
+  "dependencies": {
+    "@ctx-fixture/replay": "workspace:*"
+  },
+  "description": "changed target manifest"
+}
+"#,
+    );
+
+    let target_changed = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "graph",
+            "--lens",
+            "boundaries",
+            "--changed",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx graph should run");
+    assert!(target_changed.status.success());
+    let graph_json: Value =
+        serde_json::from_slice(&target_changed.stdout).expect("valid graph json");
+    assert!(
+        graph_json["edges"].as_array().unwrap().iter().any(|edge| {
+            edge["from"].as_str() == Some("apps/web/package.json")
+                && edge["to"].as_str() == Some("domains/renderer/package.json")
+                && edge["type"].as_str() == Some("forbidden")
+        }),
+        "changed target manifests should seed changed-only boundary graph findings"
+    );
+}
+
+#[test]
 fn graph_verification_lens_connects_changed_files_tests_and_commands() {
     let repo = fixture_copy("mixed-monorepo");
     let cache = TempDir::new().expect("cache tempdir");

@@ -20,7 +20,7 @@ pub fn graph_lens(
     let path_seed = explicit_file_seed.as_ref().map(std::slice::from_ref);
     let graph_changed = changed.or(path_seed);
     let (nodes, edges) = match lens_key.as_str() {
-        "boundary" | "boundaries" => boundary_graph(project, limit),
+        "boundary" | "boundaries" => boundary_graph(project, graph_changed, limit),
         "verification" | "verify" => {
             verification_graph(project, &requested_domain, graph_changed, limit)
         }
@@ -266,8 +266,13 @@ fn verification_graph(
     (nodes, edges)
 }
 
-fn boundary_graph(project: &Project, limit: usize) -> (Vec<String>, Vec<GraphEdge>) {
-    let findings = boundary_findings(project, None);
+fn boundary_graph(
+    project: &Project,
+    changed: Option<&[String]>,
+    limit: usize,
+) -> (Vec<String>, Vec<GraphEdge>) {
+    let changed_set = changed.map(|files| files.iter().cloned().collect::<BTreeSet<_>>());
+    let findings = boundary_findings(project, changed_set.as_ref());
     let nodes = unique(
         findings
             .iter()
