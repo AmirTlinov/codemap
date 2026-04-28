@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AmirTlinov/ctx/schemas/anchors.schema.json",
+  "title": "ctx semantic anchors",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version"],
+  "properties": {
+    "version": { "const": 1 },
+    "domain": { "$ref": "#/$defs/domain" },
+    "domains": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/domain" }
+    },
+    "owns": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "does_not_own": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "concepts": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/concept" }
+    },
+    "boundaries": { "$ref": "#/$defs/boundaries" },
+    "task_routes": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/task_route" }
+    },
+    "verification": { "$ref": "#/$defs/verification" }
+  },
+  "$defs": {
+    "domain": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "path": { "type": "string" },
+        "purpose": { "type": "string" }
+      }
+    },
+    "concept": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "role": { "type": "string" },
+        "kind": { "type": "string" },
+        "files": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "invariants": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "derives_from": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "reads": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "writes": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "consumed_by": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "boundaries": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "forbidden": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/boundary_rule" }
+        }
+      }
+    },
+    "boundary_rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to", "reason"],
+      "properties": {
+        "from": { "type": "string", "minLength": 1 },
+        "to": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string", "minLength": 1 },
+        "recovery": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "status": {
+          "type": "string",
+          "enum": ["forbidden", "warn", "warning"]
+        }
+      }
+    },
+    "task_route": {
+      "type": "object",
+      "additionalProperties": false,
+      "anyOf": [
+        { "required": ["match"] },
+        { "required": ["read_first"] }
+      ],
+      "properties": {
+        "match": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "read_first": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "verify": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "default": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

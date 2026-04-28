@@ -61,17 +61,30 @@ fn doctor_runs_with_zero_footprint_contract() {
 fn schema_command_outputs_bundled_contract_without_repo_load() {
     let outside = TempDir::new().expect("outside tempdir");
     let cache = TempDir::new().expect("cache tempdir");
-    let output = ctx()
+    let capsule = ctx()
         .current_dir(outside.path())
         .env("CTX_CACHE_DIR", cache.path())
         .args(["schema", "capsule"])
         .output()
         .expect("ctx schema should run");
 
-    assert!(output.status.success());
-    let json: Value = serde_json::from_slice(&output.stdout).expect("schema should be json");
+    assert!(capsule.status.success());
+    let json: Value = serde_json::from_slice(&capsule.stdout).expect("schema should be json");
     assert_eq!(json["properties"]["kind"]["const"], "task_context_capsule");
     assert_eq!(json["properties"]["schema_version"]["const"], "1");
+
+    let anchors = ctx()
+        .current_dir(outside.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["schema", "anchors"])
+        .output()
+        .expect("ctx schema anchors should run");
+    assert!(anchors.status.success());
+    let anchors_json: Value =
+        serde_json::from_slice(&anchors.stdout).expect("anchors schema should be json");
+    assert_eq!(anchors_json["title"], "ctx semantic anchors");
+    assert_eq!(anchors_json["properties"]["version"]["const"], 1);
+
     assert_eq!(
         fs::read_dir(cache.path()).expect("cache dir").count(),
         0,
@@ -382,6 +395,172 @@ fn invalid_ctx_config_is_reported_and_blocks_routing() {
 }
 
 #[test]
+fn unsupported_ctx_config_version_fails_closed_before_routing() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join(".ctx.yml"),
+        r#"version: 2
+concepts:
+  replay.timeline:
+    role: source_of_truth
+    files:
+      - src/replay-timeline.ts
+"#,
+    );
+    write(
+        &repo.path().join("src/replay-timeline.ts"),
+        "export const timeline = 1;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let validate = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["anchors", "validate", "--format", "json"])
+        .output()
+        .expect("ctx anchors validate should run");
+    assert!(validate.status.success());
+    let json: Value = serde_json::from_slice(&validate.stdout).expect("valid json");
+    assert_eq!(json["ok"], false);
+    assert!(json["problems"].as_array().unwrap().iter().any(|problem| {
+        problem
+            .as_str()
+            .unwrap()
+            .contains("unsupported .ctx version")
+    }));
+
+    let start = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["start", "--task", "fix replay timeline"])
+        .output()
+        .expect("ctx start should run");
+    assert!(!start.status.success());
+    let stderr = String::from_utf8(start.stderr).expect("stderr should be utf8");
+    assert!(stderr.contains("unsupported .ctx version"));
+}
+
+#[test]
+fn unknown_ctx_config_fields_fail_closed_before_routing() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join(".ctx.yml"),
+        r#"version: 1
+task_routez:
+  typo:
+    match:
+      - seek
+"#,
+    );
+    write(&repo.path().join("src/lib.rs"), "pub fn demo() {}\n");
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let validate = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["anchors", "validate", "--format", "json"])
+        .output()
+        .expect("ctx anchors validate should run");
+    assert!(validate.status.success());
+    let json: Value = serde_json::from_slice(&validate.stdout).expect("valid json");
+    assert_eq!(json["ok"], false);
+    assert!(
+        json["problems"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|problem| problem.as_str().unwrap().contains("task_routez"))
+    );
+
+    let start = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["start", "--task", "fix demo"])
+        .output()
+        .expect("ctx start should run");
+    assert!(!start.status.success());
+}
+
+#[test]
+fn invalid_semantic_anchors_fail_closed_before_routing() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join(".ctx.yml"),
+        r#"version: 1
+domains:
+  replay:
+    path: domains/replay
+concepts:
+  replay.timeline:
+    role: source_of_truth
+    files:
+      - domains/replay/src/missing-timeline.ts
+boundaries:
+  forbidden:
+    - from: domains/replay/src/**
+      to: domains/renderer/src/**
+task_routes:
+  playback_session:
+    match:
+      - seek
+    read_first:
+      - domains/replay/src/missing-session.ts
+"#,
+    );
+    write(
+        &repo.path().join("domains/replay/src/replay-session.ts"),
+        "export const session = 1;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let validate = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["anchors", "validate", "--format", "json"])
+        .output()
+        .expect("ctx anchors validate should run");
+    assert!(validate.status.success());
+    let json: Value = serde_json::from_slice(&validate.stdout).expect("valid json");
+    assert_eq!(json["ok"], false);
+    let problems = json["problems"].as_array().unwrap();
+    assert!(
+        problems
+            .iter()
+            .any(|problem| problem.as_str().unwrap().contains("missing-timeline.ts"))
+    );
+    assert!(
+        problems
+            .iter()
+            .any(|problem| problem.as_str().unwrap().contains("missing `reason`"))
+    );
+    assert!(
+        problems
+            .iter()
+            .any(|problem| problem.as_str().unwrap().contains("missing-session.ts"))
+    );
+
+    let start = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["start", "--task", "fix seek frame"])
+        .output()
+        .expect("ctx start should run");
+    assert!(!start.status.success());
+    let stderr = String::from_utf8(start.stderr).expect("stderr should be utf8");
+    assert!(stderr.contains("missing-timeline.ts"));
+    assert!(stderr.contains("invalid .ctx semantic anchors"));
+}
+
+#[test]
 fn domain_local_anchor_paths_resolve_under_domain_path() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");
@@ -664,6 +843,7 @@ fn json_schemas_are_present_and_parse() {
         "schemas/capsule.schema.json",
         "schemas/impact.schema.json",
         "schemas/verify.schema.json",
+        "schemas/anchors.schema.json",
     ] {
         let text = fs::read_to_string(root.join(rel)).expect("schema should exist");
         let json: Value = serde_json::from_str(&text).expect("schema should be valid json");
@@ -671,8 +851,36 @@ fn json_schemas_are_present_and_parse() {
             json["$schema"],
             "https://json-schema.org/draft/2020-12/schema"
         );
-        assert!(json["required"].as_array().unwrap().len() >= 8);
+        assert!(!json["required"].as_array().unwrap().is_empty());
     }
+    let anchors_instance = serde_json::json!({
+        "version": 1,
+        "domain": {
+            "id": "replay",
+            "path": "domains/replay"
+        },
+        "concepts": {
+            "replay.timeline": {
+                "role": "source_of_truth",
+                "files": ["src/replay-timeline.ts"]
+            }
+        },
+        "boundaries": {
+            "forbidden": [{
+                "from": "domains/replay/src/**",
+                "to": "domains/renderer/src/**",
+                "reason": "replay emits DTOs; renderer consumes DTOs"
+            }]
+        },
+        "task_routes": {
+            "playback": {
+                "match": ["frame", "seek"],
+                "read_first": ["src/replay-session.ts"],
+                "verify": ["pnpm test domains/replay -- session"]
+            }
+        }
+    });
+    assert_schema_accepts("schemas/anchors.schema.json", &anchors_instance);
 
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");

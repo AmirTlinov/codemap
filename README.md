@@ -51,6 +51,7 @@ ctx doctor
 ctx status
 ctx files
 ctx schema capsule
+ctx schema anchors
 ctx locate --task "fix auth token refresh"
 ctx start --task "fix broken save" --path src
 ctx impact --changed
@@ -72,9 +73,9 @@ ctx anchors validate
 ```
 
 Markdown is the default agent-facing format. JSON is available with `--format json`.
-Stable JSON schemas live under `schemas/` for task capsules, impact reports, and verification plans.
+Stable JSON schemas live under `schemas/` for task capsules, impact reports, verification plans, and `.ctx.yml` semantic anchors.
 Schema-backed outputs include `schema_version: "1"`.
-Installed binaries can print the bundled schemas with `ctx schema capsule`, `ctx schema impact`, and `ctx schema verify`.
+Installed binaries can print the bundled schemas with `ctx schema capsule`, `ctx schema impact`, `ctx schema verify`, and `ctx schema anchors`.
 
 ## Agent Integration
 
@@ -107,7 +108,7 @@ Zero-config works from files, manifests, tests, imports, scripts, and git diff. 
 
 `ctx init --write-minimal --path domains/replay` writes a valid skeletal config only. It does not invent placeholder concepts, source-of-truth files, or boundaries.
 
-If a `.ctx.yml` exists but cannot be parsed, routing commands fail closed. Use `ctx anchors validate` to see the exact problem.
+If a `.ctx.yml` exists but cannot be parsed or contains invalid semantic anchors, routing commands fail closed. Use `ctx anchors validate` to see the exact problem.
 
 ```yaml
 version: 1

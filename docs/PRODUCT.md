@@ -66,6 +66,18 @@ Agents should stop after minimal verification passes unless:
 
 The installed binary must be enough to operate the agent contract:
 
-- `ctx schema capsule`, `ctx schema impact`, and `ctx schema verify` print the bundled schemas without loading a project;
-- schemas are versioned with `schema_version`;
+- `ctx schema capsule`, `ctx schema impact`, `ctx schema verify`, and `ctx schema anchors` print the bundled schemas without loading a project;
+- output schemas are versioned with `schema_version`, and `.ctx.yml` anchors are versioned with `version: 1`;
 - release checks must prove the crate contains `schemas/`, `fixtures/`, and the end-to-end workflow test.
+
+## Anchor Contract
+
+`.ctx.yml` is allowed to raise confidence only when it is internally valid:
+
+- config version must be `version: 1`;
+- unknown fields are rejected instead of ignored;
+- exact concept and route file references must exist;
+- forbidden boundaries must include `from`, `to`, and `reason`;
+- task routes must declare either `match` terms or `read_first`;
+- `ctx schema anchors` exposes the structural contract for external validators;
+- routing fails closed when semantic anchors are invalid.

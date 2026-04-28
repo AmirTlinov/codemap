@@ -246,6 +246,10 @@ fn load_ctx_configs(root: &Path) -> (CtxConfig, Option<String>, Vec<ConfigLoadEr
                 continue;
             }
         };
+        if let Some(error) = ctx_config_version_error(&config) {
+            errors.push(ConfigLoadError { path, error });
+            continue;
+        }
         let base = config_base_dir(&path);
         normalize_ctx_config(&mut config, &base);
         merge_ctx_config(&mut merged, config, &base);
@@ -257,6 +261,16 @@ fn load_ctx_configs(root: &Path) -> (CtxConfig, Option<String>, Vec<ConfigLoadEr
         [first, rest @ ..] => Some(format!("{} (+{} more)", first, rest.len())),
     };
     (merged, summary, errors)
+}
+
+fn ctx_config_version_error(config: &CtxConfig) -> Option<String> {
+    match config.version {
+        Some(1) => None,
+        Some(version) => Some(format!(
+            "unsupported .ctx version `{version}`; expected `1`"
+        )),
+        None => Some("missing required .ctx `version: 1`".to_string()),
+    }
 }
 
 fn find_config_paths(root: &Path) -> Vec<String> {

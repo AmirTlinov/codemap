@@ -6,7 +6,7 @@ cargo test
 cargo clippy --all-targets -- -D warnings
 cargo run --bin ctx -- doctor
 
-for schema in capsule impact verify; do
+for schema in capsule impact verify anchors; do
   cargo run --bin ctx -- schema "$schema" >/dev/null
 done
 
@@ -16,6 +16,7 @@ for required in \
   "schemas/capsule.schema.json" \
   "schemas/impact.schema.json" \
   "schemas/verify.schema.json" \
+  "schemas/anchors.schema.json" \
   "tests/e2e_workflow.rs" \
   "fixtures/mixed-monorepo/package.json"
 do

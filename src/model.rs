@@ -81,6 +81,7 @@ pub struct PackageDependency {
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct CtxConfig {
     #[serde(default)]
     pub version: Option<u32>,
@@ -103,6 +104,7 @@ pub struct CtxConfig {
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct AnchorDomain {
     #[serde(default)]
     pub id: Option<String>,
@@ -113,6 +115,7 @@ pub struct AnchorDomain {
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct AnchorConcept {
     #[serde(default)]
     pub role: Option<String>,
@@ -133,12 +136,14 @@ pub struct AnchorConcept {
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct AnchorBoundaries {
     #[serde(default)]
     pub forbidden: Vec<BoundaryRule>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct BoundaryRule {
     #[serde(default)]
     pub from: String,
@@ -153,6 +158,7 @@ pub struct BoundaryRule {
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct AnchorTaskRoute {
     #[serde(default, rename = "match")]
     pub matches: Vec<String>,
@@ -163,6 +169,7 @@ pub struct AnchorTaskRoute {
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct AnchorVerification {
     #[serde(default)]
     pub default: Vec<String>,

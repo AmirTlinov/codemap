@@ -232,6 +232,7 @@ enum SchemaKind {
     Capsule,
     Impact,
     Verify,
+    Anchors,
 }
 
 pub fn run() -> Result<()> {
@@ -367,6 +368,7 @@ fn schema_text(kind: SchemaKind) -> &'static str {
         SchemaKind::Capsule => include_str!("../schemas/capsule.schema.json"),
         SchemaKind::Impact => include_str!("../schemas/impact.schema.json"),
         SchemaKind::Verify => include_str!("../schemas/verify.schema.json"),
+        SchemaKind::Anchors => include_str!("../schemas/anchors.schema.json"),
     }
 }
 
@@ -508,7 +510,8 @@ fn is_runnable_verification_command(command: &str) -> bool {
 }
 
 fn ensure_valid_config(project: &crate::model::Project) -> Result<()> {
-    if project.config_errors.is_empty() {
+    let semantic_problems = semantic_anchor_problems(project);
+    if project.config_errors.is_empty() && semantic_problems.is_empty() {
         return Ok(());
     }
     for error in &project.config_errors {
@@ -516,6 +519,9 @@ fn ensure_valid_config(project: &crate::model::Project) -> Result<()> {
             "ctx: invalid semantic anchor `{}`: {}",
             error.path, error.error
         );
+    }
+    for problem in semantic_problems {
+        eprintln!("ctx: invalid semantic anchor: {problem}");
     }
     bail!("invalid .ctx semantic anchors; run `ctx anchors validate`")
 }
@@ -662,24 +668,99 @@ fn validate_anchors(project: &crate::model::Project) -> AnchorValidation {
         .iter()
         .map(|error| format!("{}: {}", error.path, error.error))
         .collect::<Vec<_>>();
-    for (id, concept) in &project.anchors.concepts {
-        for file in &concept.files {
-            let rel = route::resolve_anchor_path(project, file);
-            if !project.files.contains_key(&rel) {
-                problems.push(format!("concept `{id}` declares missing file `{rel}`"));
-            }
-        }
-    }
-    for edge in &project.anchors.boundaries.forbidden {
-        if edge.reason.is_empty() {
-            problems.push("forbidden boundary without reason".to_string());
-        }
-    }
+    problems.extend(semantic_anchor_problems(project));
     AnchorValidation {
         kind: "anchor_validation",
         ok: problems.is_empty(),
         problems,
     }
+}
+
+fn semantic_anchor_problems(project: &crate::model::Project) -> Vec<String> {
+    let mut problems = Vec::new();
+    if project.config_path.is_some() {
+        match project.anchors.version {
+            Some(1) => {}
+            Some(version) => problems.push(format!(
+                ".ctx.yml declares unsupported version `{version}`; expected `1`"
+            )),
+            None => problems.push(".ctx.yml is missing required `version: 1`".to_string()),
+        }
+    }
+    if let Some(domain) = &project.anchors.domain
+        && let Some(path) = &domain.path
+    {
+        validate_anchor_domain_path(
+            project,
+            domain.id.as_deref().unwrap_or("repo"),
+            path,
+            &mut problems,
+        );
+    }
+    for (id, domain) in &project.anchors.domains {
+        if let Some(path) = &domain.path {
+            validate_anchor_domain_path(project, id, path, &mut problems);
+        }
+    }
+    for (id, concept) in &project.anchors.concepts {
+        for file in &concept.files {
+            let rel = route::resolve_anchor_path(project, file);
+            if !is_glob_like(file) && !project.files.contains_key(&rel) {
+                problems.push(format!("concept `{id}` declares missing file `{rel}`"));
+            }
+        }
+    }
+    for (idx, edge) in project.anchors.boundaries.forbidden.iter().enumerate() {
+        let number = idx + 1;
+        if edge.from.trim().is_empty() {
+            problems.push(format!("forbidden boundary #{number} is missing `from`"));
+        }
+        if edge.to.trim().is_empty() {
+            problems.push(format!("forbidden boundary #{number} is missing `to`"));
+        }
+        if edge.reason.trim().is_empty() {
+            problems.push(format!("forbidden boundary #{number} is missing `reason`"));
+        }
+        if let Some(status) = &edge.status
+            && !matches!(status.as_str(), "forbidden" | "warn" | "warning")
+        {
+            problems.push(format!(
+                "forbidden boundary #{number} has unsupported status `{status}`"
+            ));
+        }
+    }
+    for (name, route) in &project.anchors.task_routes {
+        if route.matches.is_empty() && route.read_first.is_empty() {
+            problems.push(format!(
+                "task route `{name}` must declare `match` or `read_first`"
+            ));
+        }
+        for file in &route.read_first {
+            let rel = route::resolve_anchor_path(project, file);
+            if !is_glob_like(file) && !project.files.contains_key(&rel) {
+                problems.push(format!(
+                    "task route `{name}` declares missing read_first file `{rel}`"
+                ));
+            }
+        }
+    }
+    problems
+}
+
+fn validate_anchor_domain_path(
+    project: &crate::model::Project,
+    id: &str,
+    path: &str,
+    problems: &mut Vec<String>,
+) {
+    let rel = repo::normalize_rel_path(path);
+    if rel != "." && !project.root.join(&rel).is_dir() {
+        problems.push(format!("domain `{id}` declares missing path `{rel}`"));
+    }
+}
+
+fn is_glob_like(value: &str) -> bool {
+    value.contains('*') || value.contains('?') || value.contains('[') || value.contains('{')
 }
 
 fn anchors_markdown(report: &AnchorValidation) {

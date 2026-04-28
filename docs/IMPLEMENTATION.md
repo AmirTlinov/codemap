@@ -29,15 +29,17 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - `ctx init --write-minimal`
 - `ctx init --agents`
 - `ctx bootstrap --global-instruction`
-- `ctx schema <capsule|impact|verify>`
+- `ctx schema <capsule|impact|verify|anchors>`
 - `ctx anchors validate`
-- stable JSON schemas for `ctx start --format json`, `ctx impact --format json`, and `ctx verify --format json` under `schemas/`
+- stable JSON schemas for `ctx start --format json`, `ctx impact --format json`, `ctx verify --format json`, and `.ctx.yml` semantic anchors under `schemas/`
 - bundled schema printing from the installed binary, without loading a project or writing cache
 - root and nested `.ctx.yml` semantic anchor loading
 - YAML anchor parsing through `serde_yml`
+- unknown `.ctx.yml` fields are rejected instead of being silently ignored
 - absolute `--path` and `--files` arguments normalized to the owning repo
 - safe `ctx init --write-minimal`: creates requested domain directories, refuses writes outside the repo, and writes no fake placeholder concepts
 - invalid `.ctx.yml` files are reported by `ctx anchors validate` and block routing commands instead of being silently ignored
+- semantically invalid `.ctx.yml` anchors fail closed before routing when `version: 1`, exact concept files, route read-first files, boundary reasons, or route match/read declarations are missing
 - `ctx verify --run` fails closed when the plan contains only a non-runnable placeholder
 - `ctx verify --changed` and `ctx verify --files` reuse the same impact traversal and `--depth`/`--limit` controls as `ctx impact`
 - `ctx impact` names public-boundary, schema/DTO, source-of-truth, unclassified-source, generated-file, and cross-domain expansion triggers explicitly
@@ -76,6 +78,7 @@ This is intentionally flatter than the final large-tree design. The next split s
 - absolute start paths and file arguments work from outside the repo;
 - `ctx init --write-minimal` writes a valid skeletal `.ctx.yml` and refuses absolute paths outside the repo.
 - invalid semantic anchors block `start`/`impact`/`verify` until fixed, while `ctx anchors validate` stays available for diagnosis.
+- semantic anchor validation catches missing/unsupported config versions, unknown fields, missing exact concept files, missing route read-first files, missing boundary reasons, and empty route declarations.
 - `verify --run` returns non-zero when no concrete command can be inferred.
 - explicit forbidden boundary edges have regression coverage.
 - package-manifest boundary edges have regression coverage.
