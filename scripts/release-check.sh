@@ -55,6 +55,7 @@ for required in \
   "docs/SCHEMA_POLICY.md" \
   "scripts/package-release.sh" \
   "scripts/check-npm-wrapper.sh" \
+  "scripts/package-npm-wrapper.sh" \
   "scripts/generate-homebrew-formula.sh" \
   "scripts/check-homebrew-formula.sh" \
   "npm/agent-context-cli/package.json" \

@@ -96,13 +96,22 @@ jobs:
           path: release-assets
           merge-multiple: true
 
+      - name: Build npm package asset
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          CTX_EXPECTED_VERSION="${TAG#v}" ./scripts/package-npm-wrapper.sh --out-dir release-assets
+
       - name: Verify expected assets
         env:
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
+          version="${TAG#v}"
           find release-assets -maxdepth 1 -type f -print | sort
           cat > expected-assets.txt <<EOF
+          agent-context-cli-${version}.tgz
           ctx-${TAG}-aarch64-apple-darwin.tar.gz
           ctx-${TAG}-aarch64-apple-darwin.tar.gz.sha256
           ctx-${TAG}-x86_64-unknown-linux-gnu.tar.gz
@@ -112,9 +121,10 @@ jobs:
           diff -u expected-assets.txt actual-assets.txt
           mapfile -t archives < <(find release-assets -maxdepth 1 -type f -name "ctx-${TAG}-*.tar.gz" | sort)
           mapfile -t checksums < <(find release-assets -maxdepth 1 -type f -name "ctx-${TAG}-*.tar.gz.sha256" | sort)
-          test "$(find release-assets -maxdepth 1 -type f | wc -l | tr -d '[:space:]')" -eq 4
+          test "$(find release-assets -maxdepth 1 -type f | wc -l | tr -d '[:space:]')" -eq 5
           test "${#archives[@]}" -eq 2
           test "${#checksums[@]}" -eq 2
+          test -f "release-assets/agent-context-cli-${version}.tgz"
           for archive in "${archives[@]}"; do
             test -f "${archive}.sha256"
             grep -F "  $(basename "$archive")" "${archive}.sha256" >/dev/null

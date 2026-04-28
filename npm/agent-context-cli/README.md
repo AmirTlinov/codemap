@@ -2,8 +2,18 @@
 
 This package installs the native `ctx` binary from the matching GitHub Release.
 
+Install from the npm registry after this package is published there:
+
 ```bash
 npm install -g agent-context-cli
+ctx doctor
+```
+
+Published GitHub Releases also include the packed wrapper tarball:
+
+```bash
+gh release download v0.1.2 --repo AmirTlinov/ctx --pattern 'agent-context-cli-0.1.2.tgz'
+GH_TOKEN="$(gh auth token)" npm install -g ./agent-context-cli-0.1.2.tgz
 ctx doctor
 ```
 

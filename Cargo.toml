@@ -1,6 +1,6 @@
 [package]
 name = "agent-context-cli"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 description = "Deterministic task-specific context router for coding agents"
 license = "MIT"

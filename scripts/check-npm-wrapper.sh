@@ -67,3 +67,21 @@ for (const forbidden of ["vendor/ctx", "vendor/ctx.exe"]) {
   }
 }
 NODE
+
+npm_dist="$tmp/npm-dist"
+npm_archive="$("$repo_root/scripts/package-npm-wrapper.sh" --out-dir "$npm_dist")"
+test "$(basename "$npm_archive")" = "agent-context-cli-${npm_version}.tgz"
+tar -tzf "$npm_archive" | LC_ALL=C sort > "$tmp/npm-archive-files.txt"
+for required in \
+  "package/bin/ctx" \
+  "package/scripts/install.js" \
+  "package/package.json" \
+  "package/README.md" \
+  "package/LICENSE"
+do
+  grep -qx "$required" "$tmp/npm-archive-files.txt"
+done
+if grep -Eq '^package/vendor/(ctx|ctx.exe)$' "$tmp/npm-archive-files.txt"; then
+  echo "npm package archive includes an installed native binary" >&2
+  exit 1
+fi

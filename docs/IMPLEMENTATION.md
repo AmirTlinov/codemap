@@ -60,9 +60,10 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - release packaging check script verifies tests, clippy, doctor, bundled schemas, and crate package contents
 - `scripts/package-release.sh` builds a target-specific tarball with the `ctx` binary, `README.md`, `LICENSE`, and a sha256 sidecar
 - `npm/agent-context-cli` is a thin npm installer wrapper that downloads and verifies those release archives instead of shipping a JS implementation
+- `scripts/package-npm-wrapper.sh` builds the packed npm wrapper tarball for GitHub Release assets without bundling a native binary
 - `scripts/generate-homebrew-formula.sh` derives a Homebrew formula from release archive checksum sidecars, so formula sha256 values are never guessed before artifacts exist
 - GitHub Actions runs the release check on Linux and macOS
-- version tags matching the Cargo package version and belonging to `main` publish Linux x64 and macOS arm64 archives plus a generated Homebrew formula to GitHub Releases after asset verification
+- version tags matching the Cargo package version and belonging to `main` publish Linux x64 and macOS arm64 archives, the npm wrapper tarball, and a generated Homebrew formula to GitHub Releases after asset verification
 - printed global agent bootstrap does not advertise a separate `--for-agent` mode; Markdown is already the agent-facing default
 
 ## Core Files
@@ -117,5 +118,6 @@ This is intentionally flatter than the final large-tree design. The next split s
 ## Next Useful Slices
 
 1. Add deeper per-language adapters once JS/TS, Rust, Python, or Go extraction logic becomes hard to change in-place.
-2. Add a dedicated Homebrew tap update workflow after the formula asset has been exercised in a release.
-3. Split large route/repo modules only after the next behavior slice makes them hard to change safely.
+2. Publish `agent-context-cli` to npm and/or crates.io after registry credentials are available; until then, GitHub Releases carry the native archives and npm tarball.
+3. Add a dedicated Homebrew tap update workflow after the formula asset has been exercised in a release.
+4. Split large route/repo modules only after the next behavior slice makes them hard to change safely.

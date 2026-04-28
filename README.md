@@ -130,22 +130,29 @@ From a source checkout, build the same archive with:
 ```
 
 The release script writes `dist/ctx-v<version>-<target>.tar.gz` and a `.sha256` sidecar.
-Pushing a version tag from `main`, for example `v0.1.1`, publishes Linux x64 and macOS arm64 archives to GitHub Releases after asset verification.
+Pushing a version tag from `main`, for example `v0.1.2`, publishes Linux x64 and macOS arm64 archives, a packed npm wrapper tarball, and a generated Homebrew formula to GitHub Releases after asset verification.
 
-The npm package is a thin installer wrapper around those same release archives:
+The npm wrapper is a thin installer around those same release archives. Published releases include a packed npm tarball, so the wrapper can be installed from GitHub Releases even before the package is published to the npm registry:
 
 ```bash
-npm install -g agent-context-cli
+gh release download v0.1.2 --repo AmirTlinov/ctx --pattern 'agent-context-cli-0.1.2.tgz'
+GH_TOKEN="$(gh auth token)" npm install -g ./agent-context-cli-0.1.2.tgz
 ctx doctor
 ```
 
-It downloads and verifies the matching archive during install. It does not make Node a project dependency for repositories where `ctx` is used.
-For private GitHub releases, run install with `GH_TOKEN`, `GITHUB_TOKEN`, or `CTX_NPM_GITHUB_TOKEN` available so the wrapper can download assets through the GitHub API.
+After the package is published to the npm registry, the command becomes:
+
+```bash
+npm install -g agent-context-cli
+```
+
+The wrapper downloads and verifies the matching archive during install. It does not make Node a project dependency for repositories where `ctx` is used.
+For private GitHub releases, install with `GH_TOKEN`, `GITHUB_TOKEN`, or `CTX_NPM_GITHUB_TOKEN` available so the wrapper can download assets through the GitHub API.
 
 The release workflow also publishes a generated Homebrew formula asset with checksums derived from the release archives:
 
 ```bash
-brew install --formula https://github.com/AmirTlinov/ctx/releases/download/v0.1.1/ctx.rb
+brew install --formula https://github.com/AmirTlinov/ctx/releases/download/v0.1.2/ctx.rb
 ```
 
 ## Optional `.ctx.yml`
