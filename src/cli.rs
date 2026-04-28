@@ -291,7 +291,7 @@ pub fn run() -> Result<()> {
             output(args.format, &report, || render::status(&report, false))
         }
         CommandKind::Files(args) => {
-            let report = files_report(&project, args.path.as_deref(), args.limit);
+            let report = files_report(&project, args.path.as_deref(), args.limit)?;
             output(args.format, &report, || files_markdown(&report))
         }
         CommandKind::Init(args) => init(&project, args),
@@ -304,8 +304,13 @@ pub fn run() -> Result<()> {
         }
         CommandKind::Start(args) => {
             ensure_valid_config(&project)?;
+            let start_path = args
+                .path
+                .as_deref()
+                .map(|path| project_relative_arg(&project, path))
+                .transpose()?;
             let capsule =
-                route::start_capsule(&project, &args.task, args.path.as_deref(), args.limit);
+                route::start_capsule(&project, &args.task, start_path.as_deref(), args.limit);
             output(args.format, &capsule, || render::start(&capsule))
         }
         CommandKind::Impact(args) => {
@@ -317,18 +322,28 @@ pub fn run() -> Result<()> {
         CommandKind::Verify(args) => verify(&project, args),
         CommandKind::Explain(args) => {
             ensure_valid_config(&project)?;
-            let target = project_relative_arg(&project, &args.target).unwrap_or(args.target);
+            let target = project_relative_arg(&project, &args.target)?;
             let report = route::explain_target(&project, &target);
             output(args.format, &report, || render::explain(&report))
         }
         CommandKind::Widen(args) => {
             ensure_valid_config(&project)?;
+            let widen_path = args
+                .path
+                .as_deref()
+                .map(|path| project_relative_arg(&project, path))
+                .transpose()?;
+            let already = args
+                .already
+                .iter()
+                .map(|path| project_relative_arg(&project, path))
+                .collect::<Result<Vec<_>>>()?;
             let report = route::widen_context(
                 &project,
                 &args.task,
-                args.path.as_deref(),
+                widen_path.as_deref(),
                 &args.reason,
-                &args.already,
+                &already,
                 args.limit,
             );
             output(args.format, &report, || render::widen(&report))
@@ -340,9 +355,11 @@ pub fn run() -> Result<()> {
             } else {
                 Vec::new()
             };
-            let graph_path = args.path.as_deref().map(|path| {
-                project_relative_arg(&project, path).unwrap_or_else(|_| path.to_string())
-            });
+            let graph_path = args
+                .path
+                .as_deref()
+                .map(|path| project_relative_arg(&project, path))
+                .transpose()?;
             let graph = route::graph_lens(
                 &project,
                 graph_path.as_deref(),
@@ -521,7 +538,12 @@ fn init(project: &crate::model::Project, args: InitArgs) -> Result<()> {
         return Ok(());
     }
     if args.print {
-        render::init_suggestion(args.path.as_deref());
+        let print_path = args
+            .path
+            .as_deref()
+            .map(|path| project_relative_arg(project, path))
+            .transpose()?;
+        render::init_suggestion(print_path.as_deref());
         return Ok(());
     }
     println!("`ctx init` writes nothing by default.");
@@ -684,16 +706,16 @@ fn parse_files(
 
 fn project_relative_arg(project: &crate::model::Project, value: &str) -> Result<String> {
     let path = Path::new(value);
-    if path.is_absolute() {
-        let absolute = normalize_absolute_arg(path);
-        let root = normalize_absolute_arg(&project.root);
-        absolute
-            .strip_prefix(root)
-            .map(|rel| repo::normalize_rel_path(&rel.to_string_lossy()))
-            .map_err(|_| anyhow::anyhow!("path is outside project root: {value}"))
+    let root = normalize_absolute_arg(&project.root);
+    let absolute = if path.is_absolute() {
+        normalize_absolute_arg(path)
     } else {
-        Ok(repo::normalize_rel_path(value))
-    }
+        normalize_absolute_arg(&root.join(path))
+    };
+    absolute
+        .strip_prefix(root)
+        .map(|rel| repo::normalize_rel_path(&rel.to_string_lossy()))
+        .map_err(|_| anyhow::anyhow!("path is outside project root: {value}"))
 }
 
 fn normalize_absolute_arg(path: &Path) -> PathBuf {
@@ -743,16 +765,9 @@ fn lexical_normalize_absolute(path: &Path) -> PathBuf {
 }
 
 fn scoped_project_path(project: &crate::model::Project, value: &str) -> Result<PathBuf> {
-    let path = Path::new(value);
-    if path.is_absolute() {
-        let canonical = normalize_absolute_arg(path);
-        let root = normalize_absolute_arg(&project.root);
-        if canonical == root || canonical.starts_with(&root) {
-            return Ok(canonical);
-        }
-        bail!("refusing to write outside project root: {}", path.display());
-    }
-    Ok(project.root.join(repo::normalize_rel_path(value)))
+    project_relative_arg(project, value)
+        .map(|rel| project.root.join(rel))
+        .map_err(|_| anyhow::anyhow!("refusing to write outside project root: {value}"))
 }
 
 fn output<T: serde::Serialize>(
@@ -778,21 +793,27 @@ struct FilesReport {
     count: usize,
 }
 
-fn files_report(project: &crate::model::Project, path: Option<&str>, limit: usize) -> FilesReport {
-    let normalized_path = path.and_then(|path| project_relative_arg(project, path).ok());
+fn files_report(
+    project: &crate::model::Project,
+    path: Option<&str>,
+    limit: usize,
+) -> Result<FilesReport> {
+    let normalized_path = path
+        .map(|path| project_relative_arg(project, path))
+        .transpose()?;
     if let Some(rel) = normalized_path.as_deref()
         && project.files.contains_key(rel)
     {
         let mut files = vec![rel.to_string()];
         let count = files.len();
         files.truncate(limit);
-        return FilesReport {
+        return Ok(FilesReport {
             kind: "files",
             schema_version: "1",
             path: rel.to_string(),
             files,
             count,
-        };
+        });
     }
     let prefix = normalized_path
         .as_deref()
@@ -807,13 +828,13 @@ fn files_report(project: &crate::model::Project, path: Option<&str>, limit: usiz
     files.sort();
     let count = files.len();
     files.truncate(limit);
-    FilesReport {
+    Ok(FilesReport {
         kind: "files",
         schema_version: "1",
         path: normalized_path.unwrap_or_else(|| ".".to_string()),
         files,
         count,
-    }
+    })
 }
 
 fn files_markdown(report: &FilesReport) {

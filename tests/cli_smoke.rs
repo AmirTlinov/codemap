@@ -2299,6 +2299,43 @@ fn json_schemas_are_present_and_parse() {
     assert_schema_accepts("schemas/boundaries.schema.json", &boundaries_json);
 }
 
+#[test]
+fn explain_concept_targets_survive_path_normalization() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join(".ctx.yml"),
+        r#"version: 1
+concepts:
+  replay.timeline:
+    role: source_of_truth
+    files:
+      - src/replay-timeline.ts
+"#,
+    );
+    write(
+        &repo.path().join("src/replay-timeline.ts"),
+        "export const timeline = 1;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["explain", "replay.timeline", "--format", "json"])
+        .output()
+        .expect("ctx explain should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid explain json");
+    assert_schema_accepts("schemas/explain.schema.json", &json);
+    assert_eq!(json["kind"], "concept");
+    assert_eq!(json["id"], "replay.timeline");
+    assert_eq!(json["files"][0], "src/replay-timeline.ts");
+    assert_eq!(json["provenance"], "ctx_anchor");
+}
+
 fn assert_schema_accepts(schema_rel: &str, instance: &Value) {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let text = fs::read_to_string(root.join(schema_rel)).expect("schema should exist");
@@ -3025,6 +3062,15 @@ fn explicit_file_scopes_fail_closed_outside_selected_root() {
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["commit", "-qm", "init"]);
     let outside_file = outside.path().join("outside.ts");
+    let relative_parent_arg = format!(
+        "../__ctx_relative_parent_{}.ts",
+        repo.path()
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("repo")
+    );
+    let relative_parent_file = repo.path().join(&relative_parent_arg);
+    write(&relative_parent_file, "export const outside = 2;\n");
 
     let impact = ctx()
         .current_dir(repo.path())
@@ -3060,6 +3106,193 @@ fn explicit_file_scopes_fail_closed_outside_selected_root() {
     let stdout = String::from_utf8(verify.stdout).expect("stdout should be utf8");
     assert!(!stdout.contains("Verification Plan"));
     let stderr = String::from_utf8(verify.stderr).expect("stderr should be utf8");
+    assert!(stderr.contains("path is outside project root"));
+
+    let files = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "--root",
+            repo.path().to_str().unwrap(),
+            "files",
+            "--path",
+            outside_file.to_str().unwrap(),
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx files should run");
+    assert!(!files.status.success());
+    let stdout = String::from_utf8(files.stdout).expect("stdout should be utf8");
+    assert!(!stdout.contains("\"kind\""));
+    let stderr = String::from_utf8(files.stderr).expect("stderr should be utf8");
+    assert!(stderr.contains("path is outside project root"));
+
+    let relative_files = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "--root",
+            repo.path().to_str().unwrap(),
+            "files",
+            "--path",
+            &relative_parent_arg,
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx files should run");
+    assert!(!relative_files.status.success());
+    let stdout = String::from_utf8(relative_files.stdout).expect("stdout should be utf8");
+    assert!(!stdout.contains("\"kind\""));
+    let stderr = String::from_utf8(relative_files.stderr).expect("stderr should be utf8");
+    assert!(stderr.contains("path is outside project root"));
+
+    let init_print = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "--root",
+            repo.path().to_str().unwrap(),
+            "init",
+            "--print",
+            "--path",
+            outside_file.to_str().unwrap(),
+        ])
+        .output()
+        .expect("ctx init should run");
+    assert!(!init_print.status.success());
+    let stdout = String::from_utf8(init_print.stdout).expect("stdout should be utf8");
+    assert!(!stdout.contains("version: 1"));
+    let stderr = String::from_utf8(init_print.stderr).expect("stderr should be utf8");
+    assert!(stderr.contains("path is outside project root"));
+
+    let relative_init_print = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "--root",
+            repo.path().to_str().unwrap(),
+            "init",
+            "--print",
+            "--path",
+            &relative_parent_arg,
+        ])
+        .output()
+        .expect("ctx init should run");
+    assert!(!relative_init_print.status.success());
+    let stdout = String::from_utf8(relative_init_print.stdout).expect("stdout should be utf8");
+    assert!(!stdout.contains("version: 1"));
+    let stderr = String::from_utf8(relative_init_print.stderr).expect("stderr should be utf8");
+    assert!(stderr.contains("path is outside project root"));
+
+    let start = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "--root",
+            repo.path().to_str().unwrap(),
+            "start",
+            "--task",
+            "fix save",
+            "--path",
+            outside_file.to_str().unwrap(),
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx start should run");
+    assert!(!start.status.success());
+    let stdout = String::from_utf8(start.stdout).expect("stdout should be utf8");
+    assert!(!stdout.contains("task_context_capsule"));
+    let stderr = String::from_utf8(start.stderr).expect("stderr should be utf8");
+    assert!(stderr.contains("path is outside project root"));
+
+    let explain = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "--root",
+            repo.path().to_str().unwrap(),
+            "explain",
+            outside_file.to_str().unwrap(),
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx explain should run");
+    assert!(!explain.status.success());
+    let stdout = String::from_utf8(explain.stdout).expect("stdout should be utf8");
+    assert!(!stdout.contains("\"kind\""));
+    let stderr = String::from_utf8(explain.stderr).expect("stderr should be utf8");
+    assert!(stderr.contains("path is outside project root"));
+
+    let graph = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "--root",
+            repo.path().to_str().unwrap(),
+            "graph",
+            "--path",
+            outside_file.to_str().unwrap(),
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx graph should run");
+    assert!(!graph.status.success());
+    let stdout = String::from_utf8(graph.stdout).expect("stdout should be utf8");
+    assert!(!stdout.contains("graph_lens"));
+    let stderr = String::from_utf8(graph.stderr).expect("stderr should be utf8");
+    assert!(stderr.contains("path is outside project root"));
+
+    let widen_path = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "--root",
+            repo.path().to_str().unwrap(),
+            "widen",
+            "--task",
+            "fix save",
+            "--path",
+            outside_file.to_str().unwrap(),
+            "--reason",
+            "read-first set did not contain the cause",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx widen should run");
+    assert!(!widen_path.status.success());
+    let stdout = String::from_utf8(widen_path.stdout).expect("stdout should be utf8");
+    assert!(!stdout.contains("widened_context"));
+    let stderr = String::from_utf8(widen_path.stderr).expect("stderr should be utf8");
+    assert!(stderr.contains("path is outside project root"));
+
+    let widen = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "--root",
+            repo.path().to_str().unwrap(),
+            "widen",
+            "--task",
+            "fix save",
+            "--reason",
+            "read-first set did not contain the cause",
+            "--already",
+            outside_file.to_str().unwrap(),
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx widen should run");
+    assert!(!widen.status.success());
+    let stdout = String::from_utf8(widen.stdout).expect("stdout should be utf8");
+    assert!(!stdout.contains("widened_context"));
+    let stderr = String::from_utf8(widen.stderr).expect("stderr should be utf8");
     assert!(stderr.contains("path is outside project root"));
 
     let missing_outside = repo.path().join("../__ctx_outside_missing_review_probe.ts");
@@ -3099,6 +3332,7 @@ fn explicit_file_scopes_fail_closed_outside_selected_root() {
     assert!(!stdout.contains("Verification Plan"));
     let stderr = String::from_utf8(missing_verify.stderr).expect("stderr should be utf8");
     assert!(stderr.contains("path is outside project root"));
+    let _ = fs::remove_file(relative_parent_file);
 }
 
 #[test]
@@ -3282,6 +3516,25 @@ fn init_write_minimal_refuses_absolute_path_outside_repo() {
     assert!(!missing_output.status.success());
     assert!(!missing_outside.join(".ctx.yml").exists());
     let stderr = String::from_utf8(missing_output.stderr).expect("stderr should be utf8");
+    assert!(stderr.contains("refusing to write outside project root"));
+
+    let relative_parent_arg = format!(
+        "../__ctx_relative_parent_write_{}",
+        repo.path()
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("repo")
+    );
+    let relative_parent_target = repo.path().join(&relative_parent_arg);
+    let relative_output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["init", "--write-minimal", "--path", &relative_parent_arg])
+        .output()
+        .expect("ctx init should run");
+    assert!(!relative_output.status.success());
+    assert!(!relative_parent_target.join(".ctx.yml").exists());
+    let stderr = String::from_utf8(relative_output.stderr).expect("stderr should be utf8");
     assert!(stderr.contains("refusing to write outside project root"));
 }
 
