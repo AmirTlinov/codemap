@@ -288,6 +288,17 @@ pub fn impact(report: &ImpactReport) {
 
 pub fn verify(changed: &[String], plan: &VerificationPlan) {
     println!("# Verification Plan\n");
+    if changed.is_empty()
+        && plan.minimal.is_empty()
+        && plan.recommended.is_empty()
+        && plan.full_only_if_triggered.is_empty()
+    {
+        println!(
+            "No changed files detected. Use `--files a,b` or run inside a git repo with changes."
+        );
+        println!("\n`ctx verify` does not run commands unless `--run` is explicit.");
+        return;
+    }
     if !changed.is_empty() {
         println!("Changed files:");
         println!("{}", bullet(changed, true, Some(20)));

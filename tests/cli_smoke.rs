@@ -829,6 +829,77 @@ fn verify_prints_plan_and_does_not_run_without_run() {
 }
 
 #[test]
+fn changed_reports_do_not_infer_project_checks_when_diff_is_empty() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join("package.json"),
+        r#"{"scripts":{"test":"echo SHOULD_NOT_BE_PLANNED"}}"#,
+    );
+    write(&repo.path().join("index.ts"), "export const x = 1;\n");
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let impact = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["impact", "--changed", "--format", "json"])
+        .output()
+        .expect("ctx impact should run");
+    assert!(impact.status.success());
+    let impact_json: Value = serde_json::from_slice(&impact.stdout).expect("valid impact json");
+    assert!(impact_json["changed"].as_array().unwrap().is_empty());
+    assert!(
+        impact_json["minimal_verification"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+
+    let verify_json_output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["verify", "--changed", "--format", "json"])
+        .output()
+        .expect("ctx verify should run");
+    assert!(verify_json_output.status.success());
+    let verify_json: Value =
+        serde_json::from_slice(&verify_json_output.stdout).expect("valid verify json");
+    assert!(verify_json["changed"].as_array().unwrap().is_empty());
+    assert!(
+        verify_json["verification"]["minimal"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+
+    let verify_markdown = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["verify", "--changed"])
+        .output()
+        .expect("ctx verify should run");
+    assert!(verify_markdown.status.success());
+    let stdout = String::from_utf8(verify_markdown.stdout).expect("stdout should be utf8");
+    assert!(stdout.contains("No changed files detected"));
+    assert!(!stdout.contains("SHOULD_NOT_BE_PLANNED"));
+
+    let verify_run = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["verify", "--changed", "--run"])
+        .output()
+        .expect("ctx verify --run should run");
+    assert!(
+        !verify_run.status.success(),
+        "verify --run should fail closed when no changed-file commands exist"
+    );
+    let stderr = String::from_utf8(verify_run.stderr).expect("stderr should be utf8");
+    assert!(stderr.contains("no verification commands inferred"));
+}
+
+#[test]
 fn verify_run_fails_when_only_placeholder_is_inferred() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");

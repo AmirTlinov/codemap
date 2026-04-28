@@ -345,6 +345,23 @@ pub fn impact_report(
         .map(|f| repo::normalize_rel_path(&f))
         .filter(|f| f != ".")
         .collect();
+    if changed.is_empty() {
+        return ImpactReport {
+            kind: "impact_report",
+            schema_version: "1",
+            changed,
+            risk: Risk::Low.as_str().to_string(),
+            files: Vec::new(),
+            impacted: Vec::new(),
+            related_tests: Vec::new(),
+            domains: Vec::new(),
+            external_domains: Vec::new(),
+            minimal_verification: Vec::new(),
+            recommended_verification: Vec::new(),
+            full_verification: Vec::new(),
+            expansion_triggers: Vec::new(),
+        };
+    }
     let mut impacted = impacted_files(project, &changed, depth, limit);
     let package_seed = [changed.clone(), impacted.clone()].concat();
     let package_impacted = package_consumer_manifests(
