@@ -234,6 +234,7 @@ pub struct VerificationPlan {
 #[derive(Debug, Clone, Serialize)]
 pub struct TaskCapsule {
     pub kind: &'static str,
+    pub schema_version: &'static str,
     pub task: String,
     pub domain: DomainRef,
     pub task_kind: String,
@@ -293,6 +294,8 @@ pub struct LocateCandidate {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ImpactReport {
+    pub kind: &'static str,
+    pub schema_version: &'static str,
     pub changed: Vec<String>,
     pub risk: String,
     pub files: Vec<FileRisk>,
@@ -303,6 +306,18 @@ pub struct ImpactReport {
     pub minimal_verification: Vec<String>,
     pub recommended_verification: Vec<String>,
     pub full_verification: Vec<String>,
+    pub expansion_triggers: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct VerifyReport {
+    pub kind: &'static str,
+    pub schema_version: &'static str,
+    pub changed: Vec<String>,
+    pub risk: String,
+    pub impacted: Vec<String>,
+    pub related_tests: Vec<String>,
+    pub verification: VerificationPlan,
     pub expansion_triggers: Vec<String>,
 }
 

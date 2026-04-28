@@ -508,7 +508,8 @@ fn verify_uses_impact_traversal_for_recommended_checks() {
         .expect("ctx verify should run");
     assert!(output.status.success());
     let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
-    let recommended = json[1]["recommended"].as_array().unwrap();
+    assert_eq!(json["kind"], "verification_plan");
+    let recommended = json["verification"]["recommended"].as_array().unwrap();
     assert!(
         recommended
             .iter()
@@ -532,14 +533,18 @@ fn global_instruction_does_not_advertise_fake_agent_mode_flag() {
 #[test]
 fn json_schemas_are_present_and_parse() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    for rel in ["schemas/capsule.schema.json", "schemas/impact.schema.json"] {
+    for rel in [
+        "schemas/capsule.schema.json",
+        "schemas/impact.schema.json",
+        "schemas/verify.schema.json",
+    ] {
         let text = fs::read_to_string(root.join(rel)).expect("schema should exist");
         let json: Value = serde_json::from_str(&text).expect("schema should be valid json");
         assert_eq!(
             json["$schema"],
             "https://json-schema.org/draft/2020-12/schema"
         );
-        assert!(json["required"].as_array().unwrap().len() >= 10);
+        assert!(json["required"].as_array().unwrap().len() >= 8);
     }
 
     let repo = TempDir::new().expect("repo tempdir");
@@ -575,6 +580,16 @@ fn json_schemas_are_present_and_parse() {
     assert!(impact.status.success());
     let impact_json: Value = serde_json::from_slice(&impact.stdout).expect("valid impact json");
     assert_schema_accepts("schemas/impact.schema.json", &impact_json);
+
+    let verify = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["verify", "--files", "src/save.ts", "--format", "json"])
+        .output()
+        .expect("ctx verify should run");
+    assert!(verify.status.success());
+    let verify_json: Value = serde_json::from_slice(&verify.stdout).expect("valid verify json");
+    assert_schema_accepts("schemas/verify.schema.json", &verify_json);
 }
 
 fn assert_schema_accepts(schema_rel: &str, instance: &Value) {

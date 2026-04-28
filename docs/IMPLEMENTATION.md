@@ -30,7 +30,7 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - `ctx init --agents`
 - `ctx bootstrap --global-instruction`
 - `ctx anchors validate`
-- stable JSON schemas for `ctx start --format json` and `ctx impact --format json` under `schemas/`
+- stable JSON schemas for `ctx start --format json`, `ctx impact --format json`, and `ctx verify --format json` under `schemas/`
 - root and nested `.ctx.yml` semantic anchor loading
 - YAML anchor parsing through `serde_yml`
 - absolute `--path` and `--files` arguments normalized to the owning repo
@@ -75,8 +75,9 @@ This is intentionally flatter than the final large-tree design. The next split s
 - explicit forbidden boundary edges have regression coverage.
 - package-manifest boundary edges have regression coverage.
 - `verify` recommends checks discovered through impacted files, not only directly changed files, including bounded multi-hop traversal when `--depth` is raised.
-- schema files are valid JSON, pinned to JSON Schema draft 2020-12, and validate real `start`/`impact` JSON outputs in tests.
+- schema files are valid JSON, pinned to JSON Schema draft 2020-12, and validate real `start`/`impact`/`verify` JSON outputs in tests.
 - `tests/golden_routing.rs` protects mixed-monorepo routing quality.
+- `tests/e2e_workflow.rs` protects the full agent loop: `start -> impact -> verify -> verify --run -> boundaries -> explain`.
 
 ## Next Useful Slices
 

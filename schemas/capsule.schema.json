@@ -6,6 +6,7 @@
   "additionalProperties": false,
   "required": [
     "kind",
+    "schema_version",
     "task",
     "domain",
     "task_kind",
@@ -26,6 +27,7 @@
   ],
   "properties": {
     "kind": { "const": "task_context_capsule" },
+    "schema_version": { "const": "1" },
     "task": { "type": "string" },
     "domain": { "$ref": "#/$defs/domain_ref" },
     "task_kind": { "type": "string" },

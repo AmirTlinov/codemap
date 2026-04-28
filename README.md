@@ -71,7 +71,8 @@ ctx anchors validate
 ```
 
 Markdown is the default agent-facing format. JSON is available with `--format json`.
-Stable JSON schemas for the task capsule and impact report live in `schemas/capsule.schema.json` and `schemas/impact.schema.json`.
+Stable JSON schemas live under `schemas/` for task capsules, impact reports, and verification plans.
+Schema-backed outputs include `schema_version: "1"`.
 
 ## Agent Integration
 

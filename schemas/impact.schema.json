@@ -5,6 +5,8 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
+    "kind",
+    "schema_version",
     "changed",
     "risk",
     "files",
@@ -18,6 +20,8 @@
     "expansion_triggers"
   ],
   "properties": {
+    "kind": { "const": "impact_report" },
+    "schema_version": { "const": "1" },
     "changed": {
       "type": "array",
       "items": { "type": "string" }

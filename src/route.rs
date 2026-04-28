@@ -7,7 +7,7 @@ use crate::cache;
 use crate::model::{
     BoundaryFinding, CacheInfo, Candidate, Confidence, DoNotRead, Domain, DomainRef, ExplainReport,
     FileInfo, FileRisk, GraphEdge, GraphLens, ImpactReport, LocateCandidate, LocateReport, Project,
-    Risk, TaskCapsule, VerificationPlan, WidenReport,
+    Risk, TaskCapsule, VerificationPlan, VerifyReport, WidenReport,
 };
 use crate::repo;
 
@@ -246,6 +246,7 @@ pub fn start_capsule(
     );
     TaskCapsule {
         kind: "task_context_capsule",
+        schema_version: "1",
         task: task.to_string(),
         domain: domain.into(),
         task_kind: kind.clone(),
@@ -266,6 +267,29 @@ pub fn start_capsule(
             path: project.cache_dir.to_string_lossy().to_string(),
             fingerprint: cache::fingerprint(project, Some(&domain.path)),
         },
+    }
+}
+
+pub fn verify_report(
+    project: &Project,
+    changed: Vec<String>,
+    depth: usize,
+    limit: usize,
+) -> VerifyReport {
+    let impact = impact_report(project, changed, depth, limit);
+    VerifyReport {
+        kind: "verification_plan",
+        schema_version: "1",
+        changed: impact.changed,
+        risk: impact.risk,
+        impacted: impact.impacted,
+        related_tests: impact.related_tests,
+        verification: VerificationPlan {
+            minimal: impact.minimal_verification,
+            recommended: impact.recommended_verification,
+            full_only_if_triggered: impact.full_verification,
+        },
+        expansion_triggers: impact.expansion_triggers,
     }
 }
 
@@ -327,6 +351,8 @@ pub fn impact_report(
         triggers.push("generated file changed".to_string());
     }
     ImpactReport {
+        kind: "impact_report",
+        schema_version: "1",
         changed,
         risk: max_risk.as_str().to_string(),
         files,

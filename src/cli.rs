@@ -6,7 +6,6 @@ use std::process::Command;
 use anyhow::{Result, bail};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
-use crate::model::VerificationPlan;
 use crate::{render, repo, route};
 
 #[derive(Debug, Parser)]
@@ -429,24 +428,19 @@ fn init(project: &crate::model::Project, args: InitArgs) -> Result<()> {
 fn verify(project: &crate::model::Project, args: VerifyArgs) -> Result<()> {
     ensure_valid_config(project)?;
     let changed = changed_from_verify_args(project, &args);
-    let impact = route::impact_report(project, changed.clone(), args.depth, args.limit);
-    let plan = VerificationPlan {
-        minimal: impact.minimal_verification.clone(),
-        recommended: impact.recommended_verification.clone(),
-        full_only_if_triggered: impact.full_verification.clone(),
-    };
+    let report = route::verify_report(project, changed.clone(), args.depth, args.limit);
     if args.run {
-        render::verify(&changed, &plan);
-        return run_plan(project, &plan, args.recommended);
+        render::verify(&report.changed, &report.verification);
+        return run_plan(project, &report.verification, args.recommended);
     }
-    output(args.format, &(changed.clone(), plan.clone()), || {
-        render::verify(&changed, &plan)
+    output(args.format, &report, || {
+        render::verify(&report.changed, &report.verification)
     })
 }
 
 fn run_plan(
     project: &crate::model::Project,
-    plan: &VerificationPlan,
+    plan: &crate::model::VerificationPlan,
     include_recommended: bool,
 ) -> Result<()> {
     let mut commands = plan.minimal.clone();

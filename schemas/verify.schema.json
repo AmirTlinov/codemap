@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AmirTlinov/ctx/schemas/verify.schema.json",
+  "title": "ctx verification plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "schema_version",
+    "changed",
+    "risk",
+    "impacted",
+    "related_tests",
+    "verification",
+    "expansion_triggers"
+  ],
+  "properties": {
+    "kind": { "const": "verification_plan" },
+    "schema_version": { "const": "1" },
+    "changed": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "risk": { "$ref": "#/$defs/risk" },
+    "impacted": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "related_tests": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "verification": { "$ref": "#/$defs/verification_plan" },
+    "expansion_triggers": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "risk": {
+      "type": "string",
+      "enum": ["low", "medium", "medium-high", "high", "critical"]
+    },
+    "verification_plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minimal", "recommended", "full_only_if_triggered"],
+      "properties": {
+        "minimal": {
+          "type": "array",
+          "maxItems": 3,
+          "items": { "type": "string" }
+        },
+        "recommended": {
+          "type": "array",
+          "maxItems": 3,
+          "items": { "type": "string" }
+        },
+        "full_only_if_triggered": {
+          "type": "array",
+          "maxItems": 3,
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}
