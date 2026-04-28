@@ -30,7 +30,7 @@ A task capsule must answer:
 
 For task-specific misses, `ctx` must not pretend confidence is high. For broad general tasks, it should still return a small orientation route so the agent has a safe first read instead of scanning the repository manually.
 
-Fixture/example code is not normal ownership evidence. It should not become the route owner unless the task explicitly asks for fixtures or the command is scoped into that fixture.
+Fixture/example/sample code is not normal ownership evidence. It should not become the route owner unless the task explicitly asks for that support artifact or the command is scoped into it. When present and not requested, these roots belong in `do_not_read_yet`.
 
 Hard output budgets:
 

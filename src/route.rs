@@ -1076,12 +1076,16 @@ fn select_read_first(
     exclude: &BTreeSet<String>,
 ) -> Vec<Candidate> {
     let include_fixtures = task_mentions_fixture(task) || domain.path.contains("fixtures");
+    let include_examples = task_mentions_example(task)
+        || domain.path.contains("examples")
+        || domain.path.contains("samples");
     let mut candidates = domain_files(project, domain)
         .into_iter()
         .filter(|file| {
             !exclude.contains(&file.rel)
                 && !file.has_role("generated")
                 && (include_fixtures || !file.has_role("fixture"))
+                && (include_examples || !file.has_role("example"))
         })
         .map(|file| score_file(project, file, task, kind))
         .filter(|candidate| candidate.score >= 1.0)
@@ -1114,6 +1118,7 @@ fn select_read_first(
                     && !file.has_role("test")
                     && !file.has_role("generated")
                     && (include_fixtures || !file.has_role("fixture"))
+                    && (include_examples || !file.has_role("example"))
             })
             .take(limit)
             .map(|file| Candidate {
@@ -1129,6 +1134,14 @@ fn select_read_first(
 fn task_mentions_fixture(task: &str) -> bool {
     let text = task.to_ascii_lowercase();
     text.contains("fixture") || text.contains("fixtures")
+}
+
+fn task_mentions_example(task: &str) -> bool {
+    let text = task.to_ascii_lowercase();
+    text.contains("example")
+        || text.contains("examples")
+        || text.contains("sample")
+        || text.contains("samples")
 }
 
 fn score_file(_project: &Project, file: &FileInfo, task: &str, kind: &str) -> Candidate {
@@ -1265,6 +1278,9 @@ fn score_file(_project: &Project, file: &FileInfo, task: &str, kind: &str) -> Ca
     if file.has_role("fixture") && kind != "test" && !task_mentions_fixture(task) {
         score -= 4.0;
     }
+    if file.has_role("example") && kind != "test" && !task_mentions_example(task) {
+        score -= 4.0;
+    }
     Candidate {
         path: file.rel.clone(),
         score,
@@ -1317,12 +1333,22 @@ fn test_files_for(
             .map(|file| file.has_role("fixture"))
             .unwrap_or(false)
     });
+    let allow_example_tests = rels.iter().any(|rel| {
+        project
+            .files
+            .get(rel)
+            .map(|file| file.has_role("example"))
+            .unwrap_or(false)
+    });
     let mut scored = Vec::new();
     for file in project.files.values() {
         if !file.has_role("test") {
             continue;
         }
         if file.has_role("fixture") && !allow_fixture_tests {
+            continue;
+        }
+        if file.has_role("example") && !allow_example_tests {
             continue;
         }
         let mut score = 0.0;
@@ -1370,7 +1396,7 @@ fn source_truths(project: &Project, domain: &Domain) -> Vec<String> {
         }
     }
     for file in domain_files(project, domain) {
-        if file.has_role("fixture") {
+        if file.has_role("fixture") || file.has_role("example") {
             continue;
         }
         if file.has_role("source_of_truth") || file.has_role("persistence") {
@@ -1383,7 +1409,11 @@ fn source_truths(project: &Project, domain: &Domain) -> Vec<String> {
 fn public_boundaries(project: &Project, domain: &Domain) -> Vec<String> {
     domain_files(project, domain)
         .into_iter()
-        .filter(|file| file.has_role("public_boundary") && !file.has_role("fixture"))
+        .filter(|file| {
+            file.has_role("public_boundary")
+                && !file.has_role("fixture")
+                && !file.has_role("example")
+        })
         .map(|file| file.rel.clone())
         .take(8)
         .collect()
@@ -1414,7 +1444,36 @@ fn do_not_read_yet(
 ) -> Vec<DoNotRead> {
     let task_l = task.to_ascii_lowercase();
     let mut out = Vec::new();
+    let mut seen = BTreeSet::new();
+    if !task_mentions_fixture(task) && !domain.path.contains("fixtures") {
+        for path in support_roots_for_role(project, domain, "fixture", &["fixtures"]) {
+            push_do_not_read(
+                &mut out,
+                &mut seen,
+                path,
+                "fixture code is support evidence, not the task owner; inspect only if the task names fixtures",
+                limit,
+            );
+        }
+    }
+    if !task_mentions_example(task)
+        && !domain.path.contains("examples")
+        && !domain.path.contains("samples")
+    {
+        for path in support_roots_for_role(project, domain, "example", &["examples", "samples"]) {
+            push_do_not_read(
+                &mut out,
+                &mut seen,
+                path,
+                "example/sample code is support evidence, not the task owner; inspect only if the task names examples or samples",
+                limit,
+            );
+        }
+    }
     for other in &project.domains {
+        if out.len() >= limit {
+            break;
+        }
         if other.id == domain.id && other.path == domain.path {
             continue;
         }
@@ -1443,19 +1502,52 @@ fn do_not_read_yet(
             } else {
                 "not predicted by task route"
             };
-        out.push(DoNotRead {
-            path: if other.path == "." {
-                ".".to_string()
-            } else {
-                format!("{}/**", other.path)
-            },
-            reason: reason.to_string(),
-        });
-        if out.len() >= limit {
-            break;
-        }
+        let path = if other.path == "." {
+            ".".to_string()
+        } else {
+            format!("{}/**", other.path)
+        };
+        push_do_not_read(&mut out, &mut seen, path, reason, limit);
     }
     out
+}
+
+fn push_do_not_read(
+    out: &mut Vec<DoNotRead>,
+    seen: &mut BTreeSet<String>,
+    path: String,
+    reason: &str,
+    limit: usize,
+) {
+    if out.len() >= limit || !seen.insert(path.clone()) {
+        return;
+    }
+    out.push(DoNotRead {
+        path,
+        reason: reason.to_string(),
+    });
+}
+
+fn support_roots_for_role(
+    project: &Project,
+    domain: &Domain,
+    role: &str,
+    markers: &[&str],
+) -> Vec<String> {
+    let mut roots = Vec::new();
+    for file in domain_files(project, domain) {
+        if !file.has_role(role) {
+            continue;
+        }
+        let parts = file.rel.split('/').collect::<Vec<_>>();
+        for (idx, part) in parts.iter().enumerate() {
+            if markers.iter().any(|marker| part == marker) {
+                roots.push(format!("{}/**", parts[..=idx].join("/")));
+                break;
+            }
+        }
+    }
+    unique(roots).into_iter().take(4).collect()
 }
 
 fn forbidden_moves(project: &Project, domain: &Domain, kind: &str) -> Vec<String> {

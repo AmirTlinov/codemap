@@ -1109,6 +1109,10 @@ fn start_does_not_route_into_top_level_fixtures_by_default() {
         &repo.path().join("fixtures/replay/src/replay-timeline.ts"),
         "export const replayTimeline = 1;\n",
     );
+    write(
+        &repo.path().join("examples/replay/src/replay-session.ts"),
+        "export const replayExample = 1;\n",
+    );
     write(&repo.path().join("src/model.rs"), "pub struct Model;\n");
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["commit", "-qm", "init"]);
@@ -1128,12 +1132,23 @@ fn start_does_not_route_into_top_level_fixtures_by_default() {
     assert!(output.status.success());
     let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
     assert_ne!(json["confidence"], "high");
+    assert!(json["read_first"].as_array().unwrap().iter().all(|item| {
+        let path = item["path"].as_str().unwrap_or("");
+        !path.starts_with("fixtures/") && !path.starts_with("examples/")
+    }));
     assert!(
-        json["read_first"]
+        json["do_not_read_yet"]
             .as_array()
             .unwrap()
             .iter()
-            .all(|item| !item["path"].as_str().unwrap_or("").starts_with("fixtures/"))
+            .any(|item| item["path"].as_str() == Some("fixtures/**"))
+    );
+    assert!(
+        json["do_not_read_yet"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["path"].as_str() == Some("examples/**"))
     );
 
     let locate = ctx()
@@ -1185,6 +1200,46 @@ fn start_does_not_route_into_top_level_fixtures_by_default() {
                 .as_str()
                 .unwrap_or("")
                 .starts_with("fixtures/replay/"))
+    );
+    assert!(
+        fixture_json["do_not_read_yet"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item["path"].as_str() != Some("fixtures/**"))
+    );
+
+    let example_output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "start",
+            "--task",
+            "fix replay example seek behavior",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx start example should run");
+    assert!(example_output.status.success());
+    let example_json: Value =
+        serde_json::from_slice(&example_output.stdout).expect("valid example json");
+    assert!(
+        example_json["read_first"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["path"]
+                .as_str()
+                .unwrap_or("")
+                .starts_with("examples/replay/"))
+    );
+    assert!(
+        example_json["do_not_read_yet"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item["path"].as_str() != Some("examples/**"))
     );
 }
 

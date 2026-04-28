@@ -555,6 +555,13 @@ fn classify_roles(info: &mut FileInfo) {
     if rel.starts_with("fixtures/") || rel.contains("/fixtures/") {
         info.roles.insert("fixture".to_string());
     }
+    if rel.starts_with("examples/")
+        || rel.contains("/examples/")
+        || rel.starts_with("samples/")
+        || rel.contains("/samples/")
+    {
+        info.roles.insert("example".to_string());
+    }
     if is_test_path(&rel) {
         info.roles.insert("test".to_string());
     }

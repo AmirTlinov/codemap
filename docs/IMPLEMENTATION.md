@@ -77,7 +77,8 @@ This is intentionally flatter than the final large-tree design. The next split s
 - nested domain `.ctx.yml` files are loaded and normalized to repo-relative paths;
 - task keywords alone do not create high-confidence capsules without matching files or anchors;
 - broad low-confidence general tasks still receive a bounded orientation route instead of an empty read-first set;
-- top-level fixtures are excluded from normal task routing unless the task explicitly asks for fixtures;
+- top-level fixtures/examples/samples are excluded from normal task routing unless the task explicitly asks for them;
+- support artifact roots such as `fixtures/**` and `examples/**` appear in negative context when they are not task owners;
 - absolute start paths and file arguments work from outside the repo;
 - `ctx init --write-minimal` writes a valid skeletal `.ctx.yml` and refuses absolute paths outside the repo.
 - invalid semantic anchors block `start`/`impact`/`verify` until fixed, while `ctx anchors validate` stays available for diagnosis.
