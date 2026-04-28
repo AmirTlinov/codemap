@@ -1339,10 +1339,22 @@ fn test_files_for(
     if limit == 0 {
         return Vec::new();
     }
-    let stems: Vec<String> = rels
+    let stem_domains: Vec<(String, Option<String>)> = rels
         .iter()
-        .filter_map(|r| Path::new(r).file_stem().and_then(|s| s.to_str()))
-        .map(|s| s.replace(".test", "").replace(".spec", ""))
+        .filter_map(|r| {
+            let stem = Path::new(r)
+                .file_stem()
+                .and_then(|s| s.to_str())?
+                .replace(".test", "")
+                .replace(".spec", "");
+            if matches!(stem.as_str(), "index" | "mod" | "main" | "lib") {
+                return None;
+            }
+            let source_domain = domain_by_rel(project, r)
+                .or(domain)
+                .map(|domain| domain.path.clone());
+            Some((stem, source_domain))
+        })
         .collect();
     let allow_fixture_tests = rels.iter().any(|rel| {
         project
@@ -1370,7 +1382,11 @@ fn test_files_for(
             continue;
         }
         let mut score = 0.0;
-        for stem in &stems {
+        let test_domain = domain_by_rel(project, &file.rel).map(|domain| domain.path.clone());
+        for (stem, source_domain) in &stem_domains {
+            if source_domain.is_some() && source_domain != &test_domain {
+                continue;
+            }
             if !stem.is_empty()
                 && file
                     .rel

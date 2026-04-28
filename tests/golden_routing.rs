@@ -239,4 +239,11 @@ fn mixed_monorepo_impact_expands_package_consumers_when_internal_change_reaches_
             .iter()
             .any(|item| item["path"].as_str() == Some("apps/web"))
     );
+    assert!(
+        !json["related_tests"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("domains/replay/tests/replay-session.test.ts"))
+    );
 }
