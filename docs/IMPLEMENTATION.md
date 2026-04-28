@@ -80,6 +80,7 @@ src/repo.rs
 src/route.rs
 src/render.rs
 src/cache.rs
+src/route/graph_lens.rs
 ```
 
 This is intentionally flatter than the final large-tree design. The next split should happen only when a module becomes hard to change, not as ceremony.
