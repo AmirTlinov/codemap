@@ -390,3 +390,90 @@ fn absolute_start_path_selects_target_repo_from_any_cwd() {
     );
     assert_eq!(json["domain"]["path"], ".");
 }
+
+#[test]
+fn absolute_file_args_are_normalized_to_repo_relative_paths() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let outside = TempDir::new().expect("outside tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join("src/save.ts"),
+        "export function saveGame(x: string) { return x }\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+    let absolute = repo.path().join("src/save.ts");
+
+    let output = ctx()
+        .current_dir(outside.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "impact",
+            "--files",
+            absolute.to_str().unwrap(),
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx impact should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
+    assert_eq!(json["changed"][0], "src/save.ts");
+}
+
+#[test]
+fn init_write_minimal_refuses_absolute_path_outside_repo() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let outside = TempDir::new().expect("outside tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(&repo.path().join("main.py"), "print('x')\n");
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "init",
+            "--write-minimal",
+            "--path",
+            outside.path().to_str().unwrap(),
+        ])
+        .output()
+        .expect("ctx init should run");
+    assert!(!output.status.success());
+    assert!(!outside.path().join(".ctx.yml").exists());
+}
+
+#[test]
+fn init_write_minimal_creates_domain_directory_when_explicit() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(&repo.path().join("main.py"), "print('x')\n");
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["init", "--write-minimal", "--path", "domains/replay"])
+        .output()
+        .expect("ctx init should run");
+    assert!(output.status.success());
+    let written = fs::read_to_string(repo.path().join("domains/replay/.ctx.yml"))
+        .expect("ctx config should be written");
+    assert!(written.contains("id: replay"));
+
+    let validate = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["anchors", "validate", "--format", "json"])
+        .output()
+        .expect("ctx anchors validate should run");
+    assert!(validate.status.success());
+    let json: Value = serde_json::from_slice(&validate.stdout).expect("valid json");
+    assert_eq!(json["ok"], true);
+}

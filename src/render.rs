@@ -476,7 +476,7 @@ pub fn suggested_ctx_yml_for(path: Option<&str>) -> String {
         .filter(|p| !p.is_empty() && *p != ".")
         .unwrap_or("repo");
     format!(
-        "version: 1\n\ndomain:\n  id: {domain_id}\n  purpose: replace with one-sentence domain purpose\n\nowns:\n  - replace with owned concept\n\ndoes_not_own:\n  - replace with explicit non-goal\n\nconcepts:\n  {domain_id}.truth:\n    role: source_of_truth\n    files:\n      - src/replace-me\n    invariants:\n      - replace with invariant\n\nboundaries:\n  forbidden: []\n\ntask_routes: {{}}\n\nverification:\n  default: []\n"
+        "version: 1\n\ndomain:\n  id: {domain_id}\n\nboundaries:\n  forbidden: []\n\ntask_routes: {{}}\n\nverification:\n  default: []\n"
     )
 }
 

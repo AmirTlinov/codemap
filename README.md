@@ -55,6 +55,7 @@ ctx start --task "fix broken save" --path src
 ctx impact --changed
 ctx impact --staged
 ctx impact --since main
+ctx impact --files /abs/path/to/file.ts
 ctx verify --changed
 ctx verify --changed --run
 ctx explain src/lib.rs
@@ -98,6 +99,8 @@ This writes a tiny `AGENTS.md` that tells agents to call `ctx`. It is not a proj
 ## Optional `.ctx.yml`
 
 Zero-config works from files, manifests, tests, imports, scripts, and git diff. Use `.ctx.yml` only for semantic facts code cannot reliably reveal. A config can live at the repo root or inside a domain directory; nested config paths are treated as domain-local and normalized to repo-relative paths:
+
+`ctx init --write-minimal --path domains/replay` writes a valid skeletal config only. It does not invent placeholder concepts, source-of-truth files, or boundaries.
 
 ```yaml
 version: 1

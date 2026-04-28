@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::{Result, bail};
@@ -342,12 +342,40 @@ fn command_root_hint(command: &CommandKind) -> Option<PathBuf> {
     match command {
         CommandKind::Start(args) => absolute_path_hint(args.path.as_deref()),
         CommandKind::Widen(args) => absolute_path_hint(args.path.as_deref()),
+        CommandKind::Impact(args) => {
+            absolute_files_hint(args.files.as_deref(), &args.positional_files)
+        }
+        CommandKind::Verify(args) => {
+            absolute_files_hint(args.files.as_deref(), &args.positional_files)
+        }
         _ => None,
     }
 }
 
 fn absolute_path_hint(path: Option<&str>) -> Option<PathBuf> {
     path.map(PathBuf::from).filter(|path| path.is_absolute())
+}
+
+fn absolute_files_hint(files: Option<&str>, positional: &[String]) -> Option<PathBuf> {
+    files
+        .into_iter()
+        .flat_map(|files| files.split(','))
+        .chain(positional.iter().map(String::as_str))
+        .filter_map(absolute_file_root_hint)
+        .next()
+}
+
+fn absolute_file_root_hint(value: &str) -> Option<PathBuf> {
+    let path = PathBuf::from(value);
+    if !path.is_absolute() {
+        return None;
+    }
+    let absolute = path.canonicalize().unwrap_or(path);
+    if absolute.is_file() {
+        absolute.parent().map(Path::to_path_buf)
+    } else {
+        Some(absolute)
+    }
 }
 
 fn init(project: &crate::model::Project, args: InitArgs) -> Result<()> {
@@ -362,16 +390,20 @@ fn init(project: &crate::model::Project, args: InitArgs) -> Result<()> {
     }
     if args.write_minimal {
         let body = render::suggested_ctx_yml_for(args.path.as_deref());
-        let target = if let Some(path) = args.path.as_deref() {
-            project.root.join(path).join(".ctx.yml")
+        let target_dir = if let Some(path) = args.path.as_deref() {
+            scoped_project_path(project, path)?
         } else {
-            project.root.join(".ctx.yml")
+            project.root.clone()
         };
+        let target = target_dir.join(".ctx.yml");
         if target.exists() && !args.force {
             bail!(
                 "{} already exists. Use --force to overwrite.",
                 target.display()
             );
+        }
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent)?;
         }
         fs::write(&target, body)?;
         println!("Wrote `{}`.", target.display());
@@ -439,7 +471,7 @@ fn changed_from_args(project: &crate::model::Project, args: &ImpactArgs) -> Vec<
     if let Some(since) = &args.since {
         return repo::changed_files(&project.root, false, Some(since));
     }
-    parse_files(args.files.as_deref(), &args.positional_files)
+    parse_files(project, args.files.as_deref(), &args.positional_files)
 }
 
 fn changed_from_verify_args(project: &crate::model::Project, args: &VerifyArgs) -> Vec<String> {
@@ -452,16 +484,53 @@ fn changed_from_verify_args(project: &crate::model::Project, args: &VerifyArgs) 
     if let Some(since) = &args.since {
         return repo::changed_files(&project.root, false, Some(since));
     }
-    parse_files(args.files.as_deref(), &args.positional_files)
+    parse_files(project, args.files.as_deref(), &args.positional_files)
 }
 
-fn parse_files(files: Option<&str>, positional: &[String]) -> Vec<String> {
+fn parse_files(
+    project: &crate::model::Project,
+    files: Option<&str>,
+    positional: &[String],
+) -> Vec<String> {
     let mut out = Vec::new();
     if let Some(files) = files {
-        out.extend(files.split(',').map(repo::normalize_rel_path));
+        out.extend(
+            files
+                .split(',')
+                .filter_map(|file| project_relative_arg(project, file).ok()),
+        );
     }
-    out.extend(positional.iter().map(|s| repo::normalize_rel_path(s)));
+    out.extend(
+        positional
+            .iter()
+            .filter_map(|file| project_relative_arg(project, file).ok()),
+    );
     out.into_iter().filter(|s| s != ".").collect()
+}
+
+fn project_relative_arg(project: &crate::model::Project, value: &str) -> Result<String> {
+    let path = Path::new(value);
+    if path.is_absolute() {
+        let absolute = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+        absolute
+            .strip_prefix(&project.root)
+            .map(|rel| repo::normalize_rel_path(&rel.to_string_lossy()))
+            .map_err(|_| anyhow::anyhow!("path is outside project root: {value}"))
+    } else {
+        Ok(repo::normalize_rel_path(value))
+    }
+}
+
+fn scoped_project_path(project: &crate::model::Project, value: &str) -> Result<PathBuf> {
+    let path = Path::new(value);
+    if path.is_absolute() {
+        let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+        if canonical == project.root || canonical.starts_with(&project.root) {
+            return Ok(canonical);
+        }
+        bail!("refusing to write outside project root: {}", path.display());
+    }
+    Ok(project.root.join(repo::normalize_rel_path(value)))
 }
 
 fn output<T: serde::Serialize>(
@@ -488,7 +557,7 @@ struct FilesReport {
 
 fn files_report(project: &crate::model::Project, path: Option<&str>, limit: usize) -> FilesReport {
     let prefix = path
-        .map(repo::normalize_rel_path)
+        .and_then(|path| project_relative_arg(project, path).ok())
         .filter(|p| p != ".")
         .map(|p| format!("{}/", p.trim_end_matches('/')));
     let mut files: Vec<String> = project
