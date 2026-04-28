@@ -1112,6 +1112,81 @@ fn verify_run_fails_when_only_placeholder_is_inferred() {
 }
 
 #[test]
+fn verify_run_refuses_placeholder_plan_before_side_effects() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    let marker = repo.path().join("should-not-exist");
+    write(
+        &repo.path().join(".ctx.yml"),
+        r#"version: 1
+verification:
+  default:
+    - touch should-not-exist
+    - run the nearest domain tests for the changed files
+"#,
+    );
+    write(&repo.path().join("notes.txt"), "before\n");
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+    write(&repo.path().join("notes.txt"), "after\n");
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["verify", "--changed", "--run"])
+        .output()
+        .expect("ctx verify should run");
+
+    assert!(!output.status.success());
+    assert!(
+        !marker.exists(),
+        "no verification command should run when any placeholder is present"
+    );
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be utf8");
+    assert!(stderr.contains("cannot run placeholder verification"));
+    assert!(stderr.contains("non-runnable placeholder commands"));
+}
+
+#[test]
+fn verify_run_recommended_executes_self_checks_without_path_dependency() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join(".ctx.yml"),
+        r#"version: 1
+verification:
+  default:
+    - test -f src/index.ts
+"#,
+    );
+    write(&repo.path().join("src/index.ts"), "export const x = 1;\n");
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .env("PATH", "/usr/bin:/bin")
+        .args([
+            "verify",
+            "--files",
+            "src/index.ts",
+            "--run",
+            "--recommended",
+        ])
+        .output()
+        .expect("ctx verify should run");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be utf8");
+    assert!(stdout.contains("$ test -f src/index.ts"));
+    assert!(stdout.contains("boundaries --changed"));
+    assert!(!stdout.contains("$ ctx boundaries --changed"));
+}
+
+#[test]
 fn init_default_writes_nothing() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");

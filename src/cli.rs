@@ -572,10 +572,34 @@ fn run_plan(
     plan: &crate::model::VerificationPlan,
     include_recommended: bool,
 ) -> Result<()> {
+    for command in planned_run_commands(plan, include_recommended)? {
+        let command = resolve_run_command(&command)?;
+        println!("\n$ {command}");
+        let status = Command::new("sh")
+            .arg("-lc")
+            .arg(&command)
+            .current_dir(&project.root)
+            .status()?;
+        if !status.success() {
+            bail!("verification command failed: {command}");
+        }
+    }
+    Ok(())
+}
+
+fn planned_run_commands(
+    plan: &crate::model::VerificationPlan,
+    include_recommended: bool,
+) -> Result<Vec<String>> {
     let mut commands = plan.minimal.clone();
     if include_recommended {
         commands.extend(plan.recommended.clone());
     }
+    commands = commands
+        .into_iter()
+        .map(|command| command.trim().to_string())
+        .filter(|command| !command.is_empty())
+        .collect();
     if commands.is_empty() {
         bail!("no verification commands inferred; refusing to treat --run as successful");
     }
@@ -588,20 +612,44 @@ fn run_plan(
         for command in placeholders {
             eprintln!("ctx: cannot run placeholder verification: {command}");
         }
-        bail!("verification plan contains no runnable command for the selected scope");
+        bail!(
+            "verification plan contains non-runnable placeholder commands for the selected scope"
+        );
     }
-    for command in commands {
-        println!("\n$ {command}");
-        let status = Command::new("sh")
-            .arg("-lc")
-            .arg(&command)
-            .current_dir(&project.root)
-            .status()?;
-        if !status.success() {
-            bail!("verification command failed: {command}");
+    Ok(unique_preserve_order(commands))
+}
+
+fn resolve_run_command(command: &str) -> Result<String> {
+    let trimmed = command.trim();
+    if trimmed == "ctx" || trimmed.starts_with("ctx ") {
+        let exe = env::current_exe()?;
+        let suffix = trimmed.strip_prefix("ctx").unwrap_or_default();
+        return Ok(format!("{}{}", shell_quote_path(&exe), suffix));
+    }
+    Ok(trimmed.to_string())
+}
+
+fn unique_preserve_order(values: Vec<String>) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    let mut out = Vec::new();
+    for value in values {
+        if seen.insert(value.clone()) {
+            out.push(value);
         }
     }
-    Ok(())
+    out
+}
+
+fn shell_quote_path(path: &Path) -> String {
+    let value = path.to_string_lossy();
+    if value
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '/' | '.' | '_' | '-' | ':'))
+    {
+        value.to_string()
+    } else {
+        format!("'{}'", value.replace('\'', "'\\''"))
+    }
 }
 
 fn is_runnable_verification_command(command: &str) -> bool {
@@ -966,5 +1014,61 @@ fn anchors_markdown(report: &AnchorValidation) {
         for problem in &report.problems {
             println!("- {problem}");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::model::VerificationPlan;
+
+    use super::{planned_run_commands, resolve_run_command};
+
+    #[test]
+    fn run_plan_dedupes_minimal_and_recommended_commands() {
+        let plan = VerificationPlan {
+            minimal: vec![
+                "cargo test".to_string(),
+                " cargo test ".to_string(),
+                "cargo clippy".to_string(),
+            ],
+            recommended: vec![
+                "cargo clippy".to_string(),
+                "ctx boundaries --changed".to_string(),
+            ],
+            full_only_if_triggered: vec!["cargo test --all".to_string()],
+        };
+
+        let commands = planned_run_commands(&plan, true).expect("commands should be runnable");
+
+        assert_eq!(
+            commands,
+            vec!["cargo test", "cargo clippy", "ctx boundaries --changed"]
+        );
+    }
+
+    #[test]
+    fn run_plan_rejects_placeholder_before_running_any_command() {
+        let plan = VerificationPlan {
+            minimal: vec!["run the nearest domain tests for the changed files".to_string()],
+            recommended: vec!["cargo test".to_string()],
+            full_only_if_triggered: Vec::new(),
+        };
+
+        let error = planned_run_commands(&plan, true).expect_err("placeholder should fail closed");
+
+        assert!(
+            error
+                .to_string()
+                .contains("verification plan contains non-runnable placeholder commands")
+        );
+    }
+
+    #[test]
+    fn run_plan_resolves_self_command_to_current_executable() {
+        let command =
+            resolve_run_command("ctx boundaries --changed").expect("self command should resolve");
+
+        assert!(command.ends_with(" boundaries --changed"));
+        assert_ne!(command, "ctx boundaries --changed");
     }
 }
