@@ -1613,7 +1613,7 @@ fn cargo_package_edges(
     let mut edges: Vec<PackageDependency> = cargo_path_dependencies(&text)
         .into_iter()
         .filter_map(|(name, path)| {
-            let target_path = cargo_resolve_repo_relative_path(base, &path)?;
+            let target_path = resolve_repo_relative_path(base, &path)?;
             let target = by_path.get(&target_path)?;
             Some(PackageDependency {
                 from: package.path.clone(),
@@ -1683,7 +1683,7 @@ fn cargo_workspace_infos(
         let dependencies = cargo_workspace_path_dependencies(&text)
             .into_iter()
             .filter_map(|(name, dependency_path)| {
-                cargo_resolve_repo_relative_path(Path::new(&path), &dependency_path)
+                resolve_repo_relative_path(Path::new(&path), &dependency_path)
                     .map(|resolved| (name, resolved))
             })
             .collect();
@@ -1743,7 +1743,7 @@ fn cargo_workspace_member_paths(
                 .filter(|p| !p.as_os_str().is_empty())
                 .unwrap_or_else(|| Path::new("."));
             for (_, path) in cargo_path_dependencies(&text) {
-                let Some(target_path) = cargo_resolve_repo_relative_path(base, &path) else {
+                let Some(target_path) = resolve_repo_relative_path(base, &path) else {
                     continue;
                 };
                 if by_path.contains_key(&target_path)
@@ -1831,9 +1831,9 @@ fn cargo_workspace_member_pattern_matches(rel: &str, pattern: &str) -> bool {
         .unwrap_or(rel == pattern)
 }
 
-fn cargo_resolve_repo_relative_path(base: &Path, path: &str) -> Option<String> {
+fn resolve_repo_relative_path(base: &Path, path: &str) -> Option<String> {
     let raw = path.trim().replace('\\', "/");
-    if raw.is_empty() || cargo_path_is_absolute_like(&raw) {
+    if raw.is_empty() || path_is_absolute_like(&raw) {
         return None;
     }
     let base = normalize_rel_path(&base.to_string_lossy());
@@ -1860,7 +1860,7 @@ fn cargo_resolve_repo_relative_path(base: &Path, path: &str) -> Option<String> {
 
 fn cargo_normalize_workspace_member_pattern(pattern: &str) -> Option<String> {
     let raw = pattern.trim().trim_start_matches("./").replace('\\', "/");
-    if raw.is_empty() || cargo_path_is_absolute_like(&raw) {
+    if raw.is_empty() || path_is_absolute_like(&raw) {
         return None;
     }
     let mut parts: Vec<String> = Vec::new();
@@ -1880,7 +1880,7 @@ fn cargo_normalize_workspace_member_pattern(pattern: &str) -> Option<String> {
     })
 }
 
-fn cargo_path_is_absolute_like(path: &str) -> bool {
+fn path_is_absolute_like(path: &str) -> bool {
     path.starts_with('/')
         || path.starts_with("//")
         || path
@@ -1918,8 +1918,9 @@ fn go_package_edges(
                 });
                 continue;
             }
-            let target_path = normalize_rel_path(&base.join(replacement).to_string_lossy());
-            if let Some(target) = by_path.get(&target_path) {
+            if let Some(target_path) = resolve_repo_relative_path(base, replacement)
+                && let Some(target) = by_path.get(&target_path)
+            {
                 edges.push(PackageDependency {
                     from: package.path.clone(),
                     from_manifest: package.manifest.clone(),
@@ -1961,8 +1962,9 @@ fn python_package_edges(
         .unwrap_or_else(|| Path::new("."));
     let mut edges = Vec::new();
     for (dep, path) in pyproject_path_dependencies(&text) {
-        let target_path = normalize_rel_path(&base.join(path).to_string_lossy());
-        if let Some(target) = by_path.get(&target_path) {
+        if let Some(target_path) = resolve_repo_relative_path(base, &path)
+            && let Some(target) = by_path.get(&target_path)
+        {
             edges.push(PackageDependency {
                 from: package.path.clone(),
                 from_manifest: package.manifest.clone(),
@@ -1998,7 +2000,7 @@ fn package_name_from_path(path: &str) -> String {
 }
 
 fn cargo_package_name(text: &str) -> Option<String> {
-    cargo_toml(text)?
+    parse_toml_value(text)?
         .get("package")?
         .get("name")?
         .as_str()
@@ -2007,7 +2009,7 @@ fn cargo_package_name(text: &str) -> Option<String> {
 }
 
 fn cargo_path_dependencies(text: &str) -> Vec<(String, String)> {
-    let Some(value) = cargo_toml(text) else {
+    let Some(value) = parse_toml_value(text) else {
         return Vec::new();
     };
     let mut deps = Vec::new();
@@ -2018,7 +2020,7 @@ fn cargo_path_dependencies(text: &str) -> Vec<(String, String)> {
 }
 
 fn cargo_workspace_path_dependencies(text: &str) -> BTreeMap<String, String> {
-    let Some(value) = cargo_toml(text) else {
+    let Some(value) = parse_toml_value(text) else {
         return BTreeMap::new();
     };
     let mut deps = BTreeMap::new();
@@ -2028,7 +2030,7 @@ fn cargo_workspace_path_dependencies(text: &str) -> BTreeMap<String, String> {
         .and_then(toml::Value::as_table)
     {
         for (name, dependency) in table {
-            if let Some(path) = cargo_dependency_path(dependency) {
+            if let Some(path) = toml_path_field(dependency) {
                 deps.insert(name.to_string(), path);
             }
         }
@@ -2037,13 +2039,13 @@ fn cargo_workspace_path_dependencies(text: &str) -> BTreeMap<String, String> {
 }
 
 fn cargo_workspace_dependency_names(text: &str) -> Vec<String> {
-    let Some(value) = cargo_toml(text) else {
+    let Some(value) = parse_toml_value(text) else {
         return Vec::new();
     };
     let mut deps = Vec::new();
     for table in cargo_dependency_tables(&value) {
         for (name, dependency) in table {
-            if cargo_dependency_workspace(dependency) == Some(true) {
+            if toml_workspace_field(dependency) == Some(true) {
                 deps.push(name.to_string());
             }
         }
@@ -2052,20 +2054,20 @@ fn cargo_workspace_dependency_names(text: &str) -> Vec<String> {
 }
 
 fn cargo_workspace_declared(text: &str) -> bool {
-    cargo_toml(text)
+    parse_toml_value(text)
         .and_then(|value| value.get("workspace").cloned())
         .is_some()
 }
 
 fn cargo_workspace_array_values(text: &str, key: &str) -> Vec<String> {
-    cargo_toml(text)
+    parse_toml_value(text)
         .and_then(|value| value.get("workspace").cloned())
         .and_then(|workspace| workspace.get(key).cloned())
         .and_then(|value| toml_string_array(&value))
         .unwrap_or_default()
 }
 
-fn cargo_toml(text: &str) -> Option<toml::Value> {
+fn parse_toml_value(text: &str) -> Option<toml::Value> {
     toml::from_str::<toml::Value>(text).ok()
 }
 
@@ -2092,12 +2094,12 @@ fn cargo_table_path_dependencies(table: &toml::Table) -> Vec<(String, String)> {
     table
         .iter()
         .filter_map(|(name, dependency)| {
-            cargo_dependency_path(dependency).map(|path| (name.to_string(), path))
+            toml_path_field(dependency).map(|path| (name.to_string(), path))
         })
         .collect()
 }
 
-fn cargo_dependency_path(value: &toml::Value) -> Option<String> {
+fn toml_path_field(value: &toml::Value) -> Option<String> {
     value
         .get("path")
         .and_then(toml::Value::as_str)
@@ -2105,7 +2107,7 @@ fn cargo_dependency_path(value: &toml::Value) -> Option<String> {
         .filter(|path| !path.is_empty())
 }
 
-fn cargo_dependency_workspace(value: &toml::Value) -> Option<bool> {
+fn toml_workspace_field(value: &toml::Value) -> Option<bool> {
     value.get("workspace").and_then(toml::Value::as_bool)
 }
 
@@ -2265,72 +2267,51 @@ fn quoted_go_import(value: &str) -> Option<String> {
 }
 
 fn pyproject_package_name(text: &str) -> Option<String> {
-    let mut section = String::new();
-    for line in text.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with('[') && trimmed.ends_with(']') {
-            section = trimmed.trim_matches(&['[', ']'][..]).to_string();
-            continue;
-        }
-        if !matches!(section.as_str(), "project" | "tool.poetry") {
-            continue;
-        }
-        let Some((key, value)) = trimmed.split_once('=') else {
-            continue;
-        };
-        if key.trim() == "name" {
-            return unquote(value.trim()).filter(|name| !name.is_empty());
-        }
-    }
-    None
+    let value = parse_toml_value(text)?;
+    value
+        .get("project")
+        .and_then(|project| project.get("name"))
+        .or_else(|| {
+            value
+                .get("tool")
+                .and_then(|tool| tool.get("poetry"))
+                .and_then(|poetry| poetry.get("name"))
+        })
+        .and_then(toml::Value::as_str)
+        .map(str::to_string)
+        .filter(|name| !name.is_empty())
 }
 
 fn pyproject_path_dependencies(text: &str) -> Vec<(String, String)> {
+    let Some(value) = parse_toml_value(text) else {
+        return Vec::new();
+    };
     let mut deps = Vec::new();
-    let mut section = String::new();
-    for line in text.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with('[') && trimmed.ends_with(']') {
-            section = trimmed.trim_matches(&['[', ']'][..]).to_string();
-            continue;
+    if let Some(table) = value
+        .get("tool")
+        .and_then(|tool| tool.get("uv"))
+        .and_then(|uv| uv.get("sources"))
+        .and_then(toml::Value::as_table)
+    {
+        for (name, dependency) in table {
+            if let Some(path) = toml_path_field(dependency) {
+                deps.push((name.to_string(), path));
+            }
         }
-        if trimmed.is_empty() || trimmed.starts_with('#') {
-            continue;
-        }
-        if !matches!(
-            section.as_str(),
-            "tool.uv.sources" | "tool.poetry.dependencies"
-        ) {
-            continue;
-        }
-        let Some((name, value)) = trimmed.split_once('=') else {
-            continue;
-        };
-        let Some(path) = inline_path_value(value) else {
-            continue;
-        };
-        let name = name.trim().trim_matches('"').trim_matches('\'').to_string();
-        if !name.is_empty() {
-            deps.push((name, path));
+    }
+    if let Some(table) = value
+        .get("tool")
+        .and_then(|tool| tool.get("poetry"))
+        .and_then(|poetry| poetry.get("dependencies"))
+        .and_then(toml::Value::as_table)
+    {
+        for (name, dependency) in table {
+            if let Some(path) = toml_path_field(dependency) {
+                deps.push((name.to_string(), path));
+            }
         }
     }
     unique_pairs(deps)
-}
-
-fn inline_path_value(value: &str) -> Option<String> {
-    let value = value.trim();
-    if !(value.starts_with('{') && value.ends_with('}')) {
-        return None;
-    }
-    for part in value.trim_matches(&['{', '}'][..]).split(',') {
-        let Some((key, raw_value)) = part.split_once('=') else {
-            continue;
-        };
-        if key.trim() == "path" {
-            return unquote(raw_value.trim()).filter(|path| !path.is_empty());
-        }
-    }
-    None
 }
 
 fn unquote(value: &str) -> Option<String> {
@@ -2662,7 +2643,7 @@ fn workspace_path_has_project(root: &Path, files: &BTreeMap<String, FileInfo>, r
 }
 
 fn toml_array_values(text: &str, keys: &[&str]) -> Vec<String> {
-    let Some(value) = cargo_toml(text) else {
+    let Some(value) = parse_toml_value(text) else {
         return Vec::new();
     };
     let mut out = Vec::new();
@@ -3083,29 +3064,57 @@ edition = "2024"
     #[test]
     fn cargo_paths_resolve_inside_repo_without_root_escape() {
         assert_eq!(
-            cargo_resolve_repo_relative_path(Path::new("crates/app"), "../renderer").as_deref(),
+            resolve_repo_relative_path(Path::new("crates/app"), "../renderer").as_deref(),
             Some("crates/renderer")
         );
         assert_eq!(
-            cargo_resolve_repo_relative_path(Path::new("."), "crates/replay").as_deref(),
+            resolve_repo_relative_path(Path::new("."), "crates/replay").as_deref(),
             Some("crates/replay")
         );
         assert_eq!(
-            cargo_resolve_repo_relative_path(Path::new("."), "../external"),
+            resolve_repo_relative_path(Path::new("."), "../external"),
             None
         );
         assert_eq!(
-            cargo_resolve_repo_relative_path(Path::new("nested"), "../../external"),
+            resolve_repo_relative_path(Path::new("nested"), "../../external"),
             None
         );
         assert_eq!(
-            cargo_resolve_repo_relative_path(Path::new("."), "/tmp/external"),
+            resolve_repo_relative_path(Path::new("."), "/tmp/external"),
             None
         );
         assert!(!cargo_workspace_member_pattern_matches(
             "external",
             "../external"
         ));
+    }
+
+    #[test]
+    fn pyproject_paths_use_structural_toml() {
+        let pyproject = r#"[project]
+name = "ctx-renderer"
+
+[tool.uv.sources]
+ctx-replay = { path = "../replay,with-comma", marker = "platform_system == 'Darwin,macOS'" }
+
+[tool.poetry.dependencies]
+ctx-tools = { path = "../tools" }
+ctx-version-only = "^1"
+"#;
+        assert_eq!(
+            pyproject_package_name(pyproject).as_deref(),
+            Some("ctx-renderer")
+        );
+        let deps = pyproject_path_dependencies(pyproject);
+        assert!(
+            deps.iter()
+                .any(|(name, path)| name == "ctx-replay" && path == "../replay,with-comma")
+        );
+        assert!(
+            deps.iter()
+                .any(|(name, path)| name == "ctx-tools" && path == "../tools")
+        );
+        assert!(deps.iter().all(|(name, _)| name != "ctx-version-only"));
     }
 
     fn write_test_file(path: &Path, body: &str) {

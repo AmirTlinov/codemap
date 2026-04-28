@@ -2018,6 +2018,67 @@ boundaries:
 }
 
 #[test]
+fn go_workspace_replace_paths_do_not_escape_repo_root() {
+    let repo = fixture_copy("go-workspace");
+    let cache = TempDir::new().expect("cache tempdir");
+    write(
+        &repo.path().join("go.work"),
+        r#"go 1.22
+
+use (
+    ./apps/api
+    ./external
+)
+"#,
+    );
+    write(
+        &repo.path().join("apps/api/go.mod"),
+        r#"module example.test/api
+
+go 1.22
+
+require example.test/not-external v0.0.0
+replace example.test/not-external => ../../../external
+"#,
+    );
+    write(
+        &repo.path().join("external/go.mod"),
+        r#"module example.test/external
+
+go 1.22
+"#,
+    );
+    write(
+        &repo.path().join("external/external.go"),
+        "package external\n\nfunc Value() int { return 1 }\n",
+    );
+
+    let impact = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["impact", "--files", "external/go.mod", "--format", "json"])
+        .output()
+        .expect("ctx impact should run");
+    assert!(impact.status.success());
+    let impact_json: Value = serde_json::from_slice(&impact.stdout).expect("valid impact json");
+    assert!(
+        impact_json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item.as_str() != Some("apps/api/go.mod")),
+        "Go replace paths that escape the repo root must not be remapped to an in-repo package"
+    );
+    assert!(
+        impact_json["expansion_triggers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item.as_str() != Some("package consumers affected"))
+    );
+}
+
+#[test]
 fn python_workspace_routes_replay_task_to_replay_package() {
     let repo = fixture_copy("python-workspace");
     let cache = TempDir::new().expect("cache tempdir");
@@ -2169,6 +2230,75 @@ fn python_workspace_imports_feed_file_impact() {
             .iter()
             .any(|item| item.as_str() == Some("services/replay/replay/timeline.py")),
         "Python relative imports should resolve through the Python resolver"
+    );
+}
+
+#[test]
+fn python_workspace_path_sources_do_not_escape_repo_root() {
+    let repo = fixture_copy("python-workspace");
+    let cache = TempDir::new().expect("cache tempdir");
+    write(
+        &repo.path().join("pyproject.toml"),
+        r#"[project]
+name = "ctx-python-workspace"
+version = "0.1.0"
+
+members = [
+    "apps/api",
+    "external",
+]
+"#,
+    );
+    write(
+        &repo.path().join("apps/api/pyproject.toml"),
+        r#"[project]
+name = "ctx-api"
+version = "0.1.0"
+
+[tool.uv.sources]
+ctx-external = { path = "../../../external", marker = "platform_system == 'Darwin,macOS'" }
+"#,
+    );
+    write(
+        &repo.path().join("external/pyproject.toml"),
+        r#"[project]
+name = "ctx-external"
+version = "0.1.0"
+"#,
+    );
+    write(
+        &repo.path().join("external/external/__init__.py"),
+        "def value():\n    return 1\n",
+    );
+
+    let impact = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "impact",
+            "--files",
+            "external/pyproject.toml",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx impact should run");
+    assert!(impact.status.success());
+    let impact_json: Value = serde_json::from_slice(&impact.stdout).expect("valid impact json");
+    assert!(
+        impact_json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item.as_str() != Some("apps/api/pyproject.toml")),
+        "Python path sources that escape the repo root must not be remapped to an in-repo package"
+    );
+    assert!(
+        impact_json["expansion_triggers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item.as_str() != Some("package consumers affected"))
     );
 }
 
