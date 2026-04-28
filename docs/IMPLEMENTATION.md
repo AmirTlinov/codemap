@@ -14,6 +14,7 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - common build/cache/vendor ignores
 - lightweight role classification
 - lightweight JS/TS, Python, Rust, and Go import extraction
+- JS/TS import resolution for relative imports, local workspace package imports, package entrypoints, and simple `tsconfig.json` path aliases
 - reverse import graph
 - domain discovery from common workspace folders
 - `ctx locate`
@@ -48,7 +49,7 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - boundary checks include explicit forbidden file imports and local JS/Cargo package-manifest dependency edges
 - `impact` expands public-boundary/package changes through local package-manifest consumer edges
 - Cargo package graph extraction covers inline path dependencies and `[dependencies.<crate>] path = ...` table dependencies
-- mixed-monorepo and materialized Rust-workspace golden fixtures cover replay/auth routing, bounded impact, and package-consumer traversal
+- mixed-monorepo and materialized Rust-workspace golden fixtures cover replay/auth routing, bounded impact, JS/TS package/alias imports, and package-consumer traversal
 - release packaging check script verifies tests, clippy, doctor, bundled schemas, and crate package contents
 - printed global agent bootstrap does not advertise a separate `--for-agent` mode; Markdown is already the agent-facing default
 

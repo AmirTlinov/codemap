@@ -1,6 +1,7 @@
 {
   "name": "@ctx-fixture/renderer",
   "private": true,
+  "exports": "./src/replay-renderer.ts",
   "dependencies": {
     "@ctx-fixture/replay": "workspace:*"
   }

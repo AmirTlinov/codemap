@@ -101,9 +101,10 @@ pub fn load_project(root_override: Option<PathBuf>) -> Result<Project> {
     let (anchors, config_path, config_errors) = load_ctx_configs(&root);
     let nearest_agents = nearest_agents(&cwd, &root);
     let mut files = scan_files(&root)?;
-    resolve_imports(&mut files);
-    let reverse_imports = build_reverse_imports(&files);
     let packages = detect_packages(&root, &files);
+    let ts_path_aliases = detect_ts_path_aliases(&root, &files);
+    resolve_imports(&root, &mut files, &packages, &ts_path_aliases);
+    let reverse_imports = build_reverse_imports(&files);
     let package_edges = detect_package_edges(&root, &packages);
     let scripts = detect_scripts(&root);
     let package_manager = detect_package_manager(&root);
@@ -784,7 +785,12 @@ fn extract_imports_exports(root: &Path, info: &mut FileInfo) {
     }
 }
 
-fn resolve_imports(files: &mut BTreeMap<String, FileInfo>) {
+fn resolve_imports(
+    root: &Path,
+    files: &mut BTreeMap<String, FileInfo>,
+    packages: &[PackageInfo],
+    ts_path_aliases: &[TsPathAlias],
+) {
     let paths: BTreeSet<String> = files.keys().cloned().collect();
     let snapshot: Vec<(String, String, Vec<String>)> = files
         .values()
@@ -799,7 +805,9 @@ fn resolve_imports(files: &mut BTreeMap<String, FileInfo>) {
     for (rel, ext, imports) in snapshot {
         let mut resolved = BTreeSet::new();
         for spec in imports {
-            if let Some(target) = resolve_import(&rel, &ext, &spec, &paths) {
+            if let Some(target) =
+                resolve_import(root, &rel, &ext, &spec, &paths, packages, ts_path_aliases)
+            {
                 resolved.insert(target);
             }
         }
@@ -809,11 +817,22 @@ fn resolve_imports(files: &mut BTreeMap<String, FileInfo>) {
     }
 }
 
-fn resolve_import(from: &str, ext: &str, spec: &str, paths: &BTreeSet<String>) -> Option<String> {
+fn resolve_import(
+    root: &Path,
+    from: &str,
+    ext: &str,
+    spec: &str,
+    paths: &BTreeSet<String>,
+    packages: &[PackageInfo],
+    ts_path_aliases: &[TsPathAlias],
+) -> Option<String> {
     if spec.starts_with('.') {
         return resolve_relative(from, spec, paths);
     }
     match ext {
+        "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte" => {
+            resolve_javascript(root, from, spec, paths, packages, ts_path_aliases)
+        }
         "py" => resolve_python(spec, paths),
         "rs" => resolve_rust(from, spec, paths),
         _ => None,
@@ -826,6 +845,11 @@ fn resolve_relative(from: &str, spec: &str, paths: &BTreeSet<String>) -> Option<
         .map(|p| normalize_rel_path(&p.to_string_lossy()))
         .unwrap_or_default();
     let base = normalize_rel_path(&format!("{base_dir}/{spec}"));
+    resolve_path_like(&base, paths)
+}
+
+fn resolve_path_like(base: &str, paths: &BTreeSet<String>) -> Option<String> {
+    let base = normalize_rel_path(base);
     let mut candidates = vec![base.clone()];
     for ext in [
         "ts", "tsx", "js", "jsx", "mjs", "cjs", "py", "rs", "go", "vue", "svelte",
@@ -843,6 +867,307 @@ fn resolve_relative(from: &str, spec: &str, paths: &BTreeSet<String>) -> Option<
         candidates.push(normalize_rel_path(&format!("{base}/{index}")));
     }
     candidates.into_iter().find(|c| paths.contains(c))
+}
+
+fn resolve_javascript(
+    root: &Path,
+    from: &str,
+    spec: &str,
+    paths: &BTreeSet<String>,
+    packages: &[PackageInfo],
+    ts_path_aliases: &[TsPathAlias],
+) -> Option<String> {
+    let mut aliases = ts_path_aliases
+        .iter()
+        .filter(|alias| ts_alias_applies_to_importer(alias, from))
+        .collect::<Vec<_>>();
+    aliases.sort_by(|a, b| {
+        b.config_dir
+            .len()
+            .cmp(&a.config_dir.len())
+            .then_with(|| b.pattern.len().cmp(&a.pattern.len()))
+            .then_with(|| a.pattern.cmp(&b.pattern))
+    });
+    for alias in aliases {
+        if let Some(target) = resolve_ts_path_alias(alias, spec, paths) {
+            return Some(target);
+        }
+    }
+    let (package_name, subpath) = split_package_spec(spec)?;
+    let package = packages
+        .iter()
+        .find(|package| package.ecosystem == "javascript" && package.name == package_name)?;
+    if subpath.is_empty() {
+        for entry in js_package_root_entrypoints(root, package) {
+            if let Some(target) = resolve_path_like(&entry, paths) {
+                return Some(target);
+            }
+        }
+        return None;
+    }
+    let (exports_declared, exported_subpaths) =
+        js_package_subpath_entrypoints(root, package, &subpath);
+    for entry in exported_subpaths {
+        if let Some(target) = resolve_path_like(&entry, paths) {
+            return Some(target);
+        }
+    }
+    if exports_declared {
+        return None;
+    }
+    for base in [
+        format!("{}/{}", package.path, subpath),
+        format!("{}/src/{}", package.path, subpath),
+    ] {
+        if let Some(target) = resolve_path_like(&base, paths) {
+            return Some(target);
+        }
+    }
+    None
+}
+
+fn split_package_spec(spec: &str) -> Option<(String, String)> {
+    if spec.is_empty() || spec.starts_with('.') || spec.starts_with('/') {
+        return None;
+    }
+    let parts = spec.split('/').collect::<Vec<_>>();
+    if parts.first()?.starts_with('@') {
+        if parts.len() < 2 {
+            return None;
+        }
+        let name = format!("{}/{}", parts[0], parts[1]);
+        let rest = parts.iter().skip(2).copied().collect::<Vec<_>>().join("/");
+        Some((name, rest))
+    } else {
+        let name = parts[0].to_string();
+        let rest = parts.iter().skip(1).copied().collect::<Vec<_>>().join("/");
+        Some((name, rest))
+    }
+}
+
+fn js_package_root_entrypoints(root: &Path, package: &PackageInfo) -> Vec<String> {
+    let mut entries = Vec::new();
+    let mut exports_declared = false;
+    if let Ok(text) = fs::read_to_string(root.join(&package.manifest))
+        && let Ok(value) = serde_json::from_str::<serde_json::Value>(&text)
+    {
+        if let Some(exports) = value.get("exports") {
+            exports_declared = true;
+            collect_js_root_export_targets(exports, &mut entries);
+        }
+        if !exports_declared {
+            for key in ["module", "main", "types", "typings"] {
+                if let Some(value) = value.get(key).and_then(|value| value.as_str()) {
+                    entries.push(value.to_string());
+                }
+            }
+        }
+    }
+    if !exports_declared {
+        entries.extend([
+            "src/index.ts".to_string(),
+            "src/index.tsx".to_string(),
+            "src/index.js".to_string(),
+            "index.ts".to_string(),
+            "index.tsx".to_string(),
+            "index.js".to_string(),
+            "src/lib.ts".to_string(),
+            "lib/index.ts".to_string(),
+        ]);
+    }
+    normalize_package_entries(package, entries)
+}
+
+fn js_package_subpath_entrypoints(
+    root: &Path,
+    package: &PackageInfo,
+    subpath: &str,
+) -> (bool, Vec<String>) {
+    let Ok(text) = fs::read_to_string(root.join(&package.manifest)) else {
+        return (false, Vec::new());
+    };
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {
+        return (false, Vec::new());
+    };
+    let Some(exports) = value.get("exports") else {
+        return (false, Vec::new());
+    };
+    let mut entries = Vec::new();
+    let key = format!("./{}", subpath.trim_start_matches("./"));
+    if let Some(map) = exports.as_object() {
+        if let Some(target) = map.get(&key) {
+            collect_js_export_targets(target, None, &mut entries);
+        } else {
+            for (pattern, target) in map {
+                let Some(wildcard) = match_pattern_wildcard(pattern, &key).flatten() else {
+                    continue;
+                };
+                collect_js_export_targets(target, Some(&wildcard), &mut entries);
+            }
+        }
+    }
+    (true, normalize_package_entries(package, entries))
+}
+
+fn normalize_package_entries(package: &PackageInfo, entries: Vec<String>) -> Vec<String> {
+    unique_strings(
+        entries
+            .into_iter()
+            .map(|entry| {
+                let entry = entry.trim().trim_start_matches("./");
+                normalize_rel_path(&format!("{}/{}", package.path, entry))
+            })
+            .collect(),
+    )
+}
+
+fn collect_js_root_export_targets(value: &serde_json::Value, out: &mut Vec<String>) {
+    if value.as_str().is_some() {
+        collect_js_export_targets(value, None, out);
+        return;
+    }
+    let Some(map) = value.as_object() else {
+        return;
+    };
+    if let Some(root) = map.get(".") {
+        collect_js_export_targets(root, None, out);
+        return;
+    }
+    for key in ["import", "require", "default", "types", "module"] {
+        if let Some(value) = map.get(key) {
+            collect_js_export_targets(value, None, out);
+        }
+    }
+}
+
+fn collect_js_export_targets(
+    value: &serde_json::Value,
+    wildcard: Option<&str>,
+    out: &mut Vec<String>,
+) {
+    if let Some(raw) = value.as_str() {
+        out.push(match wildcard {
+            Some(wildcard) => raw.replace('*', wildcard),
+            None => raw.to_string(),
+        });
+        return;
+    }
+    let Some(map) = value.as_object() else {
+        return;
+    };
+    if let Some(root) = map.get(".") {
+        collect_js_export_targets(root, wildcard, out);
+        return;
+    }
+    for key in ["import", "require", "default", "types", "module"] {
+        if let Some(value) = map.get(key) {
+            collect_js_export_targets(value, wildcard, out);
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct TsPathAlias {
+    config_dir: String,
+    pattern: String,
+    targets: Vec<String>,
+}
+
+fn detect_ts_path_aliases(root: &Path, files: &BTreeMap<String, FileInfo>) -> Vec<TsPathAlias> {
+    let mut aliases = Vec::new();
+    for rel in files.keys() {
+        if Path::new(rel).file_name().and_then(|name| name.to_str()) != Some("tsconfig.json") {
+            continue;
+        }
+        aliases.extend(read_ts_path_aliases(root, rel));
+    }
+    aliases.sort_by(|a, b| {
+        b.pattern
+            .len()
+            .cmp(&a.pattern.len())
+            .then_with(|| a.pattern.cmp(&b.pattern))
+    });
+    aliases
+}
+
+fn read_ts_path_aliases(root: &Path, rel: &str) -> Vec<TsPathAlias> {
+    let Ok(text) = fs::read_to_string(root.join(rel)) else {
+        return Vec::new();
+    };
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {
+        return Vec::new();
+    };
+    let Some(options) = value
+        .get("compilerOptions")
+        .and_then(|value| value.as_object())
+    else {
+        return Vec::new();
+    };
+    let config_dir = manifest_dir(rel);
+    let base_url = options
+        .get("baseUrl")
+        .and_then(|value| value.as_str())
+        .unwrap_or(".");
+    let base = normalize_rel_path(&format!("{config_dir}/{base_url}"));
+    let Some(paths) = options.get("paths").and_then(|value| value.as_object()) else {
+        return Vec::new();
+    };
+    let mut aliases = Vec::new();
+    for (pattern, targets) in paths {
+        let Some(targets) = targets.as_array() else {
+            continue;
+        };
+        let targets = targets
+            .iter()
+            .filter_map(|target| target.as_str())
+            .map(|target| normalize_rel_path(&format!("{base}/{target}")))
+            .collect::<Vec<_>>();
+        if !targets.is_empty() {
+            aliases.push(TsPathAlias {
+                config_dir: config_dir.clone(),
+                pattern: pattern.to_string(),
+                targets,
+            });
+        }
+    }
+    aliases
+}
+
+fn ts_alias_applies_to_importer(alias: &TsPathAlias, from: &str) -> bool {
+    alias.config_dir == "."
+        || from == alias.config_dir
+        || from.starts_with(&format!("{}/", alias.config_dir.trim_end_matches('/')))
+}
+
+fn resolve_ts_path_alias(
+    alias: &TsPathAlias,
+    spec: &str,
+    paths: &BTreeSet<String>,
+) -> Option<String> {
+    let wildcard = match_pattern_wildcard(&alias.pattern, spec)?;
+    for target in &alias.targets {
+        let base = if let Some(wildcard) = wildcard.as_deref() {
+            target.replace('*', wildcard)
+        } else {
+            target.clone()
+        };
+        if let Some(resolved) = resolve_path_like(&base, paths) {
+            return Some(resolved);
+        }
+    }
+    None
+}
+
+fn match_pattern_wildcard(pattern: &str, value: &str) -> Option<Option<String>> {
+    if !pattern.contains('*') {
+        return (pattern == value).then_some(None);
+    }
+    let (prefix, suffix) = pattern.split_once('*')?;
+    if !value.starts_with(prefix) || !value.ends_with(suffix) {
+        return None;
+    }
+    let end = value.len().saturating_sub(suffix.len());
+    Some(Some(value[prefix.len()..end].to_string()))
 }
 
 fn resolve_python(spec: &str, paths: &BTreeSet<String>) -> Option<String> {
@@ -1677,6 +2002,17 @@ pub fn tokenize(text: &str) -> BTreeSet<String> {
 
 pub fn path_tokens(rel: &str) -> BTreeSet<String> {
     tokenize(&rel.replace(['/', '-', '_'], " "))
+}
+
+fn unique_strings(items: Vec<String>) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    let mut out = Vec::new();
+    for item in items {
+        if seen.insert(item.clone()) {
+            out.push(item);
+        }
+    }
+    out
 }
 
 pub fn is_source_ext(ext: &str) -> bool {

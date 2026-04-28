@@ -41,6 +41,13 @@ fn copy_dir(from: &Path, to: &Path) {
     }
 }
 
+fn write(path: &Path, body: &str) {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).expect("create parent");
+    }
+    fs::write(path, body).expect("write file");
+}
+
 #[test]
 fn mixed_monorepo_routes_replay_task_to_replay_domain() {
     let repo = fixture_copy("mixed-monorepo");
@@ -281,6 +288,287 @@ fn mixed_monorepo_impact_expands_package_consumers_when_internal_change_reaches_
             .unwrap()
             .iter()
             .any(|item| item.as_str() == Some("domains/replay/tests/replay-session.test.ts"))
+    );
+}
+
+#[test]
+fn mixed_monorepo_resolves_js_workspace_package_imports_in_file_graph() {
+    let repo = fixture_copy("mixed-monorepo");
+    let cache = TempDir::new().expect("cache tempdir");
+
+    let explain = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["explain", "apps/web/src/app.ts", "--format", "json"])
+        .output()
+        .expect("ctx explain should run");
+    assert!(explain.status.success());
+    let explain_json: Value = serde_json::from_slice(&explain.stdout).expect("valid explain json");
+    let imports = explain_json["imports"].as_array().unwrap();
+    assert!(
+        imports
+            .iter()
+            .any(|item| item.as_str() == Some("domains/renderer/src/replay-renderer.ts")),
+        "package import @ctx-fixture/renderer should resolve to its exported file"
+    );
+    assert!(
+        imports
+            .iter()
+            .any(|item| item.as_str() == Some("services/auth/src/index.ts")),
+        "package import @ctx-fixture/auth should resolve to src/index.ts"
+    );
+
+    let impact = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "impact",
+            "--files",
+            "domains/renderer/src/replay-renderer.ts",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx impact should run");
+    assert!(impact.status.success());
+    let impact_json: Value = serde_json::from_slice(&impact.stdout).expect("valid impact json");
+    assert!(
+        impact_json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("apps/web/src/app.ts")),
+        "file-level impact should reach workspace package consumers"
+    );
+}
+
+#[test]
+fn mixed_monorepo_resolves_tsconfig_path_aliases_in_file_graph() {
+    let repo = fixture_copy("mixed-monorepo");
+    let cache = TempDir::new().expect("cache tempdir");
+
+    let explain = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["explain", "apps/web/src/auth-alias.ts", "--format", "json"])
+        .output()
+        .expect("ctx explain should run");
+    assert!(explain.status.success());
+    let explain_json: Value = serde_json::from_slice(&explain.stdout).expect("valid explain json");
+    assert!(
+        explain_json["imports"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("services/auth/src/session.ts"))
+    );
+
+    let impact = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "impact",
+            "--files",
+            "services/auth/src/session.ts",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx impact should run");
+    assert!(impact.status.success());
+    let impact_json: Value = serde_json::from_slice(&impact.stdout).expect("valid impact json");
+    assert!(
+        impact_json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("apps/web/src/auth-alias.ts"))
+    );
+}
+
+#[test]
+fn tsconfig_path_aliases_are_scoped_to_config_directory() {
+    let repo = fixture_copy("mixed-monorepo");
+    let cache = TempDir::new().expect("cache tempdir");
+    write(
+        &repo.path().join("apps/web/tsconfig.json"),
+        r#"{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@local/*": ["src/*"]
+    }
+  }
+}"#,
+    );
+    write(
+        &repo.path().join("apps/web/src/local-util.ts"),
+        "export const localUtil = 1;\n",
+    );
+    write(
+        &repo.path().join("services/auth/src/local-consumer.ts"),
+        "import { localUtil } from '@local/local-util';\nexport const value = localUtil;\n",
+    );
+
+    let explain = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "explain",
+            "services/auth/src/local-consumer.ts",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx explain should run");
+    assert!(explain.status.success());
+    let explain_json: Value = serde_json::from_slice(&explain.stdout).expect("valid explain json");
+    assert!(
+        explain_json["imports"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item.as_str() != Some("apps/web/src/local-util.ts")),
+        "aliases from apps/web/tsconfig.json must not resolve imports in services/auth"
+    );
+}
+
+#[test]
+fn nested_tsconfig_path_aliases_override_root_aliases_for_local_importers() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    write(
+        &repo.path().join("package.json"),
+        r#"{"workspaces":["z/*"]}"#,
+    );
+    write(
+        &repo.path().join("tsconfig.json"),
+        r#"{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@shared/*": ["shared/root/src/*"]
+    }
+  }
+}"#,
+    );
+    write(
+        &repo.path().join("z/app/tsconfig.json"),
+        r#"{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@shared/*": ["local/src/*"]
+    }
+  }
+}"#,
+    );
+    write(
+        &repo.path().join("shared/root/src/value.ts"),
+        "export const value = 'root';\n",
+    );
+    write(
+        &repo.path().join("z/app/local/src/value.ts"),
+        "export const value = 'local';\n",
+    );
+    write(
+        &repo.path().join("z/app/src/consumer.ts"),
+        "import { value } from '@shared/value';\nexport const consumer = value;\n",
+    );
+
+    let explain = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["explain", "z/app/src/consumer.ts", "--format", "json"])
+        .output()
+        .expect("ctx explain should run");
+    assert!(explain.status.success());
+    let explain_json: Value = serde_json::from_slice(&explain.stdout).expect("valid explain json");
+    assert!(
+        explain_json["imports"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("z/app/local/src/value.ts"))
+    );
+    assert!(
+        explain_json["imports"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item.as_str() != Some("shared/root/src/value.ts"))
+    );
+}
+
+#[test]
+fn package_exports_subpaths_resolve_and_block_unexported_root_fallback() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    write(
+        &repo.path().join("package.json"),
+        r#"{"workspaces":["packages/*","apps/*"]}"#,
+    );
+    write(
+        &repo.path().join("packages/core/package.json"),
+        r#"{
+  "name": "@demo/core",
+  "exports": {
+    "./foo": "./src/public/foo.ts"
+  }
+}"#,
+    );
+    write(
+        &repo.path().join("packages/core/src/public/foo.ts"),
+        "export const foo = 1;\n",
+    );
+    write(
+        &repo.path().join("packages/core/src/index.ts"),
+        "export const hidden = 1;\n",
+    );
+    write(
+        &repo.path().join("apps/web/package.json"),
+        r#"{"name":"web","dependencies":{"@demo/core":"workspace:*"}}"#,
+    );
+    write(
+        &repo.path().join("apps/web/src/app.ts"),
+        "import { foo } from '@demo/core/foo';\nexport const value = foo;\n",
+    );
+    write(
+        &repo.path().join("apps/web/src/root-import.ts"),
+        "import { hidden } from '@demo/core';\nexport const value = hidden;\n",
+    );
+
+    let subpath = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["explain", "apps/web/src/app.ts", "--format", "json"])
+        .output()
+        .expect("ctx explain should run");
+    assert!(subpath.status.success());
+    let subpath_json: Value = serde_json::from_slice(&subpath.stdout).expect("valid explain json");
+    assert!(
+        subpath_json["imports"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("packages/core/src/public/foo.ts"))
+    );
+
+    let root_import = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["explain", "apps/web/src/root-import.ts", "--format", "json"])
+        .output()
+        .expect("ctx explain should run");
+    assert!(root_import.status.success());
+    let root_json: Value = serde_json::from_slice(&root_import.stdout).expect("valid explain json");
+    assert!(
+        root_json["imports"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item.as_str() != Some("packages/core/src/index.ts")),
+        "package exports without `.` must not fall back to src/index.ts"
     );
 }
 

@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@auth/*": ["services/auth/src/*"],
+      "@replay": ["domains/replay/src/replay-session.ts"]
+    }
+  }
+}
