@@ -1128,6 +1128,12 @@ fn start_does_not_route_into_top_level_fixtures_by_default() {
     write(
         &repo
             .path()
+            .join("fixtures/mixed/domains/replay/tests/replay-session.test.ts"),
+        "import { replaySession } from '../src/replay-session';\nconsole.log(replaySession);\n",
+    );
+    write(
+        &repo
+            .path()
             .join("fixtures/mixed/services/auth/package.json"),
         r#"{"name":"@fixture/auth"}"#,
     );
@@ -1136,6 +1142,12 @@ fn start_does_not_route_into_top_level_fixtures_by_default() {
             .path()
             .join("fixtures/mixed/services/auth/src/session.ts"),
         "export const authSession = 1;\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("fixtures/mixed/services/auth/tests/session.test.ts"),
+        "import { authSession } from '../src/session';\nconsole.log(authSession);\n",
     );
     write(&repo.path().join("src/model.rs"), "pub struct Model;\n");
     git(repo.path(), &["add", "."]);
@@ -1314,6 +1326,45 @@ fn start_does_not_route_into_top_level_fixtures_by_default() {
     assert_eq!(
         nested_file_json["domain"]["path"],
         "fixtures/mixed/domains/replay"
+    );
+
+    let nested_auth_output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "start",
+            "--path",
+            "fixtures/mixed",
+            "--task",
+            "fix auth fixture session behavior",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx start nested auth fixture should run");
+    assert!(nested_auth_output.status.success());
+    let nested_auth_json: Value =
+        serde_json::from_slice(&nested_auth_output.stdout).expect("valid nested auth json");
+    assert_eq!(
+        nested_auth_json["domain"]["path"],
+        "fixtures/mixed/services/auth"
+    );
+    assert!(
+        nested_auth_json["related_tests"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("fixtures/mixed/services/auth/tests/session.test.ts"))
+    );
+    assert!(
+        nested_auth_json["related_tests"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| !item
+                .as_str()
+                .unwrap_or("")
+                .starts_with("fixtures/mixed/domains/replay/"))
     );
 
     let example_output = ctx()

@@ -96,6 +96,7 @@ This is intentionally flatter than the final large-tree design. The next split s
 - schema files are valid JSON, pinned to JSON Schema draft 2020-12, and validate real `locate`/`start`/`impact`/`verify`/`explain`/`widen`/`graph`/`boundaries` JSON outputs in tests.
 - `tests/schema_policy.rs` guards schema manifest coverage, `ctx schema <kind>` parity, route `schema_version`, anchor `version`, and root strictness.
 - `tests/golden_routing.rs` protects mixed-monorepo routing quality.
+- root `--path` bootloader calls still use task routing, while narrower explicit paths constrain the route.
 - `tests/e2e_workflow.rs` protects the full agent loop: `start -> impact -> verify -> verify --run -> boundaries -> explain`.
 
 ## Next Useful Slices

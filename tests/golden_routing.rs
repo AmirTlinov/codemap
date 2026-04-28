@@ -79,6 +79,36 @@ fn mixed_monorepo_routes_replay_task_to_replay_domain() {
 }
 
 #[test]
+fn mixed_monorepo_root_path_still_uses_task_routing() {
+    let repo = fixture_copy("mixed-monorepo");
+    let cache = TempDir::new().expect("cache tempdir");
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "start",
+            "--path",
+            repo.path().to_str().unwrap(),
+            "--task",
+            "fix replay jumping to wrong frame after seek",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx start should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
+    assert_eq!(json["domain"]["path"], "domains/replay");
+    assert!(
+        json["read_first"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["path"].as_str() == Some("domains/replay/src/replay-session.ts"))
+    );
+}
+
+#[test]
 fn mixed_monorepo_locates_auth_token_task() {
     let repo = fixture_copy("mixed-monorepo");
     let cache = TempDir::new().expect("cache tempdir");

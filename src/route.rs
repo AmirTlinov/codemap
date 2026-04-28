@@ -855,6 +855,10 @@ fn primary_domain(project: &Project, task: &str, path: Option<&str>) -> Domain {
     if let Some(path) = path {
         return explicit_domain_for_path(project, path, task);
     }
+    task_domain(project, task)
+}
+
+fn task_domain(project: &Project, task: &str) -> Domain {
     if task.is_empty() {
         return project
             .domains
@@ -889,7 +893,10 @@ fn explicit_domain_for_path(project: &Project, path: &str, task: &str) -> Domain
         None => return domain_for_path(project, path).clone(),
     };
     let best = domain_for_path(project, &rel);
-    if best.path != "." || rel == "." {
+    if rel == "." {
+        return task_domain(project, task);
+    }
+    if best.path != "." {
         return best.clone();
     }
     if project.files.contains_key(&rel)
@@ -977,7 +984,10 @@ fn package_domain(package: &crate::model::PackageInfo) -> Domain {
 
 fn normalize_path_in_repo(project: &Project, path: &str) -> Option<String> {
     if Path::new(path).is_absolute() {
-        Path::new(path)
+        let absolute = Path::new(path)
+            .canonicalize()
+            .unwrap_or_else(|_| Path::new(path).to_path_buf());
+        absolute
             .strip_prefix(&project.root)
             .ok()
             .map(|p| repo::normalize_rel_path(&p.to_string_lossy()))
@@ -1005,14 +1015,21 @@ fn explicit_scope_path(project: &Project, rel: &str) -> String {
 
 fn domain_for_path<'a>(project: &'a Project, path: &str) -> &'a Domain {
     let rel = if Path::new(path).is_absolute() {
-        Path::new(path)
+        let absolute = Path::new(path)
+            .canonicalize()
+            .unwrap_or_else(|_| Path::new(path).to_path_buf());
+        absolute
             .strip_prefix(&project.root)
             .map(|p| repo::normalize_rel_path(&p.to_string_lossy()))
             .unwrap_or_else(|_| repo::normalize_rel_path(path))
     } else {
         repo::normalize_rel_path(path)
     };
-    let mut best = &project.domains[0];
+    let mut best = project
+        .domains
+        .iter()
+        .find(|domain| domain.path == ".")
+        .unwrap_or(&project.domains[0]);
     let mut best_len = 0usize;
     for domain in &project.domains {
         let prefix = domain.path.trim_end_matches('/');
@@ -1495,9 +1512,7 @@ fn test_files_for(
             if matches!(stem.as_str(), "index" | "mod" | "main" | "lib") {
                 return None;
             }
-            let source_domain = domain_by_rel(project, r)
-                .or(domain)
-                .map(|domain| domain.path.clone());
+            let source_domain = scoped_domain_path_for_rel(project, r, domain);
             Some((stem, source_domain))
         })
         .collect();
@@ -1527,7 +1542,7 @@ fn test_files_for(
             continue;
         }
         let mut score = 0.0;
-        let test_domain = domain_by_rel(project, &file.rel).map(|domain| domain.path.clone());
+        let test_domain = scoped_domain_path_for_rel(project, &file.rel, domain);
         for (stem, source_domain) in &stem_domains {
             if source_domain.is_some() && source_domain != &test_domain {
                 continue;
@@ -1558,6 +1573,21 @@ fn test_files_for(
     }
     scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
     scored.into_iter().map(|(_, rel)| rel).take(limit).collect()
+}
+
+fn scoped_domain_path_for_rel(
+    project: &Project,
+    rel: &str,
+    scope: Option<&Domain>,
+) -> Option<String> {
+    if let Some(domain) = scope
+        && (domain.path == "."
+            || rel == domain.path
+            || rel.starts_with(&format!("{}/", domain.path.trim_end_matches('/'))))
+    {
+        return Some(domain.path.clone());
+    }
+    domain_by_rel(project, rel).map(|domain| domain.path.clone())
 }
 
 fn source_truths(project: &Project, domain: &Domain) -> Vec<String> {
