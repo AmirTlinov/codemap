@@ -1046,6 +1046,124 @@ fn task_keywords_without_matching_files_do_not_claim_high_confidence() {
 }
 
 #[test]
+fn general_low_confidence_task_gets_bounded_orientation_route() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join("Cargo.toml"),
+        "[package]\nname = \"ctx-demo\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    );
+    write(&repo.path().join("src/model.rs"), "pub struct Model;\n");
+    write(&repo.path().join("src/cli.rs"), "pub fn run() {}\n");
+    write(&repo.path().join("src/main.rs"), "fn main() {}\n");
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "start",
+            "--task",
+            "continue implementation until complete",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx start should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
+    assert_eq!(json["task_kind"], "general");
+    assert_eq!(json["confidence"], "low");
+    let read_first = json["read_first"].as_array().expect("read_first array");
+    assert!(
+        !read_first.is_empty(),
+        "general low-confidence tasks still need a bounded orientation route"
+    );
+    assert!(read_first.len() <= 7);
+    assert!(
+        read_first
+            .iter()
+            .any(|item| item["path"].as_str() == Some("src/model.rs"))
+    );
+    assert!(
+        json["expansion_triggers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|trigger| trigger.as_str() == Some("context confidence is medium/low"))
+    );
+}
+
+#[test]
+fn start_does_not_route_into_top_level_fixtures_by_default() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join("fixtures/replay/src/replay-session.ts"),
+        "export const replaySession = 1;\n",
+    );
+    write(
+        &repo.path().join("fixtures/replay/src/replay-timeline.ts"),
+        "export const replayTimeline = 1;\n",
+    );
+    write(&repo.path().join("src/model.rs"), "pub struct Model;\n");
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "start",
+            "--task",
+            "fix replay jumping to wrong frame after seek",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx start should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
+    assert_ne!(json["confidence"], "high");
+    assert!(
+        json["read_first"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| !item["path"].as_str().unwrap_or("").starts_with("fixtures/"))
+    );
+
+    let fixture_output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "start",
+            "--task",
+            "fix replay fixture seek behavior",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx start fixture should run");
+    assert!(fixture_output.status.success());
+    let fixture_json: Value =
+        serde_json::from_slice(&fixture_output.stdout).expect("valid fixture json");
+    assert!(
+        fixture_json["read_first"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["path"]
+                .as_str()
+                .unwrap_or("")
+                .starts_with("fixtures/replay/"))
+    );
+}
+
+#[test]
 fn absolute_start_path_selects_target_repo_from_any_cwd() {
     let repo = TempDir::new().expect("repo tempdir");
     let outside = TempDir::new().expect("outside tempdir");

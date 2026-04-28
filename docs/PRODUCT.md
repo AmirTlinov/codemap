@@ -28,6 +28,10 @@ A task capsule must answer:
 - when to widen;
 - when to stop.
 
+For task-specific misses, `ctx` must not pretend confidence is high. For broad general tasks, it should still return a small orientation route so the agent has a safe first read instead of scanning the repository manually.
+
+Fixture/example code is not normal ownership evidence. It should not become the route owner unless the task explicitly asks for fixtures or the command is scoped into that fixture.
+
 Hard output budgets:
 
 - `read_first`: max 7 files;

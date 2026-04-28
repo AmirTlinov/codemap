@@ -187,16 +187,19 @@ pub fn start_capsule(
     let has_specific_read_evidence = read
         .iter()
         .any(|candidate| candidate_has_specific_evidence(candidate, &kind));
-    if !matched_configured_route && !has_specific_read_evidence {
+    let general_orientation_route =
+        kind == "general" && !matched_configured_route && !has_specific_read_evidence;
+    if !matched_configured_route && !has_specific_read_evidence && kind != "general" {
         read.clear();
         read_paths.clear();
     }
     let related_tests = test_files_for(project, &read_paths, Some(domain), 3);
-    let source_of_truth = if matched_configured_route || has_specific_read_evidence {
-        source_truths(project, domain)
-    } else {
-        Vec::new()
-    };
+    let source_of_truth =
+        if matched_configured_route || has_specific_read_evidence || general_orientation_route {
+            source_truths(project, domain)
+        } else {
+            Vec::new()
+        };
     let public_boundaries = public_boundaries(project, domain);
     let invariants = invariants_for(project, domain, &read_paths);
     let mut conf_score = score_conf;
@@ -1047,9 +1050,14 @@ fn select_read_first(
     limit: usize,
     exclude: &BTreeSet<String>,
 ) -> Vec<Candidate> {
+    let include_fixtures = task_mentions_fixture(task) || domain.path.contains("fixtures");
     let mut candidates = domain_files(project, domain)
         .into_iter()
-        .filter(|file| !exclude.contains(&file.rel) && !file.has_role("generated"))
+        .filter(|file| {
+            !exclude.contains(&file.rel)
+                && !file.has_role("generated")
+                && (include_fixtures || !file.has_role("fixture"))
+        })
         .map(|file| score_file(project, file, task, kind))
         .filter(|candidate| candidate.score >= 1.0)
         .collect::<Vec<_>>();
@@ -1080,6 +1088,7 @@ fn select_read_first(
                 repo::is_source_ext(&file.ext)
                     && !file.has_role("test")
                     && !file.has_role("generated")
+                    && (include_fixtures || !file.has_role("fixture"))
             })
             .take(limit)
             .map(|file| Candidate {
@@ -1090,6 +1099,11 @@ fn select_read_first(
             .collect();
     }
     out
+}
+
+fn task_mentions_fixture(task: &str) -> bool {
+    let text = task.to_ascii_lowercase();
+    text.contains("fixture") || text.contains("fixtures")
 }
 
 fn score_file(_project: &Project, file: &FileInfo, task: &str, kind: &str) -> Candidate {
@@ -1223,8 +1237,7 @@ fn score_file(_project: &Project, file: &FileInfo, task: &str, kind: &str) -> Ca
     {
         score -= 2.0;
     }
-    if file.has_role("fixture") && kind != "test" && !task.to_ascii_lowercase().contains("fixture")
-    {
+    if file.has_role("fixture") && kind != "test" && !task_mentions_fixture(task) {
         score -= 4.0;
     }
     Candidate {
