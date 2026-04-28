@@ -49,6 +49,15 @@ fn write(path: &Path, body: &str) {
     fs::write(path, body).expect("write file");
 }
 
+fn git(dir: &Path, args: &[&str]) {
+    let status = Command::new("git")
+        .args(args)
+        .current_dir(dir)
+        .status()
+        .expect("git should run");
+    assert!(status.success(), "git {:?} failed", args);
+}
+
 #[test]
 fn mixed_monorepo_routes_replay_task_to_replay_domain() {
     let repo = fixture_copy("mixed-monorepo");
@@ -570,6 +579,129 @@ fn package_exports_subpaths_resolve_and_block_unexported_root_fallback() {
             .iter()
             .all(|item| item.as_str() != Some("packages/core/src/index.ts")),
         "package exports without `.` must not fall back to src/index.ts"
+    );
+}
+
+#[test]
+fn graph_boundaries_lens_renders_forbidden_package_edges() {
+    let repo = fixture_copy("mixed-monorepo");
+    let cache = TempDir::new().expect("cache tempdir");
+    write(
+        &repo.path().join(".ctx.yml"),
+        r#"version: 1
+boundaries:
+  forbidden:
+    - from: apps/web/package.json
+      to: domains/renderer/package.json
+      reason: app must not package-depend on renderer in this fixture policy
+"#,
+    );
+
+    let graph = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["graph", "--lens", "boundaries", "--format", "json"])
+        .output()
+        .expect("ctx graph should run");
+    assert!(graph.status.success());
+    let graph_json: Value = serde_json::from_slice(&graph.stdout).expect("valid graph json");
+    assert!(
+        graph_json["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("apps/web/package.json"))
+    );
+    assert!(
+        graph_json["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("domains/renderer/package.json"))
+    );
+    assert!(
+        graph_json["edges"].as_array().unwrap().iter().any(|edge| {
+            edge["from"].as_str() == Some("apps/web/package.json")
+                && edge["to"].as_str() == Some("domains/renderer/package.json")
+                && edge["type"].as_str() == Some("forbidden")
+        }),
+        "boundaries lens should render explicit/package findings as graph edges"
+    );
+}
+
+#[test]
+fn graph_verification_lens_connects_changed_files_tests_and_commands() {
+    let repo = fixture_copy("mixed-monorepo");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+    write(
+        &repo.path().join("domains/replay/src/replay-timeline.ts"),
+        "export function frameAt(timeMs: number): number {\n  return Math.max(0, Math.floor(timeMs / 16));\n}\n",
+    );
+
+    let graph = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "graph",
+            "--lens",
+            "verification",
+            "--changed",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx graph should run");
+    assert!(graph.status.success());
+    let graph_json: Value = serde_json::from_slice(&graph.stdout).expect("valid graph json");
+    assert_eq!(graph_json["domain"]["path"], "domains/replay");
+    assert!(
+        graph_json["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("domains/replay/src/replay-timeline.ts"))
+    );
+    assert!(
+        graph_json["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("domains/replay/tests/replay-session.test.ts"))
+    );
+    assert!(
+        graph_json["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("$ pnpm test domains/replay"))
+    );
+    assert!(graph_json["edges"].as_array().unwrap().iter().any(|edge| {
+        edge["from"].as_str() == Some("domains/replay/src/replay-session.ts")
+            && edge["to"].as_str() == Some("domains/replay/src/replay-timeline.ts")
+            && edge["type"].as_str() == Some("imports")
+    }));
+    assert!(graph_json["edges"].as_array().unwrap().iter().any(|edge| {
+        edge["from"].as_str() == Some("domains/replay/src/replay-session.ts")
+            && edge["to"].as_str() == Some("domains/replay/tests/replay-session.test.ts")
+            && edge["type"].as_str() == Some("tested_by")
+    }));
+    assert!(graph_json["edges"].as_array().unwrap().iter().any(|edge| {
+        edge["from"].as_str() == Some("domains/replay/tests/replay-session.test.ts")
+            && edge["to"].as_str() == Some("$ pnpm test domains/replay")
+            && edge["type"].as_str() == Some("verified_by")
+    }));
+    assert!(
+        graph_json["edges"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|edge| edge["from"] != edge["to"]),
+        "verification graph must not emit self-loop edges"
     );
 }
 

@@ -29,6 +29,8 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - `ctx explain`
 - `ctx widen`
 - `ctx graph`
+- `ctx graph --lens verification` renders changed/impacted files, related tests, and verification commands as a bounded verification graph
+- `ctx graph --lens boundaries` renders forbidden file/package findings as graph edges, not only as loose nodes
 - `ctx boundaries`
 - `ctx init --print`
 - `ctx init --write-minimal`
@@ -114,6 +116,7 @@ This is intentionally flatter than the final large-tree design. The next split s
 - schema files are valid JSON, pinned to JSON Schema draft 2020-12, and validate real `status`/`files`/`locate`/`start`/`impact`/`verify`/`explain`/`widen`/`graph`/`boundaries` JSON outputs in tests.
 - `tests/schema_policy.rs` guards schema manifest coverage, `ctx schema <kind>` parity, route `schema_version`, anchor `version`, and root strictness.
 - `tests/golden_routing.rs` protects mixed-monorepo, Rust-workspace, Go-workspace, and Python-workspace routing quality.
+- graph golden tests protect package-boundary graph edges and changed-file verification lenses.
 - root `--path` bootloader calls still use task routing, while narrower explicit paths constrain the route.
 - `tests/e2e_workflow.rs` protects the full agent loop: `start -> impact -> verify -> verify --run -> boundaries -> explain`.
 
