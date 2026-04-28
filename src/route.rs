@@ -1413,7 +1413,6 @@ fn score_file(_project: &Project, file: &FileInfo, task: &str, kind: &str) -> Ca
                 ("repo_discovery", 2.5),
                 ("cli_surface", 1.5),
                 ("cache", 1.0),
-                ("schema_contract", 1.0),
             ],
         ),
     ];
@@ -1431,6 +1430,17 @@ fn score_file(_project: &Project, file: &FileInfo, task: &str, kind: &str) -> Ca
     }
     if repo::is_source_ext(&file.ext) {
         score += 0.8;
+        if kind == "context_routing"
+            && ["routing", "repo_discovery", "cli_surface", "cache"]
+                .iter()
+                .any(|role| file.has_role(role))
+        {
+            score += 2.0;
+            reasons.push("source implementation".to_string());
+        }
+    } else if kind == "context_routing" && file.has_role("schema_contract") {
+        score -= 4.0;
+        reasons.push("route contract, not implementation".to_string());
     }
     if file.has_role("agent_bootstrap") {
         score -= 1.5;

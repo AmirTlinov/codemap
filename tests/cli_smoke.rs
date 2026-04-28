@@ -160,6 +160,57 @@ fn start_routes_task_without_writing_to_project() {
 }
 
 #[test]
+fn context_routing_tasks_prefer_implementation_over_output_schemas() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join("Cargo.toml"),
+        "[package]\nname = \"ctx-like\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    );
+    write(
+        &repo.path().join("src/route.rs"),
+        "pub fn start_capsule() {}\n",
+    );
+    write(&repo.path().join("src/repo.rs"), "pub fn discover() {}\n");
+    write(&repo.path().join("src/cli.rs"), "pub fn command() {}\n");
+    write(&repo.path().join("src/cache.rs"), "pub fn cache() {}\n");
+    write(
+        &repo.path().join("schemas/capsule.schema.json"),
+        r#"{"title":"capsule"}"#,
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "start",
+            "--path",
+            repo.path().to_str().unwrap(),
+            "--task",
+            "improve ctx routing quality",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx start should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
+    assert_eq!(json["task_kind"], "context_routing");
+    assert_eq!(json["read_first"][0]["path"], "src/route.rs");
+    assert!(
+        json["read_first"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .take(3)
+            .all(|item| item["path"].as_str().unwrap_or("").starts_with("src/"))
+    );
+}
+
+#[test]
 fn pnpm_workspace_globs_create_domains_outside_builtin_dirs() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");
