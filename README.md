@@ -188,3 +188,5 @@ cargo test
 cargo run --bin ctx -- doctor
 ./scripts/release-check.sh
 ```
+
+CI runs the release check on Linux and macOS.

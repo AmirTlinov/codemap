@@ -78,4 +78,6 @@ expected_list="$(printf '%s\n' \
   "$archive_base/LICENSE" \
   "$archive_base/README.md" \
   "$archive_base/ctx")"
-diff -u <(printf '%s\n' "$expected_list") <(printf '%s\n' "$archive_list")
+diff -u \
+  <(printf '%s\n' "$expected_list" | LC_ALL=C sort) \
+  <(printf '%s\n' "$archive_list" | LC_ALL=C sort)

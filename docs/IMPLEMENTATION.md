@@ -59,6 +59,7 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - mixed-monorepo, materialized Rust-workspace, materialized Go-workspace, and Python-workspace golden fixtures cover replay/auth routing, bounded impact, JS/TS package/alias imports, language package imports, and package-consumer traversal
 - release packaging check script verifies tests, clippy, doctor, bundled schemas, and crate package contents
 - `scripts/package-release.sh` builds a target-specific tarball with the `ctx` binary, `README.md`, `LICENSE`, and a sha256 sidecar
+- GitHub Actions runs the release check on Linux and macOS
 - printed global agent bootstrap does not advertise a separate `--for-agent` mode; Markdown is already the agent-facing default
 
 ## Core Files
