@@ -34,9 +34,10 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - `ctx init --write-minimal`
 - `ctx init --agents`
 - `ctx bootstrap --global-instruction`
-- `ctx schema <capsule|impact|verify|anchors|locate|explain|widen|graph|boundaries>`
+- `ctx schema <status|files|capsule|impact|verify|anchors|locate|explain|widen|graph|boundaries>`
 - `ctx anchors validate`
 - stable JSON schemas for agent-facing route JSON outputs and `.ctx.yml` semantic anchors under `schemas/`
+- stable JSON schemas for `status` and `files` JSON reports
 - schema evolution policy in `docs/SCHEMA_POLICY.md`, with exported schema ownership in `schemas/manifest.json`
 - bundled schema printing from the installed binary, without loading a project or writing cache
 - root and nested `.ctx.yml` semantic anchor loading
@@ -103,7 +104,7 @@ This is intentionally flatter than the final large-tree design. The next split s
 - `ctx schema` exposes bundled schemas without repo/cache side effects.
 - workspace globs outside the built-in `apps/`, `domains/`, `services/`, `packages/`, and `crates/` shapes become routeable domains.
 - impact reports expose specific expansion triggers for schema/DTO, public boundary, and source-of-truth changes.
-- schema files are valid JSON, pinned to JSON Schema draft 2020-12, and validate real `locate`/`start`/`impact`/`verify`/`explain`/`widen`/`graph`/`boundaries` JSON outputs in tests.
+- schema files are valid JSON, pinned to JSON Schema draft 2020-12, and validate real `status`/`files`/`locate`/`start`/`impact`/`verify`/`explain`/`widen`/`graph`/`boundaries` JSON outputs in tests.
 - `tests/schema_policy.rs` guards schema manifest coverage, `ctx schema <kind>` parity, route `schema_version`, anchor `version`, and root strictness.
 - `tests/golden_routing.rs` protects mixed-monorepo, Rust-workspace, Go-workspace, and Python-workspace routing quality.
 - root `--path` bootloader calls still use task routing, while narrower explicit paths constrain the route.

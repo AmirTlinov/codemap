@@ -246,6 +246,8 @@ fn status_reports_external_cache_state_without_self_warming() {
         "ctx status must not write project files"
     );
     let json: Value = serde_json::from_slice(&output.stdout).expect("valid status json");
+    assert_eq!(json["kind"], "status_report");
+    assert_eq!(json["schema_version"], "1");
     assert_eq!(json["cache_state"], "warm");
     let artifacts = json["cache_artifacts"]
         .as_array()
@@ -1118,6 +1120,8 @@ fn global_instruction_does_not_advertise_fake_agent_mode_flag() {
 fn json_schemas_are_present_and_parse() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     for rel in [
+        "schemas/status.schema.json",
+        "schemas/files.schema.json",
         "schemas/capsule.schema.json",
         "schemas/impact.schema.json",
         "schemas/verify.schema.json",
@@ -1178,6 +1182,26 @@ fn json_schemas_are_present_and_parse() {
     );
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["commit", "-qm", "init"]);
+
+    let status = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["status", "--format", "json"])
+        .output()
+        .expect("ctx status should run");
+    assert!(status.status.success());
+    let status_json: Value = serde_json::from_slice(&status.stdout).expect("valid status json");
+    assert_schema_accepts("schemas/status.schema.json", &status_json);
+
+    let files = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["files", "--limit", "5", "--format", "json"])
+        .output()
+        .expect("ctx files should run");
+    assert!(files.status.success());
+    let files_json: Value = serde_json::from_slice(&files.stdout).expect("valid files json");
+    assert_schema_accepts("schemas/files.schema.json", &files_json);
 
     let capsule = ctx()
         .current_dir(repo.path())

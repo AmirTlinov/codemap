@@ -20,7 +20,7 @@ cargo test
 cargo clippy --all-targets -- -D warnings
 cargo run --bin ctx -- doctor
 
-for schema in capsule impact verify anchors locate explain widen graph boundaries; do
+for schema in status files capsule impact verify anchors locate explain widen graph boundaries; do
   cargo run --bin ctx -- schema "$schema" >/dev/null
 done
 
@@ -28,6 +28,8 @@ cargo package --allow-dirty --no-verify
 package_list="$(cargo package --allow-dirty --list)"
 for required in \
   "schemas/capsule.schema.json" \
+  "schemas/status.schema.json" \
+  "schemas/files.schema.json" \
   "schemas/impact.schema.json" \
   "schemas/verify.schema.json" \
   "schemas/anchors.schema.json" \

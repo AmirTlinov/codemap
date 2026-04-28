@@ -229,6 +229,8 @@ enum OutputFormat {
 
 #[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
 enum SchemaKind {
+    Status,
+    Files,
     Capsule,
     Impact,
     Verify,
@@ -378,6 +380,8 @@ pub fn run() -> Result<()> {
 
 fn schema_text(kind: SchemaKind) -> &'static str {
     match kind {
+        SchemaKind::Status => include_str!("../schemas/status.schema.json"),
+        SchemaKind::Files => include_str!("../schemas/files.schema.json"),
         SchemaKind::Capsule => include_str!("../schemas/capsule.schema.json"),
         SchemaKind::Impact => include_str!("../schemas/impact.schema.json"),
         SchemaKind::Verify => include_str!("../schemas/verify.schema.json"),
@@ -633,6 +637,7 @@ fn output<T: serde::Serialize>(
 #[derive(serde::Serialize)]
 struct FilesReport {
     kind: &'static str,
+    schema_version: &'static str,
     path: String,
     files: Vec<String>,
     count: usize,
@@ -654,6 +659,7 @@ fn files_report(project: &crate::model::Project, path: Option<&str>, limit: usiz
     files.truncate(limit);
     FilesReport {
         kind: "files",
+        schema_version: "1",
         path: path.unwrap_or(".").to_string(),
         files,
         count,

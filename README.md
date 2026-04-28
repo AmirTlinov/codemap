@@ -51,6 +51,8 @@ Use `CTX_CACHE_DIR=/path` to override and `CTX_NO_CACHE=1` to disable cache writ
 ctx doctor
 ctx status
 ctx files
+ctx schema status
+ctx schema files
 ctx schema capsule
 ctx schema anchors
 ctx schema graph
@@ -75,9 +77,9 @@ ctx anchors validate
 ```
 
 Markdown is the default agent-facing format. JSON is available with `--format json`.
-Stable JSON schemas live under `schemas/` for agent-facing route outputs and `.ctx.yml` semantic anchors.
+Stable JSON schemas live under `schemas/` for agent-facing route outputs, status/files reports, and `.ctx.yml` semantic anchors.
 Schema-backed outputs include `schema_version: "1"`.
-Installed binaries can print bundled schemas with `ctx schema <kind>`, including `capsule`, `impact`, `verify`, `anchors`, `locate`, `explain`, `widen`, `graph`, and `boundaries`.
+Installed binaries can print bundled schemas with `ctx schema <kind>`, including `status`, `files`, `capsule`, `impact`, `verify`, `anchors`, `locate`, `explain`, `widen`, `graph`, and `boundaries`.
 Schema evolution rules are documented in `docs/SCHEMA_POLICY.md` and guarded by `tests/schema_policy.rs`.
 
 ## Agent Integration

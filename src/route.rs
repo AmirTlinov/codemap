@@ -14,6 +14,8 @@ use crate::repo;
 
 #[derive(Debug, Serialize)]
 pub struct StatusReport {
+    pub kind: &'static str,
+    pub schema_version: &'static str,
     pub root: String,
     pub cwd: String,
     pub vcs: Option<String>,
@@ -50,6 +52,8 @@ pub fn status_report(project: &Project) -> StatusReport {
         .map(|file| file.rel.clone())
         .collect();
     StatusReport {
+        kind: "status_report",
+        schema_version: "1",
         root: project.root.to_string_lossy().to_string(),
         cwd: project.cwd.to_string_lossy().to_string(),
         vcs: project.vcs.clone(),

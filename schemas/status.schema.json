@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AmirTlinov/ctx/schemas/status.schema.json",
+  "title": "ctx status report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "schema_version",
+    "root",
+    "cwd",
+    "vcs",
+    "config",
+    "config_errors",
+    "nearest_agents",
+    "cache_dir",
+    "cache_state",
+    "cache_artifacts",
+    "zero_footprint_default",
+    "package_manager",
+    "languages",
+    "files_scanned",
+    "domains",
+    "scripts",
+    "fingerprint",
+    "boundary_findings",
+    "unclassified_source_files",
+    "unclassified_count"
+  ],
+  "properties": {
+    "kind": { "const": "status_report" },
+    "schema_version": { "const": "1" },
+    "root": { "type": "string" },
+    "cwd": { "type": "string" },
+    "vcs": { "type": ["string", "null"] },
+    "config": { "type": ["string", "null"] },
+    "config_errors": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "nearest_agents": { "type": ["string", "null"] },
+    "cache_dir": { "type": "string" },
+    "cache_state": {
+      "type": "string",
+      "enum": ["cold", "warm", "stale", "disabled"]
+    },
+    "cache_artifacts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/cache_artifact" }
+    },
+    "zero_footprint_default": { "type": "boolean" },
+    "package_manager": { "type": "string" },
+    "languages": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "files_scanned": { "type": "integer", "minimum": 0 },
+    "domains": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/domain_status" }
+    },
+    "scripts": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "fingerprint": { "type": "string" },
+    "boundary_findings": { "type": "integer", "minimum": 0 },
+    "unclassified_source_files": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "unclassified_count": { "type": "integer", "minimum": 0 }
+  },
+  "$defs": {
+    "cache_artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "path", "exists", "bytes", "fingerprint_match"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "enum": [
+            "status.json",
+            "inventory.json",
+            "graph.json",
+            "fingerprints.json"
+          ]
+        },
+        "path": { "type": "string" },
+        "exists": { "type": "boolean" },
+        "bytes": { "type": ["integer", "null"], "minimum": 0 },
+        "fingerprint_match": { "type": ["boolean", "null"] }
+      }
+    },
+    "domain_status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "path", "config"],
+      "properties": {
+        "id": { "type": "string" },
+        "path": { "type": "string" },
+        "config": { "type": ["string", "null"] }
+      }
+    }
+  }
+}
