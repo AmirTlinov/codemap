@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -244,7 +245,13 @@ enum SchemaKind {
 
 pub fn run() -> Result<()> {
     let cli = Cli::parse();
-    let root_hint = cli.root.clone().or_else(|| command_root_hint(&cli.command));
+    let ambient_root = env::current_dir()
+        .ok()
+        .and_then(|cwd| repo::ambient_root(&cwd));
+    let root_hint = cli
+        .root
+        .clone()
+        .or_else(|| command_root_hint(&cli.command, ambient_root.as_deref()));
 
     if let CommandKind::Bootstrap(args) = &cli.command {
         if args.global_instruction {
@@ -300,7 +307,8 @@ pub fn run() -> Result<()> {
         CommandKind::Verify(args) => verify(&project, args),
         CommandKind::Explain(args) => {
             ensure_valid_config(&project)?;
-            let report = route::explain_target(&project, &args.target);
+            let target = project_relative_arg(&project, &args.target).unwrap_or(args.target);
+            let report = route::explain_target(&project, &target);
             output(args.format, &report, || render::explain(&report))
         }
         CommandKind::Widen(args) => {
@@ -322,9 +330,12 @@ pub fn run() -> Result<()> {
             } else {
                 Vec::new()
             };
+            let graph_path = args.path.as_deref().map(|path| {
+                project_relative_arg(&project, path).unwrap_or_else(|_| path.to_string())
+            });
             let graph = route::graph_lens(
                 &project,
-                args.path.as_deref(),
+                graph_path.as_deref(),
                 &args.lens,
                 args.limit,
                 &changed,
@@ -394,8 +405,10 @@ fn schema_text(kind: SchemaKind) -> &'static str {
     }
 }
 
-fn command_root_hint(command: &CommandKind) -> Option<PathBuf> {
+fn command_root_hint(command: &CommandKind, ambient_root: Option<&Path>) -> Option<PathBuf> {
     match command {
+        CommandKind::Files(args) => absolute_path_hint(args.path.as_deref()),
+        CommandKind::Init(args) => init_root_hint(args.path.as_deref(), ambient_root),
         CommandKind::Start(args) => absolute_path_hint(args.path.as_deref()),
         CommandKind::Widen(args) => absolute_path_hint(args.path.as_deref()),
         CommandKind::Impact(args) => {
@@ -404,7 +417,18 @@ fn command_root_hint(command: &CommandKind) -> Option<PathBuf> {
         CommandKind::Verify(args) => {
             absolute_files_hint(args.files.as_deref(), &args.positional_files)
         }
+        CommandKind::Explain(args) => absolute_file_root_hint(&args.target),
+        CommandKind::Graph(args) => absolute_path_hint(args.path.as_deref()),
         _ => None,
+    }
+}
+
+fn init_root_hint(path: Option<&str>, ambient_root: Option<&Path>) -> Option<PathBuf> {
+    let hint = absolute_path_hint(path)?;
+    if ambient_root.is_some() {
+        None
+    } else {
+        Some(hint)
     }
 }
 
@@ -644,9 +668,10 @@ struct FilesReport {
 }
 
 fn files_report(project: &crate::model::Project, path: Option<&str>, limit: usize) -> FilesReport {
-    let prefix = path
-        .and_then(|path| project_relative_arg(project, path).ok())
-        .filter(|p| p != ".")
+    let normalized_path = path.and_then(|path| project_relative_arg(project, path).ok());
+    let prefix = normalized_path
+        .as_deref()
+        .filter(|p| *p != ".")
         .map(|p| format!("{}/", p.trim_end_matches('/')));
     let mut files: Vec<String> = project
         .files
@@ -660,7 +685,7 @@ fn files_report(project: &crate::model::Project, path: Option<&str>, limit: usiz
     FilesReport {
         kind: "files",
         schema_version: "1",
-        path: path.unwrap_or(".").to_string(),
+        path: normalized_path.unwrap_or_else(|| ".".to_string()),
         files,
         count,
     }

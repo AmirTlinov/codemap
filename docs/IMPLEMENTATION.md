@@ -45,7 +45,7 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - root and nested `.ctx.yml` semantic anchor loading
 - YAML anchor parsing through `serde_yml`
 - unknown `.ctx.yml` fields are rejected instead of being silently ignored
-- absolute `--path` and `--files` arguments normalized to the owning repo
+- absolute path-bearing arguments for `start`, `files`, `graph`, `explain`, `init --path`, `impact`, and `verify` select and normalize to the owning repo
 - safe `ctx init --write-minimal`: creates requested domain directories, refuses writes outside the repo, and writes no fake placeholder concepts
 - invalid `.ctx.yml` files are reported by `ctx anchors validate` and block routing commands instead of being silently ignored
 - semantically invalid `.ctx.yml` anchors fail closed before routing when `version: 1`, exact concept files, route read-first files, boundary reasons, or route match/read declarations are missing
@@ -106,7 +106,7 @@ This is intentionally flatter than the final large-tree design. The next split s
 - explicit `--path` scopes into support artifact containers can narrow to the nested package whose manifest/path matches the task, and explicit file paths inside nested packages resolve to that package owner;
 - support artifact roots such as `fixtures/**` and `examples/**` appear in negative context when they are not task owners;
 - default graph lenses exclude support artifacts unless the command is scoped into them;
-- absolute start paths and file arguments work from outside the repo;
+- absolute path-bearing commands work from outside the repo and normalize paths to repo-relative output;
 - `ctx init --write-minimal` writes a valid skeletal `.ctx.yml` and refuses absolute paths outside the repo.
 - invalid semantic anchors block `start`/`impact`/`verify` until fixed, while `ctx anchors validate` stays available for diagnosis.
 - semantic anchor validation catches missing/unsupported config versions, unknown fields, missing exact concept files, missing route read-first files, missing boundary reasons, and empty route declarations.

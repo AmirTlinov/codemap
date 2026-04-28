@@ -170,6 +170,10 @@ fn resolve_root(root_override: Option<&Path>, cwd: &Path) -> Result<PathBuf> {
     Ok(marker_root(cwd).unwrap_or_else(|| cwd.to_path_buf()))
 }
 
+pub fn ambient_root(start: &Path) -> Option<PathBuf> {
+    git_root(start).or_else(|| marker_root(start))
+}
+
 fn git_root(start: &Path) -> Option<PathBuf> {
     let output = Command::new("git")
         .arg("-C")

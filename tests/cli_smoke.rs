@@ -2023,6 +2023,102 @@ fn absolute_file_args_are_normalized_to_repo_relative_paths() {
 }
 
 #[test]
+fn absolute_path_commands_select_target_repo_from_any_cwd() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let outside = TempDir::new().expect("outside tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join("package.json"),
+        r#"{"scripts":{"test":"echo test ok"}}"#,
+    );
+    write(
+        &repo.path().join("src/save.ts"),
+        "export function saveGame(x: string) { return x }\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+    let absolute_src = repo.path().join("src");
+    let absolute_file = repo.path().join("src/save.ts");
+
+    let files = ctx()
+        .current_dir(outside.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "files",
+            "--path",
+            absolute_src.to_str().unwrap(),
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx files should run");
+    assert!(files.status.success());
+    let files_json: Value = serde_json::from_slice(&files.stdout).expect("valid files json");
+    assert_eq!(files_json["path"], "src");
+    assert!(
+        files_json["files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| { item.as_str() == Some("src/save.ts") })
+    );
+
+    let explain = ctx()
+        .current_dir(outside.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "explain",
+            absolute_file.to_str().unwrap(),
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx explain should run");
+    assert!(explain.status.success());
+    let explain_json: Value = serde_json::from_slice(&explain.stdout).expect("valid explain json");
+    assert_eq!(explain_json["path"], "src/save.ts");
+
+    let graph = ctx()
+        .current_dir(outside.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "graph",
+            "--path",
+            absolute_src.to_str().unwrap(),
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx graph should run");
+    assert!(graph.status.success());
+    let graph_json: Value = serde_json::from_slice(&graph.stdout).expect("valid graph json");
+    assert!(
+        graph_json["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| { item.as_str() == Some("src/save.ts") })
+    );
+
+    let absolute_domain = repo.path().join("domains/replay");
+    let init = ctx()
+        .current_dir(outside.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "init",
+            "--write-minimal",
+            "--path",
+            absolute_domain.to_str().unwrap(),
+        ])
+        .output()
+        .expect("ctx init should run");
+    assert!(init.status.success());
+    assert!(repo.path().join("domains/replay/.ctx.yml").exists());
+    assert!(!outside.path().join(".ctx.yml").exists());
+}
+
+#[test]
 fn init_write_minimal_refuses_absolute_path_outside_repo() {
     let repo = TempDir::new().expect("repo tempdir");
     let outside = TempDir::new().expect("outside tempdir");
