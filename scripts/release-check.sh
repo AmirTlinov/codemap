@@ -22,7 +22,11 @@ cargo run --bin ctx -- doctor
 ./scripts/check-npm-wrapper.sh
 ./scripts/check-homebrew-formula.sh
 
-for schema in manifest status files capsule impact verify anchors locate explain widen graph boundaries; do
+for schema in manifest \
+  status files \
+  find ls cone proof impact-v2 \
+  capsule impact verify anchors locate explain widen graph boundaries
+do
   cargo run --bin ctx -- schema "$schema" >/dev/null
 done
 
@@ -43,6 +47,11 @@ for required in \
   "schemas/capsule.schema.json" \
   "schemas/status.schema.json" \
   "schemas/files.schema.json" \
+  "schemas/find.schema.json" \
+  "schemas/ls.schema.json" \
+  "schemas/cone.schema.json" \
+  "schemas/proof.schema.json" \
+  "schemas/impact-v2.schema.json" \
   "schemas/impact.schema.json" \
   "schemas/verify.schema.json" \
   "schemas/anchors.schema.json" \
@@ -66,6 +75,12 @@ for required in \
   "npm/agent-context-cli/LICENSE" \
   "tests/e2e_workflow.rs" \
   "tests/schema_policy.rs" \
+  "tests/legacy_migration.rs" \
+  "tests/structural_find.rs" \
+  "tests/structural_ls.rs" \
+  "tests/structural_cone.rs" \
+  "tests/structural_impact.rs" \
+  "tests/structural_proof.rs" \
   "fixtures/mixed-monorepo/package.json" \
   "fixtures/mixed-monorepo/tsconfig.json" \
   "fixtures/go-workspace/go.work.fixture" \

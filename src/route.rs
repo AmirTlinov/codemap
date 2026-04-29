@@ -1878,7 +1878,7 @@ fn javascript_test_file_command_for_runner(runner: &str, test_arg: &str) -> Stri
     }
 }
 
-fn strip_package_prefix<'a>(rel: &'a str, package_path: &str) -> String {
+fn strip_package_prefix(rel: &str, package_path: &str) -> String {
     let prefix = package_path.trim_end_matches('/');
     if prefix == "." {
         return rel.to_string();
