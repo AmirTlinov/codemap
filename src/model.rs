@@ -164,6 +164,27 @@ pub struct ImpactCluster {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct ProofReport {
+    pub kind: &'static str,
+    pub schema_version: &'static str,
+    pub target: Option<String>,
+    pub changed: Vec<String>,
+    pub risk: String,
+    pub proofs: Vec<ProofSurface>,
+    pub fallback: Vec<String>,
+    pub run_hint: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ProofSurface {
+    pub command: Option<String>,
+    pub path: Option<String>,
+    pub evidence: String,
+    pub strength: EvidenceStrength,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct Domain {
     pub id: String,
     pub path: String,

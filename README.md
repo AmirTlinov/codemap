@@ -47,7 +47,7 @@ Use `CTX_CACHE_DIR=/path` to override and `CTX_NO_CACHE=1` to disable cache writ
 
 ## Primary V2 Flow
 
-The structural v2 commands are landing in slices. The target flow is:
+The structural v2 flow is:
 
 ```bash
 ctx find "auth token refresh"
@@ -56,8 +56,6 @@ ctx cone src/route.rs --depth 1
 ctx impact --changed
 ctx proof --changed
 ```
-
-The first implementation slice in this branch is the schema/product rail; command behavior follows in the structural model slices.
 
 ## Current Commands
 
@@ -79,6 +77,9 @@ ctx impact --changed
 ctx impact --staged
 ctx impact --since main
 ctx impact --files /abs/path/to/file.ts
+ctx proof src/route.rs
+ctx proof --changed
+ctx proof --changed --run
 ctx verify --changed
 ctx verify --changed --depth 2
 ctx verify --changed --run

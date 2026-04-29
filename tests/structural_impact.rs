@@ -207,22 +207,11 @@ fn structural_impact_clusters_contract_consumers_and_proof() {
             .as_array()
             .expect("expand")
             .iter()
-            .all(|command| !command
-                .as_str()
-                .unwrap_or_default()
-                .starts_with("ctx proof")),
-        "impact must not point at unavailable proof command"
-    );
-    assert!(
-        json["expand"]
-            .as_array()
-            .expect("expand")
-            .iter()
             .any(|command| command
                 .as_str()
                 .unwrap_or_default()
-                .contains("ctx verify --files packages/replay/src/types.ts")),
-        "impact follow-up verification should preserve exact changed anchors"
+                .contains("ctx proof --files packages/replay/src/types.ts")),
+        "impact follow-up proof should preserve exact changed anchors"
     );
     assert!(
         !serde_json::to_string(&json)

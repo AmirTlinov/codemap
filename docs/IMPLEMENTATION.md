@@ -67,6 +67,8 @@ The existing task router remains a legacy compatibility layer while structural c
 - `ctx verify --run` fails closed when the plan contains only a non-runnable placeholder
 - `ctx verify --changed` and `ctx verify --files` reuse the same impact traversal and `--depth`/`--limit` controls as `ctx impact`
 - `ctx impact --changed` and `ctx verify --changed` keep verification empty when the changed set is empty instead of inferring a project-wide check
+- `ctx impact --structural` returns v2 structural clusters over changed anchors, with direct consumers, cross-boundary/package consumers, contract risks, proof edges, hidden edge counts, and exact follow-up commands
+- `ctx proof <path|--changed|--files>` returns v2 proof plans from structural test evidence and remains print-only unless `--run` is explicit
 - verification planning prefers the single affected package owner when a scoped nested package is clearer than the repository root runner
 - `ctx impact` names public-boundary, schema/DTO, source-of-truth, unclassified-source, generated-file, and cross-domain expansion triggers explicitly
 - workspace domain discovery from root `package.json` workspaces, `pnpm-workspace.yaml`, Cargo workspace members, `go.work`, and simple Python workspace/member arrays

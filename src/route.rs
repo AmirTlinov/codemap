@@ -8,8 +8,8 @@ use crate::model::{
     BoundaryFinding, BoundaryReport, CacheInfo, Candidate, ConeReport, Confidence,
     DirectorySurface, DoNotRead, Domain, DomainRef, EvidenceStrength, ExplainReport, FileInfo,
     FileRisk, FileSummary, HiddenGroup, ImpactCluster, ImpactReport, ImpactV2Report,
-    LocateCandidate, LocateReport, LsReport, Project, Risk, StructuralEdge, TaskCapsule,
-    VerificationPlan, VerifyReport, WidenReport,
+    LocateCandidate, LocateReport, LsReport, Project, ProofReport, ProofSurface, Risk,
+    StructuralEdge, TaskCapsule, VerificationPlan, VerifyReport, WidenReport,
 };
 use crate::repo;
 
@@ -1276,6 +1276,303 @@ pub fn impact_v2_report(
     }
 }
 
+pub fn proof_report(
+    project: &Project,
+    target: Option<String>,
+    changed: Vec<String>,
+    depth: usize,
+    limit: usize,
+) -> ProofReport {
+    let limit = limit.max(1);
+    let target = target.map(|path| repo::normalize_rel_path(&path));
+    let changed = changed
+        .into_iter()
+        .map(|file| repo::normalize_rel_path(&file))
+        .filter(|file| file != ".")
+        .collect::<Vec<_>>();
+    let anchors = if let Some(target) = target.as_ref() {
+        vec![target.clone()]
+    } else {
+        changed.clone()
+    };
+    let mut proofs = Vec::new();
+    let mut risk = Risk::Low;
+    if target.is_none() && !changed.is_empty() {
+        let impact = impact_v2_report(project, changed.clone(), depth, limit);
+        for cluster in &impact.clusters {
+            risk = risk.max(risk_from_str(&cluster.risk));
+            proofs.extend(proof_surfaces_from_edges(
+                project,
+                &cluster.proof,
+                "impact cluster",
+            ));
+        }
+    } else {
+        for anchor in &anchors {
+            risk = risk.max(
+                project
+                    .files
+                    .get(anchor)
+                    .map(|_| risk_for_file(project, anchor).0)
+                    .unwrap_or(Risk::Medium),
+            );
+            proofs.extend(proof_surfaces_for_anchor(project, anchor, depth, limit));
+        }
+    }
+    proofs = unique_proof_surfaces(proofs);
+    proofs.sort_by(|left, right| {
+        right
+            .strength
+            .cmp(&left.strength)
+            .then_with(|| left.path.cmp(&right.path))
+            .then_with(|| left.command.cmp(&right.command))
+    });
+    if proofs.len() > limit {
+        proofs.truncate(limit);
+    }
+    let fallback = proof_fallback_commands(project, &anchors, &changed, &proofs);
+    ProofReport {
+        kind: "proof_plan",
+        schema_version: "2",
+        target,
+        changed,
+        risk: risk.as_str().to_string(),
+        proofs,
+        fallback,
+        run_hint: "ctx proof prints only by default; use --run to execute proof commands"
+            .to_string(),
+    }
+}
+
+fn risk_from_str(value: &str) -> Risk {
+    match value {
+        "critical" => Risk::Critical,
+        "high" => Risk::High,
+        "medium-high" => Risk::MediumHigh,
+        "medium" => Risk::Medium,
+        _ => Risk::Low,
+    }
+}
+
+fn proof_surfaces_from_edges(
+    project: &Project,
+    edges: &[StructuralEdge],
+    scope: &str,
+) -> Vec<ProofSurface> {
+    edges
+        .iter()
+        .filter(|edge| edge.edge_type == "tests")
+        .map(|edge| ProofSurface {
+            command: proof_command_for_test(project, &edge.from),
+            path: Some(edge.from.clone()),
+            evidence: edge.evidence.clone(),
+            strength: edge.strength,
+            reason: proof_reason_for_evidence(&edge.evidence, scope),
+        })
+        .collect()
+}
+
+fn proof_surfaces_for_anchor(
+    project: &Project,
+    anchor: &str,
+    depth: usize,
+    limit: usize,
+) -> Vec<ProofSurface> {
+    let mut out = Vec::new();
+    for (test, evidence, strength) in strict_test_edges_for_file(project, anchor, limit) {
+        out.push(ProofSurface {
+            command: proof_command_for_test(project, &test),
+            path: Some(test),
+            reason: proof_reason_for_evidence(&evidence, "anchor"),
+            evidence,
+            strength,
+        });
+    }
+    let mut consumers = direct_consumer_edges(project, anchor);
+    sort_edges(&mut consumers);
+    for consumer in consumers.into_iter().take(limit) {
+        for (test, evidence, strength) in strict_test_edges_for_file(project, &consumer.from, limit)
+        {
+            out.push(ProofSurface {
+                command: proof_command_for_test(project, &test),
+                path: Some(test),
+                reason: proof_reason_for_evidence(&evidence, "direct consumer"),
+                evidence,
+                strength,
+            });
+        }
+    }
+    if depth > 1 {
+        for consumer in direct_consumer_edges(project, anchor)
+            .into_iter()
+            .take(limit)
+        {
+            for second in direct_consumer_edges(project, &consumer.from)
+                .into_iter()
+                .take(limit)
+            {
+                for (test, evidence, strength) in
+                    strict_test_edges_for_file(project, &second.from, limit)
+                {
+                    out.push(ProofSurface {
+                        command: proof_command_for_test(project, &test),
+                        path: Some(test),
+                        reason: proof_reason_for_evidence(&evidence, "depth-2 consumer"),
+                        evidence,
+                        strength,
+                    });
+                }
+            }
+        }
+    }
+    out
+}
+
+fn proof_reason_for_evidence(evidence: &str, scope: &str) -> String {
+    match evidence {
+        "test_import" => format!("test imports {scope}"),
+        "test_name" => format!("test name matches {scope}"),
+        _ => format!("structural proof for {scope}"),
+    }
+}
+
+fn proof_command_for_test(project: &Project, test: &str) -> Option<String> {
+    let package = package_for_rel(project, test)?;
+    match package.ecosystem.as_str() {
+        "javascript" => javascript_test_file_command(project, package, test),
+        "python" => Some(if package.path == "." {
+            format!("pytest {}", shell_quote(test))
+        } else {
+            format!(
+                "cd {} && pytest {}",
+                shell_quote(&package.path),
+                shell_quote(&strip_package_prefix(test, &package.path))
+            )
+        }),
+        "rust" => package_minimal_command(
+            project,
+            package,
+            &[domain_for_path(project, test)],
+            find_script(project, &["test"]).as_deref(),
+        ),
+        "go" => package_minimal_command(
+            project,
+            package,
+            &[domain_for_path(project, test)],
+            find_script(project, &["test"]).as_deref(),
+        ),
+        _ => package_minimal_command(
+            project,
+            package,
+            &[domain_for_path(project, test)],
+            find_script(project, &["test"]).as_deref(),
+        ),
+    }
+}
+
+fn javascript_test_file_command(
+    project: &Project,
+    package: &crate::model::PackageInfo,
+    test: &str,
+) -> Option<String> {
+    if !javascript_package_has_script(project, package, "test") {
+        return None;
+    }
+    let runner = javascript_runner_for_package(project, package);
+    let test_arg = shell_quote(&strip_package_prefix(test, &package.path));
+    let command = javascript_test_file_command_for_runner(&runner, &test_arg);
+    Some(if package.path == "." {
+        command
+    } else {
+        format!("cd {} && {command}", shell_quote(&package.path))
+    })
+}
+
+fn javascript_test_file_command_for_runner(runner: &str, test_arg: &str) -> String {
+    match runner {
+        "npm" => format!("npm test -- {test_arg}"),
+        "yarn" => format!("yarn test {test_arg}"),
+        "bun" => format!("bun test {test_arg}"),
+        _ => format!("pnpm test {test_arg}"),
+    }
+}
+
+fn strip_package_prefix<'a>(rel: &'a str, package_path: &str) -> String {
+    let prefix = package_path.trim_end_matches('/');
+    if prefix == "." {
+        return rel.to_string();
+    }
+    rel.strip_prefix(&format!("{prefix}/"))
+        .unwrap_or(rel)
+        .to_string()
+}
+
+fn proof_fallback_commands(
+    project: &Project,
+    anchors: &[String],
+    changed: &[String],
+    proofs: &[ProofSurface],
+) -> Vec<String> {
+    if anchors.is_empty() && changed.is_empty() {
+        return Vec::new();
+    }
+    let proof_commands = proofs
+        .iter()
+        .filter_map(|proof| proof.command.as_ref())
+        .cloned()
+        .collect::<Vec<_>>();
+    let all_files = if anchors.is_empty() {
+        changed.to_vec()
+    } else {
+        anchors.to_vec()
+    };
+    let impacted = if changed.is_empty() {
+        Vec::new()
+    } else {
+        let impact = impact_v2_report(project, changed.to_vec(), 1, 30);
+        impact
+            .clusters
+            .iter()
+            .flat_map(|cluster| {
+                cluster
+                    .direct_consumers
+                    .iter()
+                    .map(|edge| edge.from.clone())
+                    .chain(
+                        cluster
+                            .contract_risks
+                            .iter()
+                            .filter(|edge| edge.from != edge.to)
+                            .map(|edge| edge.from.clone()),
+                    )
+            })
+            .collect::<Vec<_>>()
+    };
+    let plan = verification_plan(project, &all_files, &impacted);
+    unique(plan.minimal)
+        .into_iter()
+        .filter(|command| !proof_commands.iter().any(|existing| existing == command))
+        .take(3)
+        .collect()
+}
+
+fn unique_proof_surfaces(values: Vec<ProofSurface>) -> Vec<ProofSurface> {
+    let mut seen = BTreeSet::new();
+    let mut out = Vec::new();
+    for value in values {
+        let key = format!(
+            "{}\0{}\0{}",
+            value.command.as_deref().unwrap_or_default(),
+            value.path.as_deref().unwrap_or_default(),
+            value.evidence
+        );
+        if seen.insert(key) {
+            out.push(value);
+        }
+    }
+    out
+}
+
 fn impact_v2_expand_commands(changed: &[String]) -> Vec<String> {
     if changed.is_empty() {
         return Vec::new();
@@ -1287,7 +1584,7 @@ fn impact_v2_expand_commands(changed: &[String]) -> Vec<String> {
         .join(",");
     vec![
         format!("ctx impact --structural --files {files} --depth 2"),
-        format!("ctx verify --files {files}"),
+        format!("ctx proof --files {files}"),
     ]
 }
 

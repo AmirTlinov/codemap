@@ -44,6 +44,8 @@ enum CommandKind {
     Start(StartArgs),
     #[command(about = "Report affected files and verification plan for a diff")]
     Impact(ImpactArgs),
+    #[command(about = "Print structural proof surfaces, or run them only with --run")]
+    Proof(ProofArgs),
     #[command(about = "Print verification commands, or run them only with --run")]
     Verify(VerifyArgs),
     #[command(about = "Explain a file or anchored concept")]
@@ -165,6 +167,27 @@ struct ImpactArgs {
     limit: usize,
     #[arg(long)]
     structural: bool,
+    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
+    format: OutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct ProofArgs {
+    target: Option<String>,
+    #[arg(long)]
+    changed: bool,
+    #[arg(long)]
+    staged: bool,
+    #[arg(long)]
+    since: Option<String>,
+    #[arg(long)]
+    files: Option<String>,
+    #[arg(long, default_value_t = 1)]
+    depth: usize,
+    #[arg(long, default_value_t = 30)]
+    limit: usize,
+    #[arg(long)]
+    run: bool,
     #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
     format: OutputFormat,
 }
@@ -371,6 +394,7 @@ pub fn run() -> Result<()> {
                 output(args.format, &report, || render::impact(&report))
             }
         }
+        CommandKind::Proof(args) => proof(&project, args),
         CommandKind::Verify(args) => verify(&project, args),
         CommandKind::Explain(args) => {
             ensure_valid_config(&project)?;
@@ -500,6 +524,7 @@ fn command_root_hint(command: &CommandKind, ambient_root: Option<&Path>) -> Opti
         CommandKind::Impact(args) => {
             absolute_files_hint(args.files.as_deref(), &args.positional_files)
         }
+        CommandKind::Proof(args) => proof_root_hint(args),
         CommandKind::Verify(args) => {
             absolute_files_hint(args.files.as_deref(), &args.positional_files)
         }
@@ -524,6 +549,11 @@ fn widen_root_hint(args: &WidenArgs) -> Option<PathBuf> {
             .iter()
             .find_map(|file| absolute_file_root_hint(file))
     })
+}
+
+fn proof_root_hint(args: &ProofArgs) -> Option<PathBuf> {
+    absolute_path_hint(args.target.as_deref())
+        .or_else(|| absolute_files_hint(args.files.as_deref(), &[]))
 }
 
 fn absolute_path_hint(path: Option<&str>) -> Option<PathBuf> {
@@ -623,6 +653,39 @@ fn verify(project: &crate::model::Project, args: VerifyArgs) -> Result<()> {
     output(args.format, &report, || {
         render::verify(&report.changed, &report.verification)
     })
+}
+
+fn proof(project: &crate::model::Project, args: ProofArgs) -> Result<()> {
+    ensure_valid_config(project)?;
+    let (target, changed) = proof_inputs(project, &args)?;
+    let report = route::proof_report(project, target, changed, args.depth, args.limit);
+    if args.run {
+        render::proof(&report);
+        return run_proof_plan(project, &report);
+    }
+    output(args.format, &report, || render::proof(&report))
+}
+
+fn run_proof_plan(
+    project: &crate::model::Project,
+    report: &crate::model::ProofReport,
+) -> Result<()> {
+    let proof_commands = report
+        .proofs
+        .iter()
+        .filter_map(|proof| proof.command.clone())
+        .collect::<Vec<_>>();
+    let commands = if proof_commands.is_empty() {
+        report.fallback.clone()
+    } else {
+        proof_commands
+    };
+    let plan = crate::model::VerificationPlan {
+        minimal: commands,
+        recommended: Vec::new(),
+        full_only_if_triggered: Vec::new(),
+    };
+    run_plan(project, &plan, false)
 }
 
 fn run_plan(
@@ -772,6 +835,52 @@ fn changed_from_verify_args(
         return Ok(repo::changed_files(&project.root, false, Some(since)));
     }
     parse_files(project, args.files.as_deref(), &args.positional_files)
+}
+
+fn proof_inputs(
+    project: &crate::model::Project,
+    args: &ProofArgs,
+) -> Result<(Option<String>, Vec<String>)> {
+    ensure_single_proof_selector(args)?;
+    if let Some(target) = args.target.as_deref() {
+        return Ok((Some(project_relative_arg(project, target)?), Vec::new()));
+    }
+    if args.changed {
+        return Ok((None, repo::changed_files(&project.root, false, None)));
+    }
+    if args.staged {
+        return Ok((None, repo::changed_files(&project.root, true, None)));
+    }
+    if let Some(since) = &args.since {
+        return Ok((None, repo::changed_files(&project.root, false, Some(since))));
+    }
+    let files = parse_files(project, args.files.as_deref(), &[])?;
+    if !files.is_empty() {
+        return Ok((None, files));
+    }
+    bail!("ctx proof needs an exact target, --changed, --staged, --since, or --files");
+}
+
+fn ensure_single_proof_selector(args: &ProofArgs) -> Result<()> {
+    let explicit_files = args
+        .files
+        .as_deref()
+        .map(|value| !value.trim().is_empty())
+        .unwrap_or(false);
+    let count = [
+        args.target.is_some(),
+        args.changed,
+        args.staged,
+        args.since.is_some(),
+        explicit_files,
+    ]
+    .into_iter()
+    .filter(|enabled| *enabled)
+    .count();
+    if count > 1 {
+        bail!("choose only one proof selector: target, --changed, --staged, --since, or --files");
+    }
+    Ok(())
 }
 
 fn ensure_single_diff_selector(

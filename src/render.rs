@@ -2,8 +2,8 @@ use serde::Serialize;
 
 use crate::model::{
     BoundaryFinding, ConeReport, ExplainReport, GraphLens, ImpactCluster, ImpactReport,
-    ImpactV2Report, LocateReport, LsReport, StructuralEdge, TaskCapsule, VerificationPlan,
-    WidenReport,
+    ImpactV2Report, LocateReport, LsReport, ProofReport, ProofSurface, StructuralEdge, TaskCapsule,
+    VerificationPlan, WidenReport,
 };
 use crate::route::StatusReport;
 
@@ -590,6 +590,61 @@ pub fn verify(changed: &[String], plan: &VerificationPlan) {
         println!("{}", code_block("bash", &plan.full_only_if_triggered));
     }
     println!("\n`ctx verify` does not run commands unless `--run` is explicit.");
+}
+
+pub fn proof(report: &ProofReport) {
+    println!("# Proof Plan\n");
+    if let Some(target) = &report.target {
+        println!("Target: `{target}`\n");
+    }
+    if !report.changed.is_empty() {
+        println!("Changed anchors:");
+        println!("{}", bullet(&report.changed, true, Some(20)));
+        println!();
+    }
+    println!(
+        "{}",
+        table(
+            &["Field", "Value"],
+            vec![vec!["Risk".to_string(), report.risk.clone()]]
+        )
+    );
+    if report.proofs.is_empty() && report.fallback.is_empty() {
+        println!("\nNo proof surface found. Use `ctx cone <path>` to inspect edges first.");
+        println!("\n{}", report.run_hint);
+        return;
+    }
+    if !report.proofs.is_empty() {
+        println!("\n## Proofs\n");
+        let rows = report.proofs.iter().map(proof_row).collect::<Vec<_>>();
+        println!(
+            "{}",
+            table(&["Command", "Path", "Evidence", "Strength", "Reason"], rows,)
+        );
+    }
+    if !report.fallback.is_empty() {
+        println!("\n## Fallback\n");
+        println!("{}", code_block("bash", &report.fallback));
+    }
+    println!("\n{}", report.run_hint);
+}
+
+fn proof_row(proof: &ProofSurface) -> Vec<String> {
+    vec![
+        proof
+            .command
+            .as_ref()
+            .map(|command| code(command))
+            .unwrap_or_else(|| "none".to_string()),
+        proof
+            .path
+            .as_ref()
+            .map(|path| code(path))
+            .unwrap_or_else(|| "none".to_string()),
+        proof.evidence.clone(),
+        format!("{:?}", proof.strength).to_ascii_lowercase(),
+        proof.reason.clone(),
+    ]
 }
 
 pub fn explain(report: &ExplainReport) {
