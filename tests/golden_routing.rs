@@ -271,6 +271,68 @@ fn mixed_monorepo_renderer_manifest_task_stays_on_manifest_surface() {
 }
 
 #[test]
+fn mixed_monorepo_replay_package_format_uses_schema_surface_not_manifest() {
+    let repo = fixture_copy("mixed-monorepo");
+    let cache = TempDir::new().expect("cache tempdir");
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "start",
+            "--task",
+            "fix replay package format migration",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx start should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
+    assert_eq!(json["domain"]["path"], "domains/replay");
+    assert_eq!(json["task_kind"], "serialization_schema");
+    assert_eq!(
+        json["read_first"][0]["path"].as_str(),
+        Some("domains/replay/src/replay-package-format-schema.ts")
+    );
+    assert!(
+        json["read_first"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .take(3)
+            .all(|item| item["path"].as_str() != Some("domains/replay/package.json")),
+        "domain package format work should not start from the package manifest"
+    );
+}
+
+#[test]
+fn mixed_monorepo_replay_manifest_tasks_start_from_manifest() {
+    let repo = fixture_copy("mixed-monorepo");
+    let cache = TempDir::new().expect("cache tempdir");
+    for task in [
+        "fix replay package.json dependency",
+        "fix replay dependency migration",
+        "fix replay manifest migration",
+    ] {
+        let output = ctx()
+            .current_dir(repo.path())
+            .env("CTX_CACHE_DIR", cache.path())
+            .args(["start", "--task", task, "--format", "json"])
+            .output()
+            .expect("ctx start should run");
+        assert!(output.status.success(), "{task}");
+        let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
+        assert_eq!(json["domain"]["path"], "domains/replay", "{task}");
+        assert_eq!(json["task_kind"], "build_ci", "{task}");
+        assert_eq!(
+            json["read_first"][0]["path"].as_str(),
+            Some("domains/replay/package.json"),
+            "{task}"
+        );
+    }
+}
+
+#[test]
 fn mixed_monorepo_widen_does_not_repeat_already_read_replay_files() {
     let repo = fixture_copy("mixed-monorepo");
     let cache = TempDir::new().expect("cache tempdir");

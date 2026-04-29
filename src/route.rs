@@ -1324,6 +1324,11 @@ fn task_kind(project: &Project, domain: &Domain, task: &str) -> (String, f64, Ve
             best = ((*kind).to_string(), score, reasons);
         }
     }
+    if let Some((score, reasons)) = package_manifest_composite(&task_tokens)
+        && score > best.1
+    {
+        best = ("build_ci".to_string(), score, reasons);
+    }
     if !task_mentions_package_manifest(&task_tokens)
         && let Some((score, reasons)) = ui_output_composite(&task_tokens)
         && score > best.1
@@ -1379,6 +1384,28 @@ fn ui_output_composite(task_tokens: &BTreeSet<String>) -> Option<(f64, Vec<Strin
     ))
 }
 
+fn package_manifest_composite(task_tokens: &BTreeSet<String>) -> Option<(f64, Vec<String>)> {
+    if !task_mentions_package_manifest(task_tokens) {
+        return None;
+    }
+    let manifest_word = [
+        "manifest",
+        "dependency",
+        "dependencies",
+        "workspace",
+        "json",
+        "lock",
+    ]
+    .iter()
+    .find(|word| task_tokens.contains(**word))?;
+    Some((
+        3.2,
+        vec![format!(
+            "task names package manifest surface via `{manifest_word}`"
+        )],
+    ))
+}
+
 fn context_routing_composite(
     project: &Project,
     domain: &Domain,
@@ -1429,15 +1456,12 @@ fn context_routing_composite(
 }
 
 fn task_mentions_package_manifest(task_tokens: &BTreeSet<String>) -> bool {
-    [
-        "package",
-        "manifest",
-        "dependency",
-        "dependencies",
-        "workspace",
-    ]
-    .iter()
-    .any(|token| task_tokens.contains(*token))
+    ["manifest", "dependency", "dependencies", "workspace"]
+        .iter()
+        .any(|token| task_tokens.contains(*token))
+        || (task_tokens.contains("package") && task_tokens.contains("json"))
+        || (task_tokens.contains("package") && task_tokens.contains("lock"))
+        || (task_tokens.contains("pnpm") && task_tokens.contains("lock"))
 }
 
 fn task_keyword_matches(task_tokens: &BTreeSet<String>, keyword: &str) -> bool {
@@ -1699,6 +1723,9 @@ fn score_file(_project: &Project, file: &FileInfo, task: &str, kind: &str) -> Ca
     let task_mentions_manifest = task_mentions_package_manifest(&tokens);
     if is_package_manifest && !matches!(kind, "public_api" | "build_ci" | "serialization_schema") {
         score -= if task_mentions_manifest { 1.0 } else { 7.0 };
+    }
+    if is_package_manifest && kind == "serialization_schema" && !task_mentions_manifest {
+        score -= 4.0;
     }
     if kind == "build_ci"
         && task_mentions_manifest
