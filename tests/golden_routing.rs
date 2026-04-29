@@ -271,6 +271,80 @@ fn mixed_monorepo_renderer_manifest_task_stays_on_manifest_surface() {
 }
 
 #[test]
+fn mixed_monorepo_widen_does_not_repeat_already_read_replay_files() {
+    let repo = fixture_copy("mixed-monorepo");
+    let cache = TempDir::new().expect("cache tempdir");
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "widen",
+            "--task",
+            "fix replay jumping to wrong frame after seek",
+            "--reason",
+            "read-first set did not contain the cause",
+            "--already",
+            "domains/replay/src/replay-session.ts",
+            "--already",
+            "domains/replay/src/replay-timeline.ts",
+            "--already",
+            "domains/replay/tests/replay-session.test.ts",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx widen should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
+    let add = json["add"].as_array().unwrap();
+    for already in [
+        "domains/replay/src/replay-session.ts",
+        "domains/replay/src/replay-timeline.ts",
+        "domains/replay/tests/replay-session.test.ts",
+    ] {
+        assert!(
+            add.iter().all(|item| item.as_str() != Some(already)),
+            "widen must not repeat already-read file {already}"
+        );
+    }
+}
+
+#[test]
+fn mixed_monorepo_widen_does_not_repeat_renderer_read_first() {
+    let repo = fixture_copy("mixed-monorepo");
+    let cache = TempDir::new().expect("cache tempdir");
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "widen",
+            "--task",
+            "fix renderer replay output formatting",
+            "--reason",
+            "read-first set did not contain the cause",
+            "--already",
+            "domains/renderer/src/replay-renderer.ts",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx widen should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
+    let add = json["add"].as_array().unwrap();
+    assert!(
+        add.iter()
+            .all(|item| item.as_str() != Some("domains/renderer/src/replay-renderer.ts")),
+        "widen must not repeat the renderer read-first file"
+    );
+    assert!(
+        add.iter()
+            .any(|item| item.as_str() == Some("apps/web/src/app.ts")),
+        "widen should still be able to add a bounded importer"
+    );
+}
+
+#[test]
 fn mixed_monorepo_locates_auth_token_task() {
     let repo = fixture_copy("mixed-monorepo");
     let cache = TempDir::new().expect("cache tempdir");

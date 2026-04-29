@@ -1456,7 +1456,8 @@ fn select_read_first(
         out = domain_files(project, domain)
             .into_iter()
             .filter(|file| {
-                repo::is_source_ext(&file.ext)
+                !exclude.contains(&file.rel)
+                    && repo::is_source_ext(&file.ext)
                     && !file.has_role("test")
                     && !file.has_role("generated")
                     && (include_fixtures || !file.has_role("fixture"))
