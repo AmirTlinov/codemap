@@ -1638,9 +1638,21 @@ fn js_local_dependency_path(spec: &str) -> Option<String> {
 
 fn js_dependency_spec_is_local_protocol(spec: &str) -> bool {
     let spec = spec.trim();
-    ["file:", "link:", "portal:"]
+    if ["file:", "link:", "portal:"]
         .iter()
         .any(|prefix| spec.starts_with(prefix))
+    {
+        return true;
+    }
+    let Some(path) = spec.strip_prefix("workspace:") else {
+        return false;
+    };
+    let path = path.trim().replace('\\', "/");
+    path.starts_with("./")
+        || path.starts_with("../")
+        || path == "."
+        || path == ".."
+        || path_is_absolute_like(&path)
 }
 
 fn cargo_package_edges(
@@ -3072,7 +3084,15 @@ edition = "2024"
         assert!(js_dependency_spec_is_local_protocol(
             "file:../../../external"
         ));
+        assert!(js_dependency_spec_is_local_protocol(
+            "workspace:/tmp/renderer"
+        ));
+        assert!(js_dependency_spec_is_local_protocol(
+            "workspace:../../../external"
+        ));
+        assert!(!js_dependency_spec_is_local_protocol("workspace:"));
         assert!(!js_dependency_spec_is_local_protocol("workspace:*"));
+        assert!(!js_dependency_spec_is_local_protocol("workspace:^1.2.3"));
     }
 
     #[test]
