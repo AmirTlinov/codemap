@@ -5,10 +5,10 @@ use serde::Serialize;
 
 use crate::cache;
 use crate::model::{
-    BoundaryFinding, BoundaryReport, CacheInfo, Candidate, Confidence, DirectorySurface, DoNotRead,
-    Domain, DomainRef, EvidenceStrength, ExplainReport, FileInfo, FileRisk, FileSummary,
-    HiddenGroup, ImpactReport, LocateCandidate, LocateReport, LsReport, Project, Risk,
-    StructuralEdge, TaskCapsule, VerificationPlan, VerifyReport, WidenReport,
+    BoundaryFinding, BoundaryReport, CacheInfo, Candidate, ConeReport, Confidence,
+    DirectorySurface, DoNotRead, Domain, DomainRef, EvidenceStrength, ExplainReport, FileInfo,
+    FileRisk, FileSummary, HiddenGroup, ImpactReport, LocateCandidate, LocateReport, LsReport,
+    Project, Risk, StructuralEdge, TaskCapsule, VerificationPlan, VerifyReport, WidenReport,
 };
 use crate::repo;
 
@@ -112,6 +112,106 @@ pub fn ls_report(project: &Project, path: &str, include_hidden: bool, limit: usi
             "ctx ls {}",
             shell_quote(&parent_anchor_for_missing(&rel))
         )],
+    }
+}
+
+pub fn cone_report(
+    project: &Project,
+    path: &str,
+    depth: usize,
+    include_hidden: bool,
+    limit: usize,
+) -> ConeReport {
+    let rel = repo::normalize_rel_path(path);
+    let depth = depth.min(4);
+    let limit = limit.max(1);
+    let (anchor, seed_files, mut unknowns, mut hidden) =
+        cone_anchor(project, &rel, include_hidden, limit);
+    let depths = cone_depths(project, &seed_files, depth);
+    let mut outgoing = cone_outgoing_edges(project, &depths, depth);
+    let mut incoming = cone_incoming_edges(project, &seed_files);
+    let mut proof = cone_proof_edges(project, &seed_files);
+    let mut contracts = cone_contract_edges(project, &outgoing);
+    let mut boundary = cone_boundary_edges(project, &rel, &depths);
+    sort_edges(&mut outgoing);
+    sort_edges(&mut incoming);
+    sort_edges(&mut proof);
+    sort_edges(&mut contracts);
+    sort_edges(&mut boundary);
+    limit_edge_section(
+        &mut outgoing,
+        &mut hidden,
+        include_hidden,
+        limit,
+        "outgoing edges hidden by limit",
+        &format!(
+            "ctx cone {} --depth {depth} --include-hidden",
+            shell_quote(&rel)
+        ),
+    );
+    limit_edge_section(
+        &mut incoming,
+        &mut hidden,
+        include_hidden,
+        limit,
+        "incoming edges hidden by limit",
+        &format!(
+            "ctx cone {} --depth {depth} --include-hidden",
+            shell_quote(&rel)
+        ),
+    );
+    limit_edge_section(
+        &mut proof,
+        &mut hidden,
+        include_hidden,
+        limit,
+        "proof edges hidden by limit",
+        &format!(
+            "ctx cone {} --depth {depth} --include-hidden",
+            shell_quote(&rel)
+        ),
+    );
+    limit_edge_section(
+        &mut contracts,
+        &mut hidden,
+        include_hidden,
+        limit,
+        "contract edges hidden by limit",
+        &format!(
+            "ctx cone {} --depth {depth} --include-hidden",
+            shell_quote(&rel)
+        ),
+    );
+    limit_edge_section(
+        &mut boundary,
+        &mut hidden,
+        include_hidden,
+        limit,
+        "boundary edges hidden by limit",
+        &format!(
+            "ctx cone {} --depth {depth} --include-hidden",
+            shell_quote(&rel)
+        ),
+    );
+    if seed_files.is_empty() {
+        unknowns.push("anchor is not indexed as a file or directory".to_string());
+    }
+    ConeReport {
+        kind: "cone_report",
+        schema_version: "2",
+        anchor,
+        depth,
+        outgoing,
+        incoming,
+        proof,
+        contracts,
+        boundary,
+        hidden,
+        unknowns,
+        expand: vec![
+            format!("ctx cone {} --depth {}", shell_quote(&rel), depth + 1),
+            format!("ctx ls {} --include-hidden", shell_quote(&rel)),
+        ],
     }
 }
 
@@ -258,6 +358,304 @@ fn ls_directory_report(
         edges: Vec::new(),
         hidden,
         next: vec![format!("ctx cone {}", shell_quote(rel))],
+    }
+}
+
+fn cone_anchor(
+    project: &Project,
+    rel: &str,
+    include_hidden: bool,
+    limit: usize,
+) -> (FileSummary, Vec<String>, Vec<String>, Vec<HiddenGroup>) {
+    if let Some(info) = project.files.get(rel) {
+        let summary = file_summary(project, info, include_hidden, limit);
+        let mut hidden = Vec::new();
+        if !include_hidden && info.symbols.len() > summary.symbols.len() {
+            hidden.push(HiddenGroup {
+                reason: "symbols hidden by limit".to_string(),
+                count: info.symbols.len() - summary.symbols.len(),
+                expand: format!("ctx cone {} --include-hidden", shell_quote(rel)),
+            });
+        }
+        return (summary, vec![info.rel.clone()], Vec::new(), hidden);
+    }
+    if directory_has_files(project, rel) {
+        let mut files = files_under_directory(project, rel)
+            .into_iter()
+            .filter(|file| {
+                !file.has_role("generated") && (include_hidden || !is_generic_noise(file))
+            })
+            .map(|file| file.rel.clone())
+            .collect::<Vec<_>>();
+        files.sort();
+        let count = files.len();
+        if !include_hidden {
+            files.truncate(limit);
+        }
+        let mut hidden = Vec::new();
+        if count > files.len() {
+            hidden.push(HiddenGroup {
+                reason: "directory anchor files hidden by limit".to_string(),
+                count: count - files.len(),
+                expand: format!("ctx cone {} --include-hidden", shell_quote(rel)),
+            });
+        }
+        return (
+            FileSummary {
+                path: rel.to_string(),
+                kind: "directory".to_string(),
+                package: package_name_for_file(project, rel),
+                language: "mixed".to_string(),
+                lines: 0,
+                roles: Vec::new(),
+                symbols: Vec::new(),
+                exports: Vec::new(),
+                imports: Vec::new(),
+                imported_by_count: 0,
+            },
+            files,
+            vec!["directory anchor summarizes indexed files under this path".to_string()],
+            hidden,
+        );
+    }
+    (
+        FileSummary {
+            path: rel.to_string(),
+            kind: "missing".to_string(),
+            package: package_name_for_file(project, rel),
+            language: "unknown".to_string(),
+            lines: 0,
+            roles: Vec::new(),
+            symbols: Vec::new(),
+            exports: Vec::new(),
+            imports: Vec::new(),
+            imported_by_count: 0,
+        },
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+    )
+}
+
+fn cone_depths(project: &Project, seeds: &[String], max_depth: usize) -> BTreeMap<String, usize> {
+    let mut depths = BTreeMap::new();
+    let mut queue = VecDeque::new();
+    for seed in seeds {
+        if project.files.contains_key(seed) && depths.insert(seed.clone(), 0).is_none() {
+            queue.push_back(seed.clone());
+        }
+    }
+    while let Some(rel) = queue.pop_front() {
+        let depth = depths.get(&rel).copied().unwrap_or(0);
+        if depth >= max_depth {
+            continue;
+        }
+        for neighbor in structural_neighbors(project, &rel) {
+            if depths.contains_key(&neighbor) {
+                continue;
+            }
+            depths.insert(neighbor.clone(), depth + 1);
+            queue.push_back(neighbor);
+        }
+    }
+    depths
+}
+
+fn structural_neighbors(project: &Project, rel: &str) -> Vec<String> {
+    let mut neighbors = Vec::new();
+    if let Some(file) = project.files.get(rel) {
+        neighbors.extend(file.resolved_imports.iter().cloned());
+    }
+    if let Some(importers) = project.reverse_imports.get(rel) {
+        neighbors.extend(importers.iter().cloned());
+    }
+    unique(neighbors)
+        .into_iter()
+        .filter(|neighbor| project.files.contains_key(neighbor))
+        .collect()
+}
+
+fn cone_outgoing_edges(
+    project: &Project,
+    depths: &BTreeMap<String, usize>,
+    max_depth: usize,
+) -> Vec<StructuralEdge> {
+    let mut edges = Vec::new();
+    for (rel, depth) in depths {
+        if *depth >= max_depth {
+            continue;
+        }
+        let Some(file) = project.files.get(rel) else {
+            continue;
+        };
+        for target in &file.resolved_imports {
+            if project.files.contains_key(target) {
+                edges.push(StructuralEdge {
+                    from: file.rel.clone(),
+                    to: target.clone(),
+                    edge_type: "imports".to_string(),
+                    evidence: "resolved_import".to_string(),
+                    strength: EvidenceStrength::High,
+                });
+            }
+        }
+    }
+    edges
+}
+
+fn cone_incoming_edges(project: &Project, seeds: &[String]) -> Vec<StructuralEdge> {
+    let seed_set = seeds.iter().cloned().collect::<BTreeSet<_>>();
+    let mut edges = Vec::new();
+    for seed in seeds {
+        if let Some(importers) = project.reverse_imports.get(seed) {
+            for importer in importers {
+                if project
+                    .files
+                    .get(importer)
+                    .map(|file| file.has_role("test"))
+                    .unwrap_or(false)
+                {
+                    continue;
+                }
+                if !seed_set.contains(importer) {
+                    edges.push(StructuralEdge {
+                        from: importer.clone(),
+                        to: seed.clone(),
+                        edge_type: "imported_by".to_string(),
+                        evidence: "reverse_import".to_string(),
+                        strength: EvidenceStrength::High,
+                    });
+                }
+            }
+        }
+    }
+    edges
+}
+
+fn cone_proof_edges(project: &Project, seeds: &[String]) -> Vec<StructuralEdge> {
+    let mut edges = Vec::new();
+    for seed in seeds {
+        for test in adjacent_tests_for_file(project, seed) {
+            edges.push(StructuralEdge {
+                from: test,
+                to: seed.clone(),
+                edge_type: "tests".to_string(),
+                evidence: "test_naming_or_import".to_string(),
+                strength: EvidenceStrength::Medium,
+            });
+        }
+    }
+    edges
+}
+
+fn cone_contract_edges(project: &Project, outgoing: &[StructuralEdge]) -> Vec<StructuralEdge> {
+    let mut edges = Vec::new();
+    for edge in outgoing {
+        let Some(target) = project.files.get(&edge.to) else {
+            continue;
+        };
+        if let Some(evidence) = contract_evidence(target) {
+            edges.push(StructuralEdge {
+                from: edge.from.clone(),
+                to: edge.to.clone(),
+                edge_type: "contract".to_string(),
+                evidence,
+                strength: EvidenceStrength::High,
+            });
+        }
+    }
+    edges
+}
+
+fn contract_evidence(file: &FileInfo) -> Option<String> {
+    for role in [
+        "schema_contract",
+        "public_boundary",
+        "semantic_anchor",
+        "build_ci",
+    ] {
+        if file.has_role(role) {
+            return Some(format!("role:{role}"));
+        }
+    }
+    (file.language == "config").then(|| "language:config".to_string())
+}
+
+fn cone_boundary_edges(
+    project: &Project,
+    rel: &str,
+    depths: &BTreeMap<String, usize>,
+) -> Vec<StructuralEdge> {
+    let node_set = depths.keys().cloned().collect::<BTreeSet<_>>();
+    let directory_prefix = directory_has_files(project, rel).then(|| {
+        if rel == "." {
+            String::new()
+        } else {
+            format!("{}/", rel.trim_end_matches('/'))
+        }
+    });
+    boundary_findings(project, None)
+        .into_iter()
+        .filter(|finding| {
+            node_set.contains(&finding.from)
+                || node_set.contains(&finding.to)
+                || directory_prefix
+                    .as_ref()
+                    .map(|prefix| {
+                        if prefix.is_empty() {
+                            true
+                        } else {
+                            finding.from.starts_with(prefix) || finding.to.starts_with(prefix)
+                        }
+                    })
+                    .unwrap_or(false)
+        })
+        .map(|finding| StructuralEdge {
+            from: finding.from,
+            to: finding.to,
+            edge_type: "boundary".to_string(),
+            evidence: finding.provenance,
+            strength: if finding.confidence == "hard" {
+                EvidenceStrength::Hard
+            } else {
+                EvidenceStrength::Medium
+            },
+        })
+        .collect()
+}
+
+fn sort_edges(edges: &mut Vec<StructuralEdge>) {
+    edges.sort_by(|a, b| {
+        a.from
+            .cmp(&b.from)
+            .then_with(|| a.edge_type.cmp(&b.edge_type))
+            .then_with(|| a.to.cmp(&b.to))
+            .then_with(|| a.evidence.cmp(&b.evidence))
+    });
+    edges.dedup_by(|a, b| {
+        a.from == b.from && a.to == b.to && a.edge_type == b.edge_type && a.evidence == b.evidence
+    });
+}
+
+fn limit_edge_section(
+    edges: &mut Vec<StructuralEdge>,
+    hidden: &mut Vec<HiddenGroup>,
+    include_hidden: bool,
+    limit: usize,
+    reason: &str,
+    expand: &str,
+) {
+    if include_hidden {
+        return;
+    }
+    let count = edges.len();
+    edges.truncate(limit);
+    if count > edges.len() {
+        hidden.push(HiddenGroup {
+            reason: reason.to_string(),
+            count: count - edges.len(),
+            expand: expand.to_string(),
+        });
     }
 }
 

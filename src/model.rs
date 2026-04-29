@@ -125,6 +125,22 @@ pub struct DirectorySurface {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct ConeReport {
+    pub kind: &'static str,
+    pub schema_version: &'static str,
+    pub anchor: FileSummary,
+    pub depth: usize,
+    pub outgoing: Vec<StructuralEdge>,
+    pub incoming: Vec<StructuralEdge>,
+    pub proof: Vec<StructuralEdge>,
+    pub contracts: Vec<StructuralEdge>,
+    pub boundary: Vec<StructuralEdge>,
+    pub hidden: Vec<HiddenGroup>,
+    pub unknowns: Vec<String>,
+    pub expand: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct Domain {
     pub id: String,
     pub path: String,

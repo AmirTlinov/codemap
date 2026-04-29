@@ -1,8 +1,8 @@
 use serde::Serialize;
 
 use crate::model::{
-    BoundaryFinding, ExplainReport, GraphLens, ImpactReport, LocateReport, LsReport, TaskCapsule,
-    VerificationPlan, WidenReport,
+    BoundaryFinding, ConeReport, ExplainReport, GraphLens, ImpactReport, LocateReport, LsReport,
+    StructuralEdge, TaskCapsule, VerificationPlan, WidenReport,
 };
 use crate::route::StatusReport;
 
@@ -221,6 +221,84 @@ pub fn ls(report: &LsReport) {
         println!("\n## Next\n");
         println!("{}", bullet(&report.next, true, Some(5)));
     }
+}
+
+pub fn cone(report: &ConeReport) {
+    println!("# Structural Cone\n");
+    println!("Anchor: `{}`", report.anchor.path);
+    println!("Depth: `{}`", report.depth);
+    println!(
+        "\n{}",
+        table(
+            &["Field", "Value"],
+            vec![
+                vec!["Kind".to_string(), report.anchor.kind.clone()],
+                vec![
+                    "Package".to_string(),
+                    report
+                        .anchor
+                        .package
+                        .clone()
+                        .unwrap_or_else(|| "none".to_string()),
+                ],
+                vec!["Language".to_string(), report.anchor.language.clone()],
+                vec!["Lines".to_string(), report.anchor.lines.to_string()],
+                vec![
+                    "Symbols".to_string(),
+                    report.anchor.symbols.len().to_string(),
+                ],
+                vec![
+                    "Imported by".to_string(),
+                    report.anchor.imported_by_count.to_string(),
+                ],
+            ],
+        )
+    );
+    cone_section("Outgoing", &report.outgoing);
+    cone_section("Incoming", &report.incoming);
+    cone_section("Proof", &report.proof);
+    cone_section("Contracts", &report.contracts);
+    cone_section("Boundary", &report.boundary);
+    if !report.hidden.is_empty() {
+        println!("\n## Hidden\n");
+        let rows = report
+            .hidden
+            .iter()
+            .map(|hidden| {
+                vec![
+                    hidden.reason.clone(),
+                    hidden.count.to_string(),
+                    code(&hidden.expand),
+                ]
+            })
+            .collect();
+        println!("{}", table(&["Reason", "Count", "Expand"], rows));
+    }
+    section("Unknown", &report.unknowns);
+    section("Expand", &report.expand);
+}
+
+fn cone_section(title: &str, edges: &[StructuralEdge]) {
+    if edges.is_empty() {
+        return;
+    }
+    println!("\n## {title}\n");
+    let rows = edges
+        .iter()
+        .map(|edge| {
+            vec![
+                code(&edge.from),
+                edge.edge_type.clone(),
+                code(&edge.to),
+                edge.evidence.clone(),
+                format!("{:?}", edge.strength).to_ascii_lowercase(),
+            ]
+        })
+        .collect();
+    println!(
+        "{}",
+        table(&["From", "Type", "To", "Evidence", "Strength"], rows)
+    );
 }
 
 fn render_ls_file(report: &LsReport) {
