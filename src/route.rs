@@ -1330,6 +1330,11 @@ fn task_kind(project: &Project, domain: &Domain, task: &str) -> (String, f64, Ve
     {
         best = ("ui_rendering".to_string(), score, reasons);
     }
+    if let Some((score, reasons)) = context_routing_composite(project, domain, &task_tokens)
+        && score > best.1
+    {
+        best = ("context_routing".to_string(), score, reasons);
+    }
     if best.1 == 0.0 {
         let domain_tokens = route_text_tokens(&format!("{} {}", domain.id, domain.path));
         best.1 += token_overlap(&task_tokens, &domain_tokens).len() as f64 * 0.5;
@@ -1370,6 +1375,55 @@ fn ui_output_composite(task_tokens: &BTreeSet<String>) -> Option<(f64, Vec<Strin
         2.6,
         vec![format!(
             "task pairs UI surface `{ui_word}` with output surface `{output_word}`"
+        )],
+    ))
+}
+
+fn context_routing_composite(
+    project: &Project,
+    domain: &Domain,
+    task_tokens: &BTreeSet<String>,
+) -> Option<(f64, Vec<String>)> {
+    let has_routing_owner = domain_files(project, domain)
+        .into_iter()
+        .any(|file| repo::is_source_ext(&file.ext) && file.has_role("routing"));
+    if !has_routing_owner {
+        return None;
+    }
+    let command_surface = [
+        "ctx",
+        "locate",
+        "start",
+        "capsule",
+        "context",
+        "impact",
+        "verify",
+        "widen",
+        "boundary",
+        "boundaries",
+        "graph",
+        "lens",
+    ];
+    let routing_mechanics = [
+        "change",
+        "changed",
+        "diff",
+        "traversal",
+        "traverse",
+        "route",
+        "routing",
+        "read",
+    ];
+    let command_word = command_surface
+        .iter()
+        .find(|word| task_tokens.contains(**word))?;
+    let mechanic_word = routing_mechanics
+        .iter()
+        .find(|word| task_tokens.contains(**word))?;
+    Some((
+        3.4,
+        vec![format!(
+            "task pairs ctx command `{command_word}` with routing mechanic `{mechanic_word}`"
         )],
     ))
 }

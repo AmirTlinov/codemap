@@ -465,6 +465,7 @@ fn context_routing_tasks_prefer_implementation_over_output_schemas() {
     for task in [
         "improve ctx routing quality",
         "continue ctx end-to-end implementation",
+        "fix verify changed traversal for package consumers",
     ] {
         let output = ctx()
             .current_dir(repo.path())
@@ -492,6 +493,34 @@ fn context_routing_tasks_prefer_implementation_over_output_schemas() {
                 .take(3)
                 .all(|item| item["path"].as_str().unwrap_or("").starts_with("src/")),
             "{task}"
+        );
+    }
+
+    for task in ["fix package dependency graph", "verify package consumers"] {
+        let output = ctx()
+            .current_dir(repo.path())
+            .env("CTX_CACHE_DIR", cache.path())
+            .args([
+                "start",
+                "--path",
+                repo.path().to_str().unwrap(),
+                "--task",
+                task,
+                "--format",
+                "json",
+            ])
+            .output()
+            .expect("ctx start should run");
+        assert!(output.status.success(), "{task}");
+        let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
+        assert_ne!(
+            json["task_kind"], "context_routing",
+            "package/dependency task should not be stolen by dogfood routing: {task}"
+        );
+        assert_ne!(
+            json["read_first"][0]["path"].as_str(),
+            Some("src/route.rs"),
+            "package/dependency task should not start at route internals: {task}"
         );
     }
 }
