@@ -1241,6 +1241,8 @@ fn task_kind(project: &Project, domain: &Domain, task: &str) -> (String, f64, Ve
                 "page",
                 "component",
                 "render",
+                "renderer",
+                "rendering",
                 "visual",
                 "css",
                 "style",
@@ -1284,8 +1286,11 @@ fn task_kind(project: &Project, domain: &Domain, task: &str) -> (String, f64, Ve
                 "compile",
                 "typecheck",
                 "lint",
+                "manifest",
+                "package",
                 "ci",
                 "workflow",
+                "workspace",
             ],
         ),
         (
@@ -1319,6 +1324,12 @@ fn task_kind(project: &Project, domain: &Domain, task: &str) -> (String, f64, Ve
             best = ((*kind).to_string(), score, reasons);
         }
     }
+    if !task_mentions_package_manifest(&task_tokens)
+        && let Some((score, reasons)) = ui_output_composite(&task_tokens)
+        && score > best.1
+    {
+        best = ("ui_rendering".to_string(), score, reasons);
+    }
     if best.1 == 0.0 {
         let domain_tokens = route_text_tokens(&format!("{} {}", domain.id, domain.path));
         best.1 += token_overlap(&task_tokens, &domain_tokens).len() as f64 * 0.5;
@@ -1332,6 +1343,47 @@ fn task_kind(project: &Project, domain: &Domain, task: &str) -> (String, f64, Ve
     } else {
         (best.0, (0.55 + best.1 / 8.0).min(0.95), best.2)
     }
+}
+
+fn ui_output_composite(task_tokens: &BTreeSet<String>) -> Option<(f64, Vec<String>)> {
+    let ui_surface = [
+        "renderer",
+        "rendering",
+        "render",
+        "ui",
+        "visual",
+        "view",
+        "component",
+        "screen",
+        "page",
+        "style",
+        "css",
+    ];
+    let output_surface = ["output", "formatting", "display", "paint"];
+    let ui_word = ui_surface
+        .iter()
+        .find(|word| task_tokens.contains(**word))?;
+    let output_word = output_surface
+        .iter()
+        .find(|word| task_tokens.contains(**word))?;
+    Some((
+        2.6,
+        vec![format!(
+            "task pairs UI surface `{ui_word}` with output surface `{output_word}`"
+        )],
+    ))
+}
+
+fn task_mentions_package_manifest(task_tokens: &BTreeSet<String>) -> bool {
+    [
+        "package",
+        "manifest",
+        "dependency",
+        "dependencies",
+        "workspace",
+    ]
+    .iter()
+    .any(|token| task_tokens.contains(*token))
 }
 
 fn task_keyword_matches(task_tokens: &BTreeSet<String>, keyword: &str) -> bool {
@@ -1585,12 +1637,20 @@ fn score_file(_project: &Project, file: &FileInfo, task: &str, kind: &str) -> Ca
         .file_name()
         .and_then(|s| s.to_str())
         .unwrap_or("");
-    if matches!(
+    let is_package_manifest = matches!(
         name,
         "package.json" | "Cargo.toml" | "go.mod" | "pyproject.toml"
-    ) && !matches!(kind, "public_api" | "build_ci" | "serialization_schema")
+    );
+    let task_mentions_manifest = task_mentions_package_manifest(&tokens);
+    if is_package_manifest && !matches!(kind, "public_api" | "build_ci" | "serialization_schema") {
+        score -= if task_mentions_manifest { 1.0 } else { 7.0 };
+    }
+    if kind == "build_ci"
+        && task_mentions_manifest
+        && !is_package_manifest
+        && repo::is_source_ext(&file.ext)
     {
-        score -= 2.0;
+        score -= 3.0;
     }
     if file.has_role("fixture") && kind != "test" && !task_mentions_fixture(task) {
         score -= 4.0;

@@ -145,6 +145,132 @@ fn mixed_monorepo_root_path_still_uses_task_routing() {
 }
 
 #[test]
+fn mixed_monorepo_routes_renderer_output_task_to_renderer_domain() {
+    let repo = fixture_copy("mixed-monorepo");
+    let cache = TempDir::new().expect("cache tempdir");
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "start",
+            "--task",
+            "fix renderer replay output formatting",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx start should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
+    assert_eq!(json["domain"]["path"], "domains/renderer");
+    assert_eq!(json["task_kind"], "ui_rendering");
+    assert_eq!(
+        json["read_first"][0]["path"].as_str(),
+        Some("domains/renderer/src/replay-renderer.ts")
+    );
+    assert!(
+        !json["read_first"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["path"].as_str() == Some("domains/replay/src/replay-session.ts"))
+    );
+    assert!(
+        !json["read_first"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["path"].as_str() == Some("domains/renderer/package.json"))
+    );
+}
+
+#[test]
+fn mixed_monorepo_locates_renderer_output_task_before_replay() {
+    let repo = fixture_copy("mixed-monorepo");
+    let cache = TempDir::new().expect("cache tempdir");
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "locate",
+            "--task",
+            "fix renderer replay output formatting",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx locate should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
+    assert_eq!(json["candidates"][0]["domain"]["path"], "domains/renderer");
+    assert_eq!(json["candidates"][0]["task_kind"], "ui_rendering");
+}
+
+#[test]
+fn mixed_monorepo_package_manifest_formatting_is_not_ui_rendering() {
+    let repo = fixture_copy("mixed-monorepo");
+    let cache = TempDir::new().expect("cache tempdir");
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "start",
+            "--task",
+            "fix package manifest dependency formatting",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx start should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
+    assert_eq!(json["task_kind"], "build_ci");
+    assert!(
+        !json["read_first"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["path"].as_str() == Some("domains/renderer/src/replay-renderer.ts"))
+    );
+}
+
+#[test]
+fn mixed_monorepo_renderer_manifest_task_stays_on_manifest_surface() {
+    let repo = fixture_copy("mixed-monorepo");
+    let cache = TempDir::new().expect("cache tempdir");
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "start",
+            "--task",
+            "fix renderer package manifest dependency formatting",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx start should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
+    assert_eq!(json["domain"]["path"], "domains/renderer");
+    assert_eq!(json["task_kind"], "build_ci");
+    assert!(
+        json["read_first"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["path"].as_str() == Some("domains/renderer/package.json"))
+    );
+    assert!(
+        !json["read_first"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["path"].as_str() == Some("domains/renderer/src/replay-renderer.ts"))
+    );
+}
+
+#[test]
 fn mixed_monorepo_locates_auth_token_task() {
     let repo = fixture_copy("mixed-monorepo");
     let cache = TempDir::new().expect("cache tempdir");
