@@ -8,7 +8,7 @@ V2 shifts the primary product surface from task routing to structural lenses:
 ctx = ls + xref + cone + impact + proof for code
 ```
 
-The existing task router remains a legacy compatibility layer while structural commands land.
+The existing task router remains a legacy compatibility layer; structural commands are the primary v2 surface.
 
 ## Implemented Slice
 
@@ -54,7 +54,7 @@ The existing task router remains a legacy compatibility layer while structural c
 - `ctx schema <status|files|find|ls|cone|proof|capsule|impact|verify|anchors|locate|explain|widen|graph|boundaries>`
 - `ctx anchors validate`
 - stable JSON schemas for agent-facing route JSON outputs and `.ctx.yml` semantic anchors under `schemas/`
-- v2 schema contracts for structural `ls`, `cone`, and `proof` outputs
+- v2 schema contracts for structural `find`, `ls`, `cone`, `impact --structural`, and `proof` outputs
 - stable JSON schemas for `status` and `files` JSON reports
 - schema evolution policy in `docs/SCHEMA_POLICY.md`, with exported schema ownership in `schemas/manifest.json`
 - bundled schema and schema-manifest printing from the installed binary, without loading a project or writing cache
@@ -67,7 +67,7 @@ The existing task router remains a legacy compatibility layer while structural c
 - semantically invalid `.ctx.yml` anchors fail closed before routing when `version: 1`, exact concept files, route read-first files, boundary reasons, or route match/read declarations are missing
 - `ctx verify --run` fails closed when the plan contains only a non-runnable placeholder
 - `ctx verify --changed` and `ctx verify --files` reuse the same impact traversal and `--depth`/`--limit` controls as `ctx impact`
-- `ctx impact --changed` and `ctx verify --changed` keep verification empty when the changed set is empty instead of inferring a project-wide check
+- legacy `ctx impact --changed`, structural `ctx impact --changed --structural`, and `ctx verify --changed` keep verification empty when the changed set is empty instead of inferring a project-wide check
 - `ctx impact --structural` returns v2 structural clusters over changed anchors, with direct consumers, cross-boundary/package consumers, contract risks, proof edges, hidden edge counts, and exact follow-up commands
 - `ctx proof <path|--changed|--files>` returns v2 proof plans from structural test evidence and remains print-only unless `--run` is explicit
 - `ctx find "<query>"` returns v2 anchor candidates plus separated weak matches and points to `ctx ls` / `ctx cone`, not `ctx start`
@@ -166,12 +166,9 @@ This is intentionally flatter than the final large-tree design. The next split s
 - root `--path` bootloader calls still use task routing, while narrower explicit paths constrain the route.
 - `tests/e2e_workflow.rs` protects the full agent loop: `start -> impact -> verify -> verify --run -> boundaries -> explain`.
 
-## Next Useful Slices
+## Remaining Non-Goals Before Registry Publication
 
-1. Implement the structural model and symbol extraction used by `ctx ls`.
-2. Add `ctx ls <file|dir>` as the first vertical v2 UX.
-3. Add `ctx cone <anchor>` on top of existing import/reverse import/package/test edges.
-4. Move `impact` and `proof` to v2 structural clusters while keeping v1 schema compatibility explicit.
-5. Publish `agent-context-cli` to npm and/or crates.io after registry credentials are available; until then, GitHub Releases carry the native archives and npm tarball.
-6. Add a dedicated Homebrew tap publish workflow only after there is a real tap repository and credentials; until then, use `scripts/update-homebrew-tap.sh` locally.
-7. Split large route/repo modules only after the next behavior slice makes them hard to change safely.
+1. Publish `agent-context-cli` to npm and/or crates.io after registry credentials are available; until then, GitHub Releases carry the native archives and npm tarball.
+2. Add a dedicated Homebrew tap publish workflow only after there is a real tap repository and credentials; until then, use `scripts/update-homebrew-tap.sh` locally.
+3. Split large route/repo modules only after the next behavior slice makes them hard to change safely.
+4. Add an MCP wrapper only after the CLI contract remains stable through real release use.

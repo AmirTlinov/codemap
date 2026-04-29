@@ -18,7 +18,7 @@ It does not store context in projects, generate repo maps, require `AGENTS.md`, 
 ```bash
 ctx ls domains/replay/src/replay-timeline.ts
 ctx cone domains/replay/src/replay-timeline.ts --depth 1
-ctx impact --changed
+ctx impact --changed --structural
 ctx proof --changed
 ctx find "replay seek frame"
 ```
@@ -75,10 +75,10 @@ ctx schema anchors
 ctx locate --task "fix auth token refresh"
 ctx start --task "fix broken save" --path src
 ctx impact --changed --structural
-ctx impact --changed
-ctx impact --staged
-ctx impact --since main
-ctx impact --files /abs/path/to/file.ts
+ctx impact --staged --structural
+ctx impact --since main --structural
+ctx impact --files /abs/path/to/file.ts --structural
+ctx impact --changed                 # legacy compatibility report
 ctx proof src/route.rs
 ctx proof --changed
 ctx proof --changed --run
@@ -125,7 +125,7 @@ After edits:
 Do not manually scan the repository before using `ctx` unless the structural cone is empty or the change crosses a public/package/schema boundary.
 ```
 
-`ctx start`, `ctx locate`, `ctx explain`, `ctx verify`, and `ctx widen` remain v1 compatibility surfaces. Their JSON schemas stay stable; their default Markdown now points agents toward structural `find`, `ls`, `cone`, and `proof` flows where possible.
+`ctx start`, `ctx locate`, legacy `ctx impact`, `ctx explain`, `ctx verify`, and `ctx widen` remain v1 compatibility surfaces. Their JSON schemas stay stable; their default Markdown now points agents toward structural `find`, `ls`, `cone`, `impact --structural`, and `proof` flows where possible.
 
 Optional project bootloader:
 
@@ -158,13 +158,13 @@ From a source checkout, build the same archive with:
 ```
 
 The release script writes `dist/ctx-v<version>-<target>.tar.gz` and a `.sha256` sidecar.
-Pushing a version tag from `main`, for example `v0.1.3`, publishes Linux x64 and macOS arm64 archives, a packed npm wrapper tarball, and a generated Homebrew formula to GitHub Releases after asset verification.
+Pushing a version tag from `main`, for example `v0.2.0`, publishes Linux x64 and macOS arm64 archives, a packed npm wrapper tarball, and a generated Homebrew formula to GitHub Releases after asset verification.
 
 The npm wrapper is a thin installer around those same release archives. Published releases include a packed npm tarball, so the wrapper can be installed from GitHub Releases even before the package is published to the npm registry:
 
 ```bash
-gh release download v0.1.3 --repo AmirTlinov/ctx --pattern 'agent-context-cli-0.1.3.tgz'
-GH_TOKEN="$(gh auth token)" npm install -g ./agent-context-cli-0.1.3.tgz
+gh release download v0.2.0 --repo AmirTlinov/ctx --pattern 'agent-context-cli-0.2.0.tgz'
+GH_TOKEN="$(gh auth token)" npm install -g ./agent-context-cli-0.2.0.tgz
 ctx doctor
 ```
 
@@ -180,7 +180,7 @@ For private GitHub releases, install with `GH_TOKEN`, `GITHUB_TOKEN`, or `CTX_NP
 The release workflow also publishes a generated Homebrew formula asset with checksums derived from the release archives. Use it when the release assets are publicly downloadable, or when `CTX_HOMEBREW_REPO_URL` points at a public mirror before formula generation:
 
 ```bash
-brew install --formula https://github.com/AmirTlinov/ctx/releases/download/v0.1.3/ctx.rb
+brew install --formula https://github.com/AmirTlinov/ctx/releases/download/v0.2.0/ctx.rb
 ```
 
 For private or restricted GitHub releases, use the native archive install above or the npm wrapper with `GH_TOKEN` instead; Homebrew's plain release URLs are not an authenticated install path.
@@ -188,7 +188,7 @@ For private or restricted GitHub releases, use the native archive install above 
 To update a local Homebrew tap checkout from a published formula asset:
 
 ```bash
-scripts/update-homebrew-tap.sh --tap-dir ../homebrew-tap --tag v0.1.3 --commit
+scripts/update-homebrew-tap.sh --tap-dir ../homebrew-tap --tag v0.2.0 --commit
 ```
 
 The tap updater modifies only the requested formula path and never pushes.
