@@ -91,6 +91,40 @@ pub struct HiddenGroup {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct LsReport {
+    pub kind: &'static str,
+    pub schema_version: &'static str,
+    pub path: String,
+    pub mode: String,
+    pub anchor: Option<FileSummary>,
+    pub directory: Vec<DirectorySurface>,
+    pub edges: Vec<StructuralEdge>,
+    pub hidden: Vec<HiddenGroup>,
+    pub next: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FileSummary {
+    pub path: String,
+    pub kind: String,
+    pub package: Option<String>,
+    pub language: String,
+    pub lines: usize,
+    pub roles: Vec<String>,
+    pub symbols: Vec<SymbolInfo>,
+    pub exports: Vec<String>,
+    pub imports: Vec<String>,
+    pub imported_by_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DirectorySurface {
+    pub kind: String,
+    pub count: usize,
+    pub examples: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct Domain {
     pub id: String,
     pub path: String,

@@ -5,9 +5,10 @@ use serde::Serialize;
 
 use crate::cache;
 use crate::model::{
-    BoundaryFinding, BoundaryReport, CacheInfo, Candidate, Confidence, DoNotRead, Domain,
-    DomainRef, ExplainReport, FileInfo, FileRisk, ImpactReport, LocateCandidate, LocateReport,
-    Project, Risk, TaskCapsule, VerificationPlan, VerifyReport, WidenReport,
+    BoundaryFinding, BoundaryReport, CacheInfo, Candidate, Confidence, DirectorySurface, DoNotRead,
+    Domain, DomainRef, EvidenceStrength, ExplainReport, FileInfo, FileRisk, FileSummary,
+    HiddenGroup, ImpactReport, LocateCandidate, LocateReport, LsReport, Project, Risk,
+    StructuralEdge, TaskCapsule, VerificationPlan, VerifyReport, WidenReport,
 };
 use crate::repo;
 
@@ -87,6 +88,320 @@ pub fn status_report(project: &Project) -> StatusReport {
         boundary_findings: boundary_findings(project, None).len(),
         unclassified_count: unclassified.len(),
         unclassified_source_files: unclassified.into_iter().take(30).collect(),
+    }
+}
+
+pub fn ls_report(project: &Project, path: &str, include_hidden: bool, limit: usize) -> LsReport {
+    let rel = repo::normalize_rel_path(path);
+    if let Some(info) = project.files.get(&rel) {
+        return ls_file_report(project, info, include_hidden, limit.max(1));
+    }
+    if directory_has_files(project, &rel) {
+        return ls_directory_report(project, &rel, include_hidden, limit.max(1));
+    }
+    LsReport {
+        kind: "ls_report",
+        schema_version: "2",
+        path: rel.clone(),
+        mode: "missing".to_string(),
+        anchor: None,
+        directory: Vec::new(),
+        edges: Vec::new(),
+        hidden: Vec::new(),
+        next: vec![format!(
+            "ctx ls {}",
+            shell_quote(&parent_anchor_for_missing(&rel))
+        )],
+    }
+}
+
+fn ls_file_report(
+    project: &Project,
+    info: &FileInfo,
+    include_hidden: bool,
+    limit: usize,
+) -> LsReport {
+    let mut edges = Vec::new();
+    for target in &info.resolved_imports {
+        edges.push(StructuralEdge {
+            from: info.rel.clone(),
+            to: target.clone(),
+            edge_type: "imports".to_string(),
+            evidence: "resolved_import".to_string(),
+            strength: EvidenceStrength::High,
+        });
+    }
+    if let Some(importers) = project.reverse_imports.get(&info.rel) {
+        for importer in importers {
+            edges.push(StructuralEdge {
+                from: importer.clone(),
+                to: info.rel.clone(),
+                edge_type: "imported_by".to_string(),
+                evidence: "reverse_import".to_string(),
+                strength: EvidenceStrength::High,
+            });
+        }
+    }
+    for test in adjacent_tests_for_file(project, &info.rel) {
+        edges.push(StructuralEdge {
+            from: test,
+            to: info.rel.clone(),
+            edge_type: "tests".to_string(),
+            evidence: "test_naming_or_import".to_string(),
+            strength: EvidenceStrength::Medium,
+        });
+    }
+    edges.sort_by(|a, b| {
+        a.edge_type
+            .cmp(&b.edge_type)
+            .then_with(|| a.from.cmp(&b.from))
+            .then_with(|| a.to.cmp(&b.to))
+    });
+    edges.dedup_by(|a, b| a.from == b.from && a.to == b.to && a.edge_type == b.edge_type);
+    let edge_count = edges.len();
+    let mut hidden = Vec::new();
+    if !include_hidden {
+        edges.truncate(limit);
+        if edge_count > edges.len() {
+            hidden.push(HiddenGroup {
+                reason: "edges hidden by limit".to_string(),
+                count: edge_count - edges.len(),
+                expand: format!("ctx cone {} --depth 1", shell_quote(&info.rel)),
+            });
+        }
+    }
+    let anchor = file_summary(project, info, include_hidden, limit);
+    if !include_hidden && info.symbols.len() > anchor.symbols.len() {
+        hidden.push(HiddenGroup {
+            reason: "symbols hidden by limit".to_string(),
+            count: info.symbols.len() - anchor.symbols.len(),
+            expand: format!("ctx ls {} --include-hidden", shell_quote(&info.rel)),
+        });
+    }
+    LsReport {
+        kind: "ls_report",
+        schema_version: "2",
+        path: info.rel.clone(),
+        mode: "file".to_string(),
+        anchor: Some(anchor),
+        directory: Vec::new(),
+        edges,
+        hidden,
+        next: vec![format!("ctx cone {}", shell_quote(&info.rel))],
+    }
+}
+
+fn ls_directory_report(
+    project: &Project,
+    rel: &str,
+    include_hidden: bool,
+    limit: usize,
+) -> LsReport {
+    let mut grouped: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for file in files_under_directory(project, rel) {
+        let kind = file_kind_for_ls(file);
+        let noisy = is_generic_noise(file);
+        if noisy && !include_hidden {
+            grouped
+                .entry("generic_hidden".to_string())
+                .or_default()
+                .push(file.rel.clone());
+            continue;
+        }
+        grouped.entry(kind).or_default().push(file.rel.clone());
+    }
+    let hidden_generic_count = grouped
+        .remove("generic_hidden")
+        .map(|v| v.len())
+        .unwrap_or(0);
+    let mut surfaces = grouped
+        .into_iter()
+        .map(|(kind, mut files)| {
+            files.sort();
+            DirectorySurface {
+                kind,
+                count: files.len(),
+                examples: files.into_iter().take(5).collect(),
+            }
+        })
+        .collect::<Vec<_>>();
+    surfaces.sort_by(|a, b| {
+        b.count
+            .cmp(&a.count)
+            .then_with(|| surface_priority(&a.kind).cmp(&surface_priority(&b.kind)))
+            .then_with(|| a.kind.cmp(&b.kind))
+    });
+    let surface_count = surfaces.len();
+    surfaces.truncate(limit);
+    let mut hidden = Vec::new();
+    if surface_count > surfaces.len() {
+        hidden.push(HiddenGroup {
+            reason: "directory surfaces hidden by limit".to_string(),
+            count: surface_count - surfaces.len(),
+            expand: format!("ctx ls {} --include-hidden", shell_quote(rel)),
+        });
+    }
+    if hidden_generic_count > 0 {
+        hidden.push(HiddenGroup {
+            reason: "generic source files hidden".to_string(),
+            count: hidden_generic_count,
+            expand: format!("ctx ls {} --include-hidden", shell_quote(rel)),
+        });
+    }
+    LsReport {
+        kind: "ls_report",
+        schema_version: "2",
+        path: rel.to_string(),
+        mode: "directory".to_string(),
+        anchor: None,
+        directory: surfaces,
+        edges: Vec::new(),
+        hidden,
+        next: vec![format!("ctx cone {}", shell_quote(rel))],
+    }
+}
+
+fn directory_has_files(project: &Project, rel: &str) -> bool {
+    if rel == "." {
+        return !project.files.is_empty();
+    }
+    let prefix = format!("{}/", rel.trim_end_matches('/'));
+    project.files.keys().any(|file| file.starts_with(&prefix))
+}
+
+fn parent_anchor_for_missing(rel: &str) -> String {
+    Path::new(rel)
+        .parent()
+        .map(|parent| repo::normalize_rel_path(&parent.to_string_lossy()))
+        .filter(|parent| !parent.is_empty())
+        .unwrap_or_else(|| ".".to_string())
+}
+
+fn files_under_directory<'a>(project: &'a Project, rel: &str) -> Vec<&'a FileInfo> {
+    let prefix = (rel != ".").then(|| format!("{}/", rel.trim_end_matches('/')));
+    project
+        .files
+        .values()
+        .filter(|file| {
+            prefix
+                .as_ref()
+                .map(|prefix| file.rel.starts_with(prefix))
+                .unwrap_or(true)
+        })
+        .collect()
+}
+
+fn file_summary(
+    project: &Project,
+    info: &FileInfo,
+    include_hidden: bool,
+    limit: usize,
+) -> FileSummary {
+    let mut symbols = info.symbols.clone();
+    if !include_hidden {
+        symbols.truncate(limit);
+    }
+    FileSummary {
+        path: info.rel.clone(),
+        kind: file_kind_for_ls(info),
+        package: package_name_for_file(project, &info.rel),
+        language: info.language.clone(),
+        lines: info.line_count,
+        roles: structural_roles_for_ls(info),
+        symbols,
+        exports: info.exports.iter().cloned().collect(),
+        imports: info.imports.iter().cloned().collect(),
+        imported_by_count: project
+            .reverse_imports
+            .get(&info.rel)
+            .map(|importers| importers.len())
+            .unwrap_or(0),
+    }
+}
+
+fn structural_roles_for_ls(info: &FileInfo) -> Vec<String> {
+    info.roles
+        .iter()
+        .filter(|role| role.as_str() != "source_of_truth")
+        .cloned()
+        .collect()
+}
+
+fn package_name_for_file(project: &Project, rel: &str) -> Option<String> {
+    project
+        .packages
+        .iter()
+        .filter(|package| {
+            rel == package.path
+                || rel == package.manifest
+                || package.path == "."
+                || rel.starts_with(&format!("{}/", package.path.trim_end_matches('/')))
+        })
+        .max_by_key(|package| {
+            if package.path == "." {
+                0
+            } else {
+                package.path.len()
+            }
+        })
+        .map(|package| package.name.clone())
+}
+
+fn file_kind_for_ls(info: &FileInfo) -> String {
+    for role in [
+        "test",
+        "schema_contract",
+        "public_boundary",
+        "runtime_state",
+        "adapter",
+        "parser",
+        "renderer_ui",
+        "persistence",
+        "routing",
+        "repo_discovery",
+        "cache",
+        "build_ci",
+        "semantic_anchor",
+        "agent_bootstrap",
+        "fixture",
+        "example",
+        "generated",
+    ] {
+        if info.has_role(role) {
+            return role.to_string();
+        }
+    }
+    if repo::is_source_ext(&info.ext) {
+        "source".to_string()
+    } else if info.language == "config" {
+        "config".to_string()
+    } else if info.language == "markdown" {
+        "docs".to_string()
+    } else {
+        "file".to_string()
+    }
+}
+
+fn is_generic_noise(info: &FileInfo) -> bool {
+    repo::is_source_ext(&info.ext)
+        && info.roles.is_empty()
+        && info.imports.is_empty()
+        && info.exports.is_empty()
+        && info.symbols.is_empty()
+}
+
+fn adjacent_tests_for_file(project: &Project, rel: &str) -> Vec<String> {
+    test_files_for(project, &[rel.to_string()], domain_by_rel(project, rel), 4)
+}
+
+fn surface_priority(kind: &str) -> usize {
+    match kind {
+        "schema_contract" | "public_boundary" => 0,
+        "runtime_state" | "persistence" | "adapter" | "parser" | "renderer_ui" | "routing" => 1,
+        "test" => 2,
+        "source" => 3,
+        "config" | "build_ci" => 4,
+        _ => 5,
     }
 }
 

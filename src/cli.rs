@@ -26,6 +26,8 @@ enum CommandKind {
     Doctor(FormatArgs),
     #[command(about = "Show repo, cache, language, domain, and verification status")]
     Status(FormatArgs),
+    #[command(about = "Show structural surfaces for an exact file or directory anchor")]
+    Ls(LsArgs),
     #[command(about = "List indexed project files without writing to the project")]
     Files(FilesArgs),
     #[command(about = "Print or explicitly write optional ctx bootloader/config files")]
@@ -66,6 +68,17 @@ struct FilesArgs {
     #[arg(long)]
     path: Option<String>,
     #[arg(long, default_value_t = 200)]
+    limit: usize,
+    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
+    format: OutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct LsArgs {
+    path: String,
+    #[arg(long)]
+    include_hidden: bool,
+    #[arg(long, default_value_t = 20)]
     limit: usize,
     #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
     format: OutputFormat,
@@ -297,6 +310,12 @@ pub fn run() -> Result<()> {
             let report = files_report(&project, args.path.as_deref(), args.limit)?;
             output(args.format, &report, || files_markdown(&report))
         }
+        CommandKind::Ls(args) => {
+            ensure_valid_config(&project)?;
+            let path = project_relative_arg(&project, &args.path)?;
+            let report = route::ls_report(&project, &path, args.include_hidden, args.limit);
+            output(args.format, &report, || render::ls(&report))
+        }
         CommandKind::Init(args) => init(&project, args),
         CommandKind::Bootstrap(_) => Ok(()),
         CommandKind::Schema(_) => Ok(()),
@@ -441,6 +460,7 @@ fn schema_text(kind: SchemaKind) -> &'static str {
 
 fn command_root_hint(command: &CommandKind, ambient_root: Option<&Path>) -> Option<PathBuf> {
     match command {
+        CommandKind::Ls(args) => absolute_path_hint(Some(&args.path)),
         CommandKind::Files(args) => absolute_path_hint(args.path.as_deref()),
         CommandKind::Init(args) => init_root_hint(args.path.as_deref(), ambient_root),
         CommandKind::Start(args) => absolute_path_hint(args.path.as_deref()),
