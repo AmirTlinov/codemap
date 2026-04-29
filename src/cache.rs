@@ -17,12 +17,12 @@ const CACHE_ARTIFACTS: &[&str] = &[
 ];
 
 pub fn cache_base_dir() -> PathBuf {
-    if let Ok(dir) = env::var("CTX_CACHE_DIR") {
+    if let Ok(dir) = env::var("CODEMAP_CACHE_DIR") {
         return PathBuf::from(dir);
     }
     dirs::cache_dir()
         .unwrap_or_else(env::temp_dir)
-        .join("agent-context")
+        .join("codemap")
 }
 
 pub fn project_cache_dir(root: &Path, remote: Option<&str>, version: &str) -> PathBuf {
@@ -30,7 +30,7 @@ pub fn project_cache_dir(root: &Path, remote: Option<&str>, version: &str) -> Pa
 }
 
 pub fn cache_enabled() -> bool {
-    env::var_os("CTX_NO_CACHE").is_none()
+    env::var_os("CODEMAP_NO_CACHE").is_none()
 }
 
 pub fn expected_artifacts() -> &'static [&'static str] {

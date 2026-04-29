@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/AmirTlinov/ctx/schemas/cone.schema.json",
-  "title": "ctx structural cone report",
+  "$id": "https://github.com/AmirTlinov/codemap/schemas/cone.schema.json",
+  "title": "codemap structural cone report",
   "type": "object",
   "additionalProperties": false,
   "required": [

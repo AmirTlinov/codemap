@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/AmirTlinov/ctx/schemas/proof.schema.json",
-  "title": "ctx structural proof plan",
+  "$id": "https://github.com/AmirTlinov/codemap/schemas/proof.schema.json",
+  "title": "codemap structural proof plan",
   "type": "object",
   "additionalProperties": false,
   "required": [

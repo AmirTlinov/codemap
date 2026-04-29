@@ -1,10 +1,10 @@
 [package]
-name = "agent-context-cli"
+name = "codemap"
 version = "0.2.0"
 edition = "2024"
-description = "Deterministic task-specific context router for coding agents"
+description = "Structural code map CLI for coding agents"
 license = "MIT"
-repository = "https://github.com/AmirTlinov/ctx"
+repository = "https://github.com/AmirTlinov/codemap"
 readme = "README.md"
 keywords = ["ai", "agents", "cli", "context"]
 categories = ["command-line-utilities", "development-tools"]
@@ -14,13 +14,7 @@ include = [
   "/LICENSE",
   "/README.md",
   "/docs/**",
-  "/npm/agent-context-cli/package.json",
-  "/npm/agent-context-cli/bin/ctx",
-  "/npm/agent-context-cli/scripts/install.js",
-  "/npm/agent-context-cli/README.md",
-  "/npm/agent-context-cli/LICENSE",
   "/schemas/**",
-  "/scripts/**",
   "/src/**",
   "/fixtures/**",
   "/tests/**",
@@ -44,5 +38,5 @@ jsonschema = { version = "0.46.2", default-features = false }
 tempfile = "3.23.0"
 
 [[bin]]
-name = "ctx"
+name = "codemap"
 path = "src/main.rs"

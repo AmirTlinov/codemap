@@ -1,11 +1,10 @@
 use serde::Serialize;
 
+use crate::map::StatusReport;
 use crate::model::{
-    AnchorCandidate, BoundaryFinding, ConeReport, ExplainReport, FindReport, GraphLens,
-    ImpactCluster, ImpactReport, ImpactV2Report, LocateReport, LsReport, ProofReport, ProofSurface,
-    StructuralEdge, TaskCapsule, VerificationPlan, WidenReport,
+    BoundaryFinding, ConeReport, GraphLens, ImpactCluster, ImpactReport, LsReport, ProofReport,
+    ProofSurface, StructuralEdge,
 };
-use crate::route::StatusReport;
 
 pub fn print_json<T: Serialize>(value: &T) -> anyhow::Result<()> {
     println!("{}", serde_json::to_string_pretty(value)?);
@@ -16,9 +15,9 @@ pub fn status(report: &StatusReport, doctor: bool) {
     println!(
         "{}",
         if doctor {
-            "# ctx doctor"
+            "# codemap doctor"
         } else {
-            "# ctx status"
+            "# codemap status"
         }
     );
     println!();
@@ -140,113 +139,6 @@ pub fn status(report: &StatusReport, doctor: bool) {
             bullet(&report.unclassified_source_files, true, Some(30))
         );
     }
-}
-
-pub fn locate(report: &LocateReport) {
-    println!("# Location Candidates\n");
-    println!("Task: `{}`\n", report.task);
-    let rows = report
-        .candidates
-        .iter()
-        .map(|c| {
-            vec![
-                c.domain.id.clone(),
-                code(&c.domain.path),
-                c.task_kind.clone(),
-                c.confidence.clone(),
-                c.reasons.join("; "),
-            ]
-        })
-        .collect();
-    println!(
-        "{}",
-        table(&["Domain", "Path", "Task kind", "Confidence", "Why"], rows)
-    );
-    if let Some(best) = report.candidates.first() {
-        println!("\n## Start\n");
-        println!(
-            "{}",
-            code_block("bash", std::slice::from_ref(&best.start_command))
-        );
-    }
-}
-
-pub fn locate_compat_find(task: &str, report: &FindReport) {
-    println!("# Locate Compatibility\n");
-    println!("`ctx locate` is a legacy v1 router surface.");
-    println!(
-        "Use structural discovery first: {}\n",
-        code(&format!("ctx find {}", shell_quote(task)))
-    );
-    find(report);
-}
-
-pub fn find(report: &FindReport) {
-    println!("# Anchor Candidates\n");
-    println!("Query: `{}`", report.query);
-    if report.candidates.is_empty() && report.weak_matches.is_empty() {
-        println!("\nNo anchor candidates found.");
-        return;
-    }
-    find_section("Candidates", &report.candidates);
-    find_section("Weak Matches", &report.weak_matches);
-    if !report.hidden.is_empty() {
-        println!("\n## Hidden\n");
-        let rows = report
-            .hidden
-            .iter()
-            .map(|hidden| {
-                vec![
-                    hidden.reason.clone(),
-                    hidden.count.to_string(),
-                    code(&hidden.expand),
-                ]
-            })
-            .collect();
-        println!("{}", table(&["Reason", "Count", "Expand"], rows));
-    }
-}
-
-fn find_section(title: &str, candidates: &[AnchorCandidate]) {
-    if candidates.is_empty() {
-        return;
-    }
-    println!("\n## {title}\n");
-    let rows = candidates.iter().map(find_row).collect::<Vec<_>>();
-    println!(
-        "{}",
-        table(
-            &["Path", "Kind", "Surface", "Evidence", "Strength", "Next",],
-            rows,
-        )
-    );
-}
-
-fn find_row(candidate: &AnchorCandidate) -> Vec<String> {
-    vec![
-        code(&candidate.path),
-        candidate.kind.clone(),
-        candidate.surface.clone(),
-        candidate.evidence.clone(),
-        format!("{:?}", candidate.strength).to_ascii_lowercase(),
-        candidate
-            .next
-            .iter()
-            .map(|command| code(command))
-            .collect::<Vec<_>>()
-            .join("\n"),
-    ]
-}
-
-pub fn explain_compat_ls(target: &str, report: &LsReport) {
-    println!("# Explain Compatibility\n");
-    println!("`ctx explain` is a legacy v1 surface for files.");
-    println!(
-        "Structural equivalents: {} then {}\n",
-        code(&format!("ctx ls {}", shell_quote(target))),
-        code(&format!("ctx cone {}", shell_quote(target)))
-    );
-    ls(report);
 }
 
 pub fn ls(report: &LsReport) {
@@ -457,123 +349,7 @@ fn render_ls_directory(report: &LsReport) {
     println!("{}", table(&["Kind", "Count", "Examples"], rows));
 }
 
-pub fn start(capsule: &TaskCapsule) {
-    println!("# Task Context Capsule\n");
-    println!("## Task\n\n`{}`\n", capsule.task);
-    println!("## Classification\n");
-    println!(
-        "{}",
-        table(
-            &["Field", "Value"],
-            vec![
-                vec![
-                    "Domain".to_string(),
-                    format!("{} ({})", capsule.domain.id, code(&capsule.domain.path)),
-                ],
-                vec!["Task kind".to_string(), capsule.task_kind.clone()],
-                vec!["Confidence".to_string(), capsule.confidence.clone()],
-                vec!["Risk".to_string(), capsule.risk.clone()],
-                vec!["Fingerprint".to_string(), code(&capsule.cache.fingerprint)],
-            ],
-        )
-    );
-    println!("\n## Read first\n");
-    if capsule.read_first.is_empty() {
-        println!("- no confident starting files found");
-    } else {
-        for (idx, item) in capsule.read_first.iter().enumerate() {
-            let why = if item.reasons.is_empty() {
-                String::new()
-            } else {
-                format!(" - {}", item.reasons.join("; "))
-            };
-            println!("{}. `{}`{}", idx + 1, item.path, why);
-        }
-    }
-    if !capsule.related_tests.is_empty() {
-        println!("\n## Related tests\n");
-        println!("{}", bullet(&capsule.related_tests, true, Some(10)));
-    }
-    if !capsule.do_not_read_yet.is_empty() {
-        println!("\n## Do not read yet\n");
-        let rows = capsule
-            .do_not_read_yet
-            .iter()
-            .map(|x| vec![code(&x.path), x.reason.clone()])
-            .collect();
-        println!("{}", table(&["Path", "Reason"], rows));
-    }
-    if !capsule.source_of_truth.is_empty() {
-        println!("\n## Source of truth\n");
-        println!("{}", bullet(&capsule.source_of_truth, true, Some(8)));
-    }
-    if !capsule.invariants.is_empty() {
-        println!("\n## Likely invariants\n");
-        println!("{}", bullet(&capsule.invariants, false, Some(7)));
-    }
-    if !capsule.forbidden_moves.is_empty() {
-        println!("\n## Forbidden moves\n");
-        println!("{}", bullet(&capsule.forbidden_moves, false, Some(7)));
-    }
-    println!("\n## Minimal verification\n");
-    println!("{}", code_block("bash", &capsule.verification.minimal));
-    if !capsule.verification.recommended.is_empty() {
-        println!("\n## Recommended if risk grows\n");
-        println!("{}", code_block("bash", &capsule.verification.recommended));
-    }
-    println!("\n## Expand only if\n");
-    println!("{}", bullet(&capsule.expansion_triggers, false, Some(8)));
-    println!("\n## Stop condition\n");
-    println!("{}", bullet(&capsule.stop_conditions, false, Some(8)));
-}
-
 pub fn impact(report: &ImpactReport) {
-    println!("# Impact Report\n");
-    if report.changed.is_empty() {
-        println!(
-            "No changed files detected. Use `--files a,b` or run inside a git repo with changes."
-        );
-        return;
-    }
-    println!("## Changed files\n");
-    let rows = report
-        .files
-        .iter()
-        .map(|f| vec![code(&f.path), f.risk.clone(), f.reasons.join("; ")])
-        .collect();
-    println!("{}", table(&["File", "Risk", "Why"], rows));
-    println!("\nOverall risk: **{}**", report.risk);
-    if !report.impacted.is_empty() {
-        println!("\n## Also inspect if needed\n");
-        println!("{}", bullet(&report.impacted, true, Some(20)));
-    }
-    if !report.related_tests.is_empty() {
-        println!("\n## Related tests\n");
-        println!("{}", bullet(&report.related_tests, true, Some(10)));
-    }
-    if !report.external_domains.is_empty() {
-        println!("\n## Context expansion required\n");
-        for domain in &report.external_domains {
-            println!("- `{}` ({})", domain.path, domain.id);
-        }
-    }
-    if !report.expansion_triggers.is_empty() {
-        println!("\n## Expansion triggers fired\n");
-        println!("{}", bullet(&report.expansion_triggers, false, Some(8)));
-    }
-    println!("\n## Minimal verification\n");
-    println!("{}", code_block("bash", &report.minimal_verification));
-    if !report.recommended_verification.is_empty() {
-        println!("\n## Recommended\n");
-        println!("{}", code_block("bash", &report.recommended_verification));
-    }
-    if !report.full_verification.is_empty() {
-        println!("\n## Full only if trigger remains unresolved\n");
-        println!("{}", code_block("bash", &report.full_verification));
-    }
-}
-
-pub fn impact_v2(report: &ImpactV2Report) {
     println!("# Structural Impact\n");
     if report.changed.is_empty() && report.clusters.is_empty() {
         println!("No changed anchors detected. Use `--files a,b` or run with a git diff selector.");
@@ -639,55 +415,6 @@ fn render_impact_cluster(cluster: &ImpactCluster) {
     cone_section("Proof", &cluster.proof);
 }
 
-pub fn verify(changed: &[String], plan: &VerificationPlan) {
-    println!("# Verification Plan\n");
-    if changed.is_empty()
-        && plan.minimal.is_empty()
-        && plan.recommended.is_empty()
-        && plan.full_only_if_triggered.is_empty()
-    {
-        println!(
-            "No changed files detected. Use `--files a,b` or run inside a git repo with changes."
-        );
-        println!("\n`ctx verify` does not run commands unless `--run` is explicit.");
-        return;
-    }
-    if !changed.is_empty() {
-        println!("Changed files:");
-        println!("{}", bullet(changed, true, Some(20)));
-        println!();
-    }
-    println!("## Minimal\n");
-    println!("{}", code_block("bash", &plan.minimal));
-    if !plan.recommended.is_empty() {
-        println!("\n## Recommended\n");
-        println!("{}", code_block("bash", &plan.recommended));
-    }
-    if !plan.full_only_if_triggered.is_empty() {
-        println!("\n## Full only if needed\n");
-        println!("{}", code_block("bash", &plan.full_only_if_triggered));
-    }
-    println!("\n`ctx verify` does not run commands unless `--run` is explicit.");
-}
-
-pub fn verify_compat_proof(report: &ProofReport, proof_command: &str) {
-    println!("# Verify Compatibility\n");
-    println!("`ctx verify` is the legacy v1 verification planner.");
-    if report.changed.is_empty() && report.proofs.is_empty() && report.fallback.is_empty() {
-        println!(
-            "No changed files detected. Use `--files a,b` or run inside a git repo with changes."
-        );
-        println!("\n`ctx verify` does not run commands unless `--run` is explicit.");
-        return;
-    }
-    println!(
-        "Use structural proof directly with {}.\n",
-        code(proof_command)
-    );
-    proof(report);
-    println!("\n`ctx verify` does not run commands unless `--run` is explicit.");
-}
-
 pub fn proof(report: &ProofReport) {
     println!("# Proof Plan\n");
     if let Some(target) = &report.target {
@@ -706,7 +433,7 @@ pub fn proof(report: &ProofReport) {
         )
     );
     if report.proofs.is_empty() && report.fallback.is_empty() {
-        println!("\nNo proof surface found. Use `ctx cone <path>` to inspect edges first.");
+        println!("\nNo proof surface found. Use `codemap cone <path>` to inspect edges first.");
         println!("\n{}", report.run_hint);
         return;
     }
@@ -743,134 +470,6 @@ fn proof_row(proof: &ProofSurface) -> Vec<String> {
     ]
 }
 
-pub fn explain(report: &ExplainReport) {
-    if report.kind == "missing" {
-        println!(
-            "No file or concept found for `{}`.",
-            report.target.as_deref().unwrap_or("")
-        );
-        return;
-    }
-    if report.kind == "concept" {
-        println!("# Concept: {}\n", report.id.as_deref().unwrap_or(""));
-        println!(
-            "{}",
-            table(
-                &["Field", "Value"],
-                vec![
-                    vec![
-                        "Domain".to_string(),
-                        report
-                            .domain
-                            .as_ref()
-                            .map(|d| format!("{} ({})", d.id, code(&d.path)))
-                            .unwrap_or_else(|| "unknown".to_string()),
-                    ],
-                    vec!["Roles".to_string(), report.roles.join(", ")],
-                    vec![
-                        "Files".to_string(),
-                        report
-                            .files
-                            .iter()
-                            .map(|f| code(f))
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ],
-                    vec!["Confidence".to_string(), report.confidence.clone()],
-                    vec!["Provenance".to_string(), report.provenance.clone()],
-                ],
-            )
-        );
-        if !report.invariants.is_empty() {
-            println!("\n## Invariants\n");
-            println!("{}", bullet(&report.invariants, false, Some(10)));
-        }
-        return;
-    }
-    println!("# File: {}\n", report.path.as_deref().unwrap_or(""));
-    println!(
-        "{}",
-        table(
-            &["Field", "Value"],
-            vec![
-                vec![
-                    "Domain".to_string(),
-                    report
-                        .domain
-                        .as_ref()
-                        .map(|d| format!("{} ({})", d.id, code(&d.path)))
-                        .unwrap_or_else(|| "unknown".to_string()),
-                ],
-                vec![
-                    "Roles".to_string(),
-                    if report.roles.is_empty() {
-                        "unclassified".to_string()
-                    } else {
-                        report.roles.join(", ")
-                    }
-                ],
-                vec![
-                    "Risk".to_string(),
-                    report.risk.clone().unwrap_or_else(|| "unknown".to_string())
-                ],
-                vec!["Confidence".to_string(), report.confidence.clone()],
-                vec!["Provenance".to_string(), report.provenance.clone()],
-                vec!["Risk reasons".to_string(), report.risk_reasons.join("; ")],
-            ],
-        )
-    );
-    section("Exports", &report.exports);
-    section("Imports", &report.imports);
-    section("Imported by", &report.imported_by);
-    section("Related tests", &report.related_tests);
-}
-
-pub fn widen(report: &WidenReport) {
-    println!("# Widened Context\n");
-    println!("Reason: {}\n", report.reason);
-    println!(
-        "{}",
-        table(
-            &["Field", "Value"],
-            vec![
-                vec![
-                    "Domain".to_string(),
-                    format!("{} ({})", report.domain.id, code(&report.domain.path)),
-                ],
-                vec!["Confidence".to_string(), report.confidence.clone()],
-            ],
-        )
-    );
-    println!("\n## Add\n");
-    println!("{}", bullet(&report.add, true, Some(20)));
-    if !report.still_do_not_read_yet.is_empty() {
-        println!("\n## Still do not read yet\n");
-        let rows = report
-            .still_do_not_read_yet
-            .iter()
-            .map(|x| vec![code(&x.path), x.reason.clone()])
-            .collect();
-        println!("{}", table(&["Path", "Reason"], rows));
-    }
-    println!("\n## Stop rule\n");
-    println!("{}", report.stop_rule);
-}
-
-pub fn widen_compat_cone(reason: &str, report: &ConeReport) {
-    println!("# Widen Compatibility\n");
-    println!("Reason: {reason}\n");
-    println!("`ctx widen` is a legacy v1 expansion surface.");
-    println!(
-        "For an exact anchor, widen structurally with {}.\n",
-        code(&format!(
-            "ctx cone {} --depth {}",
-            shell_quote(&report.anchor.path),
-            report.depth
-        ))
-    );
-    cone(report);
-}
-
 pub fn boundaries(findings: &[BoundaryFinding]) {
     println!("# Boundary Check\n");
     if findings.is_empty() {
@@ -884,14 +483,14 @@ pub fn boundaries(findings: &[BoundaryFinding]) {
                 f.status.clone(),
                 code(&f.from),
                 code(&f.to),
-                f.confidence.clone(),
+                f.strength.clone(),
                 f.reason.clone(),
             ]
         })
         .collect();
     println!(
         "{}",
-        table(&["Status", "From", "To", "Confidence", "Reason"], rows)
+        table(&["Status", "From", "To", "Strength", "Reason"], rows)
     );
     let recoveries: Vec<_> = findings.iter().filter(|f| !f.recovery.is_empty()).collect();
     if !recoveries.is_empty() {
@@ -945,11 +544,11 @@ pub fn init_suggestion(path: Option<&str>) {
 }
 
 pub fn agents_bootloader() -> &'static str {
-    "# Agent Bootstrap\n\nFor coding tasks in this repository, start with:\n\n```bash\nctx find \"<user task>\"\n```\n\nThen inspect the chosen anchor:\n\n```bash\nctx ls <path>\nctx cone <path> --depth 1\n```\n\nAfter edits:\n\n```bash\nctx impact --changed --structural\nctx proof --changed\n```\n\nDo not manually scan the repository before using `ctx` unless the structural cone is empty or the change crosses a public/package/schema boundary.\n"
+    "# Agent Bootstrap\n\nFor coding tasks in this repository, map the relevant code before broad manual scanning:\n\n```bash\ncodemap ls .\ncodemap ls <scope-or-file>\ncodemap cone <scope-or-file> --depth 1\n```\n\nAfter edits:\n\n```bash\ncodemap impact --changed\ncodemap proof --changed\n```\n\nUse `codemap cone <anchor> --depth 2` only when the first cone is structurally empty, crosses a public/package/schema boundary, or the proof surface is missing.\n"
 }
 
 pub fn global_instruction() -> &'static str {
-    "For coding tasks, if `ctx` is available in PATH, begin with:\n\n```bash\nctx find \"<user task>\"\n```\n\nThen inspect the chosen anchor:\n\n```bash\nctx ls <path>\nctx cone <path> --depth 1\n```\n\nAfter edits:\n\n```bash\nctx impact --changed --structural\nctx proof --changed\n```\n\nDo not manually scan the repository before using `ctx` unless the structural cone is empty or the change crosses a public/package/schema boundary.\nUse legacy `ctx start`, `ctx locate`, `ctx explain`, `ctx verify`, and `ctx widen` only for v1 compatibility.\n"
+    "For coding tasks, if `codemap` is available in PATH, begin with a bounded structural map:\n\n```bash\ncodemap ls .\ncodemap ls <scope-or-file>\ncodemap cone <scope-or-file> --depth 1\n```\n\nAfter edits:\n\n```bash\ncodemap impact --changed\ncodemap proof --changed\n```\n\nRead code lines after choosing anchors from the map. Widen with `codemap cone <anchor> --depth 2` only when structural edges, public/package/schema boundaries, or proof surfaces require it.\n"
 }
 
 pub fn suggested_ctx_yml_for(path: Option<&str>) -> String {
@@ -958,7 +557,7 @@ pub fn suggested_ctx_yml_for(path: Option<&str>) -> String {
         .filter(|p| !p.is_empty() && *p != ".")
         .unwrap_or("repo");
     format!(
-        "version: 1\n\ndomain:\n  id: {domain_id}\n\nboundaries:\n  forbidden: []\n\ntask_routes: {{}}\n\nverification:\n  default: []\n"
+        "version: 1\n\ndomain:\n  id: {domain_id}\n\nboundaries:\n  forbidden: []\n\nverification:\n  default: []\n"
     )
 }
 
@@ -1013,17 +612,6 @@ fn bullet(values: &[String], code_style: bool, limit: Option<usize>) -> String {
 
 fn code(value: &str) -> String {
     format!("`{value}`")
-}
-
-fn shell_quote(value: &str) -> String {
-    if value
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '.' | '_' | '-'))
-    {
-        value.to_string()
-    } else {
-        format!("'{}'", value.replace('\'', "'\\''"))
-    }
 }
 
 fn code_block(lang: &str, commands: &[String]) -> String {

@@ -141,7 +141,7 @@ pub struct ConeReport {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct ImpactV2Report {
+pub struct ImpactReport {
     pub kind: &'static str,
     pub schema_version: &'static str,
     pub changed: Vec<FileSummary>,
@@ -235,8 +235,6 @@ pub struct CtxConfig {
     #[serde(default)]
     pub boundaries: AnchorBoundaries,
     #[serde(default)]
-    pub task_routes: BTreeMap<String, AnchorTaskRoute>,
-    #[serde(default)]
     pub verification: AnchorVerification,
 }
 
@@ -296,41 +294,9 @@ pub struct BoundaryRule {
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct AnchorTaskRoute {
-    #[serde(default, rename = "match")]
-    pub matches: Vec<String>,
-    #[serde(default)]
-    pub read_first: Vec<String>,
-    #[serde(default)]
-    pub verify: Vec<String>,
-}
-
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
 pub struct AnchorVerification {
     #[serde(default)]
     pub default: Vec<String>,
-}
-
-#[allow(dead_code)]
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq, PartialOrd, Ord)]
-#[serde(rename_all = "snake_case")]
-pub enum Confidence {
-    Low,
-    Medium,
-    High,
-    Hard,
-}
-
-impl Confidence {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Low => "low",
-            Self::Medium => "medium",
-            Self::High => "high",
-            Self::Hard => "hard",
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -356,46 +322,10 @@ impl Risk {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct Candidate {
-    pub path: String,
-    pub score: f64,
-    pub reasons: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct DoNotRead {
-    pub path: String,
-    pub reason: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
 pub struct VerificationPlan {
     pub minimal: Vec<String>,
     pub recommended: Vec<String>,
     pub full_only_if_triggered: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct TaskCapsule {
-    pub kind: &'static str,
-    pub schema_version: &'static str,
-    pub task: String,
-    pub domain: DomainRef,
-    pub task_kind: String,
-    pub confidence: String,
-    pub risk: String,
-    pub read_first: Vec<Candidate>,
-    pub related_tests: Vec<String>,
-    pub source_of_truth: Vec<String>,
-    pub public_boundaries: Vec<String>,
-    pub do_not_read_yet: Vec<DoNotRead>,
-    pub forbidden_moves: Vec<String>,
-    pub invariants: Vec<String>,
-    pub verification: VerificationPlan,
-    pub expansion_triggers: Vec<String>,
-    pub stop_conditions: Vec<String>,
-    pub provenance: BTreeMap<String, String>,
-    pub cache: CacheInfo,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -414,127 +344,12 @@ impl From<&Domain> for DomainRef {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct CacheInfo {
-    pub path: String,
-    pub fingerprint: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
 pub struct CacheArtifactStatus {
     pub name: String,
     pub path: String,
     pub exists: bool,
     pub bytes: Option<u64>,
     pub fingerprint_match: Option<bool>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct LocateReport {
-    pub kind: &'static str,
-    pub schema_version: &'static str,
-    pub task: String,
-    pub candidates: Vec<LocateCandidate>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct LocateCandidate {
-    pub domain: DomainRef,
-    pub score: f64,
-    pub task_kind: String,
-    pub confidence: String,
-    pub reasons: Vec<String>,
-    pub start_command: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct FindReport {
-    pub kind: &'static str,
-    pub schema_version: &'static str,
-    pub query: String,
-    pub candidates: Vec<AnchorCandidate>,
-    pub weak_matches: Vec<AnchorCandidate>,
-    pub hidden: Vec<HiddenGroup>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct AnchorCandidate {
-    pub path: String,
-    pub kind: String,
-    pub package: Option<String>,
-    pub surface: String,
-    pub evidence: String,
-    pub strength: EvidenceStrength,
-    pub reasons: Vec<String>,
-    pub next: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ImpactReport {
-    pub kind: &'static str,
-    pub schema_version: &'static str,
-    pub changed: Vec<String>,
-    pub risk: String,
-    pub files: Vec<FileRisk>,
-    pub impacted: Vec<String>,
-    pub related_tests: Vec<String>,
-    pub domains: Vec<DomainRef>,
-    pub external_domains: Vec<DomainRef>,
-    pub minimal_verification: Vec<String>,
-    pub recommended_verification: Vec<String>,
-    pub full_verification: Vec<String>,
-    pub expansion_triggers: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct VerifyReport {
-    pub kind: &'static str,
-    pub schema_version: &'static str,
-    pub changed: Vec<String>,
-    pub risk: String,
-    pub impacted: Vec<String>,
-    pub related_tests: Vec<String>,
-    pub verification: VerificationPlan,
-    pub expansion_triggers: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct FileRisk {
-    pub path: String,
-    pub risk: String,
-    pub reasons: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ExplainReport {
-    pub kind: String,
-    pub schema_version: &'static str,
-    pub path: Option<String>,
-    pub id: Option<String>,
-    pub domain: Option<DomainRef>,
-    pub roles: Vec<String>,
-    pub risk: Option<String>,
-    pub risk_reasons: Vec<String>,
-    pub imports: Vec<String>,
-    pub imported_by: Vec<String>,
-    pub exports: Vec<String>,
-    pub related_tests: Vec<String>,
-    pub invariants: Vec<String>,
-    pub files: Vec<String>,
-    pub provenance: String,
-    pub confidence: String,
-    pub target: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct WidenReport {
-    pub kind: &'static str,
-    pub schema_version: &'static str,
-    pub reason: String,
-    pub domain: DomainRef,
-    pub add: Vec<String>,
-    pub still_do_not_read_yet: Vec<DoNotRead>,
-    pub confidence: String,
-    pub stop_rule: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -545,7 +360,7 @@ pub struct BoundaryFinding {
     pub reason: String,
     pub recovery: Vec<String>,
     pub provenance: String,
-    pub confidence: String,
+    pub strength: String,
 }
 
 #[derive(Debug, Clone, Serialize)]

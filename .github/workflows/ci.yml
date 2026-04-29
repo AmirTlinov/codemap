@@ -14,8 +14,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  release-check:
-    name: release-check (${{ matrix.os }})
+  check:
+    name: check (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -35,5 +35,14 @@ jobs:
           rustc --version
           cargo --version
 
-      - name: Run release check
-        run: ./scripts/release-check.sh
+      - name: Format
+        run: cargo fmt --check
+
+      - name: Test
+        run: cargo test
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Doctor smoke
+        run: cargo run --bin codemap -- doctor

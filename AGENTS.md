@@ -1,15 +1,18 @@
 # Agent Bootstrap
 
-This repository builds the universal `ctx` CLI.
+This repository builds `codemap`: a structural code-map CLI for AI coding agents.
 
 Keep the product invariant clear:
 
 - global binary, project-agnostic;
 - zero repository writes by default;
 - external cache by default;
+- root `codemap ls .` returns a bounded domain/package map, not the whole project;
+- exact scopes/files use `codemap ls <anchor>` and `codemap cone <anchor>`;
+- after edits use `codemap impact --changed` and `codemap proof --changed`;
 - optional `.ctx.yml` semantic anchors only when hard architecture truth cannot be inferred;
-- no embeddings or LLM in the hard routing path;
-- `verify` prints a plan by default and runs commands only with `--run`.
+- no task router, no ranking engine, no embeddings, no LLM in the hard path;
+- `proof` prints a plan by default and runs commands only with `--run`.
 
 Start code work with:
 
@@ -22,5 +25,5 @@ Before finishing:
 ```bash
 cargo fmt --check
 cargo test
-cargo run --bin ctx -- doctor
+cargo run --bin codemap -- doctor
 ```

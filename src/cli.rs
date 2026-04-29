@@ -7,11 +7,11 @@ use std::process::Command;
 use anyhow::{Result, bail};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
-use crate::{render, repo, route};
+use crate::{map, render, repo};
 
 #[derive(Debug, Parser)]
-#[command(name = "ctx")]
-#[command(about = "External task-specific context kernel for AI coding agents")]
+#[command(name = "codemap")]
+#[command(about = "Structural code map CLI for AI coding agents")]
 #[command(version)]
 pub struct Cli {
     #[arg(long, global = true)]
@@ -32,28 +32,16 @@ enum CommandKind {
     Cone(ConeArgs),
     #[command(about = "List indexed project files without writing to the project")]
     Files(FilesArgs),
-    #[command(about = "Print or explicitly write optional ctx bootloader/config files")]
+    #[command(about = "Print or explicitly write optional codemap bootloader/config files")]
     Init(InitArgs),
     #[command(about = "Print one-time global agent instruction text")]
     Bootstrap(BootstrapArgs),
     #[command(about = "Print a bundled stable JSON schema or schema manifest")]
     Schema(SchemaArgs),
-    #[command(about = "Find structural anchor candidates for a weak query")]
-    Find(FindArgs),
-    #[command(about = "Find likely domain or package for a task")]
-    Locate(LocateArgs),
-    #[command(about = "Return a task-specific context capsule")]
-    Start(StartArgs),
-    #[command(about = "Report affected files and verification plan for a diff")]
+    #[command(about = "Report structural blast-radius clusters for a diff or explicit files")]
     Impact(ImpactArgs),
     #[command(about = "Print structural proof surfaces, or run them only with --run")]
     Proof(ProofArgs),
-    #[command(about = "Print verification commands, or run them only with --run")]
-    Verify(VerifyArgs),
-    #[command(about = "Explain a file or anchored concept")]
-    Explain(ExplainArgs),
-    #[command(about = "Add the next bounded context layer when an expansion trigger fires")]
-    Widen(WidenArgs),
     #[command(about = "Render a small graph lens as Mermaid, Markdown, or JSON")]
     Graph(GraphArgs),
     #[command(alias = "check-boundaries")]
@@ -130,37 +118,6 @@ struct SchemaArgs {
 }
 
 #[derive(Debug, Args)]
-struct FindArgs {
-    query: String,
-    #[arg(long, default_value_t = 10)]
-    limit: usize,
-    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
-    format: OutputFormat,
-}
-
-#[derive(Debug, Args)]
-struct LocateArgs {
-    #[arg(long)]
-    task: String,
-    #[arg(long, default_value_t = 5)]
-    limit: usize,
-    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
-    format: OutputFormat,
-}
-
-#[derive(Debug, Args)]
-struct StartArgs {
-    #[arg(long)]
-    task: String,
-    #[arg(long)]
-    path: Option<String>,
-    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
-    format: OutputFormat,
-    #[arg(long, default_value_t = 7)]
-    limit: usize,
-}
-
-#[derive(Debug, Args)]
 struct ImpactArgs {
     #[arg(long)]
     changed: bool,
@@ -176,8 +133,6 @@ struct ImpactArgs {
     depth: usize,
     #[arg(long, default_value_t = 30)]
     limit: usize,
-    #[arg(long)]
-    structural: bool,
     #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
     format: OutputFormat,
 }
@@ -199,53 +154,6 @@ struct ProofArgs {
     limit: usize,
     #[arg(long)]
     run: bool,
-    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
-    format: OutputFormat,
-}
-
-#[derive(Debug, Args)]
-struct VerifyArgs {
-    #[arg(long)]
-    changed: bool,
-    #[arg(long)]
-    staged: bool,
-    #[arg(long)]
-    since: Option<String>,
-    #[arg(long)]
-    files: Option<String>,
-    #[arg()]
-    positional_files: Vec<String>,
-    #[arg(long, default_value_t = 1)]
-    depth: usize,
-    #[arg(long, default_value_t = 30)]
-    limit: usize,
-    #[arg(long)]
-    run: bool,
-    #[arg(long)]
-    recommended: bool,
-    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
-    format: OutputFormat,
-}
-
-#[derive(Debug, Args)]
-struct ExplainArgs {
-    target: String,
-    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
-    format: OutputFormat,
-}
-
-#[derive(Debug, Args)]
-struct WidenArgs {
-    #[arg(long, default_value = "")]
-    task: String,
-    #[arg(long)]
-    path: Option<String>,
-    #[arg(long)]
-    reason: String,
-    #[arg(long)]
-    already: Vec<String>,
-    #[arg(long, default_value_t = 7)]
-    limit: usize,
     #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
     format: OutputFormat,
 }
@@ -305,16 +213,9 @@ enum SchemaKind {
     Files,
     Ls,
     Cone,
-    Capsule,
     Impact,
-    ImpactV2,
     Proof,
-    Find,
-    Verify,
     Anchors,
-    Locate,
-    Explain,
-    Widen,
     Graph,
     Boundaries,
 }
@@ -325,7 +226,7 @@ pub fn run() -> Result<()> {
         if args.global_instruction {
             print!("{}", render::global_instruction());
         } else {
-            println!("Use `ctx bootstrap --global-instruction`.");
+            println!("Use `codemap bootstrap --global-instruction`.");
         }
         return Ok(());
     }
@@ -352,11 +253,11 @@ pub fn run() -> Result<()> {
     let project = repo::load_project_with_cache(root_selection, cache_write)?;
     match cli.command {
         CommandKind::Doctor(args) => {
-            let report = route::status_report(&project);
+            let report = map::status_report(&project);
             output(args.format, &report, || render::status(&report, true))
         }
         CommandKind::Status(args) => {
-            let report = route::status_report(&project);
+            let report = map::status_report(&project);
             output(args.format, &report, || render::status(&report, false))
         }
         CommandKind::Files(args) => {
@@ -366,102 +267,29 @@ pub fn run() -> Result<()> {
         CommandKind::Ls(args) => {
             ensure_valid_config(&project)?;
             let path = project_relative_arg(&project, &args.path)?;
-            let report = route::ls_report(&project, &path, args.include_hidden, args.limit);
+            let report = map::ls_report(&project, &path, args.include_hidden, args.limit);
             output(args.format, &report, || render::ls(&report))
         }
         CommandKind::Cone(args) => {
             ensure_valid_config(&project)?;
             let path = project_relative_arg(&project, &args.path)?;
             let report =
-                route::cone_report(&project, &path, args.depth, args.include_hidden, args.limit);
+                map::cone_report(&project, &path, args.depth, args.include_hidden, args.limit);
             output(args.format, &report, || render::cone(&report))
         }
         CommandKind::Init(args) => init(&project, args),
         CommandKind::Bootstrap(_) => Ok(()),
         CommandKind::Schema(_) => Ok(()),
-        CommandKind::Find(args) => {
-            ensure_valid_config(&project)?;
-            let report = route::find_report(&project, &args.query, args.limit);
-            output(args.format, &report, || render::find(&report))
-        }
-        CommandKind::Locate(args) => {
-            ensure_valid_config(&project)?;
-            if args.format == OutputFormat::Markdown {
-                let report = route::find_report(&project, &args.task, args.limit);
-                render::locate_compat_find(&args.task, &report);
-                return Ok(());
-            }
-            let report = route::locate_report(&project, &args.task, args.limit);
-            output(args.format, &report, || render::locate(&report))
-        }
-        CommandKind::Start(args) => {
-            ensure_valid_config(&project)?;
-            let start_path = args
-                .path
-                .as_deref()
-                .map(|path| project_relative_arg(&project, path))
-                .transpose()?;
-            let capsule =
-                route::start_capsule(&project, &args.task, start_path.as_deref(), args.limit);
-            output(args.format, &capsule, || render::start(&capsule))
-        }
         CommandKind::Impact(args) => {
             ensure_valid_config(&project)?;
             let changed = changed_from_args(&project, &args)?;
-            if args.structural {
-                let report = route::impact_v2_report(&project, changed, args.depth, args.limit);
-                output(args.format, &report, || render::impact_v2(&report))
-            } else {
-                let report = route::impact_report(&project, changed, args.depth, args.limit);
-                output(args.format, &report, || render::impact(&report))
-            }
+            let report = map::impact_report(&project, changed, args.depth, args.limit);
+            output(args.format, &report, || render::impact(&report))
         }
         CommandKind::Proof(args) => proof(&project, args),
-        CommandKind::Verify(args) => verify(&project, args),
-        CommandKind::Explain(args) => {
-            ensure_valid_config(&project)?;
-            let target = project_relative_arg(&project, &args.target)?;
-            if args.format == OutputFormat::Markdown {
-                let structural = route::ls_report(&project, &target, false, 20);
-                if structural.mode != "missing" {
-                    render::explain_compat_ls(&target, &structural);
-                    return Ok(());
-                }
-            }
-            let report = route::explain_target(&project, &target);
-            output(args.format, &report, || render::explain(&report))
-        }
-        CommandKind::Widen(args) => {
-            ensure_valid_config(&project)?;
-            let widen_path = args
-                .path
-                .as_deref()
-                .map(|path| project_relative_arg(&project, path))
-                .transpose()?;
-            let already = args
-                .already
-                .iter()
-                .map(|path| project_relative_arg(&project, path))
-                .collect::<Result<Vec<_>>>()?;
-            if args.format == OutputFormat::Markdown
-                && let Some(path) = widen_path.as_deref()
-            {
-                let report = route::cone_report(&project, path, 2, false, args.limit);
-                render::widen_compat_cone(&args.reason, &report);
-                return Ok(());
-            }
-            let report = route::widen_context(
-                &project,
-                &args.task,
-                widen_path.as_deref(),
-                &args.reason,
-                &already,
-                args.limit,
-            );
-            output(args.format, &report, || render::widen(&report))
-        }
         CommandKind::Graph(args) => {
             ensure_valid_config(&project)?;
+            ensure_graph_lens(&args.lens)?;
             let changed = if args.changed {
                 repo::changed_files(&project.root, false, None)
             } else {
@@ -472,7 +300,7 @@ pub fn run() -> Result<()> {
                 .as_deref()
                 .map(|path| project_relative_arg(&project, path))
                 .transpose()?;
-            let graph = route::graph_lens(
+            let graph = map::graph_lens(
                 &project,
                 graph_path.as_deref(),
                 &args.lens,
@@ -502,7 +330,7 @@ pub fn run() -> Result<()> {
             } else {
                 None
             };
-            let report = route::boundary_report(&project, changed.as_ref());
+            let report = map::boundary_report(&project, changed.as_ref());
             let hard = report
                 .findings
                 .iter()
@@ -528,6 +356,15 @@ pub fn run() -> Result<()> {
     }
 }
 
+fn ensure_graph_lens(lens: &str) -> Result<()> {
+    match lens.to_ascii_lowercase().as_str() {
+        "causal" | "impact" | "proof" | "boundary" | "boundaries" => Ok(()),
+        _ => {
+            bail!("unknown graph lens `{lens}`; expected one of: causal, impact, proof, boundaries")
+        }
+    }
+}
+
 fn schema_text(kind: SchemaKind) -> &'static str {
     match kind {
         SchemaKind::Manifest => include_str!("../schemas/manifest.json"),
@@ -535,16 +372,9 @@ fn schema_text(kind: SchemaKind) -> &'static str {
         SchemaKind::Files => include_str!("../schemas/files.schema.json"),
         SchemaKind::Ls => include_str!("../schemas/ls.schema.json"),
         SchemaKind::Cone => include_str!("../schemas/cone.schema.json"),
-        SchemaKind::Capsule => include_str!("../schemas/capsule.schema.json"),
         SchemaKind::Impact => include_str!("../schemas/impact.schema.json"),
-        SchemaKind::ImpactV2 => include_str!("../schemas/impact-v2.schema.json"),
         SchemaKind::Proof => include_str!("../schemas/proof.schema.json"),
-        SchemaKind::Find => include_str!("../schemas/find.schema.json"),
-        SchemaKind::Verify => include_str!("../schemas/verify.schema.json"),
         SchemaKind::Anchors => include_str!("../schemas/anchors.schema.json"),
-        SchemaKind::Locate => include_str!("../schemas/locate.schema.json"),
-        SchemaKind::Explain => include_str!("../schemas/explain.schema.json"),
-        SchemaKind::Widen => include_str!("../schemas/widen.schema.json"),
         SchemaKind::Graph => include_str!("../schemas/graph.schema.json"),
         SchemaKind::Boundaries => include_str!("../schemas/boundaries.schema.json"),
     }
@@ -556,16 +386,10 @@ fn command_root_hint(command: &CommandKind, ambient_root: Option<&Path>) -> Opti
         CommandKind::Cone(args) => absolute_path_hint(Some(&args.path)),
         CommandKind::Files(args) => absolute_path_hint(args.path.as_deref()),
         CommandKind::Init(args) => init_root_hint(args.path.as_deref(), ambient_root),
-        CommandKind::Start(args) => absolute_path_hint(args.path.as_deref()),
-        CommandKind::Widen(args) => widen_root_hint(args),
         CommandKind::Impact(args) => {
             absolute_files_hint(args.files.as_deref(), &args.positional_files)
         }
         CommandKind::Proof(args) => proof_root_hint(args),
-        CommandKind::Verify(args) => {
-            absolute_files_hint(args.files.as_deref(), &args.positional_files)
-        }
-        CommandKind::Explain(args) => absolute_file_root_hint(&args.target),
         CommandKind::Graph(args) => absolute_path_hint(args.path.as_deref()),
         _ => None,
     }
@@ -578,14 +402,6 @@ fn init_root_hint(path: Option<&str>, ambient_root: Option<&Path>) -> Option<Pat
     } else {
         Some(hint)
     }
-}
-
-fn widen_root_hint(args: &WidenArgs) -> Option<PathBuf> {
-    absolute_path_hint(args.path.as_deref()).or_else(|| {
-        args.already
-            .iter()
-            .find_map(|file| absolute_file_root_hint(file))
-    })
 }
 
 fn proof_root_hint(args: &ProofArgs) -> Option<PathBuf> {
@@ -625,11 +441,11 @@ fn init(project: &crate::model::Project, args: InitArgs) -> Result<()> {
         .filter(|enabled| *enabled)
         .count();
     if action_count > 1 {
-        bail!("ctx init accepts only one of --agents, --print, or --write-minimal");
+        bail!("codemap init accepts only one of --agents, --print, or --write-minimal");
     }
     if args.agents && args.path.is_some() {
         bail!(
-            "ctx init --agents writes the repository bootloader; use --root to select a different repository root"
+            "codemap init --agents writes the repository bootloader; use --root to select a different repository root"
         );
     }
     if args.agents {
@@ -671,37 +487,18 @@ fn init(project: &crate::model::Project, args: InitArgs) -> Result<()> {
         render::init_suggestion(print_path.as_deref());
         return Ok(());
     }
-    println!("`ctx init` writes nothing by default.");
+    println!("`codemap init` writes nothing by default.");
     println!("Use one of:");
-    println!("  ctx init --agents");
-    println!("  ctx init --print [--path <scope>]");
-    println!("  ctx init --write-minimal [--path <scope>]");
+    println!("  codemap init --agents");
+    println!("  codemap init --print [--path <scope>]");
+    println!("  codemap init --write-minimal [--path <scope>]");
     Ok(())
-}
-
-fn verify(project: &crate::model::Project, args: VerifyArgs) -> Result<()> {
-    ensure_valid_config(project)?;
-    let changed = changed_from_verify_args(project, &args)?;
-    let report = route::verify_report(project, changed.clone(), args.depth, args.limit);
-    if args.run {
-        render::verify(&report.changed, &report.verification);
-        return run_plan(project, &report.verification, args.recommended);
-    }
-    if args.format == OutputFormat::Markdown {
-        let proof = route::proof_report(project, None, changed, args.depth, args.limit);
-        let proof_command = proof_command_from_verify_args(&args, &proof.changed);
-        render::verify_compat_proof(&proof, &proof_command);
-        return Ok(());
-    }
-    output(args.format, &report, || {
-        render::verify(&report.changed, &report.verification)
-    })
 }
 
 fn proof(project: &crate::model::Project, args: ProofArgs) -> Result<()> {
     ensure_valid_config(project)?;
     let (target, changed) = proof_inputs(project, &args)?;
-    let report = route::proof_report(project, target, changed, args.depth, args.limit);
+    let report = map::proof_report(project, target, changed, args.depth, args.limit);
     if args.run {
         render::proof(&report);
         return run_proof_plan(project, &report);
@@ -774,7 +571,7 @@ fn planned_run_commands(
         .collect();
     if !placeholders.is_empty() {
         for command in placeholders {
-            eprintln!("ctx: cannot run placeholder verification: {command}");
+            eprintln!("codemap: cannot run placeholder proof command: {command}");
         }
         bail!(
             "verification plan contains non-runnable placeholder commands for the selected scope"
@@ -785,33 +582,12 @@ fn planned_run_commands(
 
 fn resolve_run_command(command: &str) -> Result<String> {
     let trimmed = command.trim();
-    if trimmed == "ctx" || trimmed.starts_with("ctx ") {
+    if trimmed == "codemap" || trimmed.starts_with("codemap ") {
         let exe = env::current_exe()?;
-        let suffix = trimmed.strip_prefix("ctx").unwrap_or_default();
+        let suffix = trimmed.strip_prefix("codemap").unwrap_or_default();
         return Ok(format!("{}{}", shell_quote_path(&exe), suffix));
     }
     Ok(trimmed.to_string())
-}
-
-fn proof_command_from_verify_args(args: &VerifyArgs, changed: &[String]) -> String {
-    let mut command = if args.changed {
-        "ctx proof --changed".to_string()
-    } else if args.staged {
-        "ctx proof --staged".to_string()
-    } else if let Some(since) = args.since.as_deref() {
-        format!("ctx proof --since {}", shell_quote_arg(since))
-    } else if !changed.is_empty() {
-        format!("ctx proof --files {}", shell_quote_arg(&changed.join(",")))
-    } else {
-        "ctx proof --changed".to_string()
-    };
-    if args.depth != 1 {
-        command.push_str(&format!(" --depth {}", args.depth));
-    }
-    if args.limit != 30 {
-        command.push_str(&format!(" --limit {}", args.limit));
-    }
-    command
 }
 
 fn unique_preserve_order(values: Vec<String>) -> Vec<String> {
@@ -837,17 +613,6 @@ fn shell_quote_path(path: &Path) -> String {
     }
 }
 
-fn shell_quote_arg(value: &str) -> String {
-    if value
-        .chars()
-        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '/' | '.' | '_' | '-' | ':' | ','))
-    {
-        value.to_string()
-    } else {
-        format!("'{}'", value.replace('\'', "'\\''"))
-    }
-}
-
 fn is_runnable_verification_command(command: &str) -> bool {
     !command.trim().is_empty() && !command.contains("nearest domain tests")
 }
@@ -859,40 +624,17 @@ fn ensure_valid_config(project: &crate::model::Project) -> Result<()> {
     }
     for error in &project.config_errors {
         eprintln!(
-            "ctx: invalid semantic anchor `{}`: {}",
+            "codemap: invalid semantic anchor `{}`: {}",
             error.path, error.error
         );
     }
     for problem in semantic_problems {
-        eprintln!("ctx: invalid semantic anchor: {problem}");
+        eprintln!("codemap: invalid semantic anchor: {problem}");
     }
-    bail!("invalid .ctx semantic anchors; run `ctx anchors validate`")
+    bail!("invalid .ctx semantic anchors; run `codemap anchors validate`")
 }
 
 fn changed_from_args(project: &crate::model::Project, args: &ImpactArgs) -> Result<Vec<String>> {
-    ensure_single_diff_selector(
-        args.changed,
-        args.staged,
-        args.since.as_deref(),
-        args.files.as_deref(),
-        &args.positional_files,
-    )?;
-    if args.changed {
-        return Ok(repo::changed_files(&project.root, false, None));
-    }
-    if args.staged {
-        return Ok(repo::changed_files(&project.root, true, None));
-    }
-    if let Some(since) = &args.since {
-        return Ok(repo::changed_files(&project.root, false, Some(since)));
-    }
-    parse_files(project, args.files.as_deref(), &args.positional_files)
-}
-
-fn changed_from_verify_args(
-    project: &crate::model::Project,
-    args: &VerifyArgs,
-) -> Result<Vec<String>> {
     ensure_single_diff_selector(
         args.changed,
         args.staged,
@@ -933,7 +675,7 @@ fn proof_inputs(
     if !files.is_empty() {
         return Ok((None, files));
     }
-    bail!("ctx proof needs an exact target, --changed, --staged, --since, or --files");
+    bail!("codemap proof needs an exact target, --changed, --staged, --since, or --files");
 }
 
 fn ensure_single_proof_selector(args: &ProofArgs) -> Result<()> {
@@ -1099,7 +841,7 @@ fn files_report(
         files.truncate(limit);
         return Ok(FilesReport {
             kind: "files",
-            schema_version: "1",
+            schema_version: "2",
             path: rel.to_string(),
             files,
             count,
@@ -1120,7 +862,7 @@ fn files_report(
     files.truncate(limit);
     Ok(FilesReport {
         kind: "files",
-        schema_version: "1",
+        schema_version: "2",
         path: normalized_path.unwrap_or_else(|| ".".to_string()),
         files,
         count,
@@ -1189,7 +931,7 @@ fn semantic_anchor_problems(project: &crate::model::Project) -> Vec<String> {
     }
     for (id, concept) in &project.anchors.concepts {
         for file in &concept.files {
-            let rel = route::resolve_anchor_path(project, file);
+            let rel = map::resolve_anchor_path(project, file);
             if !is_glob_like(file) && !project.files.contains_key(&rel) {
                 problems.push(format!("concept `{id}` declares missing file `{rel}`"));
             }
@@ -1212,21 +954,6 @@ fn semantic_anchor_problems(project: &crate::model::Project) -> Vec<String> {
             problems.push(format!(
                 "forbidden boundary #{number} has unsupported status `{status}`"
             ));
-        }
-    }
-    for (name, route) in &project.anchors.task_routes {
-        if route.matches.is_empty() && route.read_first.is_empty() {
-            problems.push(format!(
-                "task route `{name}` must declare `match` or `read_first`"
-            ));
-        }
-        for file in &route.read_first {
-            let rel = route::resolve_anchor_path(project, file);
-            if !is_glob_like(file) && !project.files.contains_key(&rel) {
-                problems.push(format!(
-                    "task route `{name}` declares missing read_first file `{rel}`"
-                ));
-            }
         }
     }
     problems
@@ -1275,7 +1002,7 @@ mod tests {
             ],
             recommended: vec![
                 "cargo clippy".to_string(),
-                "ctx boundaries --changed".to_string(),
+                "codemap boundaries --changed".to_string(),
             ],
             full_only_if_triggered: vec!["cargo test --all".to_string()],
         };
@@ -1284,7 +1011,7 @@ mod tests {
 
         assert_eq!(
             commands,
-            vec!["cargo test", "cargo clippy", "ctx boundaries --changed"]
+            vec!["cargo test", "cargo clippy", "codemap boundaries --changed"]
         );
     }
 
@@ -1307,10 +1034,10 @@ mod tests {
 
     #[test]
     fn run_plan_resolves_self_command_to_current_executable() {
-        let command =
-            resolve_run_command("ctx boundaries --changed").expect("self command should resolve");
+        let command = resolve_run_command("codemap boundaries --changed")
+            .expect("self command should resolve");
 
         assert!(command.ends_with(" boundaries --changed"));
-        assert_ne!(command, "ctx boundaries --changed");
+        assert_ne!(command, "codemap boundaries --changed");
     }
 }

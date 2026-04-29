@@ -385,13 +385,6 @@ fn normalize_ctx_config(config: &mut CtxConfig, base: &str) {
         rule.from = prefix_config_path(base, &rule.from);
         rule.to = prefix_config_path(base, &rule.to);
     }
-    for route in config.task_routes.values_mut() {
-        route.read_first = route
-            .read_first
-            .iter()
-            .map(|file| prefix_config_path(base, file))
-            .collect();
-    }
 }
 
 fn prefix_config_path(base: &str, value: &str) -> String {
@@ -452,7 +445,6 @@ fn merge_ctx_config(merged: &mut CtxConfig, mut config: CtxConfig, base: &str) {
         .boundaries
         .forbidden
         .extend(config.boundaries.forbidden);
-    merged.task_routes.extend(config.task_routes);
     merged
         .verification
         .default
@@ -617,6 +609,12 @@ fn classify_roles(info: &mut FileInfo) {
     }
     if is_test_path(&rel) {
         info.roles.insert("test".to_string());
+        if is_e2e_test_path(&rel) {
+            info.roles.insert("e2e_test".to_string());
+        }
+        if is_test_support_path(&rel) {
+            info.roles.insert("test_support".to_string());
+        }
     }
     if matches!(
         name.as_str(),
@@ -653,7 +651,7 @@ fn classify_roles(info: &mut FileInfo) {
             "repository",
             "aggregate",
         ],
-        "source_of_truth",
+        "state_model",
     );
     add_role_if(
         &mut info.roles,
@@ -701,10 +699,8 @@ fn classify_roles(info: &mut FileInfo) {
     add_role_if(
         &mut info.roles,
         &rel,
-        &[
-            "route", "router", "locate", "impact", "verify", "widen", "capsule",
-        ],
-        "routing",
+        &["route", "map", "lens", "impact", "proof", "cone"],
+        "map_engine",
     );
     add_role_if(
         &mut info.roles,
@@ -728,7 +724,7 @@ fn classify_roles(info: &mut FileInfo) {
     }
     if info.roles.contains("test") {
         for role in [
-            "source_of_truth",
+            "state_model",
             "runtime_state",
             "public_boundary",
             "adapter",
@@ -736,7 +732,7 @@ fn classify_roles(info: &mut FileInfo) {
             "parser",
             "renderer_ui",
             "persistence",
-            "routing",
+            "map_engine",
             "repo_discovery",
             "cache",
             "cli_surface",
@@ -811,6 +807,25 @@ fn is_test_path(rel: &str) -> bool {
             .next()
             .map(|name| name.starts_with("test_"))
             .unwrap_or(false)
+}
+
+fn is_e2e_test_path(rel: &str) -> bool {
+    let rel = rel.to_ascii_lowercase();
+    rel.contains("/e2e/")
+        || rel.contains("/e2e-")
+        || rel.contains(".e2e.")
+        || rel.contains("/playwright/")
+        || rel.contains("/cypress/")
+}
+
+fn is_test_support_path(rel: &str) -> bool {
+    let rel = rel.to_ascii_lowercase();
+    rel.contains("/support/")
+        || rel.contains("/helpers/")
+        || rel.contains("/fixtures/")
+        || rel.contains("/mocks/")
+        || rel.contains("/setup")
+        || rel.contains(".setup.")
 }
 
 fn extract_imports_exports(root: &Path, info: &mut FileInfo) {

@@ -1,20 +1,20 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/AmirTlinov/ctx/schemas/boundaries.schema.json",
-  "title": "ctx boundary report",
+  "$id": "https://github.com/AmirTlinov/codemap/schemas/boundaries.schema.json",
+  "title": "codemap boundary report",
   "type": "object",
   "additionalProperties": false,
   "required": ["kind", "schema_version", "findings"],
   "properties": {
     "kind": { "const": "boundary_report" },
-    "schema_version": { "const": "1" },
+    "schema_version": { "const": "2" },
     "findings": {
       "type": "array",
       "items": { "$ref": "#/$defs/boundary_finding" }
     }
   },
   "$defs": {
-    "confidence": {
+    "strength": {
       "type": "string",
       "enum": ["low", "medium", "high", "hard"]
     },
@@ -28,7 +28,7 @@
         "reason",
         "recovery",
         "provenance",
-        "confidence"
+        "strength"
       ],
       "properties": {
         "from": { "type": "string" },
@@ -43,7 +43,7 @@
           "items": { "type": "string" }
         },
         "provenance": { "type": "string" },
-        "confidence": { "$ref": "#/$defs/confidence" }
+        "strength": { "$ref": "#/$defs/strength" }
       }
     }
   }
