@@ -66,6 +66,7 @@ ctx files
 ctx schema manifest
 ctx schema status
 ctx schema files
+ctx schema find
 ctx schema ls
 ctx schema cone
 ctx schema proof
@@ -98,7 +99,7 @@ Markdown is the default agent-facing format. JSON is available with `--format js
 Mermaid output is intentionally limited to `ctx graph`.
 Stable JSON schemas live under `schemas/` for agent-facing route outputs, status/files reports, and `.ctx.yml` semantic anchors.
 Legacy route outputs use `schema_version: "1"`. Structural v2 outputs use `schema_version: "2"`.
-Installed binaries can print the bundled schema manifest with `ctx schema manifest` and bundled schemas with `ctx schema <kind>`, including `status`, `files`, `ls`, `cone`, `proof`, `capsule`, `impact`, `verify`, `anchors`, `locate`, `explain`, `widen`, `graph`, and `boundaries`.
+Installed binaries can print the bundled schema manifest with `ctx schema manifest` and bundled schemas with `ctx schema <kind>`, including `status`, `files`, `find`, `ls`, `cone`, `proof`, `capsule`, `impact`, `verify`, `anchors`, `locate`, `explain`, `widen`, `graph`, and `boundaries`.
 Schema evolution rules are documented in `docs/SCHEMA_POLICY.md` and guarded by `tests/schema_policy.rs`.
 
 ## Agent Integration

@@ -1,9 +1,9 @@
 use serde::Serialize;
 
 use crate::model::{
-    BoundaryFinding, ConeReport, ExplainReport, GraphLens, ImpactCluster, ImpactReport,
-    ImpactV2Report, LocateReport, LsReport, ProofReport, ProofSurface, StructuralEdge, TaskCapsule,
-    VerificationPlan, WidenReport,
+    AnchorCandidate, BoundaryFinding, ConeReport, ExplainReport, FindReport, GraphLens,
+    ImpactCluster, ImpactReport, ImpactV2Report, LocateReport, LsReport, ProofReport, ProofSurface,
+    StructuralEdge, TaskCapsule, VerificationPlan, WidenReport,
 };
 use crate::route::StatusReport;
 
@@ -169,6 +169,63 @@ pub fn locate(report: &LocateReport) {
             code_block("bash", std::slice::from_ref(&best.start_command))
         );
     }
+}
+
+pub fn find(report: &FindReport) {
+    println!("# Anchor Candidates\n");
+    println!("Query: `{}`", report.query);
+    if report.candidates.is_empty() && report.weak_matches.is_empty() {
+        println!("\nNo anchor candidates found.");
+        return;
+    }
+    find_section("Candidates", &report.candidates);
+    find_section("Weak Matches", &report.weak_matches);
+    if !report.hidden.is_empty() {
+        println!("\n## Hidden\n");
+        let rows = report
+            .hidden
+            .iter()
+            .map(|hidden| {
+                vec![
+                    hidden.reason.clone(),
+                    hidden.count.to_string(),
+                    code(&hidden.expand),
+                ]
+            })
+            .collect();
+        println!("{}", table(&["Reason", "Count", "Expand"], rows));
+    }
+}
+
+fn find_section(title: &str, candidates: &[AnchorCandidate]) {
+    if candidates.is_empty() {
+        return;
+    }
+    println!("\n## {title}\n");
+    let rows = candidates.iter().map(find_row).collect::<Vec<_>>();
+    println!(
+        "{}",
+        table(
+            &["Path", "Kind", "Surface", "Evidence", "Strength", "Next",],
+            rows,
+        )
+    );
+}
+
+fn find_row(candidate: &AnchorCandidate) -> Vec<String> {
+    vec![
+        code(&candidate.path),
+        candidate.kind.clone(),
+        candidate.surface.clone(),
+        candidate.evidence.clone(),
+        format!("{:?}", candidate.strength).to_ascii_lowercase(),
+        candidate
+            .next
+            .iter()
+            .map(|command| code(command))
+            .collect::<Vec<_>>()
+            .join("\n"),
+    ]
 }
 
 pub fn ls(report: &LsReport) {

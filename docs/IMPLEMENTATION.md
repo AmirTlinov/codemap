@@ -32,6 +32,7 @@ The existing task router remains a legacy compatibility layer while structural c
 - reverse import graph
 - domain discovery from common workspace folders
 - `ctx locate`
+- `ctx find`
 - `ctx start`
 - `ctx impact`
 - `ctx verify` print-only by default
@@ -50,7 +51,7 @@ The existing task router remains a legacy compatibility layer while structural c
 - `ctx init --agents`
 - `ctx bootstrap --global-instruction`
 - `ctx schema manifest`
-- `ctx schema <status|files|ls|cone|proof|capsule|impact|verify|anchors|locate|explain|widen|graph|boundaries>`
+- `ctx schema <status|files|find|ls|cone|proof|capsule|impact|verify|anchors|locate|explain|widen|graph|boundaries>`
 - `ctx anchors validate`
 - stable JSON schemas for agent-facing route JSON outputs and `.ctx.yml` semantic anchors under `schemas/`
 - v2 schema contracts for structural `ls`, `cone`, and `proof` outputs
@@ -69,6 +70,7 @@ The existing task router remains a legacy compatibility layer while structural c
 - `ctx impact --changed` and `ctx verify --changed` keep verification empty when the changed set is empty instead of inferring a project-wide check
 - `ctx impact --structural` returns v2 structural clusters over changed anchors, with direct consumers, cross-boundary/package consumers, contract risks, proof edges, hidden edge counts, and exact follow-up commands
 - `ctx proof <path|--changed|--files>` returns v2 proof plans from structural test evidence and remains print-only unless `--run` is explicit
+- `ctx find "<query>"` returns v2 anchor candidates plus separated weak matches and points to `ctx ls` / `ctx cone`, not `ctx start`
 - verification planning prefers the single affected package owner when a scoped nested package is clearer than the repository root runner
 - `ctx impact` names public-boundary, schema/DTO, source-of-truth, unclassified-source, generated-file, and cross-domain expansion triggers explicitly
 - workspace domain discovery from root `package.json` workspaces, `pnpm-workspace.yaml`, Cargo workspace members, `go.work`, and simple Python workspace/member arrays

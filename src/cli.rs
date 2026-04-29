@@ -38,6 +38,8 @@ enum CommandKind {
     Bootstrap(BootstrapArgs),
     #[command(about = "Print a bundled stable JSON schema or schema manifest")]
     Schema(SchemaArgs),
+    #[command(about = "Find structural anchor candidates for a weak query")]
+    Find(FindArgs),
     #[command(about = "Find likely domain or package for a task")]
     Locate(LocateArgs),
     #[command(about = "Return a task-specific context capsule")]
@@ -125,6 +127,15 @@ struct BootstrapArgs {
 struct SchemaArgs {
     #[arg(value_enum)]
     kind: SchemaKind,
+}
+
+#[derive(Debug, Args)]
+struct FindArgs {
+    query: String,
+    #[arg(long, default_value_t = 10)]
+    limit: usize,
+    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
+    format: OutputFormat,
 }
 
 #[derive(Debug, Args)]
@@ -298,6 +309,7 @@ enum SchemaKind {
     Impact,
     ImpactV2,
     Proof,
+    Find,
     Verify,
     Anchors,
     Locate,
@@ -367,6 +379,11 @@ pub fn run() -> Result<()> {
         CommandKind::Init(args) => init(&project, args),
         CommandKind::Bootstrap(_) => Ok(()),
         CommandKind::Schema(_) => Ok(()),
+        CommandKind::Find(args) => {
+            ensure_valid_config(&project)?;
+            let report = route::find_report(&project, &args.query, args.limit);
+            output(args.format, &report, || render::find(&report))
+        }
         CommandKind::Locate(args) => {
             ensure_valid_config(&project)?;
             let report = route::locate_report(&project, &args.task, args.limit);
@@ -503,6 +520,7 @@ fn schema_text(kind: SchemaKind) -> &'static str {
         SchemaKind::Impact => include_str!("../schemas/impact.schema.json"),
         SchemaKind::ImpactV2 => include_str!("../schemas/impact-v2.schema.json"),
         SchemaKind::Proof => include_str!("../schemas/proof.schema.json"),
+        SchemaKind::Find => include_str!("../schemas/find.schema.json"),
         SchemaKind::Verify => include_str!("../schemas/verify.schema.json"),
         SchemaKind::Anchors => include_str!("../schemas/anchors.schema.json"),
         SchemaKind::Locate => include_str!("../schemas/locate.schema.json"),

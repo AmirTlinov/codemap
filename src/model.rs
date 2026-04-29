@@ -447,6 +447,28 @@ pub struct LocateCandidate {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct FindReport {
+    pub kind: &'static str,
+    pub schema_version: &'static str,
+    pub query: String,
+    pub candidates: Vec<AnchorCandidate>,
+    pub weak_matches: Vec<AnchorCandidate>,
+    pub hidden: Vec<HiddenGroup>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AnchorCandidate {
+    pub path: String,
+    pub kind: String,
+    pub package: Option<String>,
+    pub surface: String,
+    pub evidence: String,
+    pub strength: EvidenceStrength,
+    pub reasons: Vec<String>,
+    pub next: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct ImpactReport {
     pub kind: &'static str,
     pub schema_version: &'static str,

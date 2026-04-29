@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AmirTlinov/ctx/schemas/find.schema.json",
+  "title": "ctx anchor candidates",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "schema_version",
+    "query",
+    "candidates",
+    "weak_matches",
+    "hidden"
+  ],
+  "properties": {
+    "kind": { "const": "anchor_candidates" },
+    "schema_version": { "const": "2" },
+    "query": { "type": "string" },
+    "candidates": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/anchor_candidate" }
+    },
+    "weak_matches": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/anchor_candidate" }
+    },
+    "hidden": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/hidden_group" }
+    }
+  },
+  "$defs": {
+    "evidence_strength": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "hard"]
+    },
+    "anchor_candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "kind",
+        "package",
+        "surface",
+        "evidence",
+        "strength",
+        "reasons",
+        "next"
+      ],
+      "properties": {
+        "path": { "type": "string" },
+        "kind": { "type": "string" },
+        "package": {
+          "anyOf": [{ "type": "string" }, { "type": "null" }]
+        },
+        "surface": { "type": "string" },
+        "evidence": { "type": "string" },
+        "strength": { "$ref": "#/$defs/evidence_strength" },
+        "reasons": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "next": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "hidden_group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reason", "count", "expand"],
+      "properties": {
+        "reason": { "type": "string" },
+        "count": { "type": "integer", "minimum": 0 },
+        "expand": { "type": "string" }
+      }
+    }
+  }
+}

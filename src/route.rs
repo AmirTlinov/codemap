@@ -5,9 +5,9 @@ use serde::Serialize;
 
 use crate::cache;
 use crate::model::{
-    BoundaryFinding, BoundaryReport, CacheInfo, Candidate, ConeReport, Confidence,
+    AnchorCandidate, BoundaryFinding, BoundaryReport, CacheInfo, Candidate, ConeReport, Confidence,
     DirectorySurface, DoNotRead, Domain, DomainRef, EvidenceStrength, ExplainReport, FileInfo,
-    FileRisk, FileSummary, HiddenGroup, ImpactCluster, ImpactReport, ImpactV2Report,
+    FileRisk, FileSummary, FindReport, HiddenGroup, ImpactCluster, ImpactReport, ImpactV2Report,
     LocateCandidate, LocateReport, LsReport, Project, ProofReport, ProofSurface, Risk,
     StructuralEdge, TaskCapsule, VerificationPlan, VerifyReport, WidenReport,
 };
@@ -855,6 +855,387 @@ fn surface_priority(kind: &str) -> usize {
         "config" | "build_ci" => 4,
         _ => 5,
     }
+}
+
+pub fn find_report(project: &Project, query: &str, limit: usize) -> FindReport {
+    let limit = limit.max(1);
+    let query_tokens = route_text_tokens(query);
+    let mut strong = Vec::new();
+    let mut weak = Vec::new();
+    if let Some(rel) = normalize_path_in_repo(project, query) {
+        if let Some(file) = project.files.get(&rel) {
+            return FindReport {
+                kind: "anchor_candidates",
+                schema_version: "2",
+                query: query.to_string(),
+                candidates: vec![file_anchor_candidate(
+                    project,
+                    file,
+                    "path",
+                    "exact_path",
+                    EvidenceStrength::Hard,
+                    vec!["query is an exact indexed file path".to_string()],
+                )],
+                weak_matches: Vec::new(),
+                hidden: Vec::new(),
+            };
+        } else if directory_exists_in_inventory(project, &rel) {
+            return FindReport {
+                kind: "anchor_candidates",
+                schema_version: "2",
+                query: query.to_string(),
+                candidates: vec![directory_anchor_candidate(
+                    project,
+                    &rel,
+                    "path",
+                    "exact_path",
+                    EvidenceStrength::Hard,
+                    vec!["query is an exact indexed directory path".to_string()],
+                )],
+                weak_matches: Vec::new(),
+                hidden: Vec::new(),
+            };
+        }
+    }
+    for package in &project.packages {
+        let haystack = format!("{} {}", package.name, package.path);
+        if query_surface_matches(query, &query_tokens, &haystack) {
+            strong.push(find_scored_candidate(
+                anchor_candidate_for_path(
+                    project,
+                    &package.manifest,
+                    "package",
+                    "package_manifest",
+                    EvidenceStrength::High,
+                    vec![format!("package `{}` matches query", package.name)],
+                ),
+                1,
+            ));
+        }
+    }
+    for script in &project.scripts {
+        let haystack = format!("{} {} {}", script.name, script.command, script.reason);
+        if query_surface_matches(query, &query_tokens, &haystack)
+            && let Some(path) = script_anchor_path(project)
+        {
+            strong.push(find_scored_candidate(
+                anchor_candidate_for_path(
+                    project,
+                    &path,
+                    "script",
+                    "script_hint",
+                    EvidenceStrength::Medium,
+                    vec![format!("script `{}` matches query", script.name)],
+                ),
+                2,
+            ));
+        }
+    }
+    for file in project.files.values() {
+        let path_match = token_overlap(&query_tokens, &file.tokens);
+        if !path_match.is_empty() && query_tokens.iter().all(|token| file.tokens.contains(token)) {
+            strong.push(find_scored_candidate(
+                file_anchor_candidate(
+                    project,
+                    file,
+                    "path",
+                    "path_tokens",
+                    EvidenceStrength::Medium,
+                    vec![format!("path token match: {}", path_match.join(", "))],
+                ),
+                3,
+            ));
+        }
+        for symbol in &file.symbols {
+            if query_surface_matches(query, &query_tokens, &symbol.name) {
+                strong.push(find_scored_candidate(
+                    file_anchor_candidate(
+                        project,
+                        file,
+                        "symbol",
+                        "symbol_name",
+                        if symbol.exported {
+                            EvidenceStrength::High
+                        } else {
+                            EvidenceStrength::Medium
+                        },
+                        vec![format!(
+                            "{} `{}` at lines {}-{}",
+                            symbol.kind, symbol.name, symbol.line_start, symbol.line_end
+                        )],
+                    ),
+                    if symbol.exported { 1 } else { 2 },
+                ));
+            }
+        }
+        for export in &file.exports {
+            if query_surface_matches(query, &query_tokens, export) {
+                strong.push(find_scored_candidate(
+                    file_anchor_candidate(
+                        project,
+                        file,
+                        "export",
+                        "export_name",
+                        EvidenceStrength::High,
+                        vec![format!("export `{export}` matches query")],
+                    ),
+                    1,
+                ));
+            }
+        }
+        if file.has_role("test") && query_surface_matches(query, &query_tokens, &file.rel) {
+            strong.push(find_scored_candidate(
+                file_anchor_candidate(
+                    project,
+                    file,
+                    "test",
+                    "test_path",
+                    EvidenceStrength::Medium,
+                    vec!["test path matches query".to_string()],
+                ),
+                2,
+            ));
+        }
+        if file.roles.iter().any(|role| {
+            matches!(
+                role.as_str(),
+                "schema_contract" | "public_boundary" | "runtime_state" | "routing"
+            ) && query_surface_matches(query, &query_tokens, role)
+        }) {
+            strong.push(find_scored_candidate(
+                file_anchor_candidate(
+                    project,
+                    file,
+                    "role",
+                    "file_role",
+                    EvidenceStrength::Medium,
+                    vec![format!(
+                        "role match: {}",
+                        file.roles.iter().cloned().collect::<Vec<_>>().join(", ")
+                    )],
+                ),
+                3,
+            ));
+        }
+        if weak_file_match(file, &query_tokens) {
+            weak.push(find_scored_candidate(
+                file_anchor_candidate(
+                    project,
+                    file,
+                    "token",
+                    "weak_token_match",
+                    EvidenceStrength::Low,
+                    vec![
+                        "weak token overlap only; inspect with ctx ls before trusting".to_string(),
+                    ],
+                ),
+                9,
+            ));
+        }
+    }
+    strong = unique_find_candidates(strong);
+    weak = unique_find_candidates(weak)
+        .into_iter()
+        .filter(|candidate| {
+            !strong
+                .iter()
+                .any(|strong_candidate| strong_candidate.candidate.path == candidate.candidate.path)
+        })
+        .collect();
+    sort_find_candidates(&mut strong);
+    sort_find_candidates(&mut weak);
+    let mut hidden = Vec::new();
+    let strong_total = strong.len();
+    let weak_total = weak.len();
+    let candidates = strong
+        .into_iter()
+        .take(limit)
+        .map(|candidate| candidate.candidate)
+        .collect::<Vec<_>>();
+    if strong_total > candidates.len() {
+        hidden.push(HiddenGroup {
+            reason: "anchor candidates hidden by limit".to_string(),
+            count: strong_total - candidates.len(),
+            expand: format!("ctx find {} --limit {}", shell_quote(query), strong_total),
+        });
+    }
+    let weak_matches = weak
+        .into_iter()
+        .take(limit)
+        .map(|candidate| candidate.candidate)
+        .collect::<Vec<_>>();
+    if weak_total > weak_matches.len() {
+        hidden.push(HiddenGroup {
+            reason: "weak matches hidden by limit".to_string(),
+            count: weak_total - weak_matches.len(),
+            expand: format!("ctx find {} --limit {}", shell_quote(query), weak_total),
+        });
+    }
+    FindReport {
+        kind: "anchor_candidates",
+        schema_version: "2",
+        query: query.to_string(),
+        candidates,
+        weak_matches,
+        hidden,
+    }
+}
+
+#[derive(Clone)]
+struct FindScoredCandidate {
+    candidate: AnchorCandidate,
+    priority: usize,
+}
+
+fn find_scored_candidate(candidate: AnchorCandidate, priority: usize) -> FindScoredCandidate {
+    FindScoredCandidate {
+        candidate,
+        priority,
+    }
+}
+
+fn file_anchor_candidate(
+    project: &Project,
+    file: &FileInfo,
+    surface: &str,
+    evidence: &str,
+    strength: EvidenceStrength,
+    reasons: Vec<String>,
+) -> AnchorCandidate {
+    anchor_candidate_for_path(project, &file.rel, surface, evidence, strength, reasons)
+}
+
+fn directory_anchor_candidate(
+    project: &Project,
+    rel: &str,
+    surface: &str,
+    evidence: &str,
+    strength: EvidenceStrength,
+    reasons: Vec<String>,
+) -> AnchorCandidate {
+    AnchorCandidate {
+        path: rel.to_string(),
+        kind: "directory".to_string(),
+        package: package_name_for_file(project, rel),
+        surface: surface.to_string(),
+        evidence: evidence.to_string(),
+        strength,
+        reasons,
+        next: vec![
+            format!("ctx ls {}", shell_quote(rel)),
+            format!("ctx cone {}", shell_quote(rel)),
+        ],
+    }
+}
+
+fn anchor_candidate_for_path(
+    project: &Project,
+    rel: &str,
+    surface: &str,
+    evidence: &str,
+    strength: EvidenceStrength,
+    reasons: Vec<String>,
+) -> AnchorCandidate {
+    let kind = project
+        .files
+        .get(rel)
+        .map(file_kind_for_ls)
+        .unwrap_or_else(|| {
+            if directory_exists_in_inventory(project, rel) {
+                "directory".to_string()
+            } else {
+                "missing".to_string()
+            }
+        });
+    AnchorCandidate {
+        path: rel.to_string(),
+        kind,
+        package: package_name_for_file(project, rel),
+        surface: surface.to_string(),
+        evidence: evidence.to_string(),
+        strength,
+        reasons,
+        next: vec![
+            format!("ctx ls {}", shell_quote(rel)),
+            format!("ctx cone {}", shell_quote(rel)),
+        ],
+    }
+}
+
+fn directory_exists_in_inventory(project: &Project, rel: &str) -> bool {
+    let prefix = if rel == "." {
+        String::new()
+    } else {
+        format!("{}/", rel.trim_end_matches('/'))
+    };
+    project.files.keys().any(|file| file.starts_with(&prefix))
+}
+
+fn script_anchor_path(project: &Project) -> Option<String> {
+    [
+        "package.json",
+        "Cargo.toml",
+        "go.mod",
+        "pyproject.toml",
+        "Makefile",
+        "justfile",
+    ]
+    .iter()
+    .find(|path| project.files.contains_key(**path))
+    .map(|path| (*path).to_string())
+}
+
+fn query_surface_matches(query: &str, query_tokens: &BTreeSet<String>, surface: &str) -> bool {
+    if query.trim().is_empty() {
+        return false;
+    }
+    let normalized_query = query.to_ascii_lowercase().replace(['-', '_', '/', ' '], "");
+    let normalized_surface = surface
+        .to_ascii_lowercase()
+        .replace(['-', '_', '/', ' '], "");
+    if normalized_surface.contains(&normalized_query) {
+        return true;
+    }
+    let surface_tokens = route_text_tokens(surface);
+    !query_tokens.is_empty()
+        && query_tokens
+            .iter()
+            .all(|token| surface_tokens.contains(token))
+}
+
+fn weak_file_match(file: &FileInfo, query_tokens: &BTreeSet<String>) -> bool {
+    if query_tokens.is_empty() || file.tokens.is_empty() {
+        return false;
+    }
+    let overlap = token_overlap(query_tokens, &file.tokens);
+    !overlap.is_empty() && overlap.len() < query_tokens.len()
+}
+
+fn unique_find_candidates(values: Vec<FindScoredCandidate>) -> Vec<FindScoredCandidate> {
+    let mut by_path = BTreeMap::<String, FindScoredCandidate>::new();
+    for value in values {
+        by_path
+            .entry(value.candidate.path.clone())
+            .and_modify(|existing| {
+                if value.priority < existing.priority
+                    || (value.priority == existing.priority
+                        && value.candidate.strength > existing.candidate.strength)
+                {
+                    *existing = value.clone();
+                }
+            })
+            .or_insert(value);
+    }
+    by_path.into_values().collect()
+}
+
+fn sort_find_candidates(values: &mut [FindScoredCandidate]) {
+    values.sort_by(|left, right| {
+        left.priority
+            .cmp(&right.priority)
+            .then_with(|| right.candidate.strength.cmp(&left.candidate.strength))
+            .then_with(|| left.candidate.path.cmp(&right.candidate.path))
+    });
 }
 
 pub fn locate_report(project: &Project, task: &str, limit: usize) -> LocateReport {
