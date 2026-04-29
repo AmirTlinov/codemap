@@ -1528,7 +1528,7 @@ fn detect_package_edges(
     for package in packages {
         match package.ecosystem.as_str() {
             "javascript" => {
-                edges.extend(js_package_edges(root, package, &by_name));
+                edges.extend(js_package_edges(root, package, &by_name, &by_path));
             }
             "rust" => {
                 edges.extend(cargo_package_edges(
@@ -1563,6 +1563,7 @@ fn js_package_edges(
     root: &Path,
     package: &PackageInfo,
     by_name: &BTreeMap<String, &PackageInfo>,
+    by_path: &BTreeMap<String, &PackageInfo>,
 ) -> Vec<PackageDependency> {
     let Ok(text) = fs::read_to_string(root.join(&package.manifest)) else {
         return Vec::new();
@@ -1570,6 +1571,10 @@ fn js_package_edges(
     let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {
         return Vec::new();
     };
+    let base = Path::new(&package.manifest)
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
     let mut edges = Vec::new();
     for section in [
         "dependencies",
@@ -1580,7 +1585,28 @@ fn js_package_edges(
         let Some(map) = value.get(section).and_then(|v| v.as_object()) else {
             continue;
         };
-        for dep in map.keys() {
+        for (dep, spec) in map {
+            if let Some(spec) = spec.as_str() {
+                if let Some(path) = js_local_dependency_path(spec) {
+                    if let Some(target_path) = resolve_repo_relative_path(base, &path)
+                        && let Some(target) = by_path.get(&target_path)
+                    {
+                        edges.push(PackageDependency {
+                            from: package.path.clone(),
+                            from_manifest: package.manifest.clone(),
+                            to: target.path.clone(),
+                            to_manifest: Some(target.manifest.clone()),
+                            workspace_manifest: None,
+                            dependency: dep.clone(),
+                            source: format!("package.json {section} local path"),
+                        });
+                    }
+                    continue;
+                }
+                if js_dependency_spec_is_local_protocol(spec) {
+                    continue;
+                }
+            }
             if let Some(target) = by_name.get(dep) {
                 edges.push(PackageDependency {
                     from: package.path.clone(),
@@ -1595,6 +1621,26 @@ fn js_package_edges(
         }
     }
     edges
+}
+
+fn js_local_dependency_path(spec: &str) -> Option<String> {
+    let spec = spec.trim();
+    for prefix in ["file:", "link:", "portal:", "workspace:"] {
+        if let Some(path) = spec.strip_prefix(prefix) {
+            let path = path.trim();
+            if path.starts_with("./") || path.starts_with("../") || path == "." || path == ".." {
+                return Some(path.to_string());
+            }
+        }
+    }
+    None
+}
+
+fn js_dependency_spec_is_local_protocol(spec: &str) -> bool {
+    let spec = spec.trim();
+    ["file:", "link:", "portal:"]
+        .iter()
+        .any(|prefix| spec.starts_with(prefix))
 }
 
 fn cargo_package_edges(
@@ -3003,6 +3049,30 @@ edition = "2024"
             .as_deref(),
             Some("ctx_fixture_renderer")
         );
+    }
+
+    #[test]
+    fn javascript_local_dependency_specs_parse_only_relative_paths() {
+        assert_eq!(
+            js_local_dependency_path("file:../renderer").as_deref(),
+            Some("../renderer")
+        );
+        assert_eq!(
+            js_local_dependency_path("link:./packages/replay").as_deref(),
+            Some("./packages/replay")
+        );
+        assert_eq!(js_local_dependency_path("portal:..").as_deref(), Some(".."));
+        assert_eq!(
+            js_local_dependency_path("workspace:../renderer").as_deref(),
+            Some("../renderer")
+        );
+        assert_eq!(js_local_dependency_path("workspace:*"), None);
+        assert_eq!(js_local_dependency_path("^1.2.3"), None);
+        assert_eq!(js_local_dependency_path("file:/tmp/renderer"), None);
+        assert!(js_dependency_spec_is_local_protocol(
+            "file:../../../external"
+        ));
+        assert!(!js_dependency_spec_is_local_protocol("workspace:*"));
     }
 
     #[test]

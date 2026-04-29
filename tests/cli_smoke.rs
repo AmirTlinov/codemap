@@ -1669,6 +1669,139 @@ boundaries:
 }
 
 #[test]
+fn package_json_local_path_dependency_boundary_edge_fails_closed() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join(".ctx.yml"),
+        r#"version: 1
+boundaries:
+  forbidden:
+    - from: domains/replay/src/**
+      to: domains/renderer/src/**
+      reason: replay emits DTOs; renderer consumes DTOs
+"#,
+    );
+    write(
+        &repo.path().join("domains/replay/package.json"),
+        r#"{
+  "name": "@fixture/replay",
+  "dependencies": {
+    "renderer-alias": "file:../renderer"
+  }
+}"#,
+    );
+    write(
+        &repo.path().join("domains/replay/src/session.ts"),
+        "export const session = 1;\n",
+    );
+    write(
+        &repo.path().join("domains/renderer/package.json"),
+        r#"{"name":"@fixture/renderer"}"#,
+    );
+    write(
+        &repo.path().join("domains/renderer/src/replay-renderer.ts"),
+        "export const renderer = 1;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let impact = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "impact",
+            "--files",
+            "domains/renderer/package.json",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx impact should run");
+    assert!(impact.status.success());
+    let impact_json: Value = serde_json::from_slice(&impact.stdout).expect("valid impact json");
+    assert!(
+        impact_json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("domains/replay/package.json")),
+        "local package.json path dependencies should feed package impact"
+    );
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args(["boundaries", "--format", "json"])
+        .output()
+        .expect("ctx boundaries should run");
+    assert!(!output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid boundaries json");
+    let findings = json["findings"].as_array().expect("findings array");
+    assert!(findings.iter().any(|finding| {
+        finding["from"].as_str() == Some("domains/replay/package.json")
+            && finding["to"].as_str() == Some("domains/renderer/package.json")
+            && finding["provenance"].as_str() == Some("package_manifest+ctx_anchor")
+            && finding["reason"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("package manifest dependency `renderer-alias` from package.json dependencies local path")
+    }));
+}
+
+#[test]
+fn package_json_local_path_dependencies_do_not_escape_repo_root() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join(".ctx.yml"),
+        r#"version: 1
+boundaries:
+  forbidden:
+    - from: domains/replay/src/**
+      to: domains/renderer/src/**
+      reason: replay emits DTOs; renderer consumes DTOs
+"#,
+    );
+    write(
+        &repo.path().join("domains/replay/package.json"),
+        r#"{
+  "name": "@fixture/replay",
+  "dependencies": {
+    "@fixture/renderer": "file:../../../external/renderer"
+  }
+}"#,
+    );
+    write(
+        &repo.path().join("domains/replay/src/session.ts"),
+        "export const session = 1;\n",
+    );
+    write(
+        &repo.path().join("domains/renderer/package.json"),
+        r#"{"name":"@fixture/renderer"}"#,
+    );
+    write(
+        &repo.path().join("domains/renderer/src/replay-renderer.ts"),
+        "export const renderer = 1;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .arg("boundaries")
+        .output()
+        .expect("ctx boundaries should run");
+    assert!(
+        output.status.success(),
+        "outside-repo package.json file dependencies must not create in-repo boundary edges"
+    );
+}
+
+#[test]
 fn changed_semantic_anchor_rechecks_existing_package_boundary_edges() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");
