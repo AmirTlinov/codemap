@@ -141,6 +141,29 @@ pub struct ConeReport {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct ImpactV2Report {
+    pub kind: &'static str,
+    pub schema_version: &'static str,
+    pub changed: Vec<FileSummary>,
+    pub clusters: Vec<ImpactCluster>,
+    pub hidden: Vec<HiddenGroup>,
+    pub unknowns: Vec<String>,
+    pub expand: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ImpactCluster {
+    pub id: String,
+    pub risk: String,
+    pub changed: Vec<String>,
+    pub direct_consumers: Vec<StructuralEdge>,
+    pub cross_boundary_consumers: Vec<StructuralEdge>,
+    pub contract_risks: Vec<StructuralEdge>,
+    pub proof: Vec<StructuralEdge>,
+    pub reasons: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct Domain {
     pub id: String,
     pub path: String,

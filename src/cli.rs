@@ -163,6 +163,8 @@ struct ImpactArgs {
     depth: usize,
     #[arg(long, default_value_t = 30)]
     limit: usize,
+    #[arg(long)]
+    structural: bool,
     #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
     format: OutputFormat,
 }
@@ -271,6 +273,7 @@ enum SchemaKind {
     Cone,
     Capsule,
     Impact,
+    ImpactV2,
     Proof,
     Verify,
     Anchors,
@@ -360,8 +363,13 @@ pub fn run() -> Result<()> {
         CommandKind::Impact(args) => {
             ensure_valid_config(&project)?;
             let changed = changed_from_args(&project, &args)?;
-            let report = route::impact_report(&project, changed, args.depth, args.limit);
-            output(args.format, &report, || render::impact(&report))
+            if args.structural {
+                let report = route::impact_v2_report(&project, changed, args.depth, args.limit);
+                output(args.format, &report, || render::impact_v2(&report))
+            } else {
+                let report = route::impact_report(&project, changed, args.depth, args.limit);
+                output(args.format, &report, || render::impact(&report))
+            }
         }
         CommandKind::Verify(args) => verify(&project, args),
         CommandKind::Explain(args) => {
@@ -469,6 +477,7 @@ fn schema_text(kind: SchemaKind) -> &'static str {
         SchemaKind::Cone => include_str!("../schemas/cone.schema.json"),
         SchemaKind::Capsule => include_str!("../schemas/capsule.schema.json"),
         SchemaKind::Impact => include_str!("../schemas/impact.schema.json"),
+        SchemaKind::ImpactV2 => include_str!("../schemas/impact-v2.schema.json"),
         SchemaKind::Proof => include_str!("../schemas/proof.schema.json"),
         SchemaKind::Verify => include_str!("../schemas/verify.schema.json"),
         SchemaKind::Anchors => include_str!("../schemas/anchors.schema.json"),

@@ -7,8 +7,9 @@ use crate::cache;
 use crate::model::{
     BoundaryFinding, BoundaryReport, CacheInfo, Candidate, ConeReport, Confidence,
     DirectorySurface, DoNotRead, Domain, DomainRef, EvidenceStrength, ExplainReport, FileInfo,
-    FileRisk, FileSummary, HiddenGroup, ImpactReport, LocateCandidate, LocateReport, LsReport,
-    Project, Risk, StructuralEdge, TaskCapsule, VerificationPlan, VerifyReport, WidenReport,
+    FileRisk, FileSummary, HiddenGroup, ImpactCluster, ImpactReport, ImpactV2Report,
+    LocateCandidate, LocateReport, LsReport, Project, Risk, StructuralEdge, TaskCapsule,
+    VerificationPlan, VerifyReport, WidenReport,
 };
 use crate::repo;
 
@@ -242,13 +243,13 @@ fn ls_file_report(
             });
         }
     }
-    for test in adjacent_tests_for_file(project, &info.rel) {
+    for (test, evidence, strength) in strict_test_edges_for_file(project, &info.rel, 4) {
         edges.push(StructuralEdge {
             from: test,
             to: info.rel.clone(),
             edge_type: "tests".to_string(),
-            evidence: "test_naming_or_import".to_string(),
-            strength: EvidenceStrength::Medium,
+            evidence,
+            strength,
         });
     }
     edges.sort_by(|a, b| {
@@ -535,13 +536,13 @@ fn cone_incoming_edges(project: &Project, seeds: &[String]) -> Vec<StructuralEdg
 fn cone_proof_edges(project: &Project, seeds: &[String]) -> Vec<StructuralEdge> {
     let mut edges = Vec::new();
     for seed in seeds {
-        for test in adjacent_tests_for_file(project, seed) {
+        for (test, evidence, strength) in strict_test_edges_for_file(project, seed, 4) {
             edges.push(StructuralEdge {
                 from: test,
                 to: seed.clone(),
                 edge_type: "tests".to_string(),
-                evidence: "test_naming_or_import".to_string(),
-                strength: EvidenceStrength::Medium,
+                evidence,
+                strength,
             });
         }
     }
@@ -788,8 +789,61 @@ fn is_generic_noise(info: &FileInfo) -> bool {
         && info.symbols.is_empty()
 }
 
-fn adjacent_tests_for_file(project: &Project, rel: &str) -> Vec<String> {
-    test_files_for(project, &[rel.to_string()], domain_by_rel(project, rel), 4)
+fn strict_test_edges_for_file(
+    project: &Project,
+    rel: &str,
+    limit: usize,
+) -> Vec<(String, String, EvidenceStrength)> {
+    if limit == 0 {
+        return Vec::new();
+    }
+    let source_domain = scoped_domain_path_for_rel(project, rel, domain_by_rel(project, rel));
+    let stem = Path::new(rel)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default()
+        .replace(".test", "")
+        .replace(".spec", "");
+    let lower_stem = stem.to_ascii_lowercase();
+    let allow_name_match = !lower_stem.is_empty()
+        && !matches!(
+            lower_stem.as_str(),
+            "index" | "mod" | "main" | "lib" | "types"
+        );
+    let mut scored = Vec::new();
+    for file in project.files.values() {
+        if !file.has_role("test") {
+            continue;
+        }
+        let test_domain =
+            scoped_domain_path_for_rel(project, &file.rel, domain_by_rel(project, rel));
+        if source_domain.is_some() && source_domain != test_domain {
+            continue;
+        }
+        if file.resolved_imports.contains(rel) {
+            scored.push((
+                3usize,
+                file.rel.clone(),
+                "test_import".to_string(),
+                EvidenceStrength::High,
+            ));
+            continue;
+        }
+        if allow_name_match && file.rel.to_ascii_lowercase().contains(&lower_stem) {
+            scored.push((
+                2usize,
+                file.rel.clone(),
+                "test_name".to_string(),
+                EvidenceStrength::Medium,
+            ));
+        }
+    }
+    scored.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+    scored
+        .into_iter()
+        .map(|(_, rel, evidence, strength)| (rel, evidence, strength))
+        .take(limit)
+        .collect()
 }
 
 fn surface_priority(kind: &str) -> usize {
@@ -1163,6 +1217,367 @@ pub fn impact_report(
         recommended_verification: verification.recommended,
         full_verification: verification.full_only_if_triggered,
         expansion_triggers: triggers,
+    }
+}
+
+pub fn impact_v2_report(
+    project: &Project,
+    changed: Vec<String>,
+    depth: usize,
+    limit: usize,
+) -> ImpactV2Report {
+    let limit = limit.max(1);
+    let changed = changed
+        .into_iter()
+        .map(|file| repo::normalize_rel_path(&file))
+        .filter(|file| file != ".")
+        .collect::<Vec<_>>();
+    let mut hidden = Vec::new();
+    let mut unknowns = Vec::new();
+    let mut changed_summaries = Vec::new();
+    let mut clusters = Vec::new();
+    let changed_count = changed.len();
+    for rel in changed.iter().take(limit) {
+        if let Some(file) = project.files.get(rel) {
+            changed_summaries.push(file_summary(project, file, false, 12));
+            let (cluster, cluster_hidden) = impact_v2_cluster(project, rel, depth, limit);
+            hidden.extend(cluster_hidden);
+            clusters.push(cluster);
+        } else {
+            unknowns.push(format!("changed anchor `{rel}` is not indexed"));
+            changed_summaries.push(missing_file_summary(project, rel));
+            clusters.push(ImpactCluster {
+                id: format!("changed:{rel}"),
+                risk: Risk::Medium.as_str().to_string(),
+                changed: vec![rel.clone()],
+                direct_consumers: Vec::new(),
+                cross_boundary_consumers: Vec::new(),
+                contract_risks: Vec::new(),
+                proof: Vec::new(),
+                reasons: vec!["changed file is not indexed".to_string()],
+            });
+        }
+    }
+    if changed_count > changed_summaries.len() {
+        hidden.push(HiddenGroup {
+            reason: "changed anchors hidden by limit".to_string(),
+            count: changed_count - changed_summaries.len(),
+            expand: "ctx impact --structural --changed --limit <larger-number>".to_string(),
+        });
+    }
+    ImpactV2Report {
+        kind: "impact_v2_report",
+        schema_version: "2",
+        changed: changed_summaries,
+        clusters,
+        hidden,
+        unknowns,
+        expand: impact_v2_expand_commands(&changed),
+    }
+}
+
+fn impact_v2_expand_commands(changed: &[String]) -> Vec<String> {
+    if changed.is_empty() {
+        return Vec::new();
+    }
+    let files = changed
+        .iter()
+        .map(|file| shell_quote(file))
+        .collect::<Vec<_>>()
+        .join(",");
+    vec![
+        format!("ctx impact --structural --files {files} --depth 2"),
+        format!("ctx verify --files {files}"),
+    ]
+}
+
+fn impact_v2_cluster(
+    project: &Project,
+    rel: &str,
+    depth: usize,
+    limit: usize,
+) -> (ImpactCluster, Vec<HiddenGroup>) {
+    let mut direct_consumers = direct_consumer_edges(project, rel);
+    let mut cross_boundary_consumers =
+        cross_boundary_consumer_edges(project, rel, &direct_consumers, depth);
+    let mut contract_risks = contract_risk_edges(project, rel, &direct_consumers);
+    let proof_seeds = proof_seeds_for_impact(rel, &direct_consumers);
+    let mut proof = cone_proof_edges(project, &proof_seeds);
+    sort_edges(&mut direct_consumers);
+    sort_edges(&mut cross_boundary_consumers);
+    sort_edges(&mut contract_risks);
+    sort_edges(&mut proof);
+    let (risk, reasons) = structural_impact_risk(
+        project,
+        rel,
+        &direct_consumers,
+        &cross_boundary_consumers,
+        &contract_risks,
+    );
+    let mut hidden = Vec::new();
+    limit_impact_edges(
+        &mut direct_consumers,
+        limit,
+        &mut hidden,
+        rel,
+        depth,
+        "direct consumer edges hidden by limit",
+    );
+    limit_impact_edges(
+        &mut cross_boundary_consumers,
+        limit,
+        &mut hidden,
+        rel,
+        depth,
+        "cross-boundary consumer edges hidden by limit",
+    );
+    limit_impact_edges(
+        &mut contract_risks,
+        limit,
+        &mut hidden,
+        rel,
+        depth,
+        "contract risk edges hidden by limit",
+    );
+    limit_impact_edges(
+        &mut proof,
+        limit,
+        &mut hidden,
+        rel,
+        depth,
+        "proof edges hidden by limit",
+    );
+    (
+        ImpactCluster {
+            id: format!("changed:{rel}"),
+            risk: risk.as_str().to_string(),
+            changed: vec![rel.to_string()],
+            direct_consumers,
+            cross_boundary_consumers,
+            contract_risks,
+            proof,
+            reasons,
+        },
+        hidden,
+    )
+}
+
+fn limit_impact_edges(
+    edges: &mut Vec<StructuralEdge>,
+    limit: usize,
+    hidden: &mut Vec<HiddenGroup>,
+    rel: &str,
+    depth: usize,
+    reason: &str,
+) {
+    if edges.len() <= limit {
+        return;
+    }
+    hidden.push(HiddenGroup {
+        reason: format!("{reason} for changed:{rel}"),
+        count: edges.len() - limit,
+        expand: format!(
+            "ctx impact --structural --files {} --depth {depth} --limit {}",
+            shell_quote(rel),
+            edges.len()
+        ),
+    });
+    edges.truncate(limit);
+}
+
+fn direct_consumer_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {
+    project
+        .reverse_imports
+        .get(rel)
+        .into_iter()
+        .flat_map(|importers| importers.iter())
+        .filter(|importer| {
+            project
+                .files
+                .get(*importer)
+                .map(|file| !file.has_role("test"))
+                .unwrap_or(true)
+        })
+        .map(|importer| StructuralEdge {
+            from: importer.clone(),
+            to: rel.to_string(),
+            edge_type: "direct_consumer".to_string(),
+            evidence: "reverse_import".to_string(),
+            strength: EvidenceStrength::High,
+        })
+        .collect()
+}
+
+fn cross_boundary_consumer_edges(
+    project: &Project,
+    rel: &str,
+    direct_consumers: &[StructuralEdge],
+    depth: usize,
+) -> Vec<StructuralEdge> {
+    let mut edges = Vec::new();
+    let changed_domain = domain_by_rel(project, rel).map(|domain| domain.path.clone());
+    let changed_package = package_for_rel(project, rel).map(|package| package.path.clone());
+    for edge in direct_consumers {
+        let consumer_domain = domain_by_rel(project, &edge.from).map(|domain| domain.path.clone());
+        let consumer_package =
+            package_for_rel(project, &edge.from).map(|package| package.path.clone());
+        if changed_domain != consumer_domain || changed_package != consumer_package {
+            edges.push(StructuralEdge {
+                from: edge.from.clone(),
+                to: rel.to_string(),
+                edge_type: "cross_boundary_consumer".to_string(),
+                evidence: "reverse_import_cross_boundary".to_string(),
+                strength: EvidenceStrength::High,
+            });
+        }
+    }
+    let package_seeds = package_consumer_seeds_for_impact(project, rel, direct_consumers);
+    for manifest in package_consumer_manifests(project, &package_seeds, depth.max(1), usize::MAX) {
+        edges.push(StructuralEdge {
+            from: manifest,
+            to: rel.to_string(),
+            edge_type: "package_consumer".to_string(),
+            evidence: "package_manifest_reverse_dependency".to_string(),
+            strength: EvidenceStrength::High,
+        });
+    }
+    edges
+}
+
+fn package_consumer_seeds_for_impact(
+    project: &Project,
+    rel: &str,
+    direct_consumers: &[StructuralEdge],
+) -> Vec<String> {
+    let mut seeds = vec![rel.to_string()];
+    for consumer in direct_consumers {
+        if let Some(file) = project.files.get(&consumer.from)
+            && contract_evidence(file).is_some()
+        {
+            seeds.push(consumer.from.clone());
+        }
+    }
+    unique(seeds)
+}
+
+fn contract_risk_edges(
+    project: &Project,
+    rel: &str,
+    direct_consumers: &[StructuralEdge],
+) -> Vec<StructuralEdge> {
+    let mut edges = Vec::new();
+    if let Some(file) = project.files.get(rel) {
+        if let Some(evidence) = contract_evidence(file) {
+            edges.push(StructuralEdge {
+                from: rel.to_string(),
+                to: rel.to_string(),
+                edge_type: "contract_changed".to_string(),
+                evidence,
+                strength: EvidenceStrength::High,
+            });
+        }
+        for target in &file.resolved_imports {
+            if let Some(target_file) = project.files.get(target)
+                && let Some(evidence) = contract_evidence(target_file)
+            {
+                edges.push(StructuralEdge {
+                    from: rel.to_string(),
+                    to: target.clone(),
+                    edge_type: "contract_dependency".to_string(),
+                    evidence,
+                    strength: EvidenceStrength::High,
+                });
+            }
+        }
+    }
+    for consumer in direct_consumers {
+        if let Some(consumer_file) = project.files.get(&consumer.from)
+            && let Some(evidence) = contract_evidence(consumer_file)
+        {
+            edges.push(StructuralEdge {
+                from: consumer.from.clone(),
+                to: rel.to_string(),
+                edge_type: "contract_consumer".to_string(),
+                evidence,
+                strength: EvidenceStrength::High,
+            });
+        }
+    }
+    edges
+}
+
+fn proof_seeds_for_impact(rel: &str, direct_consumers: &[StructuralEdge]) -> Vec<String> {
+    let mut seeds = vec![rel.to_string()];
+    seeds.extend(direct_consumers.iter().map(|edge| edge.from.clone()));
+    unique(seeds)
+}
+
+fn structural_impact_risk(
+    project: &Project,
+    rel: &str,
+    direct_consumers: &[StructuralEdge],
+    cross_boundary_consumers: &[StructuralEdge],
+    contract_risks: &[StructuralEdge],
+) -> (Risk, Vec<String>) {
+    let Some(file) = project.files.get(rel) else {
+        return (
+            Risk::Medium,
+            vec!["changed file is not indexed".to_string()],
+        );
+    };
+    let mut risk = Risk::Low;
+    let mut reasons = Vec::new();
+    let mut bump = |level, reason: &str| {
+        risk = risk.max(level);
+        reasons.push(reason.to_string());
+    };
+    if file.has_role("generated") {
+        bump(Risk::Critical, "generated file changed");
+    }
+    if file.has_role("public_boundary") {
+        bump(Risk::Critical, "public boundary changed");
+    }
+    if file.has_role("schema_contract") {
+        bump(Risk::High, "schema or DTO contract changed");
+    }
+    if file.has_role("semantic_anchor") {
+        bump(Risk::High, "semantic anchor changed");
+    }
+    if file.has_role("runtime_state") {
+        bump(Risk::MediumHigh, "runtime state surface changed");
+    }
+    if file.has_role("persistence") {
+        bump(Risk::High, "persistence surface changed");
+    }
+    if !contract_risks.is_empty() {
+        bump(Risk::High, "contract surface participates");
+    }
+    if !cross_boundary_consumers.is_empty() {
+        bump(Risk::High, "consumer crosses package or domain boundary");
+    }
+    if direct_consumers.len() >= 3 {
+        bump(Risk::High, "multiple direct consumers");
+    } else if !direct_consumers.is_empty() {
+        bump(Risk::Medium, "direct consumer exists");
+    }
+    if reasons.is_empty() {
+        reasons.push("bounded implementation change".to_string());
+    }
+    (risk, unique(reasons))
+}
+
+fn missing_file_summary(project: &Project, rel: &str) -> FileSummary {
+    FileSummary {
+        path: rel.to_string(),
+        kind: "missing".to_string(),
+        package: package_name_for_file(project, rel),
+        language: "unknown".to_string(),
+        lines: 0,
+        roles: Vec::new(),
+        symbols: Vec::new(),
+        exports: Vec::new(),
+        imports: Vec::new(),
+        imported_by_count: 0,
     }
 }
 

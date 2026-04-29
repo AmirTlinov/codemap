@@ -1,8 +1,9 @@
 use serde::Serialize;
 
 use crate::model::{
-    BoundaryFinding, ConeReport, ExplainReport, GraphLens, ImpactReport, LocateReport, LsReport,
-    StructuralEdge, TaskCapsule, VerificationPlan, WidenReport,
+    BoundaryFinding, ConeReport, ExplainReport, GraphLens, ImpactCluster, ImpactReport,
+    ImpactV2Report, LocateReport, LsReport, StructuralEdge, TaskCapsule, VerificationPlan,
+    WidenReport,
 };
 use crate::route::StatusReport;
 
@@ -492,6 +493,72 @@ pub fn impact(report: &ImpactReport) {
         println!("\n## Full only if trigger remains unresolved\n");
         println!("{}", code_block("bash", &report.full_verification));
     }
+}
+
+pub fn impact_v2(report: &ImpactV2Report) {
+    println!("# Structural Impact\n");
+    if report.changed.is_empty() && report.clusters.is_empty() {
+        println!("No changed anchors detected. Use `--files a,b` or run with a git diff selector.");
+        return;
+    }
+    if !report.changed.is_empty() {
+        println!("\n## Changed Anchors\n");
+        let rows = report
+            .changed
+            .iter()
+            .map(|file| {
+                vec![
+                    code(&file.path),
+                    file.kind.clone(),
+                    file.package.clone().unwrap_or_else(|| "none".to_string()),
+                    file.language.clone(),
+                ]
+            })
+            .collect();
+        println!("{}", table(&["Path", "Kind", "Package", "Language"], rows));
+    }
+    for cluster in &report.clusters {
+        render_impact_cluster(cluster);
+    }
+    if !report.hidden.is_empty() {
+        println!("\n## Hidden\n");
+        let rows = report
+            .hidden
+            .iter()
+            .map(|hidden| {
+                vec![
+                    hidden.reason.clone(),
+                    hidden.count.to_string(),
+                    code(&hidden.expand),
+                ]
+            })
+            .collect();
+        println!("{}", table(&["Reason", "Count", "Expand"], rows));
+    }
+    section("Unknown", &report.unknowns);
+    section("Expand", &report.expand);
+}
+
+fn render_impact_cluster(cluster: &ImpactCluster) {
+    println!("\n## Cluster `{}`\n", cluster.id);
+    println!(
+        "{}",
+        table(
+            &["Field", "Value"],
+            vec![
+                vec!["Risk".to_string(), cluster.risk.clone()],
+                vec!["Changed".to_string(), cluster.changed.join(", ")],
+                vec!["Reasons".to_string(), cluster.reasons.join("; ")],
+            ],
+        )
+    );
+    cone_section("Direct Consumers", &cluster.direct_consumers);
+    cone_section(
+        "Cross-Boundary Consumers",
+        &cluster.cross_boundary_consumers,
+    );
+    cone_section("Contract Risks", &cluster.contract_risks);
+    cone_section("Proof", &cluster.proof);
 }
 
 pub fn verify(changed: &[String], plan: &VerificationPlan) {
