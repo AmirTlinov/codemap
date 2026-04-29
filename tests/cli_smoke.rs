@@ -2134,12 +2134,23 @@ fn verify_uses_impact_traversal_for_recommended_checks() {
     assert!(output.status.success());
     let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
     assert_eq!(json["kind"], "verification_plan");
+    assert_eq!(
+        json["risk"], "critical",
+        "verify should report full impact risk, not only changed-file risk"
+    );
     let recommended = json["verification"]["recommended"].as_array().unwrap();
     assert!(
         recommended
             .iter()
             .any(|cmd| cmd.as_str() == Some("npm run typecheck")),
         "verify should recommend typecheck because impact traversal reaches public src/index.ts"
+    );
+    let triggers = json["expansion_triggers"].as_array().unwrap();
+    assert!(
+        triggers
+            .iter()
+            .any(|trigger| trigger.as_str() == Some("high/critical risk change")),
+        "high-risk impacted files should still trigger expansion"
     );
 }
 
@@ -2339,6 +2350,134 @@ fn package_verification_does_not_narrow_when_files_include_unowned_root_config()
     assert_ne!(
         json["verification"]["minimal"][0], "cd packages/replay && npm test",
         "package-local verification is unsafe when another changed file has no package owner"
+    );
+}
+
+#[test]
+fn package_manifest_verification_uses_root_plan_instead_of_package_local() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join("package.json"),
+        r#"{"scripts":{"test":"vitest run"},"workspaces":["packages/*"]}"#,
+    );
+    write(
+        &repo.path().join("packages/replay/package.json"),
+        r#"{"name":"@fixture/replay","scripts":{"test":"vitest run"}}"#,
+    );
+    write(
+        &repo.path().join("packages/replay/src/session.ts"),
+        "export const frame = 1;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "verify",
+            "--files",
+            "packages/replay/package.json",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx verify should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid verify json");
+    assert_eq!(
+        json["verification"]["minimal"][0], "npm test",
+        "package manifest changes should use the root plan, not a package-local shortcut"
+    );
+}
+
+#[test]
+fn package_local_config_verification_uses_root_plan_instead_of_package_local() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join("package.json"),
+        r#"{"scripts":{"test":"vitest run"},"workspaces":["packages/*"]}"#,
+    );
+    write(
+        &repo.path().join("packages/replay/package.json"),
+        r#"{"name":"@fixture/replay","scripts":{"test":"vitest run"}}"#,
+    );
+    write(
+        &repo.path().join("packages/replay/tsconfig.json"),
+        r#"{"compilerOptions":{"strict":true}}"#,
+    );
+    write(
+        &repo.path().join("packages/replay/src/session.ts"),
+        "export const frame = 1;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "verify",
+            "--files",
+            "packages/replay/tsconfig.json",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx verify should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid verify json");
+    assert_eq!(
+        json["verification"]["minimal"][0], "npm test",
+        "package-local non-source config changes should use the root plan"
+    );
+}
+
+#[test]
+fn package_source_extension_config_verification_uses_root_plan() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    init_repo(repo.path());
+    write(
+        &repo.path().join("package.json"),
+        r#"{"scripts":{"test":"vitest run"},"workspaces":["packages/*"]}"#,
+    );
+    write(
+        &repo.path().join("packages/replay/package.json"),
+        r#"{"name":"@fixture/replay","scripts":{"test":"vitest run"}}"#,
+    );
+    write(
+        &repo.path().join("packages/replay/vite.config.ts"),
+        "export default { test: { environment: 'node' } };\n",
+    );
+    write(
+        &repo.path().join("packages/replay/src/session.ts"),
+        "export const frame = 1;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "init"]);
+
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "verify",
+            "--files",
+            "packages/replay/vite.config.ts",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx verify should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid verify json");
+    assert_eq!(
+        json["verification"]["minimal"][0], "npm test",
+        "package-local source-extension config files should use the root plan"
     );
 }
 

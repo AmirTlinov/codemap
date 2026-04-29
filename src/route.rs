@@ -378,24 +378,19 @@ pub fn impact_report(
             impacted.push(rel.clone());
         }
     }
-    let related_tests = test_files_for(
-        project,
-        &[changed.clone(), impacted.clone()].concat(),
-        None,
-        10,
-    );
-    let mut max_risk = Risk::Low;
+    let impacted_and_changed = [changed.clone(), impacted.clone()].concat();
+    let related_tests = test_files_for(project, &impacted_and_changed, None, 10);
+    let max_risk = max_risk_for_files(project, &impacted_and_changed);
     let mut files = Vec::new();
     for file in &changed {
         let (risk, reasons) = risk_for_file(project, file);
-        max_risk = max_risk.max(risk);
         files.push(FileRisk {
             path: file.clone(),
             risk: risk.as_str().to_string(),
             reasons,
         });
     }
-    let domains = impacted_domains(project, &[changed.clone(), impacted.clone()].concat());
+    let domains = impacted_domains(project, &impacted_and_changed);
     let changed_domains: BTreeSet<String> = changed
         .iter()
         .filter_map(|f| domain_by_rel(project, f))
@@ -408,7 +403,6 @@ pub fn impact_report(
         .collect();
     let verification = verification_plan(project, &changed, &impacted);
     let mut triggers = Vec::new();
-    let impacted_and_changed = [changed.clone(), impacted.clone()].concat();
     if matches!(max_risk, Risk::High | Risk::Critical) {
         triggers.push("high/critical risk change".to_string());
     }
@@ -502,7 +496,7 @@ pub fn verification_plan(
 
     let mut minimal = project.anchors.verification.default.clone();
     if minimal.is_empty() {
-        minimal = infer_minimal_commands(project, &domains, &all_files);
+        minimal = infer_minimal_commands(project, &domains, &all_files, changed);
     }
     let mut recommended = Vec::new();
     if matches!(max_risk, Risk::MediumHigh | Risk::High | Risk::Critical)
@@ -2073,6 +2067,14 @@ fn risk_for_file(project: &Project, rel: &str) -> (Risk, Vec<String>) {
     (risk, unique(reasons))
 }
 
+fn max_risk_for_files(project: &Project, files: &[String]) -> Risk {
+    files
+        .iter()
+        .map(|file| risk_for_file(project, file).0)
+        .max()
+        .unwrap_or(Risk::Low)
+}
+
 fn impacted_files(
     project: &Project,
     changed: &[String],
@@ -2286,16 +2288,34 @@ fn impacted_domains<'a>(project: &'a Project, files: &[String]) -> Vec<&'a Domai
     out
 }
 
-fn infer_minimal_commands(project: &Project, domains: &[&Domain], files: &[String]) -> Vec<String> {
+fn infer_minimal_commands(
+    project: &Project,
+    domains: &[&Domain],
+    files: &[String],
+    changed: &[String],
+) -> Vec<String> {
     let root_test = find_script(project, &["test"]);
-    if let Some(package) = single_package_for_files(project, files)
+    let changed_source_package = single_source_package_for_files(project, changed);
+    let changed_domains = impacted_domains(project, changed);
+    if let Some(package) = changed_source_package
+        && let Some(command) =
+            package_minimal_command(project, package, &changed_domains, root_test.as_deref())
+    {
+        return vec![command];
+    }
+    if changed_source_package.is_some()
+        && let Some(package) = single_package_for_files(project, files)
         && let Some(command) =
             package_minimal_command(project, package, domains, root_test.as_deref())
     {
         return vec![command];
     }
     if let Some(test) = root_test {
-        if domains.len() == 1 && domains[0].path != "." && project.package_manager != "bun" {
+        if (changed.is_empty() || changed_source_package.is_some())
+            && domains.len() == 1
+            && domains[0].path != "."
+            && project.package_manager != "bun"
+        {
             return vec![format!("{test} {}", domains[0].path)];
         }
         return vec![test];
@@ -2306,6 +2326,72 @@ fn infer_minimal_commands(project: &Project, domains: &[&Domain], files: &[Strin
         "python" => vec!["pytest".to_string()],
         _ => vec!["run the nearest domain tests for the changed files".to_string()],
     }
+}
+
+fn single_source_package_for_files<'a>(
+    project: &'a Project,
+    files: &[String],
+) -> Option<&'a crate::model::PackageInfo> {
+    if files.is_empty() {
+        return None;
+    }
+    let package = single_package_for_files(project, files)?;
+    files
+        .iter()
+        .all(|file| {
+            project
+                .files
+                .get(file)
+                .map(|info| is_package_implementation_source(file, info, package))
+                .unwrap_or(false)
+        })
+        .then_some(package)
+}
+
+fn is_package_implementation_source(
+    rel: &str,
+    info: &crate::model::FileInfo,
+    package: &crate::model::PackageInfo,
+) -> bool {
+    if rel == package.manifest || !repo::is_source_ext(&info.ext) {
+        return false;
+    }
+    if [
+        "generated",
+        "build_ci",
+        "semantic_anchor",
+        "agent_bootstrap",
+    ]
+    .iter()
+    .any(|role| info.roles.contains(*role))
+    {
+        return false;
+    }
+    let name = std::path::Path::new(rel)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    !is_tooling_config_source_name(&name)
+}
+
+fn is_tooling_config_source_name(name: &str) -> bool {
+    name.contains(".config.")
+        || name.ends_with(".config")
+        || name.contains(".conf.")
+        || name.ends_with(".conf")
+        || name.starts_with(".eslintrc.")
+        || name.starts_with(".prettierrc.")
+        || name.starts_with(".babelrc.")
+        || matches!(
+            name,
+            "gulpfile.js"
+                | "gulpfile.ts"
+                | "gruntfile.js"
+                | "gruntfile.ts"
+                | "karma.conf.js"
+                | "karma.conf.ts"
+        )
 }
 
 fn single_package_for_files<'a>(

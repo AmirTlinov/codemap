@@ -1936,6 +1936,40 @@ fn go_work_only_repo_infers_go_verification_plan() {
 }
 
 #[test]
+fn go_workspace_source_verify_prefers_changed_package_minimal_check() {
+    let repo = fixture_copy("go-workspace");
+    let cache = TempDir::new().expect("cache tempdir");
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "verify",
+            "--files",
+            "services/replay/session/session.go",
+            "--depth",
+            "2",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx verify should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
+    assert_eq!(
+        json["verification"]["minimal"][0], "cd services/replay && go test ./...",
+        "minimal verification should stay on the changed Go package even when impact reaches consumers"
+    );
+    assert!(
+        json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("services/renderer/render/render.go")),
+        "impact traversal should still report cross-package consumers"
+    );
+}
+
+#[test]
 fn go_workspace_mod_replace_edges_feed_impact_and_boundaries() {
     let repo = fixture_copy("go-workspace");
     let cache = TempDir::new().expect("cache tempdir");
@@ -2118,6 +2152,40 @@ fn python_workspace_routes_replay_task_to_replay_package() {
             .unwrap()
             .iter()
             .any(|item| item.as_str() == Some("services/replay/tests/test_session.py"))
+    );
+}
+
+#[test]
+fn python_workspace_source_verify_prefers_changed_package_minimal_check() {
+    let repo = fixture_copy("python-workspace");
+    let cache = TempDir::new().expect("cache tempdir");
+    let output = ctx()
+        .current_dir(repo.path())
+        .env("CTX_CACHE_DIR", cache.path())
+        .args([
+            "verify",
+            "--files",
+            "services/replay/replay/session.py",
+            "--depth",
+            "2",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("ctx verify should run");
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("valid json");
+    assert_eq!(
+        json["verification"]["minimal"][0], "cd services/replay && pytest",
+        "minimal verification should stay on the changed Python package even when impact reaches consumers"
+    );
+    assert!(
+        json["impacted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("services/renderer/renderer/render.py")),
+        "impact traversal should still report cross-package consumers"
     );
 }
 
