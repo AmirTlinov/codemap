@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AmirTlinov/ctx/schemas/proof.schema.json",
+  "title": "ctx structural proof plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "schema_version",
+    "target",
+    "changed",
+    "risk",
+    "proofs",
+    "fallback",
+    "run_hint"
+  ],
+  "properties": {
+    "kind": { "const": "proof_plan" },
+    "schema_version": { "const": "2" },
+    "target": {
+      "anyOf": [{ "type": "string" }, { "type": "null" }]
+    },
+    "changed": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "risk": {
+      "type": "string",
+      "enum": ["low", "medium", "medium-high", "high", "critical"]
+    },
+    "proofs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/proof_surface" }
+    },
+    "fallback": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "run_hint": { "type": "string" }
+  },
+  "$defs": {
+    "evidence_strength": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "hard"]
+    },
+    "proof_surface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command", "path", "evidence", "strength", "reason"],
+      "properties": {
+        "command": {
+          "anyOf": [{ "type": "string" }, { "type": "null" }]
+        },
+        "path": {
+          "anyOf": [{ "type": "string" }, { "type": "null" }]
+        },
+        "evidence": { "type": "string" },
+        "strength": { "$ref": "#/$defs/evidence_strength" },
+        "reason": { "type": "string" }
+      }
+    }
+  }
+}

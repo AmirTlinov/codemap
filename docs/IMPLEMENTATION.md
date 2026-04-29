@@ -2,6 +2,14 @@
 
 The current Rust implementation ports the useful behavior from `ctx-kernel` while preserving the stricter product invariant: no project writes by default and no generated project maps.
 
+V2 shifts the primary product surface from task routing to structural lenses:
+
+```txt
+ctx = ls + xref + cone + impact + proof for code
+```
+
+The existing task router remains a legacy compatibility layer while structural commands land.
+
 ## Implemented Slice
 
 - `ctx doctor` / `ctx status`
@@ -42,9 +50,10 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - `ctx init --agents`
 - `ctx bootstrap --global-instruction`
 - `ctx schema manifest`
-- `ctx schema <status|files|capsule|impact|verify|anchors|locate|explain|widen|graph|boundaries>`
+- `ctx schema <status|files|ls|cone|proof|capsule|impact|verify|anchors|locate|explain|widen|graph|boundaries>`
 - `ctx anchors validate`
 - stable JSON schemas for agent-facing route JSON outputs and `.ctx.yml` semantic anchors under `schemas/`
+- v2 schema contracts for structural `ls`, `cone`, and `proof` outputs
 - stable JSON schemas for `status` and `files` JSON reports
 - schema evolution policy in `docs/SCHEMA_POLICY.md`, with exported schema ownership in `schemas/manifest.json`
 - bundled schema and schema-manifest printing from the installed binary, without loading a project or writing cache
@@ -77,6 +86,18 @@ The current Rust implementation ports the useful behavior from `ctx-kernel` whil
 - version tags matching the Cargo package version and belonging to `main` publish Linux x64 and macOS arm64 archives, the npm wrapper tarball, and a generated Homebrew formula to GitHub Releases after asset verification
 - README install guidance separates public Homebrew formula URLs from private-release installs, which should use native archives or the npm wrapper with GitHub API authentication
 - printed global agent bootstrap does not advertise a separate `--for-agent` mode; Markdown is already the agent-facing default
+
+## Structural V2 Contract
+
+The v2 implementation must keep these surfaces separate from the legacy router:
+
+- `find` is weak discovery and returns anchor candidates, not a ranked route;
+- `ls` explains one exact file or directory surface;
+- `cone` traverses real outgoing, incoming, proof, contract, and boundary edges around an exact anchor;
+- `impact` clusters changed anchors by structural blast radius;
+- `proof` derives checks from cone/impact evidence and remains print-only unless `--run` is explicit.
+
+Do not call `select_read_first` from v2 commands. Do not infer source-of-truth ownership for v2. Per-edge evidence strength replaces global confidence.
 
 ## Core Files
 
@@ -140,7 +161,10 @@ This is intentionally flatter than the final large-tree design. The next split s
 
 ## Next Useful Slices
 
-1. Add deeper per-language adapters once JS/TS, Rust, Python, or Go extraction logic becomes hard to change in-place.
-2. Publish `agent-context-cli` to npm and/or crates.io after registry credentials are available; until then, GitHub Releases carry the native archives and npm tarball.
-3. Add a dedicated Homebrew tap publish workflow only after there is a real tap repository and credentials; until then, use `scripts/update-homebrew-tap.sh` locally.
-4. Split large route/repo modules only after the next behavior slice makes them hard to change safely.
+1. Implement the structural model and symbol extraction used by `ctx ls`.
+2. Add `ctx ls <file|dir>` as the first vertical v2 UX.
+3. Add `ctx cone <anchor>` on top of existing import/reverse import/package/test edges.
+4. Move `impact` and `proof` to v2 structural clusters while keeping v1 schema compatibility explicit.
+5. Publish `agent-context-cli` to npm and/or crates.io after registry credentials are available; until then, GitHub Releases carry the native archives and npm tarball.
+6. Add a dedicated Homebrew tap publish workflow only after there is a real tap repository and credentials; until then, use `scripts/update-homebrew-tap.sh` locally.
+7. Split large route/repo modules only after the next behavior slice makes them hard to change safely.

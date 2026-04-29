@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AmirTlinov/ctx/schemas/ls.schema.json",
+  "title": "ctx structural ls report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "schema_version",
+    "path",
+    "mode",
+    "anchor",
+    "directory",
+    "edges",
+    "hidden",
+    "next"
+  ],
+  "properties": {
+    "kind": { "const": "ls_report" },
+    "schema_version": { "const": "2" },
+    "path": { "type": "string" },
+    "mode": { "type": "string", "enum": ["file", "directory", "missing"] },
+    "anchor": {
+      "anyOf": [{ "$ref": "#/$defs/file_summary" }, { "type": "null" }]
+    },
+    "directory": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/directory_surface" }
+    },
+    "edges": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/structural_edge" }
+    },
+    "hidden": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/hidden_group" }
+    },
+    "next": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "evidence_strength": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "hard"]
+    },
+    "symbol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "kind", "exported", "line_start", "line_end"],
+      "properties": {
+        "name": { "type": "string" },
+        "kind": { "type": "string" },
+        "exported": { "type": "boolean" },
+        "line_start": { "type": "integer", "minimum": 1 },
+        "line_end": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "file_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "kind",
+        "package",
+        "language",
+        "lines",
+        "roles",
+        "symbols",
+        "exports",
+        "imports",
+        "imported_by_count"
+      ],
+      "properties": {
+        "path": { "type": "string" },
+        "kind": { "type": "string" },
+        "package": {
+          "anyOf": [{ "type": "string" }, { "type": "null" }]
+        },
+        "language": { "type": "string" },
+        "lines": { "type": "integer", "minimum": 0 },
+        "roles": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "symbols": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/symbol" }
+        },
+        "exports": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "imports": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "imported_by_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "directory_surface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "count", "examples"],
+      "properties": {
+        "kind": { "type": "string" },
+        "count": { "type": "integer", "minimum": 0 },
+        "examples": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "structural_edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to", "type", "evidence", "strength"],
+      "properties": {
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "type": { "type": "string" },
+        "evidence": { "type": "string" },
+        "strength": { "$ref": "#/$defs/evidence_strength" }
+      }
+    },
+    "hidden_group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reason", "count", "expand"],
+      "properties": {
+        "reason": { "type": "string" },
+        "count": { "type": "integer", "minimum": 0 },
+        "expand": { "type": "string" }
+      }
+    }
+  }
+}

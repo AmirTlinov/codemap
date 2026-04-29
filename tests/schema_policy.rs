@@ -20,6 +20,9 @@ fn schema_manifest_is_the_exported_contract_guard() {
     let route_schema_version = manifest["route_schema_version"]
         .as_str()
         .expect("route_schema_version should be a string");
+    let structural_schema_version = manifest["structural_schema_version"]
+        .as_str()
+        .expect("structural_schema_version should be a string");
     let anchor_config_version = manifest["anchor_config_version"]
         .as_i64()
         .expect("anchor_config_version should be a number");
@@ -110,9 +113,13 @@ fn schema_manifest_is_the_exported_contract_guard() {
         assert_eq!(printed_json, schema_json, "ctx schema {kind} drifted");
 
         match contract {
-            "route_output" => {
-                assert_route_schema_policy(kind, entry, &schema_json, route_schema_version)
-            }
+            "route_output" => assert_route_schema_policy(
+                kind,
+                entry,
+                &schema_json,
+                route_schema_version,
+                structural_schema_version,
+            ),
             "semantic_anchor_config" => {
                 assert_anchor_schema_policy(&schema_json, anchor_config_version)
             }
@@ -132,6 +139,7 @@ fn assert_route_schema_policy(
     manifest_entry: &Value,
     schema_json: &Value,
     route_schema_version: &str,
+    structural_schema_version: &str,
 ) {
     let required = schema_json["required"]
         .as_array()
@@ -142,9 +150,17 @@ fn assert_route_schema_policy(
             .any(|value| value.as_str() == Some("schema_version")),
         "{kind} schema must require schema_version"
     );
+    let expected_schema_version = manifest_entry["schema_version"]
+        .as_str()
+        .unwrap_or(route_schema_version);
+    assert!(
+        expected_schema_version == route_schema_version
+            || expected_schema_version == structural_schema_version,
+        "{kind} schema version must be the legacy route version or the structural route version"
+    );
     assert_eq!(
         schema_json["properties"]["schema_version"]["const"],
-        route_schema_version
+        expected_schema_version
     );
 
     if let Some(json_kind) = manifest_entry["json_kind"].as_str() {

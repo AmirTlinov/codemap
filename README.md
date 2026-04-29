@@ -2,25 +2,25 @@
 
 `ctx` is an external context-kernel CLI for AI coding agents.
 
-It does not store context in projects, generate repo maps, require `AGENTS.md`, run project scripts without `--run`, or use an LLM as source of truth. It reads the project as data, keeps a lightweight index in the user cache, and returns a task-specific route:
+It does not store context in projects, generate repo maps, require `AGENTS.md`, run project scripts without `--run`, or use an LLM as source of truth. It reads the project as data, keeps a lightweight index in the user cache, and returns structural answers:
 
-- what to read first;
-- what not to read yet;
-- what is risky;
-- what to verify;
-- when to widen;
-- when to stop.
+- what is here;
+- what references it;
+- what it references;
+- what can break;
+- what proves the slice;
+- where an explicit anchor may be needed.
 
 ## Product Contract
 
 `ctx` is installed once in `PATH` and works in any project:
 
 ```bash
-ctx start --task "fix replay jumping to wrong frame after seek"
+ctx ls domains/replay/src/replay-timeline.ts
+ctx cone domains/replay/src/replay-timeline.ts --depth 1
 ctx impact --changed
-ctx verify --changed
-ctx explain replay.timeline
-ctx graph --lens causal
+ctx proof --changed
+ctx find "replay seek frame"
 ```
 
 Default behavior:
@@ -45,7 +45,21 @@ Windows: %LOCALAPPDATA%/agent-context/
 Use `CTX_CACHE_DIR=/path` to override and `CTX_NO_CACHE=1` to disable cache writes.
 `ctx status --format json` reports the observed external cache state (`cold`, `warm`, `stale`, or `disabled`) plus expected cache artifacts and whether their fingerprints match the current project scan. `status` and `doctor` observe cache without warming it first.
 
-## Commands
+## Primary V2 Flow
+
+The structural v2 commands are landing in slices. The target flow is:
+
+```bash
+ctx find "auth token refresh"
+ctx ls src/route.rs
+ctx cone src/route.rs --depth 1
+ctx impact --changed
+ctx proof --changed
+```
+
+The first implementation slice in this branch is the schema/product rail; command behavior follows in the structural model slices.
+
+## Current Commands
 
 ```bash
 ctx doctor
@@ -54,9 +68,11 @@ ctx files
 ctx schema manifest
 ctx schema status
 ctx schema files
+ctx schema ls
+ctx schema cone
+ctx schema proof
 ctx schema capsule
 ctx schema anchors
-ctx schema graph
 ctx locate --task "fix auth token refresh"
 ctx start --task "fix broken save" --path src
 ctx impact --changed
@@ -80,25 +96,30 @@ ctx anchors validate
 Markdown is the default agent-facing format. JSON is available with `--format json`.
 Mermaid output is intentionally limited to `ctx graph`.
 Stable JSON schemas live under `schemas/` for agent-facing route outputs, status/files reports, and `.ctx.yml` semantic anchors.
-Schema-backed outputs include `schema_version: "1"`.
-Installed binaries can print the bundled schema manifest with `ctx schema manifest` and bundled schemas with `ctx schema <kind>`, including `status`, `files`, `capsule`, `impact`, `verify`, `anchors`, `locate`, `explain`, `widen`, `graph`, and `boundaries`.
+Legacy route outputs use `schema_version: "1"`. Structural v2 outputs use `schema_version: "2"`.
+Installed binaries can print the bundled schema manifest with `ctx schema manifest` and bundled schemas with `ctx schema <kind>`, including `status`, `files`, `ls`, `cone`, `proof`, `capsule`, `impact`, `verify`, `anchors`, `locate`, `explain`, `widen`, `graph`, and `boundaries`.
 Schema evolution rules are documented in `docs/SCHEMA_POLICY.md` and guarded by `tests/schema_policy.rs`.
 
 ## Agent Integration
 
-Preferred global instruction:
+Target v2 global instruction after the structural commands land:
 
 ```md
 For coding tasks, if `ctx` is available in PATH, begin with:
 
-`ctx start --task "<user task>" --path "$PWD"`
+`ctx find "<user task>"`
+
+Then inspect the exact anchor with:
+
+`ctx ls <path>`
+`ctx cone <path> --depth 1`
 
 After edits:
 
 `ctx impact --changed`
-`ctx verify --changed`
+`ctx proof --changed`
 
-Do not manually scan the repository before using `ctx` unless ctx confidence is low or an expansion trigger fires.
+Do not manually scan the repository before using `ctx` unless the structural cone is empty or the change crosses a public/package/schema boundary.
 ```
 
 Optional project bootloader:
@@ -171,7 +192,7 @@ The tap updater modifies only the requested formula path and never pushes.
 
 Zero-config works from files, manifests, tests, imports, scripts, and git diff. Use `.ctx.yml` only for semantic facts code cannot reliably reveal. A config can live at the repo root or inside a domain directory; nested config paths are treated as domain-local and normalized to repo-relative paths:
 
-`ctx init --write-minimal --path domains/replay` writes a valid skeletal config only. It does not invent placeholder concepts, source-of-truth files, or boundaries.
+`ctx init --write-minimal --path domains/replay` writes a valid skeletal config only. It does not invent placeholder concepts or boundaries.
 
 If a `.ctx.yml` exists but cannot be parsed or contains invalid semantic anchors, routing commands fail closed. Use `ctx anchors validate` to see the exact problem.
 
@@ -184,7 +205,7 @@ domain:
 
 concepts:
   replay.timeline:
-    role: source_of_truth
+    role: timeline_anchor
     files:
       - src/replay-timeline.ts
     invariants:
@@ -215,6 +236,8 @@ task_routes:
     verify:
       - pnpm test domains/replay -- session
 ```
+
+`task_routes.read_first` and legacy concept roles remain supported for v1 compatibility. Structural v2 commands do not infer source-of-truth ownership and do not use `read_first` as their primary output.
 
 ## Development
 

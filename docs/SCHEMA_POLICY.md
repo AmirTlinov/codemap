@@ -16,10 +16,16 @@ The exported schema list is owned by `schemas/manifest.json` and is printable fr
 ctx schema manifest
 ```
 
-Route output contracts use:
+Legacy route output contracts use:
 
 ```json
 "schema_version": "1"
+```
+
+Structural v2 route output contracts use:
+
+```json
+"schema_version": "2"
 ```
 
 Semantic anchor config uses:
@@ -51,7 +57,9 @@ Unknown `.ctx.yml` fields stay rejected. New anchor fields require a config vers
 - every manifest entry is printable through `ctx schema <kind>`;
 - the manifest itself is printable through `ctx schema manifest`;
 - printed schemas match the bundled files;
-- route schemas require `schema_version: "1"`;
+- route schemas require a manifest-declared `schema_version`;
+- legacy route schemas stay on `schema_version: "1"`;
+- structural route schemas use `schema_version: "2"`;
 - anchor schemas require `version: 1`;
 - schemas remain strict at the root.
 
