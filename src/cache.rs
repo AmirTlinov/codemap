@@ -185,7 +185,9 @@ fn write_inventory(project: &Project, version: &str) -> Result<()> {
                 language: file.language.clone(),
                 ext: file.ext.clone(),
                 size: file.size,
+                line_count: file.line_count,
                 roles: file.roles.iter().cloned().collect(),
+                symbols: file.symbols.clone(),
             })
             .collect(),
         packages: project.packages.clone(),
@@ -281,7 +283,9 @@ struct CachedFile {
     language: String,
     ext: String,
     size: u64,
+    line_count: usize,
     roles: Vec<String>,
+    symbols: Vec<crate::model::SymbolInfo>,
 }
 
 #[derive(Serialize)]

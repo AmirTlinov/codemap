@@ -13,7 +13,7 @@ use regex::Regex;
 use crate::cache;
 use crate::model::{
     AnchorDomain, ConfigLoadError, CtxConfig, Domain, FileInfo, PackageDependency, PackageInfo,
-    Project, ScriptInfo,
+    Project, ScriptInfo, SymbolInfo,
 };
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -484,11 +484,13 @@ fn scan_files(root: &Path) -> Result<BTreeMap<String, FileInfo>> {
             rel: rel.clone(),
             ext,
             size: meta.len(),
+            line_count: 0,
             language,
             roles: BTreeSet::new(),
             imports: BTreeSet::new(),
             resolved_imports: BTreeSet::new(),
             exports: BTreeSet::new(),
+            symbols: Vec::new(),
             tokens: path_tokens(&rel),
         };
         classify_roles(&mut info);
@@ -812,13 +814,15 @@ fn is_test_path(rel: &str) -> bool {
 }
 
 fn extract_imports_exports(root: &Path, info: &mut FileInfo) {
-    if !is_source_ext(&info.ext) {
-        return;
-    }
     let path = root.join(&info.rel);
     let Ok(text) = fs::read_to_string(path) else {
         return;
     };
+    info.line_count = line_count(&text);
+    if !is_source_ext(&info.ext) {
+        return;
+    }
+    info.symbols = extract_symbols(&text, &info.ext);
     match info.ext.as_str() {
         "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte" => {
             let import_re = js_import_re();
@@ -867,6 +871,331 @@ fn extract_imports_exports(root: &Path, info: &mut FileInfo) {
         }
         _ => {}
     }
+}
+
+fn line_count(text: &str) -> usize {
+    text.lines().count()
+}
+
+#[derive(Debug, Clone)]
+struct SymbolStart {
+    name: String,
+    kind: String,
+    exported: bool,
+    line_start: usize,
+    indent: usize,
+}
+
+fn extract_symbols(text: &str, ext: &str) -> Vec<SymbolInfo> {
+    let starts = match ext {
+        "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte" => extract_js_symbols(text),
+        "rs" => extract_rust_symbols(text),
+        "py" => extract_python_symbols(text),
+        "go" => extract_go_symbols(text),
+        _ => Vec::new(),
+    };
+    symbols_with_ranges(starts, text, ext)
+}
+
+fn symbols_with_ranges(mut starts: Vec<SymbolStart>, text: &str, ext: &str) -> Vec<SymbolInfo> {
+    starts.sort_by(|a, b| {
+        a.line_start
+            .cmp(&b.line_start)
+            .then_with(|| a.name.cmp(&b.name))
+            .then_with(|| a.kind.cmp(&b.kind))
+    });
+    starts
+        .iter()
+        .enumerate()
+        .map(|(idx, symbol)| {
+            let fallback_end = starts
+                .iter()
+                .skip(idx + 1)
+                .find(|next| next.indent <= symbol.indent)
+                .and_then(|next| next.line_start.checked_sub(1))
+                .unwrap_or_else(|| line_count(text))
+                .max(symbol.line_start);
+            SymbolInfo {
+                name: symbol.name.clone(),
+                kind: symbol.kind.clone(),
+                exported: symbol.exported,
+                line_start: symbol.line_start,
+                line_end: symbol_end(text, ext, symbol.line_start, fallback_end),
+            }
+        })
+        .collect()
+}
+
+fn symbol_end(text: &str, ext: &str, line_start: usize, fallback_end: usize) -> usize {
+    match ext {
+        "py" => python_symbol_end(text, line_start, fallback_end),
+        "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte" | "rs" | "go" => {
+            brace_symbol_end(text, line_start, fallback_end).unwrap_or(line_start)
+        }
+        _ => fallback_end,
+    }
+}
+
+fn brace_symbol_end(text: &str, line_start: usize, scan_end: usize) -> Option<usize> {
+    let lines: Vec<&str> = text.lines().collect();
+    let mut depth: isize = 0;
+    let mut saw_open = false;
+    for (idx, line) in lines
+        .iter()
+        .enumerate()
+        .skip(line_start.saturating_sub(1))
+        .take(scan_end.saturating_sub(line_start).saturating_add(1))
+    {
+        if !saw_open && line.trim_end().ends_with(';') {
+            return Some(idx + 1);
+        }
+        for ch in line.chars() {
+            match ch {
+                '{' => {
+                    saw_open = true;
+                    depth += 1;
+                }
+                '}' if saw_open => {
+                    depth -= 1;
+                    if depth <= 0 {
+                        return Some(idx + 1);
+                    }
+                }
+                _ => {}
+            }
+        }
+        if !saw_open {
+            let trimmed = line.trim();
+            if trimmed.ends_with("=> null") || trimmed.ends_with("=> undefined") {
+                return Some(idx + 1);
+            }
+        }
+    }
+    None
+}
+
+fn python_symbol_end(text: &str, line_start: usize, fallback_end: usize) -> usize {
+    let lines: Vec<&str> = text.lines().collect();
+    let Some(start_line) = lines.get(line_start.saturating_sub(1)) else {
+        return fallback_end;
+    };
+    let base_indent = leading_spaces(start_line);
+    let mut last_non_blank = line_start;
+    for (idx, line) in lines.iter().enumerate().skip(line_start) {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let line_no = idx + 1;
+        let indent = leading_spaces(line);
+        if indent <= base_indent {
+            return last_non_blank.max(line_start);
+        }
+        last_non_blank = line_no;
+    }
+    last_non_blank.max(line_start)
+}
+
+fn leading_spaces(line: &str) -> usize {
+    line.chars().take_while(|ch| *ch == ' ').count()
+}
+
+fn extract_js_symbols(text: &str) -> Vec<SymbolStart> {
+    let mut symbols = Vec::new();
+    for (idx, line) in text.lines().enumerate() {
+        if is_noise_line(line, "//") {
+            continue;
+        }
+        let line_start = idx + 1;
+        if let Some(cap) = js_default_symbol_re().captures(line) {
+            let raw_kind = cap.name("kind").map(|m| m.as_str()).unwrap_or("default");
+            let name = cap
+                .name("name")
+                .map(|m| m.as_str())
+                .unwrap_or("default")
+                .to_string();
+            symbols.push(SymbolStart {
+                kind: js_symbol_kind(raw_kind, &name, true),
+                name,
+                exported: true,
+                line_start,
+                indent: leading_spaces(line),
+            });
+            continue;
+        }
+        if let Some(cap) = js_symbol_re().captures(line) {
+            let raw_kind = cap.name("kind").map(|m| m.as_str()).unwrap_or("symbol");
+            let Some(name) = cap.name("name").map(|m| m.as_str().to_string()) else {
+                continue;
+            };
+            let exported = cap.name("export").is_some();
+            symbols.push(SymbolStart {
+                kind: js_symbol_kind(raw_kind, &name, exported),
+                name,
+                exported,
+                line_start,
+                indent: leading_spaces(line),
+            });
+        }
+    }
+    symbols
+}
+
+fn js_symbol_kind(raw_kind: &str, name: &str, exported: bool) -> String {
+    if is_hook_name(name) && matches!(raw_kind, "function" | "const" | "let" | "var") {
+        return "hook".to_string();
+    }
+    if exported
+        && is_uppercase_symbol(name)
+        && matches!(raw_kind, "function" | "const" | "let" | "var")
+    {
+        return "component".to_string();
+    }
+    match raw_kind {
+        "let" | "var" => "variable",
+        other => other,
+    }
+    .to_string()
+}
+
+fn extract_rust_symbols(text: &str) -> Vec<SymbolStart> {
+    let mut symbols = Vec::new();
+    for (idx, line) in text.lines().enumerate() {
+        if is_noise_line(line, "//") {
+            continue;
+        }
+        let line_start = idx + 1;
+        if let Some(cap) = rust_symbol_re().captures(line) {
+            let Some(name) = cap.name("name").map(|m| m.as_str().to_string()) else {
+                continue;
+            };
+            let raw_kind = cap.name("kind").map(|m| m.as_str()).unwrap_or("symbol");
+            symbols.push(SymbolStart {
+                name,
+                kind: rust_symbol_kind(raw_kind).to_string(),
+                exported: cap.name("pub").is_some(),
+                line_start,
+                indent: leading_spaces(line),
+            });
+            continue;
+        }
+        if let Some(cap) = rust_impl_re().captures(line) {
+            let Some(name) = cap.name("name").map(|m| m.as_str().trim().to_string()) else {
+                continue;
+            };
+            symbols.push(SymbolStart {
+                name,
+                kind: "impl".to_string(),
+                exported: false,
+                line_start,
+                indent: leading_spaces(line),
+            });
+        }
+    }
+    symbols
+}
+
+fn rust_symbol_kind(raw_kind: &str) -> &str {
+    match raw_kind {
+        "fn" => "function",
+        "mod" => "module",
+        other => other,
+    }
+}
+
+fn extract_python_symbols(text: &str) -> Vec<SymbolStart> {
+    let mut symbols = Vec::new();
+    for (idx, line) in text.lines().enumerate() {
+        if is_noise_line(line, "#") {
+            continue;
+        }
+        let Some(cap) = python_symbol_re().captures(line) else {
+            continue;
+        };
+        let Some(name) = cap.name("name").map(|m| m.as_str().to_string()) else {
+            continue;
+        };
+        let raw_kind = cap.name("kind").map(|m| m.as_str()).unwrap_or("def");
+        symbols.push(SymbolStart {
+            name,
+            kind: if raw_kind == "class" {
+                "class".to_string()
+            } else {
+                "function".to_string()
+            },
+            exported: false,
+            line_start: idx + 1,
+            indent: leading_spaces(line),
+        });
+    }
+    symbols
+}
+
+fn extract_go_symbols(text: &str) -> Vec<SymbolStart> {
+    let mut symbols = Vec::new();
+    for (idx, line) in text.lines().enumerate() {
+        if is_noise_line(line, "//") {
+            continue;
+        }
+        let line_start = idx + 1;
+        if let Some(cap) = go_func_symbol_re().captures(line) {
+            let Some(name) = cap.name("name").map(|m| m.as_str().to_string()) else {
+                continue;
+            };
+            symbols.push(SymbolStart {
+                kind: if cap.name("receiver").is_some() {
+                    "method".to_string()
+                } else {
+                    "function".to_string()
+                },
+                exported: is_uppercase_symbol(&name),
+                name,
+                line_start,
+                indent: leading_spaces(line),
+            });
+            continue;
+        }
+        if let Some(cap) = go_type_symbol_re().captures(line) {
+            let Some(name) = cap.name("name").map(|m| m.as_str().to_string()) else {
+                continue;
+            };
+            let raw_kind = cap.name("kind").map(|m| m.as_str()).unwrap_or("type");
+            let kind = match raw_kind {
+                "struct" => "struct",
+                "interface" => "interface",
+                _ => "type",
+            };
+            symbols.push(SymbolStart {
+                name: name.clone(),
+                kind: kind.to_string(),
+                exported: is_uppercase_symbol(&name),
+                line_start,
+                indent: leading_spaces(line),
+            });
+        }
+    }
+    symbols
+}
+
+fn is_noise_line(line: &str, comment_prefix: &str) -> bool {
+    let trimmed = line.trim_start();
+    trimmed.starts_with(comment_prefix) || trimmed.starts_with('*')
+}
+
+fn is_hook_name(name: &str) -> bool {
+    let Some(rest) = name.strip_prefix("use") else {
+        return false;
+    };
+    rest.chars()
+        .next()
+        .map(|ch| ch.is_ascii_uppercase())
+        .unwrap_or(false)
+}
+
+fn is_uppercase_symbol(name: &str) -> bool {
+    name.chars()
+        .next()
+        .map(|ch| ch.is_ascii_uppercase())
+        .unwrap_or(false)
 }
 
 fn resolve_imports(
@@ -2908,6 +3237,22 @@ fn js_export_re() -> &'static Regex {
     })
 }
 
+fn js_symbol_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"^\s*(?P<export>export\s+)?(?:default\s+)?(?:async\s+)?(?P<kind>function|class|const|let|var|interface|type|enum)\s+(?P<name>[A-Za-z_$][A-Za-z0-9_$]*)"#)
+            .expect("valid js symbol regex")
+    })
+}
+
+fn js_default_symbol_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"^\s*export\s+default\s+(?:async\s+)?(?P<kind>function|class)\b(?:\s+(?P<name>[A-Za-z_$][A-Za-z0-9_$]*))?"#)
+            .expect("valid js default symbol regex")
+    })
+}
+
 fn py_import_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
@@ -2934,6 +3279,46 @@ fn rust_mod_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
         Regex::new(r#"(?m)^\s*(?:pub\s+)?mod\s+([A-Za-z0-9_]+)\s*;"#).expect("valid rust mod regex")
+    })
+}
+
+fn rust_symbol_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"^\s*(?P<pub>pub(?:\([^)]*\))?\s+)?(?:async\s+)?(?P<kind>fn|struct|enum|trait|mod)\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)"#)
+            .expect("valid rust symbol regex")
+    })
+}
+
+fn rust_impl_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"^\s*impl(?:<[^>]+>)?\s+(?P<name>[A-Za-z_][A-Za-z0-9_:<>]*(?:\s+for\s+[A-Za-z_][A-Za-z0-9_:<>]*)?)"#)
+            .expect("valid rust impl regex")
+    })
+}
+
+fn python_symbol_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"^\s*(?:async\s+)?(?P<kind>def|class)\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)"#)
+            .expect("valid python symbol regex")
+    })
+}
+
+fn go_func_symbol_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"^\s*func\s+(?P<receiver>\([^)]*\)\s*)?(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*\("#)
+            .expect("valid go function symbol regex")
+    })
+}
+
+fn go_type_symbol_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"^\s*type\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s+(?P<kind>struct|interface|[A-Za-z_][A-Za-z0-9_]*)"#)
+            .expect("valid go type symbol regex")
     })
 }
 
@@ -3235,6 +3620,176 @@ packages = ["not-a-workspace"]
         assert!(patterns.iter().all(|item| item != "shadow/replay"));
         assert!(patterns.iter().all(|item| item != "shadow/renderer"));
         assert!(patterns.iter().all(|item| item != "not-a-workspace"));
+    }
+
+    #[test]
+    fn javascript_symbols_keep_exports_and_line_ranges() {
+        let text = r#"import { frameAt } from "./timeline";
+
+export function seekFrame(timeMs: number): number {
+  return frameAt(timeMs);
+}
+
+export const FeedPage = () => null;
+const useReplayClock = () => 1;
+export interface ReplayDto {
+  frame: number;
+}
+"#;
+
+        let symbols = extract_symbols(text, "tsx");
+
+        assert_symbol(&symbols, "seekFrame", "function", true, 3, 5);
+        assert_symbol(&symbols, "FeedPage", "component", true, 7, 7);
+        assert_symbol(&symbols, "useReplayClock", "hook", false, 8, 8);
+        assert_symbol(&symbols, "ReplayDto", "interface", true, 9, 11);
+    }
+
+    #[test]
+    fn javascript_semicolonless_expression_symbol_does_not_swallow_next_block() {
+        let text = r#"export const FeedPage = () => <View />
+
+export function renderFeed() {
+  return FeedPage
+}
+"#;
+
+        let symbols = extract_symbols(text, "tsx");
+
+        assert_symbol(&symbols, "FeedPage", "component", true, 1, 1);
+        assert_symbol(&symbols, "renderFeed", "function", true, 3, 5);
+    }
+
+    #[test]
+    fn rust_symbols_keep_visibility_and_ranges() {
+        let text = r#"use crate::timeline::frame_at;
+
+pub struct Session {
+    frame: u64,
+}
+
+impl Session {
+    pub fn seek_frame(&self, time_ms: u64) -> u64 {
+        frame_at(time_ms)
+    }
+}
+
+fn internal_tick() {}
+"#;
+
+        let symbols = extract_symbols(text, "rs");
+
+        assert_symbol(&symbols, "Session", "struct", true, 3, 5);
+        assert_symbol(&symbols, "Session", "impl", false, 7, 11);
+        assert_symbol(&symbols, "seek_frame", "function", true, 8, 10);
+        assert_symbol(&symbols, "internal_tick", "function", false, 13, 13);
+    }
+
+    #[test]
+    fn python_symbols_keep_functions_and_classes_without_export_claims() {
+        let text = r#"from .timeline import frame_at
+
+
+class ReplaySession:
+    pass
+
+
+def seek(frames: list[int], frame: int) -> int:
+    return frame_at(frames, frame)
+
+
+async def refresh() -> None:
+    return None
+"#;
+
+        let symbols = extract_symbols(text, "py");
+
+        assert_symbol(&symbols, "ReplaySession", "class", false, 4, 5);
+        assert_symbol(&symbols, "seek", "function", false, 8, 9);
+        assert_symbol(&symbols, "refresh", "function", false, 12, 13);
+    }
+
+    #[test]
+    fn go_symbols_keep_exports_functions_methods_and_types() {
+        let text = r#"package session
+
+type Frame struct {
+    Index int
+}
+
+func Seek(frames []Frame, frame int) Frame {
+    return frames[frame]
+}
+
+func (s Session) tick() {}
+"#;
+
+        let symbols = extract_symbols(text, "go");
+
+        assert_symbol(&symbols, "Frame", "struct", true, 3, 5);
+        assert_symbol(&symbols, "Seek", "function", true, 7, 9);
+        assert_symbol(&symbols, "tick", "method", false, 11, 11);
+    }
+
+    #[test]
+    fn fixture_projects_populate_symbols_for_primary_languages() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let cases = [
+            (
+                "mixed-monorepo",
+                "domains/replay/src/replay-session.ts",
+                "seekFrame",
+            ),
+            (
+                "rust-workspace",
+                "crates/replay/src/session.rs",
+                "seek_frame",
+            ),
+            (
+                "python-workspace",
+                "services/replay/replay/session.py",
+                "seek",
+            ),
+            ("go-workspace", "services/replay/session/session.go", "Seek"),
+        ];
+
+        for (fixture, rel, symbol) in cases {
+            let project = load_project_with_cache(
+                RootSelection::Exact(root.join(fixture)),
+                CacheWriteMode::ReadOnly,
+            )
+            .expect("load fixture project");
+            let file = project.files.get(rel).unwrap_or_else(|| {
+                panic!(
+                    "expected file `{rel}` in fixture `{fixture}`; available: {:#?}",
+                    project.files.keys().collect::<Vec<_>>()
+                )
+            });
+            assert!(
+                file.symbols.iter().any(|item| item.name == symbol),
+                "expected `{symbol}` in `{fixture}/{rel}` symbols: {:#?}",
+                file.symbols
+            );
+            assert!(file.line_count > 0, "line_count should be populated");
+        }
+    }
+
+    fn assert_symbol(
+        symbols: &[SymbolInfo],
+        name: &str,
+        kind: &str,
+        exported: bool,
+        line_start: usize,
+        line_end: usize,
+    ) {
+        let symbol = symbols
+            .iter()
+            .find(|item| item.name == name && item.kind == kind && item.line_start == line_start)
+            .unwrap_or_else(|| {
+                panic!("missing symbol `{name}` kind `{kind}` line `{line_start}` in {symbols:#?}")
+            });
+        assert_eq!(symbol.exported, exported, "{name} exported mismatch");
+        assert_eq!(symbol.line_end, line_end, "{name} line_end mismatch");
     }
 
     fn write_test_file(path: &Path, body: &str) {

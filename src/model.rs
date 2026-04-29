@@ -36,11 +36,13 @@ pub struct FileInfo {
     pub rel: String,
     pub ext: String,
     pub size: u64,
+    pub line_count: usize,
     pub language: String,
     pub roles: BTreeSet<String>,
     pub imports: BTreeSet<String>,
     pub resolved_imports: BTreeSet<String>,
     pub exports: BTreeSet<String>,
+    pub symbols: Vec<SymbolInfo>,
     pub tokens: BTreeSet<String>,
 }
 
@@ -48,6 +50,44 @@ impl FileInfo {
     pub fn has_role(&self, role: &str) -> bool {
         self.roles.contains(role)
     }
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct SymbolInfo {
+    pub name: String,
+    pub kind: String,
+    pub exported: bool,
+    pub line_start: usize,
+    pub line_end: usize,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "snake_case")]
+pub enum EvidenceStrength {
+    Low,
+    Medium,
+    High,
+    Hard,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, Serialize)]
+pub struct StructuralEdge {
+    pub from: String,
+    pub to: String,
+    #[serde(rename = "type")]
+    pub edge_type: String,
+    pub evidence: String,
+    pub strength: EvidenceStrength,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, Serialize)]
+pub struct HiddenGroup {
+    pub reason: String,
+    pub count: usize,
+    pub expand: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
