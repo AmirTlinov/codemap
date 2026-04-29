@@ -53,7 +53,7 @@ The structural v2 flow is:
 ctx find "auth token refresh"
 ctx ls src/route.rs
 ctx cone src/route.rs --depth 1
-ctx impact --changed
+ctx impact --changed --structural
 ctx proof --changed
 ```
 
@@ -74,6 +74,7 @@ ctx schema capsule
 ctx schema anchors
 ctx locate --task "fix auth token refresh"
 ctx start --task "fix broken save" --path src
+ctx impact --changed --structural
 ctx impact --changed
 ctx impact --staged
 ctx impact --since main
@@ -104,7 +105,7 @@ Schema evolution rules are documented in `docs/SCHEMA_POLICY.md` and guarded by 
 
 ## Agent Integration
 
-Target v2 global instruction after the structural commands land:
+Default global instruction:
 
 ```md
 For coding tasks, if `ctx` is available in PATH, begin with:
@@ -118,11 +119,13 @@ Then inspect the exact anchor with:
 
 After edits:
 
-`ctx impact --changed`
+`ctx impact --changed --structural`
 `ctx proof --changed`
 
 Do not manually scan the repository before using `ctx` unless the structural cone is empty or the change crosses a public/package/schema boundary.
 ```
+
+`ctx start`, `ctx locate`, `ctx explain`, `ctx verify`, and `ctx widen` remain v1 compatibility surfaces. Their JSON schemas stay stable; their default Markdown now points agents toward structural `find`, `ls`, `cone`, and `proof` flows where possible.
 
 Optional project bootloader:
 

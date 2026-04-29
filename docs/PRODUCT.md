@@ -38,11 +38,12 @@ The v2 primary flow is:
 ctx find "<query>"      # weak discovery, anchor candidates only
 ctx ls <path>          # what is here
 ctx cone <path>        # incoming/outgoing/proof/contract edges
-ctx impact --changed   # changed clusters and blast radius
+ctx impact --changed --structural
+                       # changed clusters and blast radius
 ctx proof --changed    # proof plan, print-only by default
 ```
 
-`ctx find` may use query terms to discover anchor candidates. `ctx ls`, `ctx cone`, `ctx impact`, and `ctx proof` must be edge-first and must not call the legacy task router.
+`ctx find` may use query terms to discover anchor candidates. `ctx ls`, `ctx cone`, structural `ctx impact`, and `ctx proof` must be edge-first and must not call the legacy task router.
 
 V2 outputs must not use:
 
@@ -54,7 +55,9 @@ Every primary structural item should carry local evidence: import edge, reverse 
 
 ## Legacy Router
 
-`ctx start`, `ctx locate`, `ctx explain`, `ctx verify`, `ctx widen`, and existing graph lenses remain supported as v1 compatibility surfaces while v2 lands.
+`ctx start`, `ctx locate`, `ctx explain`, `ctx verify`, `ctx widen`, and legacy impact JSON remain supported as v1 compatibility surfaces while v2 lands.
+
+Default Markdown for compatibility commands should steer agents back to structural flow. Their v1 JSON schemas stay stable for integrations.
 
 Legacy task capsules may still expose `read_first`, negative context, stop rules, and confidence because that is their published schema. New structural surfaces should not copy those fields.
 

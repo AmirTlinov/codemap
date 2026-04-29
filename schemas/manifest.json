@@ -8,18 +8,21 @@
       "kind": "status",
       "file": "schemas/status.schema.json",
       "contract": "route_output",
+      "lifecycle": "structural",
       "json_kind": "status_report"
     },
     {
       "kind": "files",
       "file": "schemas/files.schema.json",
       "contract": "route_output",
+      "lifecycle": "structural",
       "json_kind": "files"
     },
     {
       "kind": "ls",
       "file": "schemas/ls.schema.json",
       "contract": "route_output",
+      "lifecycle": "structural",
       "schema_version": "2",
       "json_kind": "ls_report"
     },
@@ -27,6 +30,7 @@
       "kind": "cone",
       "file": "schemas/cone.schema.json",
       "contract": "route_output",
+      "lifecycle": "structural",
       "schema_version": "2",
       "json_kind": "cone_report"
     },
@@ -34,18 +38,21 @@
       "kind": "capsule",
       "file": "schemas/capsule.schema.json",
       "contract": "route_output",
+      "lifecycle": "legacy",
       "json_kind": "task_context_capsule"
     },
     {
       "kind": "impact",
       "file": "schemas/impact.schema.json",
       "contract": "route_output",
+      "lifecycle": "legacy",
       "json_kind": "impact_report"
     },
     {
       "kind": "impact-v2",
       "file": "schemas/impact-v2.schema.json",
       "contract": "route_output",
+      "lifecycle": "structural",
       "schema_version": "2",
       "json_kind": "impact_v2_report"
     },
@@ -53,6 +60,7 @@
       "kind": "proof",
       "file": "schemas/proof.schema.json",
       "contract": "route_output",
+      "lifecycle": "structural",
       "schema_version": "2",
       "json_kind": "proof_plan"
     },
@@ -60,6 +68,7 @@
       "kind": "find",
       "file": "schemas/find.schema.json",
       "contract": "route_output",
+      "lifecycle": "structural",
       "schema_version": "2",
       "json_kind": "anchor_candidates"
     },
@@ -67,36 +76,42 @@
       "kind": "verify",
       "file": "schemas/verify.schema.json",
       "contract": "route_output",
+      "lifecycle": "legacy",
       "json_kind": "verification_plan"
     },
     {
       "kind": "locate",
       "file": "schemas/locate.schema.json",
       "contract": "route_output",
+      "lifecycle": "legacy",
       "json_kind": "location_candidates"
     },
     {
       "kind": "explain",
       "file": "schemas/explain.schema.json",
       "contract": "route_output",
+      "lifecycle": "legacy",
       "json_kind_values": ["file", "concept", "missing"]
     },
     {
       "kind": "widen",
       "file": "schemas/widen.schema.json",
       "contract": "route_output",
+      "lifecycle": "legacy",
       "json_kind": "widened_context"
     },
     {
       "kind": "graph",
       "file": "schemas/graph.schema.json",
       "contract": "route_output",
+      "lifecycle": "structural",
       "json_kind": "graph_lens"
     },
     {
       "kind": "boundaries",
       "file": "schemas/boundaries.schema.json",
       "contract": "route_output",
+      "lifecycle": "structural",
       "json_kind": "boundary_report"
     },
     {

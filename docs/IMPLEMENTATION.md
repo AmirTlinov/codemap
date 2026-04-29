@@ -71,6 +71,7 @@ The existing task router remains a legacy compatibility layer while structural c
 - `ctx impact --structural` returns v2 structural clusters over changed anchors, with direct consumers, cross-boundary/package consumers, contract risks, proof edges, hidden edge counts, and exact follow-up commands
 - `ctx proof <path|--changed|--files>` returns v2 proof plans from structural test evidence and remains print-only unless `--run` is explicit
 - `ctx find "<query>"` returns v2 anchor candidates plus separated weak matches and points to `ctx ls` / `ctx cone`, not `ctx start`
+- legacy `locate`, file `explain`, `verify`, and path-scoped `widen` Markdown now bridge to structural `find`, `ls`, `proof`, and `cone`; their JSON contracts remain v1 compatibility outputs
 - verification planning prefers the single affected package owner when a scoped nested package is clearer than the repository root runner
 - `ctx impact` names public-boundary, schema/DTO, source-of-truth, unclassified-source, generated-file, and cross-domain expansion triggers explicitly
 - workspace domain discovery from root `package.json` workspaces, `pnpm-workspace.yaml`, Cargo workspace members, `go.work`, and simple Python workspace/member arrays
@@ -102,6 +103,8 @@ The v2 implementation must keep these surfaces separate from the legacy router:
 - `proof` derives checks from cone/impact evidence and remains print-only unless `--run` is explicit.
 
 Do not call `select_read_first` from v2 commands. Do not infer source-of-truth ownership for v2. Per-edge evidence strength replaces global confidence.
+
+Legacy v1 commands may keep their published route fields in JSON. Markdown compatibility wrappers should not send agents back to `ctx start` when a structural command can answer the same question.
 
 ## Core Files
 

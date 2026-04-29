@@ -171,6 +171,16 @@ pub fn locate(report: &LocateReport) {
     }
 }
 
+pub fn locate_compat_find(task: &str, report: &FindReport) {
+    println!("# Locate Compatibility\n");
+    println!("`ctx locate` is a legacy v1 router surface.");
+    println!(
+        "Use structural discovery first: {}\n",
+        code(&format!("ctx find {}", shell_quote(task)))
+    );
+    find(report);
+}
+
 pub fn find(report: &FindReport) {
     println!("# Anchor Candidates\n");
     println!("Query: `{}`", report.query);
@@ -226,6 +236,17 @@ fn find_row(candidate: &AnchorCandidate) -> Vec<String> {
             .collect::<Vec<_>>()
             .join("\n"),
     ]
+}
+
+pub fn explain_compat_ls(target: &str, report: &LsReport) {
+    println!("# Explain Compatibility\n");
+    println!("`ctx explain` is a legacy v1 surface for files.");
+    println!(
+        "Structural equivalents: {} then {}\n",
+        code(&format!("ctx ls {}", shell_quote(target))),
+        code(&format!("ctx cone {}", shell_quote(target)))
+    );
+    ls(report);
 }
 
 pub fn ls(report: &LsReport) {
@@ -649,6 +670,24 @@ pub fn verify(changed: &[String], plan: &VerificationPlan) {
     println!("\n`ctx verify` does not run commands unless `--run` is explicit.");
 }
 
+pub fn verify_compat_proof(report: &ProofReport, proof_command: &str) {
+    println!("# Verify Compatibility\n");
+    println!("`ctx verify` is the legacy v1 verification planner.");
+    if report.changed.is_empty() && report.proofs.is_empty() && report.fallback.is_empty() {
+        println!(
+            "No changed files detected. Use `--files a,b` or run inside a git repo with changes."
+        );
+        println!("\n`ctx verify` does not run commands unless `--run` is explicit.");
+        return;
+    }
+    println!(
+        "Use structural proof directly with {}.\n",
+        code(proof_command)
+    );
+    proof(report);
+    println!("\n`ctx verify` does not run commands unless `--run` is explicit.");
+}
+
 pub fn proof(report: &ProofReport) {
     println!("# Proof Plan\n");
     if let Some(target) = &report.target {
@@ -817,6 +856,21 @@ pub fn widen(report: &WidenReport) {
     println!("{}", report.stop_rule);
 }
 
+pub fn widen_compat_cone(reason: &str, report: &ConeReport) {
+    println!("# Widen Compatibility\n");
+    println!("Reason: {reason}\n");
+    println!("`ctx widen` is a legacy v1 expansion surface.");
+    println!(
+        "For an exact anchor, widen structurally with {}.\n",
+        code(&format!(
+            "ctx cone {} --depth {}",
+            shell_quote(&report.anchor.path),
+            report.depth
+        ))
+    );
+    cone(report);
+}
+
 pub fn boundaries(findings: &[BoundaryFinding]) {
     println!("# Boundary Check\n");
     if findings.is_empty() {
@@ -891,11 +945,11 @@ pub fn init_suggestion(path: Option<&str>) {
 }
 
 pub fn agents_bootloader() -> &'static str {
-    "# Agent Bootstrap\n\nFor coding tasks in this repository, start with:\n\n```bash\nctx start --task \"<user task>\" --path \"$PWD\"\n```\n\nAfter edits:\n\n```bash\nctx impact --changed\nctx verify --changed\n```\n\nDo not manually scan the repository before using `ctx`.\nFollow ctx read order, forbidden moves, expansion triggers, verification plan, and stop conditions.\n"
+    "# Agent Bootstrap\n\nFor coding tasks in this repository, start with:\n\n```bash\nctx find \"<user task>\"\n```\n\nThen inspect the chosen anchor:\n\n```bash\nctx ls <path>\nctx cone <path> --depth 1\n```\n\nAfter edits:\n\n```bash\nctx impact --changed --structural\nctx proof --changed\n```\n\nDo not manually scan the repository before using `ctx` unless the structural cone is empty or the change crosses a public/package/schema boundary.\n"
 }
 
 pub fn global_instruction() -> &'static str {
-    "For coding tasks, if `ctx` is available in PATH, begin with:\n\n```bash\nctx start --task \"<user task>\" --path \"$PWD\"\n```\n\nAfter edits:\n\n```bash\nctx impact --changed\nctx verify --changed\n```\n\nDo not manually scan the repository before using `ctx` unless ctx confidence is low or an expansion trigger fires.\nFollow the returned read order, negative context, forbidden moves, expansion triggers, verification plan, and stop conditions.\nWiden context only with `ctx widen` or when an expansion trigger fires.\n"
+    "For coding tasks, if `ctx` is available in PATH, begin with:\n\n```bash\nctx find \"<user task>\"\n```\n\nThen inspect the chosen anchor:\n\n```bash\nctx ls <path>\nctx cone <path> --depth 1\n```\n\nAfter edits:\n\n```bash\nctx impact --changed --structural\nctx proof --changed\n```\n\nDo not manually scan the repository before using `ctx` unless the structural cone is empty or the change crosses a public/package/schema boundary.\nUse legacy `ctx start`, `ctx locate`, `ctx explain`, `ctx verify`, and `ctx widen` only for v1 compatibility.\n"
 }
 
 pub fn suggested_ctx_yml_for(path: Option<&str>) -> String {
@@ -959,6 +1013,17 @@ fn bullet(values: &[String], code_style: bool, limit: Option<usize>) -> String {
 
 fn code(value: &str) -> String {
     format!("`{value}`")
+}
+
+fn shell_quote(value: &str) -> String {
+    if value
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '.' | '_' | '-'))
+    {
+        value.to_string()
+    } else {
+        format!("'{}'", value.replace('\'', "'\\''"))
+    }
 }
 
 fn code_block(lang: &str, commands: &[String]) -> String {

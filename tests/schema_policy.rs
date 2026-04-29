@@ -83,6 +83,15 @@ fn schema_manifest_is_the_exported_contract_guard() {
         let contract = entry["contract"]
             .as_str()
             .expect("schema manifest entry should have contract");
+        if contract == "route_output" {
+            let lifecycle = entry["lifecycle"]
+                .as_str()
+                .expect("route output schema manifest entries must declare lifecycle");
+            assert!(
+                matches!(lifecycle, "legacy" | "structural"),
+                "route output lifecycle must be legacy or structural for {kind}"
+            );
+        }
         let schema_text = fs::read_to_string(root.join(rel)).expect("schema file should exist");
         let schema_json: Value =
             serde_json::from_str(&schema_text).expect("schema file should be json");

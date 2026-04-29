@@ -172,7 +172,9 @@ fn schema_and_bootstrap_do_not_probe_git_or_cache() {
         .expect("ctx bootstrap should run");
     assert!(bootstrap.status.success());
     let stdout = String::from_utf8(bootstrap.stdout).expect("bootstrap stdout");
-    assert!(stdout.contains("ctx start --task"));
+    assert!(stdout.contains("ctx find \"<user task>\""));
+    assert!(stdout.contains("ctx proof --changed"));
+    assert!(!stdout.contains("ctx start --task"));
 
     assert!(
         !git_log.exists(),
@@ -2710,7 +2712,9 @@ fn global_instruction_does_not_advertise_fake_agent_mode_flag() {
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("stdout should be utf8");
     assert!(!stdout.contains("--for-agent"));
-    assert!(stdout.contains("ctx start --task"));
+    assert!(stdout.contains("ctx find \"<user task>\""));
+    assert!(stdout.contains("ctx proof --changed"));
+    assert!(!stdout.contains("ctx start --task"));
 }
 
 #[test]

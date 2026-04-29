@@ -386,6 +386,11 @@ pub fn run() -> Result<()> {
         }
         CommandKind::Locate(args) => {
             ensure_valid_config(&project)?;
+            if args.format == OutputFormat::Markdown {
+                let report = route::find_report(&project, &args.task, args.limit);
+                render::locate_compat_find(&args.task, &report);
+                return Ok(());
+            }
             let report = route::locate_report(&project, &args.task, args.limit);
             output(args.format, &report, || render::locate(&report))
         }
@@ -416,6 +421,13 @@ pub fn run() -> Result<()> {
         CommandKind::Explain(args) => {
             ensure_valid_config(&project)?;
             let target = project_relative_arg(&project, &args.target)?;
+            if args.format == OutputFormat::Markdown {
+                let structural = route::ls_report(&project, &target, false, 20);
+                if structural.mode != "missing" {
+                    render::explain_compat_ls(&target, &structural);
+                    return Ok(());
+                }
+            }
             let report = route::explain_target(&project, &target);
             output(args.format, &report, || render::explain(&report))
         }
@@ -431,6 +443,13 @@ pub fn run() -> Result<()> {
                 .iter()
                 .map(|path| project_relative_arg(&project, path))
                 .collect::<Result<Vec<_>>>()?;
+            if args.format == OutputFormat::Markdown
+                && let Some(path) = widen_path.as_deref()
+            {
+                let report = route::cone_report(&project, path, 2, false, args.limit);
+                render::widen_compat_cone(&args.reason, &report);
+                return Ok(());
+            }
             let report = route::widen_context(
                 &project,
                 &args.task,
@@ -668,6 +687,12 @@ fn verify(project: &crate::model::Project, args: VerifyArgs) -> Result<()> {
         render::verify(&report.changed, &report.verification);
         return run_plan(project, &report.verification, args.recommended);
     }
+    if args.format == OutputFormat::Markdown {
+        let proof = route::proof_report(project, None, changed, args.depth, args.limit);
+        let proof_command = proof_command_from_verify_args(&args, &proof.changed);
+        render::verify_compat_proof(&proof, &proof_command);
+        return Ok(());
+    }
     output(args.format, &report, || {
         render::verify(&report.changed, &report.verification)
     })
@@ -768,6 +793,27 @@ fn resolve_run_command(command: &str) -> Result<String> {
     Ok(trimmed.to_string())
 }
 
+fn proof_command_from_verify_args(args: &VerifyArgs, changed: &[String]) -> String {
+    let mut command = if args.changed {
+        "ctx proof --changed".to_string()
+    } else if args.staged {
+        "ctx proof --staged".to_string()
+    } else if let Some(since) = args.since.as_deref() {
+        format!("ctx proof --since {}", shell_quote_arg(since))
+    } else if !changed.is_empty() {
+        format!("ctx proof --files {}", shell_quote_arg(&changed.join(",")))
+    } else {
+        "ctx proof --changed".to_string()
+    };
+    if args.depth != 1 {
+        command.push_str(&format!(" --depth {}", args.depth));
+    }
+    if args.limit != 30 {
+        command.push_str(&format!(" --limit {}", args.limit));
+    }
+    command
+}
+
 fn unique_preserve_order(values: Vec<String>) -> Vec<String> {
     let mut seen = BTreeSet::new();
     let mut out = Vec::new();
@@ -784,6 +830,17 @@ fn shell_quote_path(path: &Path) -> String {
     if value
         .chars()
         .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '/' | '.' | '_' | '-' | ':'))
+    {
+        value.to_string()
+    } else {
+        format!("'{}'", value.replace('\'', "'\\''"))
+    }
+}
+
+fn shell_quote_arg(value: &str) -> String {
+    if value
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '/' | '.' | '_' | '-' | ':' | ','))
     {
         value.to_string()
     } else {
