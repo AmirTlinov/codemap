@@ -308,6 +308,13 @@ fn help_exposes_only_map_first_commands() {
 #[test]
 fn root_ls_is_a_bounded_domain_and_package_map() {
     let (repo, cache) = fixture();
+    write(
+        &repo.path().join("fixtures/example/package.json"),
+        r#"{"name":"fixture-package","scripts":{"test":"vitest run"}}"#,
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture support package"]);
+
     let json = run_json(repo.path(), cache.path(), &["ls", ".", "--format", "json"]);
     assert_schema("schemas/ls.schema.json", &json);
     assert_eq!(json["kind"], "ls_report");
@@ -330,8 +337,55 @@ fn root_ls_is_a_bounded_domain_and_package_map() {
                 && edge["from"] == "packages/app/"
                 && edge["to"] == "packages/replay/")
     );
+    assert!(
+        surfaces.iter().all(|surface| !surface["kind"]
+            .as_str()
+            .unwrap_or_default()
+            .starts_with("support_package:")),
+        "root map should not surface fixture/example package internals by default: {json:#}"
+    );
+    assert!(
+        json["hidden"]
+            .as_array()
+            .expect("hidden")
+            .iter()
+            .any(|hidden| hidden["reason"]
+                == "support packages hidden below fixture/example/sample scopes"),
+        "root map should expose hidden support package count, not package noise: {json:#}"
+    );
     assert_eq!(json.get("read_first"), None);
     assert_eq!(json.get("confidence"), None);
+
+    let root_with_hidden = run_json(
+        repo.path(),
+        cache.path(),
+        &["ls", ".", "--include-hidden", "--format", "json"],
+    );
+    assert!(
+        root_with_hidden["directory"]
+            .as_array()
+            .expect("root include-hidden directory")
+            .iter()
+            .any(|surface| surface["kind"]
+                .as_str()
+                .unwrap_or_default()
+                .starts_with("support_package:")),
+        "include-hidden should reveal support packages at root on explicit request: {root_with_hidden:#}"
+    );
+
+    let fixture_scope = run_json(
+        repo.path(),
+        cache.path(),
+        &["ls", "fixtures", "--format", "json"],
+    );
+    assert!(
+        fixture_scope["directory"]
+            .as_array()
+            .expect("fixture directory")
+            .iter()
+            .any(|surface| surface["kind"] == "package:javascript"),
+        "explicit fixture scope should still show its local packages: {fixture_scope:#}"
+    );
 
     let tests_scope = run_json(
         repo.path(),

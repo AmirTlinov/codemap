@@ -307,8 +307,17 @@ fn ls_directory_report(
     }
     for package in &project.packages {
         if path_under_scope(&package.path, rel) || path_under_scope(&package.manifest, rel) {
-            let kind = if is_support_artifact_path(&package.path) && !is_support_artifact_path(rel)
-            {
+            let package_is_support = is_support_artifact_path(&package.path)
+                || is_support_artifact_path(&package.manifest);
+            let scope_is_support = is_support_artifact_path(rel);
+            if package_is_support && !scope_is_support && !include_hidden {
+                grouped
+                    .entry("support_package_hidden".to_string())
+                    .or_default()
+                    .push(package.manifest.clone());
+                continue;
+            }
+            let kind = if package_is_support && !scope_is_support {
                 format!("support_package:{}", package.ecosystem)
             } else {
                 format!("package:{}", package.ecosystem)
@@ -360,6 +369,10 @@ fn ls_directory_report(
         .remove("generic_hidden")
         .map(|v| v.len())
         .unwrap_or(0);
+    let hidden_support_package_count = grouped
+        .remove("support_package_hidden")
+        .map(|v| v.len())
+        .unwrap_or(0);
     let mut surfaces = grouped
         .into_iter()
         .map(|(kind, mut files)| {
@@ -403,6 +416,13 @@ fn ls_directory_report(
         hidden.push(HiddenGroup {
             reason: "generic source files hidden".to_string(),
             count: hidden_generic_count,
+            expand: format!("codemap ls {} --include-hidden", shell_quote(rel)),
+        });
+    }
+    if hidden_support_package_count > 0 {
+        hidden.push(HiddenGroup {
+            reason: "support packages hidden below fixture/example/sample scopes".to_string(),
+            count: hidden_support_package_count,
             expand: format!("codemap ls {} --include-hidden", shell_quote(rel)),
         });
     }
