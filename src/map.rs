@@ -2065,20 +2065,39 @@ fn proof_fallback_commands(
 }
 
 fn unique_proof_surfaces(values: Vec<ProofSurface>) -> Vec<ProofSurface> {
-    let mut seen = BTreeSet::new();
+    let mut seen = BTreeMap::new();
     let mut out = Vec::new();
     for value in values {
-        let key = format!(
-            "{}\0{}\0{}",
-            value.command.as_deref().unwrap_or_default(),
-            value.path.as_deref().unwrap_or_default(),
-            value.evidence
+        let key = (
+            value.command.clone().unwrap_or_default(),
+            value.path.clone().unwrap_or_default(),
         );
-        if seen.insert(key) {
+        if let Some(index) = seen.get(&key).copied() {
+            if proof_surface_precedence(&value) > proof_surface_precedence(&out[index]) {
+                out[index] = value;
+            }
+        } else {
+            seen.insert(key, out.len());
             out.push(value);
         }
     }
     out
+}
+
+fn proof_surface_precedence(value: &ProofSurface) -> (EvidenceStrength, usize) {
+    (value.strength, proof_evidence_precedence(&value.evidence))
+}
+
+fn proof_evidence_precedence(evidence: &str) -> usize {
+    match evidence {
+        "test_import" => 6,
+        "test_support_import" => 5,
+        "test_name" => 4,
+        "e2e_surface_phrase" => 3,
+        "test_surface_phrase" => 2,
+        "test_surface_tokens" => 1,
+        _ => 0,
+    }
 }
 
 fn impact_expand_commands(changed: &[String]) -> Vec<String> {
@@ -3485,5 +3504,61 @@ fn shell_quote(value: &str) -> String {
         value.to_string()
     } else {
         format!("'{}'", value.replace('\'', "'\\''"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn proof(
+        command: &str,
+        path: &str,
+        evidence: &str,
+        strength: EvidenceStrength,
+    ) -> ProofSurface {
+        ProofSurface {
+            command: Some(command.to_string()),
+            path: Some(path.to_string()),
+            evidence: evidence.to_string(),
+            strength,
+            reason: format!("{evidence} reason"),
+        }
+    }
+
+    #[test]
+    fn proof_surfaces_dedupe_by_command_path_and_keep_strongest_evidence() {
+        let proofs = unique_proof_surfaces(vec![
+            proof(
+                "pnpm exec vitest run tests/a.test.ts",
+                "tests/a.test.ts",
+                "test_surface_tokens",
+                EvidenceStrength::Medium,
+            ),
+            proof(
+                "pnpm exec vitest run tests/a.test.ts",
+                "tests/a.test.ts",
+                "test_name",
+                EvidenceStrength::High,
+            ),
+            proof(
+                "pnpm exec vitest run tests/a.test.ts",
+                "tests/a.test.ts",
+                "test_import",
+                EvidenceStrength::High,
+            ),
+            proof(
+                "pnpm exec vitest run tests/b.test.ts",
+                "tests/b.test.ts",
+                "test_surface_tokens",
+                EvidenceStrength::Medium,
+            ),
+        ]);
+
+        assert_eq!(proofs.len(), 2);
+        assert_eq!(proofs[0].path.as_deref(), Some("tests/a.test.ts"));
+        assert_eq!(proofs[0].evidence, "test_import");
+        assert_eq!(proofs[0].strength, EvidenceStrength::High);
+        assert_eq!(proofs[1].path.as_deref(), Some("tests/b.test.ts"));
     }
 }
