@@ -2054,7 +2054,10 @@ fn strict_test_edges_for_file(
         }
         let test_domain =
             scoped_domain_path_for_rel(project, &file.rel, domain_by_rel(project, rel));
-        if source_domain.is_some() && source_domain != test_domain {
+        let route_visit_proof = e2e_test_visits_route(rel, file);
+        let route_pattern_is_unique =
+            route_visit_proof && next_app_route_pattern_is_unique(project, rel);
+        if source_domain.is_some() && source_domain != test_domain && !route_pattern_is_unique {
             continue;
         }
         if !swift_test_can_prove_anchor(project, rel, file) {
@@ -2069,7 +2072,7 @@ fn strict_test_edges_for_file(
             ));
             continue;
         }
-        if e2e_test_visits_route(rel, file) {
+        if route_pattern_is_unique {
             scored.push((
                 79usize,
                 file.rel.clone(),
@@ -2216,7 +2219,9 @@ enum RoutePatternSegment {
 }
 
 fn next_app_route_pattern(rel: &str) -> Option<Vec<RoutePatternSegment>> {
-    let rest = rel.strip_prefix("app/")?;
+    let rest = rel
+        .strip_prefix("app/")
+        .or_else(|| rel.rsplit_once("/app/").map(|(_, rest)| rest))?;
     let route_dir = ["page.tsx", "page.ts", "page.jsx", "page.js"]
         .iter()
         .find_map(|suffix| {
@@ -2253,6 +2258,19 @@ fn next_app_route_pattern(rel: &str) -> Option<Vec<RoutePatternSegment>> {
         segments.push(RoutePatternSegment::Static((*segment).to_string()));
     }
     Some(segments)
+}
+
+fn next_app_route_pattern_is_unique(project: &Project, rel: &str) -> bool {
+    let Some(pattern) = next_app_route_pattern(rel) else {
+        return false;
+    };
+    project
+        .files
+        .values()
+        .filter(|file| next_app_route_pattern(&file.rel).as_ref() == Some(&pattern))
+        .take(2)
+        .count()
+        == 1
 }
 
 fn next_dynamic_route_segment(segment: &str) -> Option<RoutePatternSegment> {

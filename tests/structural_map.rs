@@ -2940,6 +2940,14 @@ fn proof_links_next_route_files_to_e2e_route_visits() {
         "import { test } from '@playwright/test';\n\ntest('blog optional catchall root route smoke', async ({ page }) => {\n  await page.goto('/blog');\n});\n",
     );
     write(
+        &repo.path().join("tests/e2e/nested-admin.spec.ts"),
+        "import { test } from '@playwright/test';\n\ntest('nested app route smoke', async ({ page }) => {\n  await page.goto('/admin');\n});\n",
+    );
+    write(
+        &repo.path().join("tests/e2e/package-app-dashboard.spec.ts"),
+        "import { test } from '@playwright/test';\n\ntest('package named app route smoke', async ({ page }) => {\n  await page.goto('/dashboard');\n});\n",
+    );
+    write(
         &repo.path().join("app/users/[id]/page.tsx"),
         "export default function UserPage() {\n  return null;\n}\n",
     );
@@ -2950,6 +2958,14 @@ fn proof_links_next_route_files_to_e2e_route_visits() {
     write(
         &repo.path().join("app/blog/[[...slug]]/page.tsx"),
         "export default function BlogPage() {\n  return null;\n}\n",
+    );
+    write(
+        &repo.path().join("apps/web/src/app/admin/page.tsx"),
+        "export default function NestedAdminPage() {\n  return null;\n}\n",
+    );
+    write(
+        &repo.path().join("packages/app/app/dashboard/page.tsx"),
+        "export default function PackageAppDashboardPage() {\n  return null;\n}\n",
     );
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["commit", "-qm", "fixture"]);
@@ -3075,7 +3091,109 @@ fn proof_links_next_route_files_to_e2e_route_visits() {
                 && proof["evidence"] == "e2e_route"),
         "optional catch-all should match the route root: {optional_catchall_proof:#}"
     );
+
+    let nested_app_proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "apps/web/src/app/admin/page.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert!(
+        nested_app_proof["proofs"]
+            .as_array()
+            .expect("nested app proofs")
+            .iter()
+            .any(|proof| proof["path"] == "tests/e2e/nested-admin.spec.ts"
+                && proof["evidence"] == "e2e_route"),
+        "Next route proof should work in nested monorepo src/app layouts: {nested_app_proof:#}"
+    );
+
+    let package_named_app_proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "packages/app/app/dashboard/page.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert!(
+        package_named_app_proof["proofs"]
+            .as_array()
+            .expect("package named app proofs")
+            .iter()
+            .any(
+                |proof| proof["path"] == "tests/e2e/package-app-dashboard.spec.ts"
+                    && proof["evidence"] == "e2e_route"
+            ),
+        "Next route proof should use the final /app/ route root when a package is named app: {package_named_app_proof:#}"
+    );
     assert_eq!(route_proof.get("read_first"), None);
+}
+
+#[test]
+fn proof_does_not_link_ambiguous_duplicate_next_routes() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{
+  "name": "duplicate-next-route-fixture",
+  "private": true,
+  "scripts": { "test:e2e": "playwright test" }
+}
+"#,
+    );
+    write(
+        &repo.path().join("apps/web/src/app/admin/page.tsx"),
+        "export default function WebAdminPage() {\n  return null;\n}\n",
+    );
+    write(
+        &repo.path().join("apps/web/app/admin/page.tsx"),
+        "export default function LegacyWebAdminPage() {\n  return null;\n}\n",
+    );
+    write(
+        &repo.path().join("apps/ops/src/app/admin/page.tsx"),
+        "export default function OpsAdminPage() {\n  return null;\n}\n",
+    );
+    write(
+        &repo.path().join("tests/e2e/admin.spec.ts"),
+        "import { test } from '@playwright/test';\n\ntest('admin route smoke', async ({ page }) => {\n  await page.goto('/admin');\n});\n",
+    );
+    write(
+        &repo.path().join("apps/web/tests/e2e/admin.spec.ts"),
+        "import { test } from '@playwright/test';\n\ntest('web admin route smoke', async ({ page }) => {\n  await page.goto('/admin');\n});\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "apps/web/src/app/admin/page.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        proof["proofs"]
+            .as_array()
+            .expect("proof surfaces")
+            .iter()
+            .all(|surface| surface["evidence"] != "e2e_route"),
+        "root e2e route proof must not cross domains when two app roots expose the same route: {proof:#}"
+    );
 }
 
 #[test]
