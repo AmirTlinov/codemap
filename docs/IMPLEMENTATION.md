@@ -99,6 +99,8 @@ Soft evidence may explain hidden or secondary surfaces. It must not become a ran
 - file `ls` and `cone` expose symbols, edges, proof, and boundaries;
 - `impact` and `proof` are structural without extra flags;
 - e2e proof links can use shared exact selector/test-id surfaces, not only test path names;
+- e2e proof can follow spec -> test support/page object -> source anchor import chains;
+- Python test files can receive file-level `pytest <path>` proof commands even without a package manifest;
 - schema manifest has no removed task-router contracts;
 - schema printing is side-effect free.
 

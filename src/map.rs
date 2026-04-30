@@ -1118,6 +1118,15 @@ fn strict_test_edges_for_file(
             ));
             continue;
         }
+        if test_imports_support_consuming_anchor(project, rel, file) {
+            scored.push((
+                76usize,
+                file.rel.clone(),
+                "test_support_import".to_string(),
+                EvidenceStrength::High,
+            ));
+            continue;
+        }
         if allow_name_match && test_name_matches_source_stem(&file.rel, &lower_stem) {
             scored.push((
                 70usize,
@@ -1216,6 +1225,44 @@ fn structural_test_surface_match(
         ));
     }
     None
+}
+
+fn test_imports_support_consuming_anchor(project: &Project, rel: &str, test: &FileInfo) -> bool {
+    let mut seen = BTreeSet::new();
+    let mut frontier = test
+        .resolved_imports
+        .iter()
+        .filter_map(|import| project.files.get(import))
+        .filter(|file| file.has_role("test_support"))
+        .map(|file| file.rel.clone())
+        .collect::<Vec<_>>();
+    for _ in 0..2 {
+        if frontier.is_empty() {
+            return false;
+        }
+        let mut next = Vec::new();
+        for support_rel in frontier {
+            if !seen.insert(support_rel.clone()) {
+                continue;
+            }
+            let Some(support) = project.files.get(&support_rel) else {
+                continue;
+            };
+            if support.resolved_imports.contains(rel) {
+                return true;
+            }
+            next.extend(
+                support
+                    .resolved_imports
+                    .iter()
+                    .filter_map(|import| project.files.get(import))
+                    .filter(|file| file.has_role("test_support"))
+                    .map(|file| file.rel.clone()),
+            );
+        }
+        frontier = next;
+    }
+    false
 }
 
 fn shared_surface_phrases(project: &Project, rel: &str, test: &FileInfo) -> BTreeSet<String> {
@@ -1695,6 +1742,7 @@ fn proof_reason_for_evidence(evidence: &str, scope: &str) -> String {
     match evidence {
         "test_import" => format!("test imports {scope}"),
         "test_name" => format!("test name matches {scope}"),
+        "test_support_import" => format!("test imports support code that imports {scope}"),
         "test_surface_phrase" => format!("test uses same UI/test surface as {scope}"),
         "e2e_surface_phrase" => format!("e2e uses same UI/test surface as {scope}"),
         "test_surface_tokens" => format!("test path/symbols match {scope} surface"),
@@ -1703,7 +1751,11 @@ fn proof_reason_for_evidence(evidence: &str, scope: &str) -> String {
 }
 
 fn proof_command_for_test(project: &Project, test: &str) -> Option<String> {
-    let package = package_for_rel(project, test)?;
+    let Some(package) = package_for_rel(project, test) else {
+        return project.files.get(test).and_then(|file| {
+            (file.language == "python").then(|| format!("pytest {}", shell_quote(test)))
+        });
+    };
     match package.ecosystem.as_str() {
         "javascript" => javascript_test_file_command(project, package, test),
         "python" => Some(if package.path == "." {

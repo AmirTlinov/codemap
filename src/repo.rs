@@ -614,7 +614,7 @@ fn classify_roles(info: &mut FileInfo) {
         if is_e2e_test_path(&rel) {
             info.roles.insert("e2e_test".to_string());
         }
-        if is_test_support_path(&rel) {
+        if is_test_support_path(&rel) || name == "__init__.py" || name == "conftest.py" {
             info.roles.insert("test_support".to_string());
         }
     }
