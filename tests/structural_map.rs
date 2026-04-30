@@ -992,6 +992,51 @@ fn proof_links_ui_anchor_to_named_unit_and_e2e_surfaces_without_imports() {
 }
 
 #[test]
+fn proof_links_e2e_path_surface_to_non_ui_domain_anchor_without_imports() {
+    let (repo, cache) = fixture();
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/blueprint-canvas-rf-selection.ts"),
+        "export function pickFocusForSelection(selection: Set<string>, orderedIds: string[]): string | null {\n  for (const id of orderedIds) {\n    if (selection.has(id)) return id;\n  }\n  return null;\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/tests/e2e/canvas-selection-state.spec.ts"),
+        "import { expect, test } from '@playwright/test';\n\ntest('selection state follows the current card focus', async ({ page }) => {\n  await page.goto('/studio');\n  await expect(page.locator('.frame-card').first()).toBeVisible();\n});\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "e2e path surface fixture"]);
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "packages/app/src/features/studio/canvas/blueprint-canvas-rf-selection.ts",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        proof["proofs"]
+            .as_array()
+            .expect("proofs")
+            .iter()
+            .any(|surface| surface["path"]
+                == "packages/app/tests/e2e/canvas-selection-state.spec.ts"
+                && surface["evidence"] == "e2e_path_surface"),
+        "e2e specs with strong path/name overlap should prove non-UI domain anchors without broad fallback: {proof:#}"
+    );
+    assert!(
+        proof["fallback"].as_array().expect("fallback").is_empty(),
+        "structural e2e path proof should suppress broad fallback: {proof:#}"
+    );
+}
+
+#[test]
 fn proof_links_jsx_visible_text_to_e2e_get_by_text_partial() {
     let (repo, cache) = fixture();
     let proof = run_json(

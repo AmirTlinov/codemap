@@ -2609,15 +2609,34 @@ fn structural_test_surface_match(
         return None;
     }
     let phrase_shared = shared_surface_phrases(project, rel, test);
+    let test_terms = test_surface_terms(test);
+    let shared = anchor_terms
+        .intersection(&test_terms)
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let shared_count = shared.len();
+    let core_shared_count = anchor_core_terms.intersection(&test_terms).count();
+    let same_parent_signal = same_parent_or_test_scope(rel, &test.rel);
+    let test_path_terms = semantic_path_terms(&test.rel);
+    let core_path_shared_count = anchor_core_terms.intersection(&test_path_terms).count();
     if test.has_role("e2e_test") {
-        if phrase_shared.is_empty() {
-            return None;
+        if !phrase_shared.is_empty() {
+            return Some((
+                78 + phrase_shared.len().min(8) * 4,
+                "e2e_surface_phrase".to_string(),
+                EvidenceStrength::Medium,
+            ));
         }
-        return Some((
-            78 + phrase_shared.len().min(8) * 4,
-            "e2e_surface_phrase".to_string(),
-            EvidenceStrength::Medium,
-        ));
+        if e2e_path_surface_allowed(project, rel)
+            && e2e_path_surface_match(shared_count, core_shared_count, core_path_shared_count)
+        {
+            return Some((
+                58 + shared_count.min(8) + core_shared_count.min(4) * 8,
+                "e2e_path_surface".to_string(),
+                EvidenceStrength::Medium,
+            ));
+        }
+        return None;
     }
     if !phrase_shared.is_empty() {
         return Some((
@@ -2626,22 +2645,12 @@ fn structural_test_surface_match(
             EvidenceStrength::Medium,
         ));
     }
-    let test_terms = test_surface_terms(test);
-    let shared = anchor_terms
-        .intersection(&test_terms)
-        .cloned()
-        .collect::<BTreeSet<_>>();
-    let shared_count = shared.len();
     if shared_count < 2 {
         return None;
     }
-    let core_shared_count = anchor_core_terms.intersection(&test_terms).count();
     if core_shared_count == 0 {
         return None;
     }
-    let same_parent_signal = same_parent_or_test_scope(rel, &test.rel);
-    let test_path_terms = semantic_path_terms(&test.rel);
-    let core_path_shared_count = anchor_core_terms.intersection(&test_path_terms).count();
     if same_parent_signal
         || (core_path_shared_count >= 2 && (core_shared_count >= 2 || shared_count >= 3))
     {
@@ -2665,6 +2674,29 @@ fn structural_test_surface_match(
         ));
     }
     None
+}
+
+fn e2e_path_surface_allowed(project: &Project, rel: &str) -> bool {
+    project
+        .files
+        .get(rel)
+        .map(|file| {
+            !matches!(file.ext.as_str(), "tsx" | "jsx" | "vue" | "svelte")
+                && file.surface_phrases.is_empty()
+                && file.jsx_tags.is_empty()
+                && file.resolved_imports.is_empty()
+                && !file.has_role("test")
+                && !file.has_role("test_support")
+        })
+        .unwrap_or(false)
+}
+
+fn e2e_path_surface_match(
+    shared_count: usize,
+    core_shared_count: usize,
+    core_path_shared_count: usize,
+) -> bool {
+    core_path_shared_count >= 2 && core_shared_count >= 2 && shared_count >= 2
 }
 
 fn e2e_test_visits_route(rel: &str, test: &FileInfo) -> bool {
@@ -3569,6 +3601,7 @@ fn proof_reason_for_evidence(evidence: &str, scope: &str) -> String {
         "test_symbol_reference" => format!("test references an anchor symbol from {scope}"),
         "test_surface_phrase" => format!("test uses same UI/test surface as {scope}"),
         "e2e_surface_phrase" => format!("e2e uses same UI/test surface as {scope}"),
+        "e2e_path_surface" => format!("e2e path/name surface matches {scope}"),
         "test_surface_tokens" => format!("test path/symbols match {scope} surface"),
         _ => format!("structural proof for {scope}"),
     }
@@ -3918,6 +3951,7 @@ fn proof_evidence_precedence(evidence: &str) -> usize {
         "test_symbol_reference" => 4,
         "test_name" => 3,
         "e2e_surface_phrase" => 3,
+        "e2e_path_surface" => 2,
         "test_surface_phrase" => 2,
         "test_surface_tokens" => 1,
         _ => 0,
