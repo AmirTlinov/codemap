@@ -4095,6 +4095,9 @@ fn surface_phrases_match(left: &str, right: &str) -> bool {
     if left == right {
         return true;
     }
+    if accessible_role_name_surface(left) || accessible_role_name_surface(right) {
+        return false;
+    }
     let (shorter, longer) = if left.len() <= right.len() {
         (left, right)
     } else {
@@ -4102,6 +4105,10 @@ fn surface_phrases_match(left: &str, right: &str) -> bool {
     };
     let shorter_terms = surface_phrase_terms(shorter);
     shorter_terms.len() >= 3 && phrase_contains_with_boundaries(longer, shorter)
+}
+
+fn accessible_role_name_surface(phrase: &str) -> bool {
+    phrase.starts_with("a11y-role-")
 }
 
 fn phrase_contains_with_boundaries(longer: &str, shorter: &str) -> bool {

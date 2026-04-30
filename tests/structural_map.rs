@@ -441,6 +441,135 @@ fn run_json(repo: &Path, cache: &Path, args: &[&str]) -> Value {
     serde_json::from_slice(&output.stdout).expect("valid json")
 }
 
+fn assert_no_export_dialog_role_name_proof(
+    app_source: &str,
+    design_source: Option<&str>,
+    message: &str,
+) {
+    assert_no_export_role_name_proof(app_source, design_source, "dialog", message);
+}
+
+fn assert_no_export_role_name_proof(
+    app_source: &str,
+    design_source: Option<&str>,
+    e2e_role: &str,
+    message: &str,
+) {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{
+  "name": "dialog-accessible-same-line-negative-fixture",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  }
+}
+"#,
+    );
+    write(
+        &repo.path().join("src/features/studio/export-dialog.tsx"),
+        app_source,
+    );
+    if let Some(design_source) = design_source {
+        write(&repo.path().join("src/design/dialog.tsx"), design_source);
+    }
+    write(
+        &repo
+            .path()
+            .join("tests/e2e/canvas-blueprint-overlay-workflows.spec.ts"),
+        &format!(
+            r#"import {{ expect, test }} from '@playwright/test';
+
+test('command palette opens export dialog', async ({{ page }}) => {{
+  await page.goto('/studio');
+  await expect(page.getByRole('{e2e_role}', {{ name: 'Export' }})).toBeVisible();
+}});
+"#
+        ),
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "src/features/studio/export-dialog.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        proof["proofs"].as_array().expect("proofs").is_empty(),
+        "{message}: {proof:#}"
+    );
+    assert!(
+        !proof["fallback"].as_array().expect("fallback").is_empty(),
+        "without a structural proof, broad fallback must remain visible: {proof:#}"
+    );
+}
+
+fn assert_no_export_dialog_role_name_proof_with_e2e_source(e2e_source: &str, message: &str) {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{
+  "name": "dialog-playwright-negative-fixture",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  }
+}
+"#,
+    );
+    write(
+        &repo.path().join("src/features/studio/export-dialog.tsx"),
+        r#"export function ExportDialog() {
+  return <div role="dialog" aria-labelledby="export-title"><h2 id="export-title">Export</h2></div>;
+}
+"#,
+    );
+    write(
+        &repo.path().join("tests/e2e/canvas-dialog.spec.ts"),
+        e2e_source,
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "src/features/studio/export-dialog.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        proof["proofs"].as_array().expect("proofs").is_empty(),
+        "{message}: {proof:#}"
+    );
+    assert!(
+        !proof["fallback"].as_array().expect("fallback").is_empty(),
+        "without a structural proof, broad fallback must remain visible: {proof:#}"
+    );
+}
+
 #[test]
 fn help_exposes_only_map_first_commands() {
     let output = codemap().arg("--help").output().expect("help should run");
@@ -987,6 +1116,2452 @@ fn proof_links_ui_anchor_to_named_unit_and_e2e_surfaces_without_imports() {
             .any(|edge| edge["from"]
                 == "packages/app/tests/e2e/canvas-blueprint-title-drag.spec.ts"
                 && edge["evidence"] == "e2e_surface_phrase")
+    );
+}
+
+#[test]
+fn proof_links_dialog_labelledby_accessible_name_to_e2e_role_name() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{
+  "name": "dialog-accessible-proof-fixture",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  }
+}
+"#,
+    );
+    write(
+        &repo.path().join("src/features/studio/export-dialog.tsx"),
+        r#"import { Dialog } from '../../design/dialog';
+
+export function ExportDialog({ open, onClose }) {
+  if (!open) return null;
+  return (
+    <Dialog open={open} onClose={onClose} labelledBy="export-title">
+      <h2 id="export-title" style={{ fontSize: 18 }}>
+        Export
+      </h2>
+      <p>
+        Export files are generated locally in the browser.
+      </p>
+    </Dialog>
+  );
+}
+"#,
+    );
+    write(
+        &repo.path().join("src/design/dialog.tsx"),
+        r#"export function Dialog({ open, onClose, labelledBy, children }) {
+  if (!open) return null;
+  return (
+    <div role="dialog" aria-modal="true" aria-labelledby={labelledBy}>
+      {children}
+      <button onClick={onClose}>Close</button>
+    </div>
+  );
+}
+"#,
+    );
+    write(
+        &repo
+            .path()
+            .join("tests/e2e/canvas-blueprint-overlay-workflows.spec.ts"),
+        r#"import { expect, test } from '@playwright/test';
+
+test('command palette opens export dialog', async ({ page }) => {
+  await page.goto('/studio');
+  await expect(page.getByRole('dialog', { name: 'Export' })).toBeVisible();
+});
+"#,
+    );
+    write(
+        &repo.path().join("tests/e2e/import-dialog.spec.ts"),
+        r#"import { expect, test } from '@playwright/test';
+
+test('import dialog is a different accessible surface', async ({ page }) => {
+  await page.goto('/studio');
+  await expect(page.getByRole('dialog', { name: 'Import' })).toBeVisible();
+});
+"#,
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "src/features/studio/export-dialog.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        proof["proofs"]
+            .as_array()
+            .expect("proofs")
+            .iter()
+            .any(|surface| surface["path"]
+                == "tests/e2e/canvas-blueprint-overlay-workflows.spec.ts"
+                && surface["evidence"] == "e2e_surface_phrase"
+                && surface["command"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .contains("test:e2e")),
+        "dialog labelledBy accessible name should link to matching e2e role/name proof: {proof:#}"
+    );
+    assert!(
+        proof["proofs"]
+            .as_array()
+            .expect("proofs")
+            .iter()
+            .all(|surface| surface["path"] != "tests/e2e/import-dialog.spec.ts"),
+        "role name must be exact enough to avoid sibling dialog e2e proof: {proof:#}"
+    );
+    assert!(
+        proof["fallback"].as_array().expect("fallback").is_empty(),
+        "structural e2e proof should suppress broad fallback: {proof:#}"
+    );
+}
+
+#[test]
+fn proof_links_dialog_labelledby_through_multiline_barrel_exports() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{
+  "name": "dialog-barrel-accessible-proof-fixture",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  }
+}
+"#,
+    );
+    write(
+        &repo.path().join("src/features/studio/export-dialog.tsx"),
+        r#"import { Dialog } from '../../design';
+
+export function ExportDialog({ open, onClose }) {
+  if (!open) return null;
+  return (
+    <Dialog open={open} onClose={onClose} labelledBy="export-title">
+      <h2 id="export-title">Export</h2>
+    </Dialog>
+  );
+}
+"#,
+    );
+    write(
+        &repo.path().join("src/design/index.ts"),
+        r#"export {
+  Dialog,
+  type ToastData,
+} from './primitives'
+"#,
+    );
+    write(
+        &repo.path().join("src/design/primitives.ts"),
+        r#"export {
+  Dialog,
+  type ToastData,
+} from './primitives-overlays'
+"#,
+    );
+    write(
+        &repo.path().join("src/design/primitives-overlays.tsx"),
+        r#"export type ToastData = { id: string };
+
+export function Dialog({ open, onClose, labelledBy, children }) {
+  if (!open) return null;
+  return (
+    <div role="dialog" aria-modal="true" aria-labelledby={labelledBy} onClick={onClose}>
+      <div>{children}</div>
+    </div>
+  );
+}
+"#,
+    );
+    write(
+        &repo
+            .path()
+            .join("tests/e2e/canvas-blueprint-overlay-workflows.spec.ts"),
+        r#"import { expect, test } from '@playwright/test';
+
+test('command palette opens export dialog', async ({ page }) => {
+  await page.goto('/studio');
+  const exportDialog = page.getByRole('dialog', { name: 'Export' });
+  await expect(exportDialog).toBeVisible();
+});
+"#,
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "src/features/studio/export-dialog.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        proof["proofs"]
+            .as_array()
+            .expect("proofs")
+            .iter()
+            .any(|surface| surface["path"]
+                == "tests/e2e/canvas-blueprint-overlay-workflows.spec.ts"
+                && surface["evidence"] == "e2e_surface_phrase"),
+        "dialog accessible-name proof should resolve through multiline barrel exports: {proof:#}"
+    );
+}
+
+#[test]
+fn proof_rejects_dialog_labelledby_when_component_does_not_forward_accessible_name() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{
+  "name": "dialog-accessible-negative-fixture",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  }
+}
+"#,
+    );
+    write(
+        &repo.path().join("src/features/studio/export-dialog.tsx"),
+        r#"import { Dialog } from '../../design/dialog';
+
+export function ExportDialog({ open }) {
+  if (!open) return null;
+  return (
+    <Dialog open={open} labelledBy="export-title">
+      <h2 id="export-title">Export</h2>
+    </Dialog>
+  );
+}
+"#,
+    );
+    write(
+        &repo.path().join("src/design/dialog.tsx"),
+        r#"export function Dialog({ open, children }) {
+  if (!open) return null;
+  return <section>{children}</section>;
+}
+"#,
+    );
+    write(
+        &repo
+            .path()
+            .join("tests/e2e/canvas-blueprint-overlay-workflows.spec.ts"),
+        r#"import { expect, test } from '@playwright/test';
+
+test('command palette opens export dialog', async ({ page }) => {
+  await page.goto('/studio');
+  await expect(page.getByRole('dialog', { name: 'Export' })).toBeVisible();
+});
+"#,
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "src/features/studio/export-dialog.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        proof["proofs"].as_array().expect("proofs").is_empty(),
+        "component name alone must not create a dialog role/name proof: {proof:#}"
+    );
+    assert!(
+        !proof["fallback"].as_array().expect("fallback").is_empty(),
+        "without a structural proof, broad fallback must remain visible: {proof:#}"
+    );
+}
+
+#[test]
+fn proof_rejects_dialog_accessible_name_from_text_outside_labelled_element() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{
+  "name": "dialog-accessible-overcapture-fixture",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  }
+}
+"#,
+    );
+    write(
+        &repo.path().join("src/features/studio/export-dialog.tsx"),
+        r#"export function ExportDialog() {
+  return (
+    <div role="dialog" aria-labelledby="export-title">
+      <h2 id="export-title" />
+      <p>Export files are generated locally</p>
+    </div>
+  );
+}
+"#,
+    );
+    write(
+        &repo
+            .path()
+            .join("tests/e2e/canvas-blueprint-overlay-workflows.spec.ts"),
+        r#"import { expect, test } from '@playwright/test';
+
+test('command palette opens export dialog', async ({ page }) => {
+  await page.goto('/studio');
+  await expect(page.getByRole('dialog', { name: 'Export files are generated locally' })).toBeVisible();
+});
+"#,
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "src/features/studio/export-dialog.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        proof["proofs"].as_array().expect("proofs").is_empty(),
+        "dialog accessible-name proof must not capture text outside the labelled element: {proof:#}"
+    );
+    assert!(
+        !proof["fallback"].as_array().expect("fallback").is_empty(),
+        "without a structural proof, broad fallback must remain visible: {proof:#}"
+    );
+}
+
+#[test]
+fn proof_rejects_native_dialog_labelledby_alias_without_real_aria_labelledby() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{
+  "name": "dialog-native-wrong-attr-fixture",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  }
+}
+"#,
+    );
+    write(
+        &repo.path().join("src/features/studio/export-dialog.tsx"),
+        r#"export function ExportDialog() {
+  return (
+    <div role="dialog" labelledBy="export-title">
+      <h2 id="export-title">Export</h2>
+    </div>
+  );
+}
+"#,
+    );
+    write(
+        &repo
+            .path()
+            .join("tests/e2e/canvas-blueprint-overlay-workflows.spec.ts"),
+        r#"import { expect, test } from '@playwright/test';
+
+test('command palette opens export dialog', async ({ page }) => {
+  await page.goto('/studio');
+  await expect(page.getByRole('dialog', { name: 'Export' })).toBeVisible();
+});
+"#,
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "src/features/studio/export-dialog.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        proof["proofs"].as_array().expect("proofs").is_empty(),
+        "native/explicit role JSX must require real aria-labelledby, not labelledBy alias: {proof:#}"
+    );
+    assert!(
+        !proof["fallback"].as_array().expect("fallback").is_empty(),
+        "without a structural proof, broad fallback must remain visible: {proof:#}"
+    );
+}
+
+#[test]
+fn proof_rejects_accessible_role_name_collision_with_generic_surface_phrase() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{
+  "name": "dialog-accessible-collision-fixture",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  }
+}
+"#,
+    );
+    write(
+        &repo.path().join("src/features/studio/export-chip.tsx"),
+        r#"export function ExportChip() {
+  return <div className="dialog-export">Export</div>;
+}
+"#,
+    );
+    write(
+        &repo
+            .path()
+            .join("tests/e2e/canvas-blueprint-overlay-workflows.spec.ts"),
+        r#"import { expect, test } from '@playwright/test';
+
+test('command palette opens export dialog', async ({ page }) => {
+  await page.goto('/studio');
+  await expect(page.getByRole('dialog', { name: 'Export' })).toBeVisible();
+});
+"#,
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "src/features/studio/export-chip.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        proof["proofs"].as_array().expect("proofs").is_empty(),
+        "generic class/text phrase must not collide with role/name proof surface: {proof:#}"
+    );
+    assert!(
+        !proof["fallback"].as_array().expect("fallback").is_empty(),
+        "without a structural proof, broad fallback must remain visible: {proof:#}"
+    );
+}
+
+#[test]
+fn proof_rejects_dialog_component_contract_when_role_and_label_are_on_different_elements() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{
+  "name": "dialog-accessible-split-contract-fixture",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  }
+}
+"#,
+    );
+    write(
+        &repo.path().join("src/features/studio/export-dialog.tsx"),
+        r#"import { Dialog } from '../../design/dialog';
+
+export function ExportDialog() {
+  return (
+    <Dialog labelledBy="export-title">
+      <h2 id="export-title">Export</h2>
+    </Dialog>
+  );
+}
+"#,
+    );
+    write(
+        &repo.path().join("src/design/dialog.tsx"),
+        r#"export function Dialog({ labelledBy, children }) {
+  return (
+    <div role="dialog">
+      <section aria-labelledby={labelledBy}>{children}</section>
+    </div>
+  );
+}
+"#,
+    );
+    write(
+        &repo
+            .path()
+            .join("tests/e2e/canvas-blueprint-overlay-workflows.spec.ts"),
+        r#"import { expect, test } from '@playwright/test';
+
+test('command palette opens export dialog', async ({ page }) => {
+  await page.goto('/studio');
+  await expect(page.getByRole('dialog', { name: 'Export' })).toBeVisible();
+});
+"#,
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "src/features/studio/export-dialog.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        proof["proofs"].as_array().expect("proofs").is_empty(),
+        "component contract must require role and aria-labelledby on the same opening element: {proof:#}"
+    );
+}
+
+#[test]
+fn proof_rejects_custom_dialog_aria_labelledby_prop_without_proven_prop_mapping() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{
+  "name": "dialog-accessible-wrong-prop-fixture",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  }
+}
+"#,
+    );
+    write(
+        &repo.path().join("src/features/studio/export-dialog.tsx"),
+        r#"import { Dialog } from '../../design/dialog';
+
+export function ExportDialog() {
+  return (
+    <Dialog aria-labelledby="export-title">
+      <h2 id="export-title">Export</h2>
+    </Dialog>
+  );
+}
+"#,
+    );
+    write(
+        &repo.path().join("src/design/dialog.tsx"),
+        r#"export function Dialog({ labelledBy, children }) {
+  return <div role="dialog" aria-labelledby={labelledBy}>{children}</div>;
+}
+"#,
+    );
+    write(
+        &repo
+            .path()
+            .join("tests/e2e/canvas-blueprint-overlay-workflows.spec.ts"),
+        r#"import { expect, test } from '@playwright/test';
+
+test('command palette opens export dialog', async ({ page }) => {
+  await page.goto('/studio');
+  await expect(page.getByRole('dialog', { name: 'Export' })).toBeVisible();
+});
+"#,
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "src/features/studio/export-dialog.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        proof["proofs"].as_array().expect("proofs").is_empty(),
+        "custom component aria-labelledby prop must not be trusted without a proven prop mapping: {proof:#}"
+    );
+}
+
+#[test]
+fn proof_rejects_same_line_native_role_and_aria_labelledby_on_different_elements() {
+    assert_no_export_dialog_role_name_proof(
+        r#"export function ExportDialog() {
+  return <><div role="dialog"></div><section aria-labelledby="export-title"><h2 id="export-title">Export</h2></section></>;
+}
+"#,
+        None,
+        "native dialog proof must require role and aria-labelledby on the same opening tag",
+    );
+}
+
+#[test]
+fn proof_rejects_same_line_component_contract_split_across_sibling_elements() {
+    assert_no_export_dialog_role_name_proof(
+        r#"import { Dialog } from '../../design/dialog';
+
+export function ExportDialog() {
+  return <Dialog labelledBy="export-title"><h2 id="export-title">Export</h2></Dialog>;
+}
+"#,
+        Some(
+            r#"export function Dialog({ labelledBy, children }) {
+  return <><div role="dialog"></div><section aria-labelledby={labelledBy}>{children}</section></>;
+}
+"#,
+        ),
+        "custom component contract must require role and aria-labelledby on the same opening tag",
+    );
+}
+
+#[test]
+fn proof_rejects_same_line_self_closing_label_text_from_sibling() {
+    assert_no_export_dialog_role_name_proof(
+        r#"export function ExportDialog() {
+  return <div role="dialog" aria-labelledby="export-title"><h2 id="export-title" /><p>Export</p></div>;
+}
+"#,
+        None,
+        "self-closing labelled element must not capture sibling text on the same line",
+    );
+}
+
+#[test]
+fn proof_rejects_dialog_label_from_unused_same_file_component() {
+    assert_no_export_dialog_role_name_proof(
+        r#"function UnusedExportTitle() {
+  return <h2 id="export-title">Export</h2>;
+}
+
+export function ExportDialog() {
+  return (
+    <div role="dialog" aria-labelledby="export-title">
+      <p>No proven label is rendered in this dialog subtree.</p>
+    </div>
+  );
+}
+"#,
+        None,
+        "dialog accessible-name proof must not use labels from unused same-file components",
+    );
+}
+
+#[test]
+fn proof_rejects_dialog_duplicate_labelledby_targets() {
+    assert_no_export_dialog_role_name_proof(
+        r#"export function ExportDialog() {
+  return (
+    <div role="dialog" aria-labelledby="export-title">
+      <h2 id="export-title">Import</h2>
+      <h2 id="export-title">Export</h2>
+    </div>
+  );
+}
+"#,
+        None,
+        "duplicate aria-labelledby targets must fail closed instead of choosing one label",
+    );
+}
+
+#[test]
+fn proof_rejects_dialog_label_inside_jsx_control_flow_expression() {
+    assert_no_export_dialog_role_name_proof(
+        r#"export function ExportDialog() {
+  return (
+    <div role="dialog" aria-labelledby="export-title">
+      {false && <h2 id="export-title">Export</h2>}
+    </div>
+  );
+}
+"#,
+        None,
+        "dialog accessible-name proof must not trust labels hidden inside JSX control-flow expressions",
+    );
+}
+
+#[test]
+fn proof_rejects_dialog_duplicate_role_attr_override() {
+    assert_no_export_dialog_role_name_proof(
+        r#"export function ExportDialog() {
+  return (
+    <div role="dialog" role="presentation" aria-labelledby="export-title">
+      <h2 id="export-title">Export</h2>
+    </div>
+  );
+}
+"#,
+        None,
+        "duplicate role attrs must fail closed instead of trusting the first normalized role",
+    );
+}
+
+#[test]
+fn proof_rejects_dialog_duplicate_aria_labelledby_attr_override() {
+    assert_no_export_dialog_role_name_proof(
+        r#"export function ExportDialog() {
+  return (
+    <div role="dialog" aria-labelledby="missing export-title" aria-labelledby="export-title">
+      <h2 id="export-title">Export</h2>
+    </div>
+  );
+}
+"#,
+        None,
+        "duplicate aria-labelledby attrs must fail closed even when only one value is valid",
+    );
+}
+
+#[test]
+fn proof_rejects_dialog_duplicate_self_closing_label_target() {
+    assert_no_export_dialog_role_name_proof(
+        r#"export function ExportDialog() {
+  return (
+    <div role="dialog" aria-labelledby="export-title">
+      <h2 id="export-title" />
+      <h2 id="export-title">Export</h2>
+    </div>
+  );
+}
+"#,
+        None,
+        "duplicate label targets must fail closed even when one target is self-closing",
+    );
+}
+
+#[test]
+fn proof_rejects_custom_dialog_label_from_unused_same_file_component() {
+    assert_no_export_dialog_role_name_proof(
+        r#"import { Dialog } from '../../design/dialog';
+
+function UnusedExportTitle() {
+  return <h2 id="export-title">Export</h2>;
+}
+
+export function ExportDialog() {
+  return (
+    <Dialog labelledBy="export-title">
+      <p>No proven label is rendered in this dialog subtree.</p>
+    </Dialog>
+  );
+}
+"#,
+        Some(
+            r#"export function Dialog({ labelledBy, children }) {
+  return <div role="dialog" aria-labelledby={labelledBy}>{children}</div>;
+}
+"#,
+        ),
+        "custom dialog proof must not use labels from unused same-file components",
+    );
+}
+
+#[test]
+fn proof_rejects_dialog_markup_inside_template_string() {
+    assert_no_export_dialog_role_name_proof(
+        r#"const staticPreview = `<div role="dialog" aria-labelledby="export-title"><h2 id="export-title">Export</h2></div>`;
+
+export function ExportDialog() {
+  return null;
+}
+"#,
+        None,
+        "template-string markup must not create structural dialog accessible-name proof",
+    );
+}
+
+#[test]
+fn proof_rejects_custom_dialog_contract_from_template_string_render() {
+    assert_no_export_dialog_role_name_proof(
+        r#"import { Dialog } from '../../design/dialog';
+
+export function ExportDialog() {
+  return (
+    <Dialog labelledBy="export-title">
+      <h2 id="export-title">Export</h2>
+    </Dialog>
+  );
+}
+"#,
+        Some(
+            r#"export function Dialog({ labelledBy, children }) {
+  return `<div role="dialog" aria-labelledby="${labelledBy}">${children}</div>`;
+}
+"#,
+        ),
+        "component template-string render must not create structural dialog contract proof",
+    );
+}
+
+#[test]
+fn proof_rejects_custom_dialog_lowercase_labelledby_prop() {
+    assert_no_export_dialog_role_name_proof(
+        r#"import { Dialog } from '../../design/dialog';
+
+export function ExportDialog() {
+  return (
+    <Dialog labelledby="export-title">
+      <h2 id="export-title">Export</h2>
+    </Dialog>
+  );
+}
+"#,
+        Some(
+            r#"export function Dialog({ labelledBy, children }) {
+  return <div role="dialog" aria-labelledby={labelledBy}>{children}</div>;
+}
+"#,
+        ),
+        "custom component labelledBy prop proof must be case-sensitive",
+    );
+}
+
+#[test]
+fn proof_rejects_custom_dialog_labelledby_overridden_by_spread() {
+    assert_no_export_dialog_role_name_proof(
+        r#"import { Dialog } from '../../design/dialog';
+
+const override = { labelledBy: 'import-title' };
+
+export function ExportDialog() {
+  return (
+    <Dialog labelledBy="export-title" {...override}>
+      <h2 id="export-title">Export</h2>
+      <h2 id="import-title">Import</h2>
+    </Dialog>
+  );
+}
+"#,
+        Some(
+            r#"export function Dialog({ labelledBy, children }) {
+  return <div role="dialog" aria-labelledby={labelledBy}>{children}</div>;
+}
+"#,
+        ),
+        "custom Dialog labelledBy with spread override must fail closed",
+    );
+}
+
+#[test]
+fn proof_rejects_dialog_component_contract_duplicate_aria_labelledby_attr_override() {
+    assert_no_export_dialog_role_name_proof(
+        r#"import { Dialog } from '../../design/dialog';
+
+export function ExportDialog() {
+  return <Dialog labelledBy="export-title"><h2 id="export-title">Export</h2></Dialog>;
+}
+"#,
+        Some(
+            r#"export function Dialog({ labelledBy, children }) {
+  return <div role="dialog" aria-labelledby={labelledBy} aria-labelledby="import-title">{children}</div>;
+}
+"#,
+        ),
+        "custom Dialog contract with duplicate aria-labelledby attrs must fail closed",
+    );
+}
+
+#[test]
+fn proof_rejects_imported_dialog_contract_when_consumer_shadows_jsx_tag() {
+    assert_no_export_dialog_role_name_proof(
+        r#"import { Dialog } from '../../design/dialog';
+
+export function ExportDialog() {
+  const Dialog = ({ children }) => <section>{children}</section>;
+  return <Dialog labelledBy="export-title"><h2 id="export-title">Export</h2></Dialog>;
+}
+"#,
+        Some(
+            r#"export function Dialog({ labelledBy, children }) {
+  return <div role="dialog" aria-labelledby={labelledBy}>{children}</div>;
+}
+"#,
+        ),
+        "local JSX tag shadow must not inherit the imported Dialog contract",
+    );
+}
+
+#[test]
+fn proof_rejects_member_dialog_tag_as_imported_component_contract() {
+    assert_no_export_dialog_role_name_proof(
+        r#"import { Dialog } from '../../design/dialog';
+
+const Other = {
+  Dialog({ labelledBy, children }) {
+    return <section aria-labelledby={labelledBy}>{children}</section>;
+  },
+};
+
+export function ExportDialog() {
+  return (
+    <Other.Dialog labelledBy="export-title">
+      <h2 id="export-title">Export</h2>
+    </Other.Dialog>
+  );
+}
+"#,
+        Some(
+            r#"export function Dialog({ labelledBy, children }) {
+  return <div role="dialog" aria-labelledby={labelledBy}>{children}</div>;
+}
+"#,
+        ),
+        "JSX member tags must not inherit a same-suffix imported component contract",
+    );
+}
+
+#[test]
+fn proof_rejects_alertdialog_source_for_dialog_e2e_role() {
+    assert_no_export_dialog_role_name_proof(
+        r#"export function ExportDialog() {
+  return <div role="alertdialog" aria-labelledby="export-title"><h2 id="export-title">Export</h2></div>;
+}
+"#,
+        None,
+        "alertdialog source role must not satisfy dialog e2e role",
+    );
+}
+
+#[test]
+fn proof_rejects_dialog_source_for_alertdialog_e2e_role() {
+    assert_no_export_role_name_proof(
+        r#"export function ExportDialog() {
+  return <div role="dialog" aria-labelledby="export-title"><h2 id="export-title">Export</h2></div>;
+}
+"#,
+        None,
+        "alertdialog",
+        "dialog source role must not satisfy alertdialog e2e role",
+    );
+}
+
+#[test]
+fn proof_links_alertdialog_source_to_alertdialog_e2e_role() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{
+  "name": "alertdialog-accessible-proof-fixture",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  }
+}
+"#,
+    );
+    write(
+        &repo.path().join("src/features/studio/export-dialog.tsx"),
+        r#"export function ExportDialog() {
+  return <div role="alertdialog" aria-labelledby="export-title"><h2 id="export-title">Export</h2></div>;
+}
+"#,
+    );
+    write(
+        &repo
+            .path()
+            .join("tests/e2e/canvas-blueprint-overlay-workflows.spec.ts"),
+        r#"import { expect, test } from '@playwright/test';
+
+test('command palette opens export alert dialog', async ({ page }) => {
+  await page.goto('/studio');
+  await expect(page.getByRole('alertdialog', { name: 'Export' })).toBeVisible();
+});
+"#,
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "src/features/studio/export-dialog.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        proof["proofs"]
+            .as_array()
+            .expect("proofs")
+            .iter()
+            .any(|surface| surface["path"]
+                == "tests/e2e/canvas-blueprint-overlay-workflows.spec.ts"
+                && surface["evidence"] == "e2e_surface_phrase"),
+        "alertdialog source should link to matching alertdialog e2e role/name proof: {proof:#}"
+    );
+}
+
+#[test]
+fn proof_rejects_dialog_component_local_labelledby_shadow_as_prop_mapping() {
+    assert_no_export_dialog_role_name_proof(
+        r#"import { Dialog } from '../../design/dialog';
+
+export function ExportDialog() {
+  return <Dialog labelledBy="export-title"><h2 id="export-title">Export</h2></Dialog>;
+}
+"#,
+        Some(
+            r#"export function Dialog({ children }) {
+  const labelledBy = 'import-title';
+  return <div role="dialog" aria-labelledby={labelledBy}>{children}</div>;
+}
+"#,
+        ),
+        "local labelledBy binding inside component must not prove caller labelledBy prop mapping",
+    );
+}
+
+#[test]
+fn proof_rejects_getbyrole_name_object_outside_same_call() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{
+  "name": "dialog-playwright-call-scope-fixture",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  }
+}
+"#,
+    );
+    write(
+        &repo.path().join("src/features/studio/export-dialog.tsx"),
+        r#"export function ExportDialog() {
+  return <div role="dialog" aria-labelledby="export-title"><h2 id="export-title">Export</h2></div>;
+}
+"#,
+    );
+    write(
+        &repo
+            .path()
+            .join("tests/e2e/canvas-blueprint-overlay-workflows.spec.ts"),
+        r#"import { expect, test } from '@playwright/test';
+
+test('command palette opens dialog without naming it', async ({ page }) => {
+  const metadata = { name: 'Export' }; await expect(page.getByRole('dialog')).toBeVisible();
+});
+"#,
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "src/features/studio/export-dialog.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        proof["proofs"].as_array().expect("proofs").is_empty(),
+        "getByRole name must belong to the same call options object: {proof:#}"
+    );
+    assert!(
+        !proof["fallback"].as_array().expect("fallback").is_empty(),
+        "without a structural proof, broad fallback must remain visible: {proof:#}"
+    );
+}
+
+#[test]
+fn proof_rejects_getbyrole_inside_string_only_e2e_file() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{
+  "name": "dialog-playwright-string-only-fixture",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  }
+}
+"#,
+    );
+    write(
+        &repo.path().join("src/features/studio/export-dialog.tsx"),
+        r#"export function ExportDialog() {
+  return <div role="dialog" aria-labelledby="export-title"><h2 id="export-title">Export</h2></div>;
+}
+"#,
+    );
+    write(
+        &repo.path().join("tests/e2e/string-only.spec.ts"),
+        r#"import { test } from '@playwright/test';
+
+test('documents the expected dialog assertion', async () => {
+  const docs = "await expect(page.getByRole('dialog', { name: 'Export' })).toBeVisible()";
+});
+"#,
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "src/features/studio/export-dialog.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        proof["proofs"].as_array().expect("proofs").is_empty(),
+        "getByRole inside a string must not become runnable e2e proof: {proof:#}"
+    );
+    assert!(
+        !proof["fallback"].as_array().expect("fallback").is_empty(),
+        "without a structural proof, broad fallback must remain visible: {proof:#}"
+    );
+}
+
+#[test]
+fn proof_rejects_getbyrole_inside_regex_only_e2e_file() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{
+  "name": "dialog-playwright-regex-only-fixture",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  }
+}
+"#,
+    );
+    write(
+        &repo.path().join("src/features/studio/export-dialog.tsx"),
+        r#"export function ExportDialog() {
+  return <div role="dialog" aria-labelledby="export-title"><h2 id="export-title">Export</h2></div>;
+}
+"#,
+    );
+    write(
+        &repo.path().join("tests/e2e/docs.spec.ts"),
+        r#"import { test } from '@playwright/test';
+
+test('documents the expected dialog assertion pattern', async () => {
+  const docs = /page\.getByRole\('dialog', { name: 'Export' }\)/;
+});
+"#,
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "src/features/studio/export-dialog.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        proof["proofs"].as_array().expect("proofs").is_empty(),
+        "getByRole inside a regex literal must not become runnable e2e proof: {proof:#}"
+    );
+    assert!(
+        !proof["fallback"].as_array().expect("fallback").is_empty(),
+        "without a structural proof, broad fallback must remain visible: {proof:#}"
+    );
+}
+
+#[test]
+fn proof_rejects_getbyrole_name_overridden_by_spread() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('opens import dialog at runtime', async ({ page }) => {
+  const metadata = { name: 'Import' };
+  await expect(page.getByRole('dialog', { name: 'Export', ...metadata })).toBeVisible();
+});
+"#,
+        "getByRole options with top-level spread must fail closed",
+    );
+}
+
+#[test]
+fn proof_rejects_getbyrole_duplicate_name_override() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('opens import dialog at runtime', async ({ page }) => {
+  await expect(page.getByRole('dialog', { name: 'Export', name: 'Import' })).toBeVisible();
+});
+"#,
+        "getByRole duplicate name keys must fail closed",
+    );
+}
+
+#[test]
+fn proof_rejects_bare_getbyrole_helper_as_playwright_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { test } from '@playwright/test';
+
+function getByRole(role, options) {
+  return { role, options };
+}
+
+test('helper only documents a role lookup shape', async () => {
+  getByRole('dialog', { name: 'Export' });
+});
+"#,
+        "bare local getByRole helper must not become Playwright proof",
+    );
+}
+
+#[test]
+fn proof_rejects_member_getbyrole_helper_as_playwright_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { test } from '@playwright/test';
+
+const helper = {
+  getByRole(role, options) {
+    return { role, options };
+  },
+};
+
+test('member helper only documents a role lookup shape', async () => {
+  helper.getByRole('dialog', { name: 'Export' });
+});
+"#,
+        "local member getByRole helper must not become Playwright proof",
+    );
+}
+
+#[test]
+fn proof_rejects_shadowed_page_getbyrole_as_playwright_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { test } from '@playwright/test';
+
+test('fake page object only documents a role lookup shape', async ({ page }) => {
+  {
+    const page = {
+      getByRole(role, options) {
+        return { role, options };
+      },
+    };
+    page.getByRole('dialog', { name: 'Export' });
+  }
+  await page.goto('/studio');
+});
+"#,
+        "shadowed local page.getByRole must not become Playwright proof",
+    );
+}
+
+#[test]
+fn proof_rejects_skipped_playwright_test_as_runtime_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { test } from '@playwright/test';
+
+test.skip('skipped export dialog assertion', async ({ page }) => {
+  await page.goto('/studio');
+  await page.getByRole('dialog', { name: 'Export' });
+});
+"#,
+        "test.skip must not become runtime proof because the assertion body does not execute",
+    );
+}
+
+#[test]
+fn proof_rejects_fixme_playwright_test_as_runtime_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { test } from '@playwright/test';
+
+test.fixme('fixme export dialog assertion', async ({ page }) => {
+  await page.goto('/studio');
+  await page.getByRole('dialog', { name: 'Export' });
+});
+"#,
+        "test.fixme must not become runtime proof because the assertion body does not execute",
+    );
+}
+
+#[test]
+fn proof_rejects_bare_lazy_getbyrole_locator_as_runtime_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { test } from '@playwright/test';
+
+test('only creates a lazy locator', async ({ page }) => {
+  await page.goto('/studio');
+  page.getByRole('dialog', { name: 'Export' });
+});
+"#,
+        "bare lazy locator creation must not become runtime proof without assertion or action",
+    );
+}
+
+#[test]
+fn proof_rejects_test_inside_skipped_describe_as_runtime_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { test } from '@playwright/test';
+
+test.describe.skip('skipped dialog group', () => {
+  test('export dialog assertion never runs', async ({ page }) => {
+    await page.goto('/studio');
+    await expect(page.getByRole('dialog', { name: 'Export' })).toBeVisible();
+  });
+});
+"#,
+        "tests inside test.describe.skip must not become runtime proof",
+    );
+}
+
+#[test]
+fn proof_rejects_test_inside_multiline_skipped_describe_as_runtime_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test.describe.skip(
+  'skipped dialog group',
+  () => {
+    test('export dialog assertion never runs', async ({ page }) => {
+      await page.goto('/studio');
+      await expect(page.getByRole('dialog', { name: 'Export' })).toBeVisible();
+    });
+  }
+);
+"#,
+        "tests inside multiline test.describe.skip must not become runtime proof",
+    );
+}
+
+#[test]
+fn proof_rejects_test_inside_multiline_fixme_describe_as_runtime_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test.describe.fixme(
+  'fixme dialog group',
+  function () {
+    test('export dialog assertion never runs', async ({ page }) => {
+      await page.goto('/studio');
+      await expect(page.getByRole('dialog', { name: 'Export' })).toBeVisible();
+    });
+  }
+);
+"#,
+        "tests inside multiline test.describe.fixme must not become runtime proof",
+    );
+}
+
+#[test]
+fn proof_rejects_getbyrole_inside_unexecuted_if_branch_as_runtime_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('conditionally checks export dialog', async ({ page }) => {
+  await page.goto('/studio');
+  if (false) {
+    await expect(page.getByRole('dialog', { name: 'Export' })).toBeVisible();
+  }
+});
+"#,
+        "getByRole inside an unparsed if branch must not become unconditional runtime proof",
+    );
+}
+
+#[test]
+fn proof_rejects_getbyrole_inside_unbraced_if_branch_as_runtime_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('conditionally checks export dialog without braces', async ({ page }) => {
+  await page.goto('/studio');
+  if (false)
+    await expect(page.getByRole('dialog', { name: 'Export' })).toBeVisible();
+});
+"#,
+        "getByRole inside an unbraced if branch must not become unconditional runtime proof",
+    );
+}
+
+#[test]
+fn proof_rejects_getbyrole_after_runtime_test_skip_as_runtime_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('skips at runtime before assertion', async ({ page }) => {
+  await page.goto('/studio');
+  test.skip(true, 'skip on this platform');
+  await expect(page.getByRole('dialog', { name: 'Export' })).toBeVisible();
+});
+"#,
+        "getByRole after runtime test.skip must not become executed proof",
+    );
+}
+
+#[test]
+fn proof_rejects_getbyrole_after_return_as_runtime_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('returns before assertion', async ({ page }) => {
+  await page.goto('/studio');
+  return;
+  await expect(page.getByRole('dialog', { name: 'Export' })).toBeVisible();
+});
+"#,
+        "getByRole after return must not become executed proof",
+    );
+}
+
+#[test]
+fn proof_rejects_getbyrole_after_throw_as_runtime_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('throws before assertion', async ({ page }) => {
+  await page.goto('/studio');
+  throw new Error('stop');
+  await expect(page.getByRole('dialog', { name: 'Export' })).toBeVisible();
+});
+"#,
+        "getByRole after throw must not become executed proof",
+    );
+}
+
+#[test]
+fn proof_rejects_getbyrole_after_same_line_return_as_runtime_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('returns before same-line assertion', async ({ page }) => {
+  await page.goto('/studio');
+  return; await expect(page.getByRole('dialog', { name: 'Export' })).toBeVisible();
+});
+"#,
+        "getByRole after a same-line return terminator must not become executed proof",
+    );
+}
+
+#[test]
+fn proof_rejects_unscoped_getbyrole_after_regex_brace_in_finished_test() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('real unrelated test with a regex brace', async ({ page }) => {
+  const regex = /{/;
+  await page.goto('/real');
+});
+
+await expect(page.getByRole('dialog', { name: 'Export' })).toBeVisible();
+"#,
+        "regex braces inside a finished test must not keep Playwright page scope open for later top-level code",
+    );
+}
+
+#[test]
+fn proof_rejects_unscoped_getbyrole_after_slash_regex_in_one_line_finished_test() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('real unrelated test with a slash regex', async ({ page }) => { const slash = /\//; await page.goto('/real'); });
+
+await expect(page.getByRole('dialog', { name: 'Export' })).toBeVisible();
+"#,
+        "regex slash literals inside a one-line finished test must not hide the closing Playwright scope",
+    );
+}
+
+#[test]
+fn proof_rejects_negative_visibility_assertion_as_runtime_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('export dialog is absent', async ({ page }) => {
+  await page.goto('/studio');
+  await expect(page.getByRole('dialog', { name: 'Export' })).not.toBeVisible();
+});
+"#,
+        "negative visibility assertion must not prove the dialog runtime surface",
+    );
+}
+
+#[test]
+fn proof_rejects_negative_visibility_assertion_on_assigned_locator() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('export dialog is absent through assigned locator', async ({ page }) => {
+  await page.goto('/studio');
+  const exportDialog = page.getByRole('dialog', { name: 'Export' });
+  await expect(exportDialog).not.toBeVisible();
+});
+"#,
+        "negative assertion on assigned locator must not prove the dialog runtime surface",
+    );
+}
+
+#[test]
+fn proof_rejects_bare_expect_getbyrole_as_runtime_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('passes locator to expect without matcher', async ({ page }) => {
+  await page.goto('/studio');
+  await expect(page.getByRole('dialog', { name: 'Export' }));
+});
+"#,
+        "bare expect(getByRole) without positive matcher must not become runtime proof",
+    );
+}
+
+#[test]
+fn proof_rejects_bare_expect_assigned_getbyrole_as_runtime_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('passes assigned locator to expect without matcher', async ({ page }) => {
+  await page.goto('/studio');
+  const exportDialog = page.getByRole('dialog', { name: 'Export' });
+  await expect(exportDialog);
+});
+"#,
+        "bare expect(assigned locator) without positive matcher must not become runtime proof",
+    );
+}
+
+#[test]
+fn proof_rejects_unawaited_expect_getbyrole_as_runtime_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('does not await the locator assertion', async ({ page }) => {
+  await page.goto('/studio');
+  expect(page.getByRole('dialog', { name: 'Export' })).toBeVisible();
+});
+"#,
+        "unawaited expect(getByRole).matcher must not become runtime proof",
+    );
+}
+
+#[test]
+fn proof_rejects_unawaited_expect_assigned_getbyrole_as_runtime_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('does not await the assigned locator assertion', async ({ page }) => {
+  await page.goto('/studio');
+  const exportDialog = page.getByRole('dialog', { name: 'Export' });
+  expect(exportDialog).toBeVisible();
+});
+"#,
+        "unawaited expect(assigned locator).matcher must not become runtime proof",
+    );
+}
+
+#[test]
+fn proof_rejects_unawaited_getbyrole_action_as_runtime_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('does not await the locator action', async ({ page }) => {
+  await page.goto('/studio');
+  page.getByRole('dialog', { name: 'Export' }).click();
+});
+"#,
+        "unawaited getByRole action must not become runtime proof",
+    );
+}
+
+#[test]
+fn proof_rejects_unawaited_expect_after_unrelated_same_line_await() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('awaits navigation but not the locator assertion', async ({ page }) => {
+  await page.goto('/studio'); expect(page.getByRole('dialog', { name: 'Export' })).toBeVisible();
+});
+"#,
+        "an unrelated earlier await on the same line must not govern a later expect(getByRole)",
+    );
+}
+
+#[test]
+fn proof_rejects_unawaited_action_after_unrelated_same_line_await() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('awaits navigation but not the locator action', async ({ page }) => {
+  await page.goto('/studio'); page.getByRole('dialog', { name: 'Export' }).click();
+});
+"#,
+        "an unrelated earlier await on the same line must not govern a later getByRole action",
+    );
+}
+
+#[test]
+fn proof_rejects_unawaited_expect_after_logical_same_statement_await() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('awaits the left side but not the locator assertion', async ({ page }) => {
+  await page.goto('/studio') && expect(page.getByRole('dialog', { name: 'Export' })).toBeVisible();
+});
+"#,
+        "await on the left side of a logical expression must not govern a later expect(getByRole)",
+    );
+}
+
+#[test]
+fn proof_rejects_unawaited_action_after_logical_same_statement_await() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('awaits the left side but not the locator action', async ({ page }) => {
+  await page.goto('/studio') && page.getByRole('dialog', { name: 'Export' }).click();
+});
+"#,
+        "await on the left side of a logical expression must not govern a later getByRole action",
+    );
+}
+
+#[test]
+fn proof_rejects_unawaited_expect_after_parenthesized_logical_await() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('awaits a parenthesized expression that skips the assertion', async ({ page }) => {
+  await (false && expect(page.getByRole('dialog', { name: 'Export' })).toBeVisible());
+});
+"#,
+        "await on a parenthesized logical expression must not prove a branch-gated expect(getByRole)",
+    );
+}
+
+#[test]
+fn proof_rejects_unawaited_action_after_parenthesized_logical_await() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('awaits a parenthesized expression that skips the action', async ({ page }) => {
+  await (false && page.getByRole('dialog', { name: 'Export' }).click());
+});
+"#,
+        "await on a parenthesized logical expression must not prove a branch-gated getByRole action",
+    );
+}
+
+#[test]
+fn proof_rejects_assigned_locator_substring_expect_match_as_runtime_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('asserts a different locator with a similar name', async ({ page }) => {
+  await page.goto('/studio');
+  const exportDialog = page.getByRole('dialog', { name: 'Export' });
+  const otherexportDialog = page.locator('.unrelated-widget');
+  await expect(otherexportDialog).toBeVisible();
+});
+"#,
+        "assigned locator proof must require the exact expect argument, not substring matching",
+    );
+}
+
+#[test]
+fn proof_rejects_member_assignment_as_pending_local_locator_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('asserts a local locator after assigning a member locator', async ({ page }) => {
+  await page.goto('/studio');
+  const holder = {};
+  holder.exportDialog = page.getByRole('dialog', { name: 'Export' });
+  const exportDialog = page.locator('.unrelated-widget');
+  await expect(exportDialog).toBeVisible();
+});
+"#,
+        "member assignment must not create pending proof for a same-suffix local identifier",
+    );
+}
+
+#[test]
+fn proof_rejects_reassigned_pending_locator_as_runtime_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('reassigns the pending locator before asserting it', async ({ page }) => {
+  await page.goto('/studio');
+  let exportDialog = page.getByRole('dialog', { name: 'Export' });
+  exportDialog = page.locator('.unrelated-widget');
+  await expect(exportDialog).toBeVisible();
+});
+"#,
+        "pending assigned locator proof must clear when the exact local binding is reassigned",
+    );
+}
+
+#[test]
+fn proof_rejects_local_fake_test_page_fixture_as_playwright_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"const test = (name, callback) => callback({ page: {
+  getByRole(role, options) {
+    return { role, options };
+  },
+} });
+
+test('fake local test callback only documents a role lookup shape', async ({ page }) => {
+  page.getByRole('dialog', { name: 'Export' });
+});
+"#,
+        "local fake test callback must not establish Playwright page fixture provenance",
+    );
+}
+
+#[test]
+fn proof_rejects_nested_page_param_shadow_as_playwright_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { test } from '@playwright/test';
+
+test('nested callback page object only documents a role lookup shape', async ({ page }) => {
+  const items = [{
+    getByRole(role, options) {
+      return { role, options };
+    },
+  }];
+  items.map((page) => page.getByRole('dialog', { name: 'Export' }));
+});
+"#,
+        "nested page callback parameter must shadow the Playwright fixture for proof extraction",
+    );
+}
+
+#[test]
+fn proof_rejects_getbyrole_inside_uninvoked_nested_helper_as_runtime_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('helper body is never invoked', async ({ page }) => {
+  function helper() {
+    page.getByRole('dialog', { name: 'Export' });
+  }
+  await page.goto('/studio');
+});
+"#,
+        "uninvoked nested function body must not become runtime proof",
+    );
+}
+
+#[test]
+fn proof_rejects_getbyrole_inside_uninvoked_multiline_function_helper_as_runtime_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('helper body is never invoked', async ({ page }) => {
+  function helper()
+  {
+    page.getByRole('dialog', { name: 'Export' }).click();
+  }
+  await page.goto('/studio');
+});
+"#,
+        "uninvoked multiline function helper body must not become runtime proof",
+    );
+}
+
+#[test]
+fn proof_rejects_getbyrole_inside_uninvoked_arrow_helper_as_runtime_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('arrow helper body is never invoked', async ({ page }) => {
+  const helper = () => {
+    page.getByRole('dialog', { name: 'Export' });
+  };
+  await page.goto('/studio');
+});
+"#,
+        "uninvoked nested arrow body must not become runtime proof",
+    );
+}
+
+#[test]
+fn proof_rejects_getbyrole_inside_uninvoked_expression_arrow_helper_as_runtime_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('expression arrow helper is never invoked', async ({ page }) => {
+  const openDialog = () => page.getByRole('dialog', { name: 'Export' }).click();
+  await page.goto('/studio');
+});
+"#,
+        "uninvoked expression-bodied arrow helper must not become runtime proof",
+    );
+}
+
+#[test]
+fn proof_rejects_getbyrole_inside_uninvoked_multiline_expression_arrow_helper_as_runtime_evidence()
+{
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('multiline expression arrow helper is never invoked', async ({ page }) => {
+  const openDialog = () =>
+    page.getByRole('dialog', { name: 'Export' }).click();
+  await page.goto('/studio');
+});
+"#,
+        "uninvoked multiline expression-bodied arrow helper must not become runtime proof",
+    );
+}
+
+#[test]
+fn proof_rejects_getbyrole_inside_uninvoked_method_helper_as_runtime_evidence() {
+    assert_no_export_dialog_role_name_proof_with_e2e_source(
+        r#"import { expect, test } from '@playwright/test';
+
+test('method helper body is never invoked', async ({ page }) => {
+  const helpers = {
+    openDialog() {
+      page.getByRole('dialog', { name: 'Export' });
+    },
+  };
+  await page.goto('/studio');
+});
+"#,
+        "uninvoked nested method body must not become runtime proof",
+    );
+}
+
+#[test]
+fn proof_rejects_getbyrole_nested_metadata_name_as_role_name() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{
+  "name": "dialog-playwright-nested-options-fixture",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  }
+}
+"#,
+    );
+    write(
+        &repo.path().join("src/features/studio/export-dialog.tsx"),
+        r#"export function ExportDialog() {
+  return <div role="dialog" aria-labelledby="export-title"><h2 id="export-title">Export</h2></div>;
+}
+"#,
+    );
+    write(
+        &repo
+            .path()
+            .join("tests/e2e/canvas-blueprint-overlay-workflows.spec.ts"),
+        r#"import { expect, test } from '@playwright/test';
+
+test('command palette opens unnamed dialog with metadata', async ({ page }) => {
+  await expect(page.getByRole('dialog', { metadata: { name: 'Export' } })).toBeVisible();
+});
+"#,
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "src/features/studio/export-dialog.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        proof["proofs"].as_array().expect("proofs").is_empty(),
+        "getByRole name must be a top-level options key, not nested metadata: {proof:#}"
+    );
+    assert!(
+        !proof["fallback"].as_array().expect("fallback").is_empty(),
+        "without a structural proof, broad fallback must remain visible: {proof:#}"
+    );
+}
+
+#[test]
+fn proof_rejects_dialog_component_nested_helper_labelledby_param_as_prop_mapping() {
+    assert_no_export_dialog_role_name_proof(
+        r#"import { Dialog } from '../../design/dialog';
+
+export function ExportDialog() {
+  return <Dialog labelledBy="export-title"><h2 id="export-title">Export</h2></Dialog>;
+}
+"#,
+        Some(
+            r#"export function Dialog({ children }) {
+  function helper({ labelledBy }) {
+    return labelledBy;
+  }
+  return <div role="dialog" aria-labelledby={labelledBy}>{children}</div>;
+}
+"#,
+        ),
+        "nested helper params must not prove the exported component labelledBy prop mapping",
+    );
+}
+
+#[test]
+fn proof_rejects_dialog_contract_from_unused_nested_helper_jsx() {
+    assert_no_export_dialog_role_name_proof(
+        r#"import { Dialog } from '../../design/dialog';
+
+export function ExportDialog() {
+  return <Dialog labelledBy="export-title"><h2 id="export-title">Export</h2></Dialog>;
+}
+"#,
+        Some(
+            r#"export function Dialog({ labelledBy, children }) {
+  function helper() {
+    return <div role="dialog" aria-labelledby={labelledBy}>{children}</div>;
+  }
+  return <section>{children}</section>;
+}
+"#,
+        ),
+        "unused nested helper JSX must not prove the component rendered dialog contract",
+    );
+}
+
+#[test]
+fn proof_rejects_arrow_component_nested_helper_params_as_own_labelledby_prop() {
+    assert_no_export_dialog_role_name_proof(
+        r#"import { Dialog } from '../../design/dialog';
+
+export function ExportDialog() {
+  return <Dialog labelledBy="export-title"><h2 id="export-title">Export</h2></Dialog>;
+}
+"#,
+        Some(
+            r#"export const Dialog = () => {
+  function helper({ labelledBy }) {
+    return <div role="dialog" aria-labelledby={labelledBy}>Export</div>;
+  }
+  return <section>Export</section>;
+};
+"#,
+        ),
+        "nested helper params inside arrow component must not become the component prop list",
+    );
+}
+
+#[test]
+fn proof_rejects_object_literal_export_with_render_helper_as_component_contract() {
+    assert_no_export_dialog_role_name_proof(
+        r#"import { Dialog } from '../../design/dialog';
+
+export function ExportDialog() {
+  return <Dialog labelledBy="export-title"><h2 id="export-title">Export</h2></Dialog>;
+}
+"#,
+        Some(
+            r#"export const Dialog = {
+  render: function helper({ labelledBy, children }) {
+    return <div role="dialog" aria-labelledby={labelledBy}>{children}</div>;
+  }
+};
+"#,
+        ),
+        "object literal render helpers must not prove an exported component contract",
+    );
+}
+
+#[test]
+fn proof_rejects_dialog_component_data_contract_string_as_aria_forwarding() {
+    assert_no_export_dialog_role_name_proof(
+        r#"import { Dialog } from '../../design/dialog';
+
+export function ExportDialog() {
+  return <Dialog labelledBy="export-title"><h2 id="export-title">Export</h2></Dialog>;
+}
+"#,
+        Some(
+            r#"export function Dialog({ labelledBy, children }) {
+  return <div role="dialog" data-contract="aria-labelledby={labelledBy}">{children}</div>;
+}
+"#,
+        ),
+        "string literals containing aria-labelledby={labelledBy} must not prove real aria forwarding",
+    );
+}
+
+#[test]
+fn proof_rejects_nested_config_labelledby_as_direct_component_prop_mapping() {
+    assert_no_export_dialog_role_name_proof(
+        r#"import { Dialog } from '../../design/dialog';
+
+export function ExportDialog() {
+  return <Dialog labelledBy="export-title"><h2 id="export-title">Export</h2></Dialog>;
+}
+"#,
+        Some(
+            r#"export function Dialog({ config: { labelledBy }, children }) {
+  return <div role="dialog" aria-labelledby={labelledBy}>{children}</div>;
+}
+"#,
+        ),
+        "nested config.labelledBy destructuring must not prove caller labelledBy prop mapping",
+    );
+}
+
+#[test]
+fn proof_rejects_dialog_component_that_forwards_labelledby_but_drops_children() {
+    assert_no_export_dialog_role_name_proof(
+        r#"import { Dialog } from '../../design/dialog';
+
+export function ExportDialog() {
+  return <Dialog labelledBy="export-title"><h2 id="export-title">Export</h2></Dialog>;
+}
+"#,
+        Some(
+            r#"export function Dialog({ open, labelledBy }) {
+  if (!open) return null;
+  return <div role="dialog" aria-labelledby={labelledBy} />;
+}
+"#,
+        ),
+        "labelledBy forwarding without rendering children must not prove caller accessible name",
+    );
+}
+
+#[test]
+fn proof_rejects_dialog_component_contract_with_rendered_spread_override() {
+    assert_no_export_dialog_role_name_proof(
+        r#"import { Dialog } from '../../design/dialog';
+
+export function ExportDialog() {
+  return <Dialog labelledBy="export-title"><h2 id="export-title">Export</h2></Dialog>;
+}
+"#,
+        Some(
+            r#"export function Dialog({ labelledBy, children, ...props }) {
+  return <div role="dialog" aria-labelledby={labelledBy} {...props}>{children}</div>;
+}
+"#,
+        ),
+        "rendered dialog opening with spread props must fail closed for accessible-name proof",
+    );
+}
+
+#[test]
+fn proof_rejects_dialog_component_when_any_labelledby_branch_drops_children() {
+    assert_no_export_dialog_role_name_proof(
+        r#"import { Dialog } from '../../design/dialog';
+
+export function ExportDialog() {
+  return <Dialog labelledBy="export-title" compact><h2 id="export-title">Export</h2></Dialog>;
+}
+"#,
+        Some(
+            r#"export function Dialog({ labelledBy, children, compact }) {
+  if (compact) return <div role="dialog" aria-labelledby={labelledBy} />;
+  return <div role="dialog" aria-labelledby={labelledBy}>{children}</div>;
+}
+"#,
+        ),
+        "one good dialog return must not prove a component whose other labelled dialog branch drops children",
+    );
+}
+
+#[test]
+fn proof_rejects_dialog_component_when_any_render_branch_is_not_dialog() {
+    assert_no_export_dialog_role_name_proof(
+        r#"import { Dialog } from '../../design/dialog';
+
+export function ExportDialog() {
+  return <Dialog inline labelledBy="export-title"><h2 id="export-title">Export</h2></Dialog>;
+}
+"#,
+        Some(
+            r#"export function Dialog({ inline, labelledBy, children }) {
+  if (inline) return <section>{children}</section>;
+  return <div role="dialog" aria-labelledby={labelledBy}>{children}</div>;
+}
+"#,
+        ),
+        "one good dialog return must not prove a component whose other render branch is not a dialog",
+    );
+}
+
+#[test]
+fn proof_rejects_dialog_component_with_braced_non_dialog_if_branch() {
+    assert_no_export_dialog_role_name_proof(
+        r#"import { Dialog } from '../../design/dialog';
+
+export function ExportDialog() {
+  return <Dialog inline labelledBy="export-title"><h2 id="export-title">Export</h2></Dialog>;
+}
+"#,
+        Some(
+            r#"export function Dialog({ inline, labelledBy, children }) {
+  if (inline) {
+    return <section>{children}</section>;
+  }
+  return <div role="dialog" aria-labelledby={labelledBy}>{children}</div>;
+}
+"#,
+        ),
+        "braced conditional render branches must fail closed instead of proving only the later dialog return",
+    );
+}
+
+#[test]
+fn proof_rejects_dialog_component_with_ternary_non_dialog_branch() {
+    assert_no_export_dialog_role_name_proof(
+        r#"import { Dialog } from '../../design/dialog';
+
+export function ExportDialog() {
+  return <Dialog inline labelledBy="export-title"><h2 id="export-title">Export</h2></Dialog>;
+}
+"#,
+        Some(
+            r#"export function Dialog({ inline, labelledBy, children }) {
+  return inline
+    ? <section>{children}</section>
+    : <div role="dialog" aria-labelledby={labelledBy}>{children}</div>;
+}
+"#,
+        ),
+        "ternary render branches must fail closed unless the branch parser can prove every branch",
+    );
+}
+
+#[test]
+fn proof_rejects_dialog_component_with_logical_non_dialog_branch() {
+    assert_no_export_dialog_role_name_proof(
+        r#"import { Dialog } from '../../design/dialog';
+
+export function ExportDialog() {
+  return <Dialog inline labelledBy="export-title"><h2 id="export-title">Export</h2></Dialog>;
+}
+"#,
+        Some(
+            r#"export function Dialog({ inline, labelledBy, children }) {
+  return inline && <section>{children}</section> || <div role="dialog" aria-labelledby={labelledBy}>{children}</div>;
+}
+"#,
+        ),
+        "logical render control-flow must fail closed unless every branch can be proven",
+    );
+}
+
+#[test]
+fn proof_rejects_dialog_component_with_switch_non_dialog_branch() {
+    assert_no_export_dialog_role_name_proof(
+        r#"import { Dialog } from '../../design/dialog';
+
+export function ExportDialog() {
+  return <Dialog mode="inline" labelledBy="export-title"><h2 id="export-title">Export</h2></Dialog>;
+}
+"#,
+        Some(
+            r#"export function Dialog({ mode, labelledBy, children }) {
+  switch (mode) {
+    case 'inline':
+      return <section>{children}</section>;
+    default:
+      break;
+  }
+  return <div role="dialog" aria-labelledby={labelledBy}>{children}</div>;
+}
+"#,
+        ),
+        "switch render control-flow must fail closed instead of trusting only the later dialog return",
+    );
+}
+
+#[test]
+fn proof_rejects_dialog_component_with_opaque_call_around_dialog_jsx() {
+    assert_no_export_dialog_role_name_proof(
+        r#"import { Dialog } from '../../design/dialog';
+
+export function ExportDialog() {
+  return <Dialog labelledBy="export-title"><h2 id="export-title">Export</h2></Dialog>;
+}
+"#,
+        Some(
+            r#"function ignore(node) {
+  return <section>Not a dialog</section>;
+}
+
+export function Dialog({ labelledBy, children }) {
+  return ignore(<div role="dialog" aria-labelledby={labelledBy}>{children}</div>);
+}
+"#,
+        ),
+        "opaque call expressions around dialog JSX must not prove the rendered component contract",
+    );
+}
+
+#[test]
+fn proof_rejects_dialog_component_nested_under_custom_wrapper_boundary() {
+    assert_no_export_dialog_role_name_proof(
+        r#"import { Dialog } from '../../design/dialog';
+
+export function ExportDialog() {
+  return <Dialog labelledBy="export-title"><h2 id="export-title">Export</h2></Dialog>;
+}
+"#,
+        Some(
+            r#"function Wrapper() {
+  return <section>Not a dialog</section>;
+}
+
+export function Dialog({ labelledBy, children }) {
+  return <Wrapper>{<div role="dialog" aria-labelledby={labelledBy}>{children}</div>}</Wrapper>;
+}
+"#,
+        ),
+        "dialog JSX under an opaque custom component boundary must not prove rendered output",
+    );
+}
+
+#[test]
+fn proof_rejects_barrel_star_dialog_when_explicit_reexport_overrides_it() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{
+  "name": "dialog-barrel-conflict-fixture",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  }
+}
+"#,
+    );
+    write(
+        &repo.path().join("src/features/studio/export-dialog.tsx"),
+        r#"import { Dialog } from '../../design/index';
+
+export function ExportDialog() {
+  return <Dialog labelledBy="export-title"><h2 id="export-title">Export</h2></Dialog>;
+}
+"#,
+    );
+    write(
+        &repo.path().join("src/design/index.ts"),
+        r#"export * from './dialog-good';
+export { Dialog } from './dialog-bad';
+"#,
+    );
+    write(
+        &repo.path().join("src/design/dialog-good.tsx"),
+        r#"export function Dialog({ labelledBy, children }) {
+  return <div role="dialog" aria-labelledby={labelledBy}>{children}</div>;
+}
+"#,
+    );
+    write(
+        &repo.path().join("src/design/dialog-bad.tsx"),
+        r#"export function Dialog({ children }) {
+  return <section>{children}</section>;
+}
+"#,
+    );
+    write(
+        &repo
+            .path()
+            .join("tests/e2e/canvas-blueprint-overlay-workflows.spec.ts"),
+        r#"import { expect, test } from '@playwright/test';
+
+test('command palette opens export dialog', async ({ page }) => {
+  await page.goto('/studio');
+  await expect(page.getByRole('dialog', { name: 'Export' })).toBeVisible();
+});
+"#,
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "src/features/studio/export-dialog.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        proof["proofs"].as_array().expect("proofs").is_empty(),
+        "explicit bad re-export must override star-exported good dialog contract: {proof:#}"
+    );
+    assert!(
+        !proof["fallback"].as_array().expect("fallback").is_empty(),
+        "without a structural proof, broad fallback must remain visible: {proof:#}"
+    );
+}
+
+#[test]
+fn proof_rejects_multilabel_aria_labelledby_as_individual_exact_name() {
+    assert_no_export_dialog_role_name_proof(
+        r#"export function ExportDialog() {
+  return (
+    <div role="dialog" aria-labelledby="export-title suffix-title">
+      <h2 id="export-title">Export</h2>
+      <span id="suffix-title">Settings</span>
+    </div>
+  );
+}
+"#,
+        None,
+        "multi-id aria-labelledby must not create separate exact role/name proof surfaces",
+    );
+}
+
+#[test]
+fn proof_rejects_native_label_under_custom_component_boundary() {
+    assert_no_export_dialog_role_name_proof(
+        r#"function Wrapper({ children }) {
+  return null;
+}
+
+export function ExportDialog() {
+  return (
+    <div role="dialog" aria-labelledby="export-title">
+      <Wrapper><h2 id="export-title">Export</h2></Wrapper>
+    </div>
+  );
+}
+"#,
+        None,
+        "native aria-labelledby label under an opaque custom component boundary must not prove the rendered accessible name",
+    );
+}
+
+#[test]
+fn proof_rejects_dialog_component_alias_destructured_labelledby_as_prop_mapping() {
+    assert_no_export_dialog_role_name_proof(
+        r#"import { Dialog } from '../../design/dialog';
+
+export function ExportDialog() {
+  return <Dialog labelledBy="export-title"><h2 id="export-title">Export</h2></Dialog>;
+}
+"#,
+        Some(
+            r#"export function Dialog({ labelledBy: id, children }) {
+  return <div role="dialog" aria-labelledby={labelledBy}>{children}</div>;
+}
+"#,
+        ),
+        "alias destructuring must not prove direct labelledBy prop mapping",
     );
 }
 

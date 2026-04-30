@@ -126,6 +126,7 @@ pub fn load_project_with_cache(
     let packages = detect_packages(&root, &files);
     let ts_path_aliases = detect_ts_path_aliases(&root, &files);
     resolve_imports(&root, &mut files, &packages, &ts_path_aliases);
+    enrich_accessible_surfaces_from_component_contracts(&root, &mut files);
     let reverse_imports = build_reverse_imports(&files);
     let package_edges = detect_package_edges(&root, &files, &packages);
     let scripts = detect_scripts(&root);
@@ -1981,8 +1982,154 @@ fn extract_surfaces(text: &str, ext: &str) -> SurfaceExtraction {
     let mut surfaces = SurfaceExtraction::default();
     let mut in_block_comment = false;
     let mut jsx_visible_text_context = 0usize;
+    let mut js_brace_depth = 0usize;
+    let mut playwright_page_scope_depth: Option<usize> = None;
+    let mut playwright_page_shadowed = false;
+    let mut playwright_nested_body_depth: Option<usize> = None;
+    let mut playwright_nested_expression_arrow = false;
+    let mut playwright_pending_nested_body = false;
+    let mut disabled_playwright_scope_depth: Option<usize> = None;
+    let mut pending_disabled_playwright_describe = false;
+    let mut playwright_control_flow_depth: Option<usize> = None;
+    let mut playwright_pending_control_flow = false;
+    let mut playwright_page_scope_terminated = false;
+    let playwright_test_bindings = playwright_test_bindings(text);
+    let mut shadowed_playwright_test_bindings = BTreeSet::new();
+    let mut pending_playwright_role_names = BTreeMap::new();
     for raw_line in text.lines() {
         let line = strip_js_comments_from_line(raw_line, &mut in_block_comment);
+        for binding in &playwright_test_bindings {
+            if line_declares_local_identifier(&line, binding) {
+                shadowed_playwright_test_bindings.insert(binding.clone());
+            }
+        }
+        let active_playwright_test_bindings = playwright_test_bindings
+            .difference(&shadowed_playwright_test_bindings)
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        if disabled_playwright_scope_depth.is_none()
+            && line_declares_disabled_playwright_describe(&line, &active_playwright_test_bindings)
+        {
+            pending_disabled_playwright_describe = true;
+        }
+        if pending_disabled_playwright_describe
+            && line_starts_playwright_describe_callback_body(&line)
+        {
+            disabled_playwright_scope_depth = Some(js_brace_depth + 1);
+            pending_disabled_playwright_describe = false;
+        }
+        let disabled_playwright_context =
+            disabled_playwright_scope_depth.is_some() || pending_disabled_playwright_describe;
+        let mut pending_control_flow_set_this_line = false;
+        let entered_playwright_page_scope = !disabled_playwright_context
+            && line_declares_playwright_page_fixture(&line, &active_playwright_test_bindings);
+        if entered_playwright_page_scope {
+            playwright_page_scope_depth = Some(js_brace_depth + 1);
+            playwright_page_shadowed = false;
+            playwright_nested_body_depth = None;
+            playwright_nested_expression_arrow = false;
+            playwright_pending_nested_body = false;
+            playwright_control_flow_depth = None;
+            playwright_pending_control_flow = false;
+            playwright_page_scope_terminated = false;
+            pending_playwright_role_names.clear();
+        }
+        if !entered_playwright_page_scope
+            && playwright_page_scope_depth.is_some()
+            && playwright_pending_control_flow
+            && line_opens_pending_control_flow_body(&line)
+        {
+            playwright_control_flow_depth = Some(js_brace_depth + 1);
+            playwright_pending_control_flow = false;
+            pending_playwright_role_names.clear();
+        }
+        if !entered_playwright_page_scope
+            && playwright_page_scope_depth.is_some()
+            && playwright_pending_nested_body
+            && line_opens_pending_nested_body(&line)
+        {
+            playwright_nested_body_depth = Some(js_brace_depth + 1);
+            playwright_pending_nested_body = false;
+            pending_playwright_role_names.clear();
+        }
+        if !entered_playwright_page_scope
+            && playwright_page_scope_depth.is_some()
+            && playwright_nested_body_depth.is_none()
+            && !playwright_nested_expression_arrow
+            && !playwright_pending_nested_body
+            && line_has_arrow_callback(&line)
+        {
+            if line_starts_arrow_callback_body(&line) {
+                playwright_nested_body_depth = Some(js_brace_depth + 1);
+            } else {
+                playwright_nested_expression_arrow = true;
+            }
+            pending_playwright_role_names.clear();
+        }
+        if !entered_playwright_page_scope
+            && playwright_page_scope_depth.is_some()
+            && playwright_nested_body_depth.is_none()
+            && !playwright_nested_expression_arrow
+            && !playwright_pending_nested_body
+            && line_starts_nested_playwright_body(&line)
+        {
+            playwright_nested_body_depth = Some(js_brace_depth + 1);
+            pending_playwright_role_names.clear();
+        }
+        if !entered_playwright_page_scope
+            && playwright_page_scope_depth.is_some()
+            && playwright_nested_body_depth.is_none()
+            && !playwright_nested_expression_arrow
+            && !playwright_pending_nested_body
+            && line_declares_pending_nested_body(&line)
+        {
+            playwright_pending_nested_body = true;
+            pending_playwright_role_names.clear();
+        }
+        if !entered_playwright_page_scope
+            && playwright_page_scope_depth.is_some()
+            && line_declares_local_page_binding(&line)
+        {
+            playwright_page_shadowed = true;
+            pending_playwright_role_names.clear();
+        }
+        if !entered_playwright_page_scope
+            && playwright_page_scope_depth.is_some()
+            && playwright_nested_body_depth.is_none()
+            && !playwright_nested_expression_arrow
+            && !playwright_pending_nested_body
+            && line_starts_unparsed_playwright_control_flow(&line)
+        {
+            if line_opens_control_flow_body(&line) {
+                playwright_control_flow_depth = Some(js_brace_depth + 1);
+                playwright_pending_control_flow = false;
+            } else {
+                playwright_pending_control_flow = true;
+                pending_control_flow_set_this_line = true;
+            }
+            pending_playwright_role_names.clear();
+        }
+        if !entered_playwright_page_scope
+            && !disabled_playwright_context
+            && playwright_page_scope_depth.is_some()
+            && !playwright_page_shadowed
+            && playwright_nested_body_depth.is_none()
+            && !playwright_nested_expression_arrow
+            && !playwright_pending_nested_body
+            && playwright_control_flow_depth.is_none()
+            && !playwright_pending_control_flow
+            && !playwright_page_scope_terminated
+            && !line_has_playwright_scope_terminator_before_role_name_call(
+                &line,
+                &active_playwright_test_bindings,
+            )
+        {
+            add_playwright_role_name_surfaces(
+                &mut surfaces,
+                &mut pending_playwright_role_names,
+                &line,
+            );
+        }
         let has_surface_context = line_has_surface_context(&line);
         if (jsx_visible_text_context > 0 || line_has_jsx_surface_container(&line))
             && let Some(text) = static_jsx_visible_text(&line)
@@ -1996,32 +2143,2006 @@ fn extract_surfaces(text: &str, ext: &str) -> SurfaceExtraction {
         } else {
             jsx_visible_text_context = jsx_visible_text_context.saturating_sub(1);
         }
-        if !has_surface_context {
-            continue;
+        if has_surface_context {
+            let plain_label_context = line_accepts_plain_label_surface(&line);
+            for quoted in quoted_strings(&line) {
+                if quoted_prefix_has_object_key(&quoted.prefix, "name")
+                    && line.to_ascii_lowercase().contains("getbyrole")
+                {
+                    continue;
+                }
+                if quoted_value_is_module_specifier_context(&quoted.prefix) {
+                    continue;
+                }
+                let value = quoted.value;
+                if quoted_prefix_is_page_goto_argument(&quoted.prefix)
+                    && let Some(route) = normalize_route_path(&value)
+                {
+                    surfaces.visited_routes.insert(route);
+                }
+                let structural_literal = surface_literal_is_structural(&value)
+                    || (plain_label_context && surface_label_literal_is_structural(&value));
+                if !structural_literal {
+                    continue;
+                }
+                surfaces.tokens.extend(surface_literal_terms(&value));
+                surfaces
+                    .phrases
+                    .extend(surface_literal_phrases(&value, plain_label_context));
+            }
         }
-        let plain_label_context = line_accepts_plain_label_surface(&line);
-        for quoted in quoted_strings(&line) {
-            if quoted_value_is_module_specifier_context(&quoted.prefix) {
-                continue;
-            }
-            let value = quoted.value;
-            if quoted_prefix_is_page_goto_argument(&quoted.prefix)
-                && let Some(route) = normalize_route_path(&value)
-            {
-                surfaces.visited_routes.insert(route);
-            }
-            let structural_literal = surface_literal_is_structural(&value)
-                || (plain_label_context && surface_label_literal_is_structural(&value));
-            if !structural_literal {
-                continue;
-            }
-            surfaces.tokens.extend(surface_literal_terms(&value));
-            surfaces
-                .phrases
-                .extend(surface_literal_phrases(&value, plain_label_context));
+        if !entered_playwright_page_scope
+            && !disabled_playwright_context
+            && playwright_page_scope_depth.is_some()
+            && playwright_nested_body_depth.is_none()
+            && !playwright_nested_expression_arrow
+            && !playwright_pending_nested_body
+            && line_terminates_playwright_page_scope(&line, &active_playwright_test_bindings)
+        {
+            playwright_page_scope_terminated = true;
+            pending_playwright_role_names.clear();
+        }
+        js_brace_depth = apply_js_brace_delta(js_brace_depth, &line);
+        if disabled_playwright_scope_depth
+            .map(|scope_depth| js_brace_depth < scope_depth)
+            .unwrap_or(false)
+        {
+            disabled_playwright_scope_depth = None;
+            pending_disabled_playwright_describe = false;
+        }
+        if playwright_page_scope_depth
+            .map(|scope_depth| js_brace_depth < scope_depth)
+            .unwrap_or(false)
+        {
+            playwright_page_scope_depth = None;
+            playwright_page_shadowed = false;
+            playwright_nested_body_depth = None;
+            playwright_nested_expression_arrow = false;
+            playwright_pending_nested_body = false;
+            playwright_page_scope_terminated = false;
+            pending_playwright_role_names.clear();
+        }
+        if playwright_nested_body_depth
+            .map(|scope_depth| js_brace_depth < scope_depth)
+            .unwrap_or(false)
+        {
+            playwright_nested_body_depth = None;
+        }
+        if playwright_control_flow_depth
+            .map(|scope_depth| js_brace_depth < scope_depth)
+            .unwrap_or(false)
+        {
+            playwright_control_flow_depth = None;
+        }
+        if playwright_pending_control_flow && !pending_control_flow_set_this_line {
+            playwright_pending_control_flow = false;
+        }
+        if playwright_nested_expression_arrow && line_ends_js_statement(&line) {
+            playwright_nested_expression_arrow = false;
         }
     }
+    merge_surface_extraction(
+        &mut surfaces,
+        accessible_name_surfaces_from_native_labelled_ids(text),
+    );
     surfaces
+}
+
+fn merge_surface_extraction(target: &mut SurfaceExtraction, source: SurfaceExtraction) {
+    target.tokens.extend(source.tokens);
+    target.phrases.extend(source.phrases);
+    target.visited_routes.extend(source.visited_routes);
+}
+
+fn playwright_test_bindings(text: &str) -> BTreeSet<String> {
+    let mut out = BTreeSet::new();
+    for import in extract_js_static_imports(text) {
+        if import.is_type || import.spec != "@playwright/test" {
+            continue;
+        }
+        let Some(clause) = import.clause.as_deref() else {
+            continue;
+        };
+        for (local, imported) in parse_js_import_clause_bindings(clause) {
+            if imported == "test" {
+                out.insert(local);
+            }
+        }
+    }
+    out
+}
+
+fn line_declares_playwright_page_fixture(
+    line: &str,
+    playwright_test_bindings: &BTreeSet<String>,
+) -> bool {
+    if playwright_test_bindings.is_empty() || !line.contains("=>") {
+        return false;
+    }
+    let before_arrow = line.split("=>").next().unwrap_or(line);
+    if !line_has_playwright_test_call(before_arrow, playwright_test_bindings) {
+        return false;
+    }
+    let Some((start, end)) = js_last_balanced_object_span(before_arrow) else {
+        return false;
+    };
+    js_split_top_level_commas(&before_arrow[start + 1..end])
+        .iter()
+        .any(|part| js_destructure_part_is_direct_shorthand_prop(part, "page"))
+}
+
+fn line_declares_disabled_playwright_describe(
+    line: &str,
+    playwright_test_bindings: &BTreeSet<String>,
+) -> bool {
+    playwright_test_bindings.iter().any(|binding| {
+        line_has_playwright_test_method_call(line, binding, &["describe.skip", "describe.fixme"])
+    })
+}
+
+fn line_starts_playwright_describe_callback_body(line: &str) -> bool {
+    line_starts_arrow_callback_body(line) || line_starts_function_callback_body(line)
+}
+
+fn line_starts_nested_playwright_body(line: &str) -> bool {
+    line_starts_function_callback_body(line) || line_starts_method_callback_body(line)
+}
+
+fn line_has_arrow_callback(line: &str) -> bool {
+    let mut search_start = 0usize;
+    while let Some(relative) = line[search_start..].find("=>") {
+        let arrow = search_start + relative;
+        if !js_byte_is_inside_string_or_regex_literal(line, arrow) {
+            return true;
+        }
+        search_start = arrow + 2;
+    }
+    false
+}
+
+fn line_starts_arrow_callback_body(line: &str) -> bool {
+    let mut search_start = 0usize;
+    while let Some(relative) = line[search_start..].find("=>") {
+        let arrow = search_start + relative;
+        if js_byte_is_inside_string_or_regex_literal(line, arrow) {
+            search_start = arrow + 2;
+            continue;
+        }
+        let cursor = skip_js_whitespace(line, arrow + 2);
+        if line[cursor..].starts_with('{') {
+            return true;
+        }
+        search_start = arrow + 2;
+    }
+    false
+}
+
+fn line_ends_js_statement(line: &str) -> bool {
+    line.trim_end().ends_with(';')
+}
+
+fn line_starts_method_callback_body(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    let Some(open) = trimmed.find('(') else {
+        return false;
+    };
+    if js_byte_is_inside_string_or_regex_literal(trimmed, open) {
+        return false;
+    }
+    let before_open = trimmed[..open].trim_end();
+    if before_open.contains(['.', '=']) {
+        return false;
+    }
+    let Some(name) = before_open
+        .rsplit(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '_' || ch == '$'))
+        .find(|part| !part.is_empty())
+    else {
+        return false;
+    };
+    if matches!(
+        name,
+        "if" | "for" | "while" | "switch" | "catch" | "function" | "test" | "expect" | "page"
+    ) {
+        return false;
+    }
+    let Some(close) = js_balanced_call_end(trimmed, open) else {
+        return false;
+    };
+    let cursor = skip_js_whitespace(trimmed, close);
+    trimmed[cursor..].starts_with('{')
+}
+
+fn line_declares_pending_nested_body(line: &str) -> bool {
+    line_declares_pending_function_body(line) || line_declares_pending_method_body(line)
+}
+
+fn line_opens_pending_nested_body(line: &str) -> bool {
+    line.trim_start().starts_with('{')
+}
+
+fn line_opens_pending_control_flow_body(line: &str) -> bool {
+    line.trim_start().starts_with('{')
+}
+
+fn line_opens_control_flow_body(line: &str) -> bool {
+    line.char_indices()
+        .any(|(byte, ch)| ch == '{' && !js_byte_is_inside_string_or_regex_literal(line, byte))
+}
+
+fn line_starts_unparsed_playwright_control_flow(line: &str) -> bool {
+    let mut trimmed = line.trim_start();
+    while let Some(rest) = trimmed.strip_prefix('}') {
+        trimmed = rest.trim_start();
+    }
+    for keyword in [
+        "if", "else", "for", "while", "switch", "try", "catch", "finally", "do",
+    ] {
+        if let Some(rest) = trimmed.strip_prefix(keyword)
+            && rest
+                .chars()
+                .next()
+                .map(|ch| ch.is_whitespace() || matches!(ch, '(' | '{'))
+                .unwrap_or(true)
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn line_has_playwright_scope_terminator_before_role_name_call(
+    line: &str,
+    playwright_test_bindings: &BTreeSet<String>,
+) -> bool {
+    let Some(call_start) = line.find("getByRole") else {
+        return false;
+    };
+    let prefix = &line[..call_start];
+    if line_declares_runtime_playwright_skip(prefix, playwright_test_bindings) {
+        return true;
+    }
+    let Some(last_semicolon) = prefix.rfind(';') else {
+        return false;
+    };
+    prefix[..last_semicolon]
+        .split(';')
+        .any(js_segment_is_scope_terminator)
+}
+
+fn line_terminates_playwright_page_scope(
+    line: &str,
+    playwright_test_bindings: &BTreeSet<String>,
+) -> bool {
+    line_declares_runtime_playwright_skip(line, playwright_test_bindings)
+        || line.split(';').any(js_segment_is_scope_terminator)
+}
+
+fn line_declares_runtime_playwright_skip(
+    line: &str,
+    playwright_test_bindings: &BTreeSet<String>,
+) -> bool {
+    playwright_test_bindings.iter().any(|binding| {
+        line_has_playwright_test_method_call(line, binding, &["skip", "fixme"])
+            && !line_has_playwright_test_method_call(
+                line,
+                binding,
+                &["describe.skip", "describe.fixme"],
+            )
+    })
+}
+
+fn js_segment_is_scope_terminator(segment: &str) -> bool {
+    let trimmed = segment.trim_start();
+    js_segment_starts_with_keyword(trimmed, "return")
+        || js_segment_starts_with_keyword(trimmed, "throw")
+}
+
+fn js_segment_starts_with_keyword(segment: &str, keyword: &str) -> bool {
+    segment
+        .strip_prefix(keyword)
+        .map(|rest| {
+            rest.chars()
+                .next()
+                .map(|ch| ch.is_whitespace() || ch == ';')
+                .unwrap_or(true)
+        })
+        .unwrap_or(false)
+}
+
+fn line_declares_pending_function_body(line: &str) -> bool {
+    for start in js_keyword_positions(line, "function") {
+        let Some(open) = line[start..].find('(').map(|relative| start + relative) else {
+            continue;
+        };
+        if js_byte_is_inside_string_or_regex_literal(line, open) {
+            continue;
+        }
+        let Some(close) = js_balanced_call_end(line, open) else {
+            continue;
+        };
+        let cursor = skip_js_whitespace(line, close);
+        if !line[cursor..].starts_with('{') && !line[cursor..].contains(';') {
+            return true;
+        }
+    }
+    false
+}
+
+fn line_declares_pending_method_body(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    let Some(open) = trimmed.find('(') else {
+        return false;
+    };
+    if js_byte_is_inside_string_or_regex_literal(trimmed, open) {
+        return false;
+    }
+    let before_open = trimmed[..open].trim_end();
+    if before_open.contains(['.', '=']) {
+        return false;
+    }
+    let Some(name) = before_open
+        .rsplit(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '_' || ch == '$'))
+        .find(|part| !part.is_empty())
+    else {
+        return false;
+    };
+    if matches!(
+        name,
+        "if" | "for" | "while" | "switch" | "catch" | "function" | "test" | "expect" | "page"
+    ) {
+        return false;
+    }
+    let Some(close) = js_balanced_call_end(trimmed, open) else {
+        return false;
+    };
+    let cursor = skip_js_whitespace(trimmed, close);
+    !trimmed[cursor..].starts_with('{') && !trimmed[cursor..].contains(';')
+}
+
+fn line_starts_function_callback_body(line: &str) -> bool {
+    for start in js_keyword_positions(line, "function") {
+        let Some(open) = line[start..].find('(').map(|relative| start + relative) else {
+            continue;
+        };
+        if js_byte_is_inside_string_or_regex_literal(line, open) {
+            continue;
+        }
+        let Some(close) = js_balanced_call_end(line, open) else {
+            continue;
+        };
+        let cursor = skip_js_whitespace(line, close);
+        if line[cursor..].starts_with('{') {
+            return true;
+        }
+    }
+    false
+}
+
+fn line_declares_local_page_binding(line: &str) -> bool {
+    line_declares_local_identifier(line, "page")
+        || line_declares_arrow_param_identifier(line, "page")
+}
+
+fn line_declares_local_identifier(line: &str, ident: &str) -> bool {
+    let trimmed = line.trim_start();
+    if trimmed.starts_with("import ") || trimmed.starts_with("import{") {
+        return false;
+    }
+    ["const", "let", "var", "function", "class"]
+        .iter()
+        .any(|keyword| line_declares_identifier_after_keyword(line, keyword, ident))
+}
+
+fn line_declares_identifier_after_keyword(line: &str, keyword: &str, ident: &str) -> bool {
+    for start in js_keyword_positions(line, keyword) {
+        let mut cursor = skip_js_whitespace(line, start + keyword.len());
+        if line[cursor..].starts_with('{')
+            && let Some(end) = js_balanced_pattern_end(line, cursor)
+        {
+            return js_split_top_level_commas(&line[cursor + 1..end])
+                .iter()
+                .any(|part| js_destructure_part_is_direct_shorthand_prop(part, ident));
+        }
+        if line[cursor..].starts_with(ident)
+            && js_identifier_boundary_after(line, cursor + ident.len())
+        {
+            return true;
+        }
+        if matches!(keyword, "function")
+            && let Some(name) = first_identifier(&line[cursor..])
+            && name != ident
+        {
+            cursor += name.len();
+            cursor = skip_js_whitespace(line, cursor);
+            if line[cursor..].starts_with('(')
+                && let Some(end) = js_balanced_call_end(line, cursor)
+            {
+                return js_param_list_contains_direct_identifier(&line[cursor + 1..end - 1], ident);
+            }
+        }
+    }
+    false
+}
+
+fn line_declares_arrow_param_identifier(line: &str, ident: &str) -> bool {
+    let mut search_start = 0usize;
+    while let Some(relative) = line[search_start..].find("=>") {
+        let arrow = search_start + relative;
+        if js_byte_is_inside_string_or_regex_literal(line, arrow) {
+            search_start = arrow + 2;
+            continue;
+        }
+        if arrow_params_contain_identifier(&line[..arrow], ident) {
+            return true;
+        }
+        search_start = arrow + 2;
+    }
+    false
+}
+
+fn arrow_params_contain_identifier(before_arrow: &str, ident: &str) -> bool {
+    let trimmed = before_arrow.trim_end();
+    if let Some(close) = trimmed.rfind(')')
+        && close + 1 == trimmed.len()
+    {
+        let Some(open) = matching_open_paren(trimmed, close) else {
+            return false;
+        };
+        return js_param_list_contains_direct_identifier(&trimmed[open + 1..close], ident);
+    }
+    trimmed
+        .rsplit(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '_' || ch == '$'))
+        .find(|part| !part.is_empty())
+        .map(|part| part == ident)
+        .unwrap_or(false)
+}
+
+fn js_param_list_contains_direct_identifier(params: &str, ident: &str) -> bool {
+    js_split_top_level_commas(params).iter().any(|part| {
+        let trimmed = part.trim();
+        trimmed == ident
+            || (trimmed.starts_with('{')
+                && trimmed.ends_with('}')
+                && js_split_top_level_commas(&trimmed[1..trimmed.len().saturating_sub(1)])
+                    .iter()
+                    .any(|part| js_destructure_part_is_direct_shorthand_prop(part, ident)))
+    })
+}
+
+fn matching_open_paren(text: &str, close: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    for (byte, ch) in text[..=close].char_indices().rev() {
+        if let Some(active_quote) = quote {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            continue;
+        }
+        match ch {
+            ')' => depth += 1,
+            '(' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return Some(byte);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn js_last_balanced_object_span(value: &str) -> Option<(usize, usize)> {
+    let mut cursor = 0usize;
+    let mut last = None;
+    while cursor < value.len() {
+        let Some((start, end)) = js_first_balanced_object_span(&value[cursor..]) else {
+            break;
+        };
+        last = Some((cursor + start, cursor + end));
+        cursor += end + 1;
+    }
+    last
+}
+
+fn line_has_playwright_test_call(line: &str, playwright_test_bindings: &BTreeSet<String>) -> bool {
+    playwright_test_bindings
+        .iter()
+        .any(|binding| line_has_playwright_test_binding_call(line, binding))
+}
+
+fn line_has_playwright_test_binding_call(line: &str, binding: &str) -> bool {
+    if line_has_playwright_test_method_call(line, binding, &["only"]) {
+        return true;
+    }
+    line_has_playwright_test_direct_call(line, binding)
+}
+
+fn line_has_playwright_test_direct_call(line: &str, binding: &str) -> bool {
+    let mut search_start = 0usize;
+    while let Some(relative) = line[search_start..].find(binding) {
+        let start = search_start + relative;
+        let end = start + binding.len();
+        if js_byte_is_inside_string_or_regex_literal(line, start)
+            || !js_identifier_boundary_before(line, start)
+            || !js_identifier_boundary_after(line, end)
+        {
+            search_start = end;
+            continue;
+        }
+        let cursor = skip_js_whitespace(line, end);
+        if line[cursor..].starts_with('(') {
+            return true;
+        }
+        search_start = end;
+    }
+    false
+}
+
+fn line_has_playwright_test_method_call(line: &str, binding: &str, methods: &[&str]) -> bool {
+    let mut search_start = 0usize;
+    while let Some(relative) = line[search_start..].find(binding) {
+        let start = search_start + relative;
+        let end = start + binding.len();
+        if js_byte_is_inside_string_or_regex_literal(line, start)
+            || !js_identifier_boundary_before(line, start)
+            || !js_identifier_boundary_after(line, end)
+        {
+            search_start = end;
+            continue;
+        }
+        for method_path in methods {
+            let mut cursor = skip_js_whitespace(line, end);
+            let mut matched = true;
+            for segment in method_path.split('.') {
+                if !line[cursor..].starts_with('.') {
+                    matched = false;
+                    break;
+                }
+                cursor = skip_js_whitespace(line, cursor + 1);
+                if !line[cursor..].starts_with(segment)
+                    || !js_identifier_boundary_after(line, cursor + segment.len())
+                {
+                    matched = false;
+                    break;
+                }
+                cursor = skip_js_whitespace(line, cursor + segment.len());
+            }
+            if matched && line[cursor..].starts_with('(') {
+                return true;
+            }
+        }
+        search_start = end;
+    }
+    false
+}
+
+fn apply_js_brace_delta(mut depth: usize, line: &str) -> usize {
+    for (byte, ch) in line.char_indices() {
+        if js_byte_is_inside_string_or_regex_literal(line, byte) {
+            continue;
+        }
+        match ch {
+            '{' => depth += 1,
+            '}' => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+    }
+    depth
+}
+
+fn add_playwright_role_name_surfaces(
+    surfaces: &mut SurfaceExtraction,
+    pending: &mut BTreeMap<String, (String, String)>,
+    line: &str,
+) {
+    let negative_assertion = line_has_negative_playwright_assertion(line);
+    let reassigned_pending = pending
+        .keys()
+        .filter(|local| line_reassigns_pending_locator(line, local))
+        .cloned()
+        .collect::<Vec<_>>();
+    for local in reassigned_pending {
+        pending.remove(&local);
+    }
+    let mut resolved_pending = Vec::new();
+    for (local, (role, name)) in pending.iter() {
+        if line_has_expect_for_identifier(line, local) {
+            if !negative_assertion {
+                add_accessible_role_name_surface(surfaces, role, name);
+            }
+            resolved_pending.push(local.clone());
+        }
+    }
+    for local in resolved_pending {
+        pending.remove(&local);
+    }
+    if negative_assertion {
+        return;
+    }
+    let role_names = playwright_role_name_calls(line);
+    if role_names.is_empty() {
+        return;
+    }
+    if let Some(local) = playwright_role_name_assignment(line) {
+        if let Some((role, name)) = role_names.into_iter().next() {
+            pending.insert(local, (role, name));
+        }
+        return;
+    }
+    let mut proven_role_names = BTreeSet::new();
+    proven_role_names.extend(playwright_role_name_expect_calls(line));
+    proven_role_names.extend(playwright_role_name_action_calls(line));
+    for (role, name) in proven_role_names {
+        add_accessible_role_name_surface(surfaces, &role, &name);
+    }
+}
+
+fn playwright_role_name_calls(line: &str) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    for call in js_call_spans_with_end(line, "getByRole") {
+        if let Some(role_name) = playwright_role_name_from_call(&call.source) {
+            out.push(role_name);
+        }
+    }
+    out
+}
+
+fn playwright_role_name_expect_calls(line: &str) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    for call in js_call_spans_with_end(line, "getByRole") {
+        if !call_is_inside_playwright_expect(line, call.start) {
+            continue;
+        }
+        if let Some(role_name) = playwright_role_name_from_call(&call.source) {
+            out.push(role_name);
+        }
+    }
+    out
+}
+
+fn playwright_role_name_action_calls(line: &str) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    for call in js_call_spans_with_end(line, "getByRole") {
+        if !line_has_await_or_return_before(line, call.start) {
+            continue;
+        }
+        if !line_tail_has_locator_action(line, call.end) {
+            continue;
+        }
+        if let Some(role_name) = playwright_role_name_from_call(&call.source) {
+            out.push(role_name);
+        }
+    }
+    out
+}
+
+fn playwright_role_name_from_call(call: &str) -> Option<(String, String)> {
+    let args = js_top_level_arguments(call);
+    let role = args
+        .first()
+        .and_then(|arg| js_string_literal_value(arg))
+        .and_then(|role| normalize_accessible_role(&role))?;
+    let options = args.get(1)?;
+    let name = js_plain_object_single_string_property_value(options, "name")?;
+    Some((role, name))
+}
+
+fn line_tail_has_locator_action(line: &str, mut cursor: usize) -> bool {
+    cursor = skip_js_whitespace(line, cursor);
+    const ACTIONS: &[&str] = &[
+        "click",
+        "dblclick",
+        "tap",
+        "hover",
+        "fill",
+        "press",
+        "check",
+        "uncheck",
+        "selectOption",
+        "setInputFiles",
+        "dragTo",
+        "focus",
+        "blur",
+    ];
+    for action in ACTIONS {
+        let mut probe = cursor;
+        if !line[probe..].starts_with('.') {
+            continue;
+        }
+        probe = skip_js_whitespace(line, probe + 1);
+        if !line[probe..].starts_with(action)
+            || !js_identifier_boundary_after(line, probe + action.len())
+        {
+            continue;
+        }
+        probe = skip_js_whitespace(line, probe + action.len());
+        if line[probe..].starts_with('(') {
+            return true;
+        }
+    }
+    false
+}
+
+fn call_is_inside_playwright_expect(line: &str, call_start: usize) -> bool {
+    let mut search_start = 0usize;
+    while let Some(relative) = line[search_start..call_start].find("expect") {
+        let expect_start = search_start + relative;
+        let expect_end = expect_start + "expect".len();
+        search_start = expect_end;
+        if js_byte_is_inside_string_or_regex_literal(line, expect_start)
+            || !js_identifier_boundary_before(line, expect_start)
+            || !js_identifier_boundary_after(line, expect_end)
+            || !line_has_await_or_return_before(line, expect_start)
+        {
+            continue;
+        }
+        let mut cursor = skip_js_whitespace(line, expect_end);
+        if line[cursor..].starts_with(".soft") {
+            cursor = skip_js_whitespace(line, cursor + ".soft".len());
+        }
+        if !line[cursor..].starts_with('(') {
+            continue;
+        }
+        let Some(expect_close) = js_balanced_call_end(line, cursor) else {
+            continue;
+        };
+        if call_start > cursor
+            && call_start < expect_close
+            && line_tail_has_positive_expect_matcher(line, expect_close)
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn playwright_role_name_assignment(line: &str) -> Option<String> {
+    let call_start = line.find("getByRole")?;
+    let before_call = &line[..call_start];
+    let eq = before_call.rfind('=')?;
+    simple_local_assignment_lhs(&before_call[..eq])
+}
+
+fn line_reassigns_pending_locator(line: &str, ident: &str) -> bool {
+    if line.contains("getByRole") {
+        return false;
+    }
+    let Some(eq) = first_js_assignment_operator(line) else {
+        return false;
+    };
+    simple_local_assignment_lhs(&line[..eq])
+        .map(|local| local == ident)
+        .unwrap_or(false)
+}
+
+fn first_js_assignment_operator(line: &str) -> Option<usize> {
+    let mut index = 0usize;
+    while let Some(relative) = line[index..].find('=') {
+        let byte = index + relative;
+        index = byte + 1;
+        if js_byte_is_inside_string_or_regex_literal(line, byte) {
+            continue;
+        }
+        let before = line[..byte].chars().next_back();
+        let after = line[byte + 1..].chars().next();
+        if matches!(
+            before,
+            Some('=' | '!' | '<' | '>' | '+' | '-' | '*' | '/' | '%')
+        ) || matches!(after, Some('=' | '>'))
+        {
+            continue;
+        }
+        return Some(byte);
+    }
+    None
+}
+
+fn simple_local_assignment_lhs(left: &str) -> Option<String> {
+    let trimmed = left.trim();
+    for keyword in ["const", "let", "var"] {
+        if let Some(rest) = trimmed.strip_prefix(keyword)
+            && rest
+                .chars()
+                .next()
+                .map(|ch| ch.is_whitespace())
+                .unwrap_or(false)
+        {
+            return simple_identifier_lhs(rest.trim());
+        }
+    }
+    simple_identifier_lhs(trimmed)
+}
+
+fn simple_identifier_lhs(value: &str) -> Option<String> {
+    let ident = first_identifier(value)?;
+    (ident == value.trim()).then_some(ident)
+}
+
+fn line_has_expect_for_identifier(line: &str, ident: &str) -> bool {
+    let mut search_start = 0usize;
+    while let Some(relative) = line[search_start..].find("expect") {
+        let expect_start = search_start + relative;
+        let expect_end = expect_start + "expect".len();
+        search_start = expect_end;
+        if js_byte_is_inside_string_or_regex_literal(line, expect_start)
+            || !js_identifier_boundary_before(line, expect_start)
+            || !js_identifier_boundary_after(line, expect_end)
+            || !line_has_await_or_return_before(line, expect_start)
+        {
+            continue;
+        }
+        let mut cursor = skip_js_whitespace(line, expect_end);
+        if line[cursor..].starts_with(".soft") {
+            cursor = skip_js_whitespace(line, cursor + ".soft".len());
+        }
+        if !line[cursor..].starts_with('(') {
+            continue;
+        }
+        let Some(expect_close) = js_balanced_call_end(line, cursor) else {
+            continue;
+        };
+        let args = js_split_top_level_commas(&line[cursor + 1..expect_close - 1]);
+        if args.first().map(|arg| arg.trim() == ident).unwrap_or(false)
+            && line_tail_has_positive_expect_matcher(line, expect_close)
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn line_tail_has_positive_expect_matcher(line: &str, mut cursor: usize) -> bool {
+    cursor = skip_js_whitespace(line, cursor);
+    if !line[cursor..].starts_with('.') {
+        return false;
+    }
+    cursor = skip_js_whitespace(line, cursor + 1);
+    if line[cursor..].starts_with("not") && js_identifier_boundary_after(line, cursor + "not".len())
+    {
+        return false;
+    }
+    const MATCHERS: &[&str] = &[
+        "toBeVisible",
+        "toBeEnabled",
+        "toBeDisabled",
+        "toBeChecked",
+        "toBeFocused",
+        "toBeInViewport",
+        "toHaveText",
+        "toContainText",
+        "toHaveAttribute",
+        "toHaveCount",
+        "toHaveValue",
+        "toHaveURL",
+        "toHaveTitle",
+        "toHaveClass",
+        "toHaveCSS",
+    ];
+    MATCHERS.iter().any(|matcher| {
+        line[cursor..].starts_with(matcher)
+            && js_identifier_boundary_after(line, cursor + matcher.len())
+            && line[skip_js_whitespace(line, cursor + matcher.len())..].starts_with('(')
+    })
+}
+
+fn line_has_await_or_return_before(line: &str, byte: usize) -> bool {
+    let start = current_js_statement_start(line, byte);
+    let prefix = line[start..byte].trim_start();
+    js_statement_prefix_starts_with_keyword(prefix, "await")
+        || js_statement_prefix_starts_with_keyword(prefix, "return")
+}
+
+fn current_js_statement_start(line: &str, byte: usize) -> usize {
+    let mut start = 0usize;
+    let mut index = 0usize;
+    while index < byte {
+        let Some(ch) = line[index..].chars().next() else {
+            break;
+        };
+        let next = index + ch.len_utf8();
+        if matches!(ch, ';' | ',' | '{' | '}')
+            && !js_byte_is_inside_string_or_regex_literal(line, index)
+        {
+            start = next;
+        }
+        index = next;
+    }
+    start
+}
+
+fn js_statement_prefix_starts_with_keyword(prefix: &str, keyword: &str) -> bool {
+    prefix
+        .strip_prefix(keyword)
+        .map(|rest| {
+            rest.chars()
+                .next()
+                .map(|ch| ch.is_whitespace())
+                .unwrap_or(false)
+                && !js_prefix_has_top_level_runtime_split(rest)
+        })
+        .unwrap_or(false)
+}
+
+fn js_prefix_has_top_level_runtime_split(text: &str) -> bool {
+    let chars: Vec<(usize, char)> = text.char_indices().collect();
+    let mut index = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < chars.len() {
+        let (byte, ch) = chars[index];
+        if let Some(active_quote) = quote {
+            index += 1;
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            index += 1;
+            continue;
+        }
+        if text[byte..].starts_with("&&")
+            || text[byte..].starts_with("||")
+            || text[byte..].starts_with("??")
+            || matches!(ch, '?' | ':')
+        {
+            return true;
+        }
+        index += 1;
+    }
+    false
+}
+
+fn line_has_negative_playwright_assertion(line: &str) -> bool {
+    let compact = line
+        .chars()
+        .filter(|ch| !ch.is_whitespace())
+        .collect::<String>()
+        .to_ascii_lowercase();
+    compact.contains(".not.")
+        || compact.contains("tohavecount(0")
+        || compact.contains("tobehidden(")
+}
+
+struct JsCallSpan {
+    source: String,
+    start: usize,
+    end: usize,
+}
+
+fn js_call_spans_with_end(text: &str, callee: &str) -> Vec<JsCallSpan> {
+    let mut spans = Vec::new();
+    let mut search_start = 0usize;
+    while let Some(relative) = text[search_start..].find(callee) {
+        let callee_start = search_start + relative;
+        let callee_end = callee_start + callee.len();
+        if js_byte_is_inside_string_or_regex_literal(text, callee_start) {
+            search_start = callee_end;
+            continue;
+        }
+        if !js_callee_has_playwright_receiver(text, callee_start) {
+            search_start = callee_end;
+            continue;
+        }
+        if text[..callee_start]
+            .chars()
+            .next_back()
+            .map(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '$')
+            .unwrap_or(false)
+            || text[callee_end..]
+                .chars()
+                .next()
+                .map(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '$')
+                .unwrap_or(false)
+        {
+            search_start = callee_end;
+            continue;
+        }
+        let mut cursor = callee_end;
+        while cursor < text.len() {
+            let Some(ch) = text[cursor..].chars().next() else {
+                break;
+            };
+            if ch.is_whitespace() {
+                cursor += ch.len_utf8();
+            } else {
+                break;
+            }
+        }
+        if !text[cursor..].starts_with('(') {
+            search_start = callee_end;
+            continue;
+        }
+        let Some(end) = js_balanced_call_end(text, cursor) else {
+            search_start = callee_end;
+            continue;
+        };
+        spans.push(JsCallSpan {
+            source: text[callee_start..end].to_string(),
+            start: callee_start,
+            end,
+        });
+        search_start = end;
+    }
+    spans
+}
+
+fn js_callee_has_playwright_receiver(text: &str, callee_start: usize) -> bool {
+    let before = text[..callee_start].trim_end();
+    let Some(receiver) = before.strip_suffix('.') else {
+        return false;
+    };
+    let receiver = receiver.trim_end();
+    js_receiver_ends_with_standalone_page(receiver)
+        || js_receiver_contains_page_method_call(receiver, "locator")
+        || js_receiver_contains_page_method_call(receiver, "frameLocator")
+}
+
+fn js_receiver_ends_with_standalone_page(receiver: &str) -> bool {
+    let Some(start) = receiver.rfind("page") else {
+        return false;
+    };
+    start + "page".len() == receiver.len()
+        && js_identifier_boundary_before(receiver, start)
+        && receiver[..start]
+            .chars()
+            .next_back()
+            .map(|ch| ch != '.')
+            .unwrap_or(true)
+}
+
+fn js_receiver_contains_page_method_call(receiver: &str, method: &str) -> bool {
+    let needle = format!("page.{method}");
+    let mut search_start = 0usize;
+    while let Some(relative) = receiver[search_start..].find(&needle) {
+        let page_start = search_start + relative;
+        if js_identifier_boundary_before(receiver, page_start)
+            && receiver[..page_start]
+                .chars()
+                .next_back()
+                .map(|ch| ch != '.')
+                .unwrap_or(true)
+        {
+            let method_end = page_start + needle.len();
+            let cursor = skip_js_whitespace(receiver, method_end);
+            if receiver[cursor..].starts_with('(')
+                && let Some(call_end) = js_balanced_call_end(receiver, cursor)
+                && skip_js_whitespace(receiver, call_end) == receiver.len()
+            {
+                return true;
+            }
+        }
+        search_start = page_start + needle.len();
+    }
+    false
+}
+
+fn js_byte_is_inside_string_or_regex_literal(text: &str, byte: usize) -> bool {
+    let bytes = text.as_bytes();
+    let mut index = 0usize;
+    let mut prefix = String::new();
+    let mut quote: Option<u8> = None;
+    let mut escaped = false;
+    while index < bytes.len() && index < byte {
+        let byte_value = bytes[index];
+        if let Some(active_quote) = quote {
+            index += 1;
+            if escaped {
+                prefix.push(' ');
+                escaped = false;
+                continue;
+            }
+            if byte_value == b'\\' {
+                escaped = true;
+                prefix.push(' ');
+                continue;
+            }
+            if byte_value == active_quote {
+                quote = None;
+            }
+            prefix.push(' ');
+            continue;
+        }
+        if matches!(byte_value, b'"' | b'\'' | b'`') {
+            quote = Some(byte_value);
+            escaped = false;
+            prefix.push(' ');
+            index += 1;
+            continue;
+        }
+        if byte_value == b'/'
+            && js_regex_literal_can_start(&prefix)
+            && let Some(end) = js_regex_literal_end(bytes, index)
+        {
+            if byte < end {
+                return true;
+            }
+            prefix.push(' ');
+            index = end;
+            continue;
+        }
+        prefix.push(byte_value as char);
+        index += 1;
+    }
+    quote.is_some()
+}
+
+fn js_balanced_call_end(text: &str, open_paren: usize) -> Option<usize> {
+    let chars: Vec<(usize, char)> = text.char_indices().collect();
+    let mut index = chars.iter().position(|(byte, _)| *byte == open_paren)?;
+    let mut paren_depth = 0usize;
+    let mut brace_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < chars.len() {
+        let (byte, ch) = chars[index];
+        index += 1;
+        if let Some(active_quote) = quote {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            continue;
+        }
+        match ch {
+            '(' => paren_depth += 1,
+            ')' => {
+                paren_depth = paren_depth.saturating_sub(1);
+                if paren_depth == 0 && brace_depth == 0 && bracket_depth == 0 {
+                    return Some(byte + ch.len_utf8());
+                }
+            }
+            '{' => brace_depth += 1,
+            '}' => brace_depth = brace_depth.saturating_sub(1),
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.saturating_sub(1),
+            _ => {}
+        }
+    }
+    None
+}
+
+fn js_top_level_arguments(call: &str) -> Vec<String> {
+    let Some(open) = call.find('(') else {
+        return Vec::new();
+    };
+    let Some(close) = js_balanced_call_end(call, open) else {
+        return Vec::new();
+    };
+    if close <= open + 1 {
+        return Vec::new();
+    }
+    js_split_top_level_commas(&call[open + 1..close - 1])
+}
+
+fn js_split_top_level_commas(value: &str) -> Vec<String> {
+    let chars: Vec<(usize, char)> = value.char_indices().collect();
+    let mut args = Vec::new();
+    let mut start = 0usize;
+    let mut index = 0usize;
+    let mut paren_depth = 0usize;
+    let mut brace_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < chars.len() {
+        let (byte, ch) = chars[index];
+        index += 1;
+        if let Some(active_quote) = quote {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            continue;
+        }
+        match ch {
+            '(' => paren_depth += 1,
+            ')' => paren_depth = paren_depth.saturating_sub(1),
+            '{' => brace_depth += 1,
+            '}' => brace_depth = brace_depth.saturating_sub(1),
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.saturating_sub(1),
+            ',' if paren_depth == 0 && brace_depth == 0 && bracket_depth == 0 => {
+                args.push(value[start..byte].trim().to_string());
+                start = byte + ch.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    let tail = value[start..].trim();
+    if !tail.is_empty() {
+        args.push(tail.to_string());
+    }
+    args
+}
+
+fn js_string_literal_value(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    let mut chars = trimmed.char_indices();
+    let (_, quote) = chars.next()?;
+    if !matches!(quote, '"' | '\'' | '`') {
+        return None;
+    }
+    let mut out = String::new();
+    let mut escaped = false;
+    let mut end_byte = None;
+    for (byte, ch) in chars {
+        if escaped {
+            out.push(ch);
+            escaped = false;
+            continue;
+        }
+        if ch == '\\' {
+            escaped = true;
+            continue;
+        }
+        if ch == quote {
+            end_byte = Some(byte + ch.len_utf8());
+            break;
+        }
+        out.push(ch);
+    }
+    end_byte.and_then(|end| trimmed[end..].trim().is_empty().then_some(out))
+}
+
+fn js_top_level_object_string_property_values(object: &str, key: &str) -> Vec<String> {
+    let chars: Vec<(usize, char)> = object.char_indices().collect();
+    let mut values = Vec::new();
+    let mut index = 0usize;
+    let mut object_depth = 0usize;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < chars.len() {
+        let (byte, ch) = chars[index];
+        if let Some(active_quote) = quote {
+            index += 1;
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            index += 1;
+            continue;
+        }
+        match ch {
+            '{' => {
+                object_depth += 1;
+                index += 1;
+            }
+            '}' => {
+                object_depth = object_depth.saturating_sub(1);
+                index += 1;
+            }
+            '(' => {
+                paren_depth += 1;
+                index += 1;
+            }
+            ')' => {
+                paren_depth = paren_depth.saturating_sub(1);
+                index += 1;
+            }
+            '[' => {
+                bracket_depth += 1;
+                index += 1;
+            }
+            ']' => {
+                bracket_depth = bracket_depth.saturating_sub(1);
+                index += 1;
+            }
+            _ => {
+                if object_depth == 1
+                    && paren_depth == 0
+                    && bracket_depth == 0
+                    && object[byte..].starts_with(key)
+                    && js_identifier_boundary_before(object, byte)
+                    && js_identifier_boundary_after(object, byte + key.len())
+                    && let Some((value, next_index)) =
+                        js_string_value_after_object_key(&chars, index, key.len())
+                {
+                    values.push(value);
+                    index = next_index;
+                    continue;
+                }
+                index += 1;
+            }
+        }
+    }
+    values
+}
+
+fn js_plain_object_single_string_property_value(object: &str, key: &str) -> Option<String> {
+    let trimmed = object.trim();
+    if !trimmed.starts_with('{') || !trimmed.ends_with('}') {
+        return None;
+    }
+    if js_top_level_object_has_spread(trimmed) {
+        return None;
+    }
+    let values = js_top_level_object_string_property_values(trimmed, key);
+    match values.as_slice() {
+        [only] => Some(only.clone()),
+        _ => None,
+    }
+}
+
+fn js_top_level_object_has_spread(object: &str) -> bool {
+    let chars: Vec<(usize, char)> = object.char_indices().collect();
+    let mut index = 0usize;
+    let mut object_depth = 0usize;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < chars.len() {
+        let (byte, ch) = chars[index];
+        if let Some(active_quote) = quote {
+            index += 1;
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            index += 1;
+            continue;
+        }
+        if object_depth == 1
+            && paren_depth == 0
+            && bracket_depth == 0
+            && object[byte..].starts_with("...")
+        {
+            return true;
+        }
+        match ch {
+            '{' => object_depth += 1,
+            '}' => object_depth = object_depth.saturating_sub(1),
+            '(' => paren_depth += 1,
+            ')' => paren_depth = paren_depth.saturating_sub(1),
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.saturating_sub(1),
+            _ => {}
+        }
+        index += 1;
+    }
+    false
+}
+
+fn js_string_value_after_object_key(
+    chars: &[(usize, char)],
+    key_index: usize,
+    key_len: usize,
+) -> Option<(String, usize)> {
+    let mut index = key_index + key_len;
+    while index < chars.len() && chars[index].1.is_whitespace() {
+        index += 1;
+    }
+    if chars.get(index).map(|(_, ch)| *ch) != Some(':') {
+        return None;
+    }
+    index += 1;
+    while index < chars.len() && chars[index].1.is_whitespace() {
+        index += 1;
+    }
+    let (_, quote) = *chars.get(index)?;
+    if !matches!(quote, '"' | '\'' | '`') {
+        return None;
+    }
+    let mut value = String::new();
+    let mut escaped = false;
+    index += 1;
+    while index < chars.len() {
+        let (_, ch) = chars[index];
+        index += 1;
+        if escaped {
+            value.push(ch);
+            escaped = false;
+            continue;
+        }
+        if ch == '\\' {
+            escaped = true;
+            continue;
+        }
+        if ch == quote {
+            return Some((value, index));
+        }
+        value.push(ch);
+    }
+    None
+}
+
+fn js_identifier_boundary_before(text: &str, byte: usize) -> bool {
+    text[..byte]
+        .chars()
+        .next_back()
+        .map(|ch| !(ch.is_ascii_alphanumeric() || ch == '_' || ch == '$'))
+        .unwrap_or(true)
+}
+
+fn js_identifier_boundary_after(text: &str, byte: usize) -> bool {
+    text[byte..]
+        .chars()
+        .next()
+        .map(|ch| !(ch.is_ascii_alphanumeric() || ch == '_' || ch == '$'))
+        .unwrap_or(true)
+}
+
+fn quoted_prefix_has_object_key(prefix: &str, key: &str) -> bool {
+    let lower = prefix.to_ascii_lowercase();
+    let Some(before_colon) = lower.trim_end().strip_suffix(':') else {
+        return false;
+    };
+    trailing_js_property_name(before_colon)
+        .map(|name| name == key)
+        .unwrap_or(false)
+}
+
+fn trailing_js_property_name(value: &str) -> Option<String> {
+    value
+        .trim_end()
+        .rsplit(|ch: char| !(ch.is_ascii_alphanumeric() || matches!(ch, '_' | '$' | '-')))
+        .find(|part| !part.is_empty())
+        .map(str::to_ascii_lowercase)
+}
+
+fn accessible_name_surfaces_from_native_labelled_ids(text: &str) -> SurfaceExtraction {
+    let stripped = strip_js_comments_from_text(text);
+    let mut surfaces = SurfaceExtraction::default();
+    for opening in jsx_opening_tag_spans(&stripped) {
+        let Some(role) = jsx_accessible_role_for_opening(&opening.tag, &opening.source) else {
+            continue;
+        };
+        let Some(id) = jsx_single_static_attr_value(&opening.source, "aria-labelledby") else {
+            continue;
+        };
+        let mut roles = BTreeSet::new();
+        roles.insert(role);
+        add_accessible_name_surface_from_label_in_opening_scope(
+            &mut surfaces,
+            &stripped,
+            &opening,
+            &id,
+            &roles,
+        );
+    }
+    surfaces
+}
+
+fn jsx_accessible_role_for_opening(tag: &str, opening: &str) -> Option<String> {
+    if tag != tag.to_ascii_lowercase() {
+        return None;
+    }
+    let mut role_attrs = 0usize;
+    let mut roles = Vec::new();
+    for quoted in quoted_strings(opening) {
+        if quoted_prefix_has_jsx_attr(&quoted.prefix, "role") {
+            role_attrs += 1;
+            if let Some(role) = normalize_accessible_role(&quoted.value) {
+                roles.push(role);
+            }
+        }
+    }
+    if role_attrs > 0 {
+        return match roles.as_slice() {
+            [role] if role_attrs == 1 => Some(role.clone()),
+            _ => None,
+        };
+    }
+    normalize_accessible_role(tag)
+}
+
+fn normalize_accessible_role(value: &str) -> Option<String> {
+    let role = value.trim().to_ascii_lowercase();
+    match role.as_str() {
+        "alertdialog" => Some("alertdialog".to_string()),
+        "dialog" => Some("dialog".to_string()),
+        _ => None,
+    }
+}
+
+fn quoted_prefix_has_jsx_attr(prefix: &str, attr: &str) -> bool {
+    trailing_jsx_attr_name(prefix)
+        .map(|name| name.eq_ignore_ascii_case(attr))
+        .unwrap_or(false)
+}
+
+fn quoted_prefix_has_exact_jsx_attr(prefix: &str, attr: &str) -> bool {
+    trailing_jsx_attr_name(prefix)
+        .map(|name| name == attr)
+        .unwrap_or(false)
+}
+
+fn trailing_jsx_attr_name(prefix: &str) -> Option<String> {
+    let before_eq = prefix.trim_end().strip_suffix('=')?.trim_end();
+    before_eq
+        .rsplit(|ch: char| !(ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | ':' | '$')))
+        .find(|part| !part.is_empty())
+        .map(str::to_string)
+}
+
+#[derive(Debug, Clone)]
+struct JsxOpeningTagSpan {
+    tag: String,
+    raw_tag: String,
+    source: String,
+    start: usize,
+    opening_end: usize,
+    self_closing: bool,
+}
+
+fn jsx_opening_tag_spans(text: &str) -> Vec<JsxOpeningTagSpan> {
+    let chars: Vec<(usize, char)> = text.char_indices().collect();
+    let mut spans = Vec::new();
+    let mut index = 0usize;
+    let mut outer_quote = None;
+    let mut outer_escaped = false;
+    while index < chars.len() {
+        let (start_byte, ch) = chars[index];
+        if let Some(active_quote) = outer_quote {
+            index += 1;
+            if outer_escaped {
+                outer_escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                outer_escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                outer_quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            outer_quote = Some(ch);
+            outer_escaped = false;
+            index += 1;
+            continue;
+        }
+        if ch != '<' {
+            index += 1;
+            continue;
+        }
+        index += 1;
+        while index < chars.len() && chars[index].1.is_whitespace() {
+            index += 1;
+        }
+        if matches!(
+            chars.get(index).map(|(_, ch)| *ch),
+            None | Some('/' | '!' | '?' | '>')
+        ) {
+            continue;
+        }
+        let tag_start_index = index;
+        while index < chars.len() {
+            let (_, ch) = chars[index];
+            if ch.is_ascii_alphanumeric() || matches!(ch, '_' | '$' | '-' | '.') {
+                index += 1;
+            } else {
+                break;
+            }
+        }
+        if index == tag_start_index {
+            continue;
+        }
+        let tag_start_byte = chars[tag_start_index].0;
+        let tag_end_byte = chars[index - 1].0 + chars[index - 1].1.len_utf8();
+        let raw_tag = &text[tag_start_byte..tag_end_byte];
+        let tag = raw_tag.rsplit('.').next().unwrap_or(raw_tag).to_string();
+        let raw_tag = raw_tag.to_string();
+
+        let mut scan = index;
+        let mut quote = None;
+        let mut escaped = false;
+        let mut brace_depth = 0usize;
+        while scan < chars.len() {
+            let (byte, ch) = chars[scan];
+            scan += 1;
+            if let Some(active_quote) = quote {
+                if escaped {
+                    escaped = false;
+                    continue;
+                }
+                if ch == '\\' {
+                    escaped = true;
+                    continue;
+                }
+                if ch == active_quote {
+                    quote = None;
+                }
+                continue;
+            }
+            if matches!(ch, '"' | '\'' | '`') {
+                quote = Some(ch);
+                escaped = false;
+                continue;
+            }
+            if ch == '{' {
+                brace_depth += 1;
+                continue;
+            }
+            if ch == '}' {
+                brace_depth = brace_depth.saturating_sub(1);
+                continue;
+            }
+            if ch == '>' && brace_depth == 0 {
+                let opening_end = byte + ch.len_utf8();
+                let source = text[start_byte..opening_end].to_string();
+                let self_closing = source.trim_end_matches('>').trim_end().ends_with('/');
+                spans.push(JsxOpeningTagSpan {
+                    tag,
+                    raw_tag,
+                    source,
+                    start: start_byte,
+                    opening_end,
+                    self_closing,
+                });
+                index = scan;
+                break;
+            }
+        }
+    }
+    spans
+}
+
+fn find_jsx_closing_tag_start(text: &str, tag: &str, start: usize) -> Option<usize> {
+    let tag_lower = tag.to_ascii_lowercase();
+    let mut index = start.min(text.len());
+    while index < text.len() {
+        let rel = text[index..].find("</")?;
+        let close_start = index + rel;
+        let mut cursor = close_start + 2;
+        while cursor < text.len() {
+            let ch = text[cursor..].chars().next()?;
+            if ch.is_whitespace() {
+                cursor += ch.len_utf8();
+            } else {
+                break;
+            }
+        }
+        let name_start = cursor;
+        while cursor < text.len() {
+            let ch = text[cursor..].chars().next()?;
+            if ch.is_ascii_alphanumeric() || matches!(ch, '_' | '$' | '-' | '.') {
+                cursor += ch.len_utf8();
+            } else {
+                break;
+            }
+        }
+        let raw_name = &text[name_start..cursor];
+        let name = raw_name.rsplit('.').next().unwrap_or(raw_name);
+        let next = text[cursor..].chars().next();
+        if name.eq_ignore_ascii_case(&tag_lower)
+            && next
+                .map(|ch| ch.is_whitespace() || ch == '>')
+                .unwrap_or(false)
+        {
+            return Some(close_start);
+        }
+        index = close_start + 2;
+    }
+    None
+}
+
+fn jsx_single_static_attr_value(opening: &str, attr: &str) -> Option<String> {
+    jsx_single_static_attr_value_by(opening, attr, quoted_prefix_has_jsx_attr)
+}
+
+fn jsx_single_exact_static_attr_value(opening: &str, attr: &str) -> Option<String> {
+    jsx_single_static_attr_value_by(opening, attr, quoted_prefix_has_exact_jsx_attr)
+}
+
+fn jsx_single_static_attr_value_by(
+    opening: &str,
+    attr: &str,
+    attr_matches: fn(&str, &str) -> bool,
+) -> Option<String> {
+    if jsx_opening_has_spread_attr(opening) {
+        return None;
+    }
+    let mut attr_occurrences = 0usize;
+    let mut values = Vec::new();
+    for quoted in quoted_strings(opening) {
+        if attr_matches(&quoted.prefix, attr) {
+            attr_occurrences += 1;
+            let ids = quoted
+                .value
+                .split_whitespace()
+                .map(str::trim)
+                .filter(|id| id_is_static_accessible_reference(id))
+                .collect::<Vec<_>>();
+            if ids.len() == 1 {
+                values.push(ids[0].to_string());
+            }
+        }
+    }
+    match (attr_occurrences, values.as_slice()) {
+        (1, [only]) => Some(only.clone()),
+        _ => None,
+    }
+}
+
+fn jsx_opening_has_spread_attr(opening: &str) -> bool {
+    let chars: Vec<(usize, char)> = opening.char_indices().collect();
+    let mut index = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    let mut brace_depth = 0usize;
+    while index < chars.len() {
+        let (byte, ch) = chars[index];
+        if let Some(active_quote) = quote {
+            index += 1;
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            index += 1;
+            continue;
+        }
+        if brace_depth > 0 {
+            match ch {
+                '{' => brace_depth += 1,
+                '}' => brace_depth = brace_depth.saturating_sub(1),
+                _ => {}
+            }
+            index += 1;
+            continue;
+        }
+        if ch == '{' {
+            let cursor = skip_js_whitespace(opening, byte + ch.len_utf8());
+            if opening[cursor..].starts_with("...") {
+                return true;
+            }
+            brace_depth = 1;
+            index += 1;
+            continue;
+        }
+        index += 1;
+    }
+    false
+}
+
+fn add_accessible_name_surface_from_label_in_opening_scope(
+    surfaces: &mut SurfaceExtraction,
+    text: &str,
+    opening: &JsxOpeningTagSpan,
+    id: &str,
+    roles: &BTreeSet<String>,
+) {
+    if opening.self_closing {
+        return;
+    }
+    let Some(close_start) = find_jsx_closing_tag_start(text, &opening.tag, opening.opening_end)
+    else {
+        return;
+    };
+    if close_start < opening.opening_end {
+        return;
+    }
+    let body = &text[opening.opening_end..close_start];
+    let mut matching_label_count = 0usize;
+    let mut matching_labels = Vec::new();
+    for candidate in jsx_opening_tag_spans(body) {
+        if jsx_single_static_attr_value(&candidate.source, "id").as_deref() != Some(id) {
+            continue;
+        }
+        matching_label_count += 1;
+        if jsx_byte_is_inside_expression(body, candidate.start) {
+            continue;
+        }
+        if jsx_byte_is_inside_custom_component_boundary(body, candidate.start) {
+            continue;
+        }
+        if candidate.self_closing {
+            continue;
+        }
+        if let Some(text) = jsx_element_visible_text(body, &candidate) {
+            matching_labels.push(text);
+        }
+    }
+    if matching_label_count == 1
+        && let [text] = matching_labels.as_slice()
+    {
+        add_accessible_name_parts_surface(surfaces, roles, std::slice::from_ref(text));
+    }
+}
+
+fn jsx_byte_is_inside_custom_component_boundary(text: &str, byte: usize) -> bool {
+    jsx_opening_tag_spans(text).into_iter().any(|opening| {
+        opening.start < byte
+            && !opening.self_closing
+            && is_uppercase_symbol(&opening.tag)
+            && find_jsx_closing_tag_start(text, &opening.tag, opening.opening_end)
+                .map(|close_start| close_start > byte)
+                .unwrap_or(false)
+    })
+}
+
+fn jsx_byte_is_inside_expression(text: &str, byte: usize) -> bool {
+    let mut index = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    let mut brace_depth = 0usize;
+    while index < text.len() && index < byte {
+        let Some(ch) = text[index..].chars().next() else {
+            break;
+        };
+        if let Some(active_quote) = quote {
+            index += ch.len_utf8();
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            index += ch.len_utf8();
+            continue;
+        }
+        match ch {
+            '{' => brace_depth += 1,
+            '}' => brace_depth = brace_depth.saturating_sub(1),
+            _ => {}
+        }
+        index += ch.len_utf8();
+    }
+    brace_depth > 0
+}
+
+fn jsx_element_visible_text(text: &str, opening: &JsxOpeningTagSpan) -> Option<String> {
+    let close_start = find_jsx_closing_tag_start(text, &opening.tag, opening.opening_end)?;
+    if close_start < opening.opening_end {
+        return None;
+    }
+    static_jsx_visible_text(&text[opening.opening_end..close_start])
+}
+
+fn add_accessible_name_parts_surface(
+    surfaces: &mut SurfaceExtraction,
+    roles: &BTreeSet<String>,
+    parts: &[String],
+) {
+    let text = parts
+        .iter()
+        .map(|part| part.trim())
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    if !text.is_empty() {
+        add_accessible_role_name_surfaces(surfaces, roles, &text);
+    }
+}
+
+fn id_is_static_accessible_reference(value: &str) -> bool {
+    let trimmed = value.trim();
+    !trimmed.is_empty()
+        && trimmed.len() <= 80
+        && trimmed
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-'))
+}
+
+fn add_accessible_role_name_surfaces(
+    surfaces: &mut SurfaceExtraction,
+    roles: &BTreeSet<String>,
+    name: &str,
+) {
+    surfaces.tokens.extend(surface_literal_terms(name));
+    surfaces.phrases.extend(surface_literal_phrases(name, true));
+    for role in roles {
+        add_accessible_role_name_surface(surfaces, role, name);
+    }
+}
+
+fn add_accessible_role_name_surface(surfaces: &mut SurfaceExtraction, role: &str, name: &str) {
+    if !surface_label_literal_is_structural(name) {
+        return;
+    }
+    let Some(name_phrase) = normalize_surface_phrase(name) else {
+        return;
+    };
+    let terms = surface_phrase_terms(&name_phrase);
+    if terms.is_empty() {
+        return;
+    }
+    surfaces.tokens.extend(terms);
+    surfaces
+        .phrases
+        .insert(format!("a11y-role-{role}-name-{name_phrase}"));
 }
 
 fn quoted_prefix_is_page_goto_argument(prefix: &str) -> bool {
@@ -2099,7 +4220,7 @@ fn strip_js_comments_from_line(line: &str, in_block_comment: &mut bool) -> Strin
     let mut quote = None;
     let mut escaped = false;
     while index < chars.len() {
-        let (_, ch) = chars[index];
+        let (byte, ch) = chars[index];
         let next = chars.get(index + 1).map(|(_, next)| *next);
         if *in_block_comment {
             if ch == '*' && next == Some('/') {
@@ -2123,6 +4244,20 @@ fn strip_js_comments_from_line(line: &str, in_block_comment: &mut bool) -> Strin
             }
             if ch == active_quote {
                 quote = None;
+            }
+            continue;
+        }
+        if ch == '/'
+            && js_regex_literal_can_start(&out)
+            && let Some(end) = js_regex_literal_end(line.as_bytes(), byte)
+        {
+            out.push_str(&line[byte..end]);
+            while chars
+                .get(index)
+                .map(|(next_byte, _)| *next_byte < end)
+                .unwrap_or(false)
+            {
+                index += 1;
             }
             continue;
         }
@@ -2991,6 +5126,872 @@ fn resolve_imports(
             info.resolved_import_bindings = resolved_bindings;
         }
     }
+}
+
+fn enrich_accessible_surfaces_from_component_contracts(
+    root: &Path,
+    files: &mut BTreeMap<String, FileInfo>,
+) {
+    let rels = files.keys().cloned().collect::<Vec<_>>();
+    for rel in rels {
+        let component_roles = {
+            let Some(info) = files.get(&rel) else {
+                continue;
+            };
+            if !matches!(
+                info.ext.as_str(),
+                "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte"
+            ) {
+                continue;
+            }
+            imported_accessible_component_roles(root, files, info)
+        };
+        if component_roles.is_empty() {
+            continue;
+        }
+        let Ok(text) = fs::read_to_string(root.join(&rel)) else {
+            continue;
+        };
+        let extra = accessible_name_surfaces_from_component_labelled_ids(&text, &component_roles);
+        if extra.tokens.is_empty() && extra.phrases.is_empty() && extra.visited_routes.is_empty() {
+            continue;
+        }
+        if let Some(info) = files.get_mut(&rel) {
+            info.surface_tokens.extend(extra.tokens);
+            info.surface_phrases.extend(extra.phrases);
+        }
+    }
+}
+
+fn imported_accessible_component_roles(
+    root: &Path,
+    files: &BTreeMap<String, FileInfo>,
+    info: &FileInfo,
+) -> BTreeMap<String, String> {
+    let mut out = BTreeMap::new();
+    for (target, bindings) in &info.resolved_import_bindings {
+        for (local, imported) in bindings {
+            if local.starts_with("export:") || !is_uppercase_symbol(local) {
+                continue;
+            }
+            if file_declares_local_value(info, local) {
+                continue;
+            }
+            let mut seen = BTreeSet::new();
+            if component_export_resolves_to_dialog_labelledby_contract(
+                root, files, target, imported, 0, &mut seen,
+            ) {
+                out.insert(local.clone(), "dialog".to_string());
+            }
+        }
+    }
+    out
+}
+
+fn file_declares_local_value(info: &FileInfo, name: &str) -> bool {
+    info.local_bindings.contains(name) || info.symbols.iter().any(|symbol| symbol.name == name)
+}
+
+fn component_export_resolves_to_dialog_labelledby_contract(
+    root: &Path,
+    files: &BTreeMap<String, FileInfo>,
+    file_rel: &str,
+    export_name: &str,
+    depth: usize,
+    seen: &mut BTreeSet<(String, String)>,
+) -> bool {
+    if depth > 8 || !seen.insert((file_rel.to_string(), export_name.to_string())) {
+        return false;
+    }
+    let Some(info) = files.get(file_rel) else {
+        return false;
+    };
+    if file_exports_dialog_labelledby_contract(root, info, export_name) {
+        return true;
+    }
+    let mut explicit = Vec::new();
+    let mut stars = Vec::new();
+    for (target, bindings) in &info.resolved_import_bindings {
+        for (exported, imported) in bindings {
+            let Some(exported_name) = exported.strip_prefix("export:") else {
+                continue;
+            };
+            if exported_name == export_name {
+                explicit.push((target.as_str(), imported.as_str()));
+            } else if exported_name == "*" {
+                stars.push(target.as_str());
+            }
+        }
+    }
+    if explicit.len() == 1 {
+        let (target, imported) = explicit[0];
+        return component_export_resolves_to_dialog_labelledby_contract(
+            root,
+            files,
+            target,
+            imported,
+            depth + 1,
+            seen,
+        );
+    }
+    if explicit.len() > 1 {
+        return false;
+    }
+    if stars.len() == 1 {
+        return component_export_resolves_to_dialog_labelledby_contract(
+            root,
+            files,
+            stars[0],
+            export_name,
+            depth + 1,
+            seen,
+        );
+    }
+    false
+}
+
+fn file_exports_dialog_labelledby_contract(
+    root: &Path,
+    info: &FileInfo,
+    export_name: &str,
+) -> bool {
+    let Ok(text) = fs::read_to_string(root.join(&info.rel)) else {
+        return false;
+    };
+    info.symbols
+        .iter()
+        .filter(|symbol| symbol.exported && symbol.name == export_name)
+        .any(|symbol| {
+            let body = symbol_body_text(&text, symbol);
+            component_body_has_dialog_labelledby_contract(&body)
+        })
+}
+
+fn symbol_body_text(text: &str, symbol: &SymbolInfo) -> String {
+    text.lines()
+        .enumerate()
+        .filter_map(|(idx, line)| {
+            let line_no = idx + 1;
+            (line_no >= symbol.line_start && line_no <= symbol.line_end).then_some(line)
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn component_body_has_dialog_labelledby_contract(body: &str) -> bool {
+    let Some(signature) = component_signature(body) else {
+        return false;
+    };
+    if !params_destructure_direct_shorthand_prop(&signature.params, "labelledBy")
+        || !params_destructure_direct_shorthand_prop(&signature.params, "children")
+        || component_body_shadows_labelledby(body)
+        || component_body_has_unparsed_control_flow(body)
+    {
+        return false;
+    }
+    let mut found_dialog_labelledby = false;
+    for render_text in component_direct_render_texts(body, &signature) {
+        if component_render_text_is_empty_ui(&render_text) {
+            continue;
+        }
+        if js_text_contains_unparsed_render_control_flow(&render_text) {
+            return false;
+        }
+        if js_text_contains_call_with_jsx_argument(&render_text) {
+            return false;
+        }
+        let stripped = strip_js_comments_from_text(&render_text);
+        if jsx_render_contains_custom_component_boundary(&stripped) {
+            return false;
+        }
+        let mut found_in_render = false;
+        for opening in jsx_opening_tag_spans(&stripped) {
+            if !jsx_opening_has_dialog_labelledby_attrs(&opening) {
+                continue;
+            }
+            found_in_render = true;
+            found_dialog_labelledby = true;
+            if !jsx_element_body_has_exact_expression(&stripped, &opening, "children") {
+                return false;
+            }
+        }
+        if !found_in_render {
+            return false;
+        }
+    }
+    found_dialog_labelledby
+}
+
+fn jsx_render_contains_custom_component_boundary(render_text: &str) -> bool {
+    jsx_opening_tag_spans(render_text)
+        .iter()
+        .any(|opening| is_uppercase_symbol(&opening.tag))
+}
+
+fn component_render_text_is_empty_ui(render_text: &str) -> bool {
+    let trimmed = render_text
+        .trim()
+        .trim_start_matches('(')
+        .trim_end_matches(')')
+        .trim()
+        .trim_end_matches(';')
+        .trim();
+    matches!(trimmed, "null" | "false" | "undefined")
+}
+
+fn component_body_has_unparsed_control_flow(body: &str) -> bool {
+    let stripped = strip_js_comments_from_text(body);
+    let chars: Vec<(usize, char)> = stripped.char_indices().collect();
+    let mut index = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < chars.len() {
+        let (byte, ch) = chars[index];
+        if let Some(active_quote) = quote {
+            index += 1;
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            index += 1;
+            continue;
+        }
+        if js_keyword_at(&stripped, byte, "if")
+            && js_control_keyword_has_braced_body(&stripped, byte, "if")
+        {
+            return true;
+        }
+        for keyword in ["switch", "try", "for", "while", "do"] {
+            if js_keyword_at(&stripped, byte, keyword) {
+                return true;
+            }
+        }
+        index += 1;
+    }
+    false
+}
+
+fn js_keyword_at(text: &str, byte: usize, keyword: &str) -> bool {
+    text[byte..].starts_with(keyword)
+        && js_identifier_boundary_before(text, byte)
+        && js_identifier_boundary_after(text, byte + keyword.len())
+}
+
+fn js_control_keyword_has_braced_body(text: &str, byte: usize, keyword: &str) -> bool {
+    let mut cursor = skip_js_whitespace(text, byte + keyword.len());
+    if !text[cursor..].starts_with('(') {
+        return false;
+    }
+    let Some(after_condition) = js_balanced_call_end(text, cursor) else {
+        return false;
+    };
+    cursor = skip_js_whitespace(text, after_condition);
+    text[cursor..].starts_with('{')
+}
+
+fn js_text_contains_unparsed_render_control_flow(text: &str) -> bool {
+    let chars: Vec<(usize, char)> = text.char_indices().collect();
+    let mut index = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < chars.len() {
+        let (byte, ch) = chars[index];
+        index += 1;
+        if let Some(active_quote) = quote {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            continue;
+        }
+        if ch == '?' {
+            return true;
+        }
+        if (ch == '&' && text[byte + ch.len_utf8()..].starts_with('&'))
+            || (ch == '|' && text[byte + ch.len_utf8()..].starts_with('|'))
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn js_text_contains_call_with_jsx_argument(text: &str) -> bool {
+    let chars: Vec<(usize, char)> = text.char_indices().collect();
+    let mut index = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < chars.len() {
+        let (byte, ch) = chars[index];
+        if let Some(active_quote) = quote {
+            index += 1;
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            index += 1;
+            continue;
+        }
+        if !(ch.is_ascii_alphabetic() || matches!(ch, '_' | '$')) {
+            index += 1;
+            continue;
+        }
+        let ident_start = byte;
+        index += 1;
+        while index < chars.len() {
+            let (_, next) = chars[index];
+            if next.is_ascii_alphanumeric() || matches!(next, '_' | '$' | '.') {
+                index += 1;
+            } else {
+                break;
+            }
+        }
+        let ident_end = chars
+            .get(index)
+            .map(|(next_byte, _)| *next_byte)
+            .unwrap_or(text.len());
+        let ident = &text[ident_start..ident_end];
+        if matches!(ident, "if" | "for" | "while" | "switch" | "return") {
+            continue;
+        }
+        let cursor = skip_js_whitespace(text, ident_end);
+        if text[cursor..].starts_with('(')
+            && let Some(call_end) = js_balanced_call_end(text, cursor)
+        {
+            let args = &text[cursor + 1..call_end.saturating_sub(1)];
+            if !jsx_opening_tag_spans(args).is_empty() {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+#[derive(Debug)]
+struct ComponentSignature {
+    params: String,
+    block_open: Option<usize>,
+    expression_start: Option<usize>,
+}
+
+fn component_signature(body: &str) -> Option<ComponentSignature> {
+    let function_match = js_function_params_re().captures(body).and_then(|captures| {
+        let full = captures.get(0)?;
+        if !component_function_prefix_is_direct_declaration(&body[..full.start()]) {
+            return None;
+        }
+        let params = captures.name("params")?.as_str().to_string();
+        Some((full.start(), full.end(), params))
+    });
+    let arrow_match = js_arrow_params_re().captures(body).and_then(|captures| {
+        let full = captures.get(0)?;
+        if !component_arrow_prefix_is_direct_initializer(&body[..full.start()]) {
+            return None;
+        }
+        let params = captures.name("params")?.as_str().to_string();
+        Some((full.start(), full.end(), params))
+    });
+    let use_arrow = match (function_match.as_ref(), arrow_match.as_ref()) {
+        (Some((function_start, _, _)), Some((arrow_start, _, _))) => arrow_start < function_start,
+        (None, Some(_)) => true,
+        _ => false,
+    };
+    if use_arrow {
+        let (_, end, params) = arrow_match?;
+        let cursor = skip_js_whitespace(body, end);
+        if body[cursor..].starts_with('{') {
+            Some(ComponentSignature {
+                params,
+                block_open: Some(cursor),
+                expression_start: None,
+            })
+        } else {
+            Some(ComponentSignature {
+                params,
+                block_open: None,
+                expression_start: Some(cursor),
+            })
+        }
+    } else {
+        let (_, end, params) = function_match?;
+        let cursor = skip_js_whitespace(body, end);
+        let block_open = body[cursor..].find('{').map(|offset| cursor + offset)?;
+        Some(ComponentSignature {
+            params,
+            block_open: Some(block_open),
+            expression_start: None,
+        })
+    }
+}
+
+fn component_function_prefix_is_direct_declaration(prefix: &str) -> bool {
+    prefix
+        .split_whitespace()
+        .all(|token| matches!(token, "export" | "default" | "async"))
+}
+
+fn component_arrow_prefix_is_direct_initializer(prefix: &str) -> bool {
+    prefix.trim_end().ends_with('=')
+}
+
+fn skip_js_whitespace(text: &str, mut cursor: usize) -> usize {
+    while cursor < text.len() {
+        let Some(ch) = text[cursor..].chars().next() else {
+            break;
+        };
+        if ch.is_whitespace() {
+            cursor += ch.len_utf8();
+        } else {
+            break;
+        }
+    }
+    cursor
+}
+
+fn component_direct_render_texts(body: &str, signature: &ComponentSignature) -> Vec<String> {
+    if let Some(start) = signature.expression_start {
+        return vec![body[start..].trim().trim_end_matches(';').to_string()];
+    }
+    signature
+        .block_open
+        .map(|block_open| top_level_return_expressions(body, block_open))
+        .unwrap_or_default()
+}
+
+fn top_level_return_expressions(text: &str, block_open: usize) -> Vec<String> {
+    let chars: Vec<(usize, char)> = text.char_indices().collect();
+    let Some(mut index) = chars.iter().position(|(byte, _)| *byte == block_open) else {
+        return Vec::new();
+    };
+    index += 1;
+    let mut expressions = Vec::new();
+    let mut brace_depth = 1usize;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < chars.len() {
+        let (byte, ch) = chars[index];
+        if let Some(active_quote) = quote {
+            index += 1;
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            index += 1;
+            continue;
+        }
+        if brace_depth == 1 && text[byte..].starts_with("return") {
+            let before_ok = js_identifier_boundary_before(text, byte);
+            let after = byte + "return".len();
+            let after_ok = js_identifier_boundary_after(text, after);
+            if before_ok && after_ok {
+                if let Some(expression) = extract_return_expression(text, after) {
+                    expressions.push(expression);
+                }
+                index += "return".len();
+                continue;
+            }
+        }
+        match ch {
+            '{' => brace_depth += 1,
+            '}' => {
+                brace_depth = brace_depth.saturating_sub(1);
+                if brace_depth == 0 {
+                    break;
+                }
+            }
+            '(' => paren_depth += 1,
+            ')' => paren_depth = paren_depth.saturating_sub(1),
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.saturating_sub(1),
+            _ => {}
+        }
+        index += 1;
+    }
+    let _ = (paren_depth, bracket_depth);
+    expressions
+}
+
+fn extract_return_expression(text: &str, start: usize) -> Option<String> {
+    let chars: Vec<(usize, char)> = text[start..].char_indices().collect();
+    let mut index = 0usize;
+    let mut brace_depth = 1usize;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < chars.len() {
+        let (relative_byte, ch) = chars[index];
+        if let Some(active_quote) = quote {
+            index += 1;
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            index += 1;
+            continue;
+        }
+        match ch {
+            '{' => brace_depth += 1,
+            '}' => {
+                brace_depth = brace_depth.saturating_sub(1);
+                if brace_depth == 0 {
+                    return Some(text[start..start + relative_byte].trim().to_string());
+                }
+            }
+            '(' => paren_depth += 1,
+            ')' => paren_depth = paren_depth.saturating_sub(1),
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.saturating_sub(1),
+            ';' if brace_depth == 1 && paren_depth == 0 && bracket_depth == 0 => {
+                return Some(text[start..start + relative_byte].trim().to_string());
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    let expression = text[start..].trim();
+    (!expression.is_empty()).then_some(expression.to_string())
+}
+
+fn params_destructure_direct_shorthand_prop(params: &str, prop: &str) -> bool {
+    let Some((start, end)) = js_first_balanced_object_span(params) else {
+        return false;
+    };
+    js_split_top_level_commas(&params[start + 1..end])
+        .into_iter()
+        .any(|part| js_destructure_part_is_direct_shorthand_prop(&part, prop))
+}
+
+fn js_first_balanced_object_span(value: &str) -> Option<(usize, usize)> {
+    let chars: Vec<(usize, char)> = value.char_indices().collect();
+    let start_index = chars.iter().position(|(_, ch)| *ch == '{')?;
+    let start_byte = chars[start_index].0;
+    let mut index = start_index;
+    let mut brace_depth = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < chars.len() {
+        let (byte, ch) = chars[index];
+        index += 1;
+        if let Some(active_quote) = quote {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            continue;
+        }
+        match ch {
+            '{' => brace_depth += 1,
+            '}' => {
+                brace_depth = brace_depth.saturating_sub(1);
+                if brace_depth == 0 {
+                    return Some((start_byte, byte));
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn js_destructure_part_is_direct_shorthand_prop(part: &str, prop: &str) -> bool {
+    let trimmed = part.trim();
+    let Some(rest) = trimmed.strip_prefix(prop) else {
+        return false;
+    };
+    if !js_identifier_boundary_after(trimmed, prop.len()) {
+        return false;
+    }
+    let rest = rest.trim_start();
+    rest.is_empty() || rest.starts_with('=')
+}
+
+fn component_body_shadows_labelledby(body: &str) -> bool {
+    js_labelledby_local_binding_re().is_match(body)
+}
+
+fn jsx_opening_has_dialog_labelledby_attrs(opening: &JsxOpeningTagSpan) -> bool {
+    !jsx_opening_has_spread_attr(&opening.source)
+        && jsx_accessible_role_for_opening(&opening.tag, &opening.source).as_deref()
+            == Some("dialog")
+        && jsx_opening_has_exact_expression_attr(&opening.source, "aria-labelledby", "labelledBy")
+}
+
+fn jsx_opening_has_exact_expression_attr(opening: &str, attr: &str, expr: &str) -> bool {
+    let chars: Vec<(usize, char)> = opening.char_indices().collect();
+    let mut index = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    let mut brace_depth = 0usize;
+    let mut attr_count = 0usize;
+    let mut exact_matches = 0usize;
+    while index < chars.len() {
+        let (byte, ch) = chars[index];
+        if let Some(active_quote) = quote {
+            index += 1;
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            index += 1;
+            continue;
+        }
+        if brace_depth > 0 {
+            if ch == '{' {
+                brace_depth += 1;
+            } else if ch == '}' {
+                brace_depth = brace_depth.saturating_sub(1);
+            }
+            index += 1;
+            continue;
+        }
+        if ch == '{' {
+            brace_depth = 1;
+            index += 1;
+            continue;
+        }
+        if opening[byte..].starts_with(attr)
+            && jsx_attr_boundary_before(opening, byte)
+            && jsx_attr_boundary_after(opening, byte + attr.len())
+        {
+            attr_count += 1;
+            if jsx_attr_expression_value_matches(opening, byte + attr.len(), expr) {
+                exact_matches += 1;
+            }
+        }
+        index += 1;
+    }
+    attr_count == 1 && exact_matches == 1
+}
+
+fn jsx_attr_expression_value_matches(opening: &str, mut cursor: usize, expr: &str) -> bool {
+    cursor = skip_js_whitespace(opening, cursor);
+    if !opening[cursor..].starts_with('=') {
+        return false;
+    }
+    cursor += 1;
+    cursor = skip_js_whitespace(opening, cursor);
+    if !opening[cursor..].starts_with('{') {
+        return false;
+    }
+    cursor += 1;
+    cursor = skip_js_whitespace(opening, cursor);
+    if !opening[cursor..].starts_with(expr) {
+        return false;
+    }
+    cursor += expr.len();
+    if !js_identifier_boundary_after(opening, cursor) {
+        return false;
+    }
+    cursor = skip_js_whitespace(opening, cursor);
+    opening[cursor..].starts_with('}')
+}
+
+fn jsx_attr_boundary_before(text: &str, byte: usize) -> bool {
+    text[..byte]
+        .chars()
+        .next_back()
+        .map(|ch| !(ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | ':' | '$')))
+        .unwrap_or(true)
+}
+
+fn jsx_attr_boundary_after(text: &str, byte: usize) -> bool {
+    text[byte..]
+        .chars()
+        .next()
+        .map(|ch| !(ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | ':' | '$')))
+        .unwrap_or(true)
+}
+
+fn jsx_element_body_has_exact_expression(
+    render_text: &str,
+    opening: &JsxOpeningTagSpan,
+    expr: &str,
+) -> bool {
+    if opening.self_closing {
+        return false;
+    }
+    let Some(close_start) =
+        find_jsx_closing_tag_start(render_text, &opening.tag, opening.opening_end)
+    else {
+        return false;
+    };
+    close_start >= opening.opening_end
+        && jsx_body_has_exact_expression(&render_text[opening.opening_end..close_start], expr)
+}
+
+fn jsx_body_has_exact_expression(body: &str, expr: &str) -> bool {
+    let chars: Vec<(usize, char)> = body.char_indices().collect();
+    let mut index = 0usize;
+    let mut in_tag = false;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < chars.len() {
+        let (byte, ch) = chars[index];
+        if let Some(active_quote) = quote {
+            index += 1;
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if in_tag {
+            if matches!(ch, '"' | '\'' | '`') {
+                quote = Some(ch);
+                escaped = false;
+            } else if ch == '>' {
+                in_tag = false;
+            }
+            index += 1;
+            continue;
+        }
+        if ch == '<' {
+            in_tag = true;
+            index += 1;
+            continue;
+        }
+        if ch == '{' && jsx_expression_at(body, byte + ch.len_utf8(), expr) {
+            return true;
+        }
+        index += 1;
+    }
+    false
+}
+
+fn jsx_expression_at(body: &str, mut cursor: usize, expr: &str) -> bool {
+    cursor = skip_js_whitespace(body, cursor);
+    if !body[cursor..].starts_with(expr) {
+        return false;
+    }
+    cursor += expr.len();
+    if !js_identifier_boundary_after(body, cursor) {
+        return false;
+    }
+    cursor = skip_js_whitespace(body, cursor);
+    body[cursor..].starts_with('}')
+}
+
+fn accessible_name_surfaces_from_component_labelled_ids(
+    text: &str,
+    component_roles: &BTreeMap<String, String>,
+) -> SurfaceExtraction {
+    let stripped = strip_js_comments_from_text(text);
+    let mut surfaces = SurfaceExtraction::default();
+    for opening in jsx_opening_tag_spans(&stripped) {
+        if opening.raw_tag != opening.tag {
+            continue;
+        }
+        let Some(role) = component_roles.get(&opening.tag) else {
+            continue;
+        };
+        let Some(id) = jsx_single_exact_static_attr_value(&opening.source, "labelledBy") else {
+            continue;
+        };
+        let mut roles = BTreeSet::new();
+        roles.insert(role.clone());
+        add_accessible_name_surface_from_label_in_opening_scope(
+            &mut surfaces,
+            &stripped,
+            &opening,
+            &id,
+            &roles,
+        );
+    }
+    surfaces
 }
 
 fn resolve_import(
@@ -5211,6 +8212,14 @@ fn js_arrow_params_re() -> &'static Regex {
     })
 }
 
+fn js_labelledby_local_binding_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"(?s)\b(?:const|let|var)\s+(?:labelledBy\b|\{[^}]*\blabelledBy\b)|\bfunction\s+labelledBy\b|\bclass\s+labelledBy\b"#)
+            .expect("valid js labelledBy local binding regex")
+    })
+}
+
 fn js_method_params_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
@@ -5577,6 +8586,10 @@ import { Real as LocalReal } from './real';
 export { Other } from './other';
 export { /* Real is only a comment */ Other as PublicOther } from './commented';
 export { CommentedGap as PublicGap } /* valid comment gap */ from './comment-gap';
+export {
+  Dialog,
+  type ToastData,
+} from './primitives'
 const lazy = import('./lazy');
 const required = require('./required');
 "#;
@@ -5587,6 +8600,7 @@ const required = require('./required');
         assert!(specs.contains("./other"));
         assert!(specs.contains("./commented"));
         assert!(specs.contains("./comment-gap"));
+        assert!(specs.contains("./primitives"));
         assert!(specs.contains("./lazy"));
         assert!(specs.contains("./required"));
         assert!(!specs.contains("./shell-hint"));
@@ -5615,6 +8629,13 @@ const required = require('./required');
                 .and_then(|map| map.get("export:PublicGap"))
                 .map(String::as_str),
             Some("CommentedGap")
+        );
+        assert_eq!(
+            bindings
+                .get("./primitives")
+                .and_then(|map| map.get("export:Dialog"))
+                .map(String::as_str),
+            Some("Dialog")
         );
         assert!(!bindings.contains_key("./shell-hint"));
         assert!(!bindings.contains_key("./regex-hint"));
@@ -6062,6 +9083,258 @@ test("flow", async ({ page }) => {
             prose_surfaces.phrases.is_empty(),
             "visible text without a UI surface container should fail closed: {prose_surfaces:#?}"
         );
+    }
+
+    #[test]
+    fn javascript_surface_phrases_capture_accessible_labelledby_dialog_names() {
+        let source = r#"export function ExportDialog() {
+  return (
+    <div role="dialog" aria-labelledby="export-title">
+      <h2 id="export-title" style={{ fontSize: 18 }}>
+        Экспорт
+      </h2>
+      <p>
+        This explanatory copy is visible but is not the dialog accessible name.
+      </p>
+    </div>
+  );
+}
+"#;
+        let overcapture = r#"export function BrokenDialogName() {
+  return (
+    <div role="dialog" aria-labelledby="export-title">
+      <h2 id="export-title"></h2>
+      <p>Export files are generated locally</p>
+    </div>
+  );
+}
+"#;
+        let test = r#"import { expect, test } from '@playwright/test';
+
+test("export dialog opens", async ({ page }) => {
+  await expect(page.getByRole('dialog', { name: 'Экспорт' })).toBeVisible();
+});
+"#;
+
+        let source_surfaces = extract_surfaces(source, "tsx");
+        let overcapture_surfaces = extract_surfaces(overcapture, "tsx");
+        let test_surfaces = extract_surfaces(test, "tsx");
+
+        assert!(
+            source_surfaces
+                .phrases
+                .contains("a11y-role-dialog-name-экспорт")
+        );
+        assert!(
+            test_surfaces
+                .phrases
+                .contains("a11y-role-dialog-name-экспорт")
+        );
+        assert!(source_surfaces.tokens.contains("экспорт"));
+        assert!(
+            source_surfaces
+                .phrases
+                .iter()
+                .all(|phrase| !phrase.contains("explanatory-copy")),
+            "only the labelled heading should become the dialog-name surface: {source_surfaces:#?}"
+        );
+        assert!(
+            overcapture_surfaces
+                .phrases
+                .iter()
+                .all(|phrase| !phrase.contains("a11y-role-dialog-name-export-files")),
+            "text after the labelled element must not become the dialog-name surface: {overcapture_surfaces:#?}"
+        );
+    }
+
+    #[test]
+    fn javascript_accessible_surfaces_resolve_dialog_contract_through_barrels() {
+        let repo = tempfile::TempDir::new().expect("repo tempdir");
+        std::fs::write(
+            repo.path().join("package.json"),
+            r#"{"name":"barrel-accessible-surface-fixture","private":true}"#,
+        )
+        .expect("write package");
+        std::fs::create_dir_all(repo.path().join("src/features/studio"))
+            .expect("create feature dir");
+        std::fs::create_dir_all(repo.path().join("src/design")).expect("create design dir");
+        std::fs::write(
+            repo.path().join("src/features/studio/export-dialog.tsx"),
+            r#"import { Dialog } from '../../design';
+
+export function ExportDialog({ open, onClose }) {
+  if (!open) return null;
+  return (
+    <Dialog open={open} onClose={onClose} labelledBy="export-title">
+      <h2 id="export-title">Export</h2>
+    </Dialog>
+  );
+}
+"#,
+        )
+        .expect("write anchor");
+        std::fs::write(
+            repo.path().join("src/design/index.ts"),
+            r#"export {
+  Dialog,
+  type ToastData,
+} from './primitives'
+"#,
+        )
+        .expect("write index");
+        std::fs::write(
+            repo.path().join("src/design/primitives.ts"),
+            r#"export {
+  Dialog,
+  type ToastData,
+} from './primitives-overlays'
+"#,
+        )
+        .expect("write primitives");
+        std::fs::write(
+            repo.path().join("src/design/primitives-overlays.tsx"),
+            r#"export type ToastData = { id: string };
+
+export function Dialog({ open, onClose, labelledBy, children }) {
+  if (!open) return null;
+  return <div role="dialog" aria-modal="true" aria-labelledby={labelledBy} onClick={onClose}>{children}</div>;
+}
+"#,
+        )
+        .expect("write overlays");
+
+        let project = load_project_with_cache(
+            RootSelection::Exact(repo.path().to_path_buf()),
+            CacheWriteMode::ReadOnly,
+        )
+        .expect("load project");
+        let anchor = project
+            .files
+            .get("src/features/studio/export-dialog.tsx")
+            .expect("anchor file");
+        assert!(
+            anchor
+                .surface_phrases
+                .contains("a11y-role-dialog-name-export"),
+            "dialog accessible surface should resolve through multiline barrels: {:#?}",
+            anchor.surface_phrases
+        );
+    }
+
+    #[test]
+    fn javascript_surface_phrases_ignore_getbyrole_inside_non_calls() {
+        let real = r#"import { expect, test } from '@playwright/test';
+
+test("export dialog opens", async ({ page }) => {
+  await expect(page.getByRole('dialog', { name: 'Export' })).toBeVisible();
+});
+"#;
+        let locator_chain = r#"import { expect, test } from '@playwright/test';
+
+test("export dialog opens", async ({ page }) => {
+  await expect(page.locator('#root').getByRole('dialog', { name: 'Export' })).toBeVisible();
+});
+"#;
+        let assigned_locator = r#"import { expect, test } from '@playwright/test';
+
+test('export dialog opens', async ({ page, browserName }) => {
+  const exportDialog = page.getByRole('dialog', { name: 'Экспорт' })
+  await expect(exportDialog).toBeVisible()
+});
+"#;
+        let assigned_locator_after_goto = r#"import { expect, test } from '@playwright/test';
+
+test('command palette opens export dialog', async ({ page }) => {
+  await page.goto('/studio');
+  const exportDialog = page.getByRole('dialog', { name: 'Export' });
+  await expect(exportDialog).toBeVisible();
+});
+"#;
+        let locator_action = r#"import { test } from '@playwright/test';
+
+test('command palette uses export dialog', async ({ page }) => {
+  await page.goto('/studio');
+  await page.getByRole('dialog', { name: 'Export' }).click();
+});
+"#;
+        let bare_lazy_playwright_locator = r#"import { test } from '@playwright/test';
+
+test('only creates lazy locator', async ({ page }) => {
+  await page.goto('/studio');
+  page.getByRole('dialog', { name: 'Export' });
+});
+"#;
+        let double_quoted = r#"const docs = "await expect(page.getByRole('dialog', { name: 'Export' })).toBeVisible()";"#;
+        let single_quoted = r#"const docs = 'await expect(page.getByRole("dialog", { name: "Export" })).toBeVisible()';"#;
+        let template = r#"const docs = `await expect(page.getByRole('dialog', { name: 'Export' })).toBeVisible()`;"#;
+        let regex = r#"const docs = /page\.getByRole\('dialog', { name: 'Export' }\)/;"#;
+        let bare_helper = r#"function getByRole(role, options) { return options; }
+const locator = getByRole('dialog', { name: 'Export' });
+"#;
+        let member_helper = r#"const helper = { getByRole(role, options) { return options; } };
+const locator = helper.getByRole('dialog', { name: 'Export' });
+"#;
+
+        assert!(
+            extract_surfaces(real, "tsx")
+                .phrases
+                .contains("a11y-role-dialog-name-export")
+        );
+        assert!(
+            extract_surfaces(locator_chain, "tsx")
+                .phrases
+                .contains("a11y-role-dialog-name-export")
+        );
+        assert!(
+            extract_surfaces(assigned_locator, "tsx")
+                .phrases
+                .contains("a11y-role-dialog-name-экспорт")
+        );
+        assert!(
+            extract_surfaces(assigned_locator_after_goto, "tsx")
+                .phrases
+                .contains("a11y-role-dialog-name-export")
+        );
+        assert!(
+            extract_surfaces(locator_action, "tsx")
+                .phrases
+                .contains("a11y-role-dialog-name-export")
+        );
+        for text in [
+            double_quoted,
+            single_quoted,
+            template,
+            regex,
+            bare_helper,
+            member_helper,
+            bare_lazy_playwright_locator,
+        ] {
+            let surfaces = extract_surfaces(text, "tsx");
+            assert!(
+                !surfaces.phrases.contains("a11y-role-dialog-name-export"),
+                "getByRole outside a real call must not become proof surface: {surfaces:#?}"
+            );
+        }
+    }
+
+    #[test]
+    fn javascript_surface_phrases_reject_getbyrole_opaque_name_overrides() {
+        let spread = r#"test("dialog", async ({ page }) => {
+  const metadata = { name: 'Import' };
+  await expect(page.getByRole('dialog', { name: 'Export', ...metadata })).toBeVisible();
+});
+"#;
+        let duplicate = r#"test("dialog", async ({ page }) => {
+  await expect(page.getByRole('dialog', { name: 'Export', name: 'Import' })).toBeVisible();
+});
+"#;
+        for text in [spread, duplicate] {
+            let surfaces = extract_surfaces(text, "tsx");
+            assert!(
+                !surfaces.phrases.contains("a11y-role-dialog-name-export"),
+                "opaque Playwright name overrides must fail closed: {surfaces:#?}"
+            );
+        }
     }
 
     #[test]
