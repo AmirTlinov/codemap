@@ -139,6 +139,42 @@ boundaries:
     write(
         &repo
             .path()
+            .join("packages/app/src/features/studio/settings-button.tsx"),
+        "export function SettingsButton() {\n  return <button aria-label=\"Open settings panel\">Settings</button>;\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/comment-only.tsx"),
+        "/*\n  <button aria-label=\"Open settings panel\" data-testid=\"submit-order-button\">Settings</button>\n  await page.goto('/orders/new');\n*/\nexport function CommentOnly() {\n  return <div />;\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/orders-link.tsx"),
+        "export function OrdersLink() {\n  return <a href=\"/orders/new\">Orders</a>;\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/cart-button.tsx"),
+        "export function CartButton() {\n  return <button aria-label=\"Remove from cart\">Remove</button>;\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/import-csv-button.tsx"),
+        "export function ImportCsvButton() {\n  return <button aria-label=\"Import (CSV)\">Import</button>;\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/import-only-widget.tsx"),
+        "import widget from '@app/aria-label-open-settings-panel';\nimport {\n  multi,\n} from '@app/data-testid-submit-order-button';\nconst lazy = import ('@app/route-orders-new');\nconst required = require ('@app/class-name-open-settings-panel');\nconst bareLazy = import ('aria-label-open-settings-panel');\nconst bareRequired = require ('data-testid-submit-order-button');\nconst commentedLazy = import(/* webpackChunkName: \"settings\" */ 'aria-label-open-settings-panel');\n\nexport function ImportOnlyWidget() {\n  return widget ?? multi ?? lazy ?? required ?? bareLazy ?? bareRequired ?? commentedLazy;\n}\n",
+    );
+    write(
+        &repo
+            .path()
             .join("packages/app/tests/frame-title-placement.test.ts"),
         "test('frame title placement persists', () => {\n  expect('frame-title').toContain('title');\n});\n",
     );
@@ -147,6 +183,52 @@ boundaries:
             .path()
             .join("packages/app/tests/e2e/canvas-blueprint-title-drag.spec.ts"),
         "import { test, expect } from '@playwright/test';\n\ntest('blueprint canvas title drag keeps title attached', async ({ page }) => {\n  await page.goto('/studio');\n  await expect(page.locator('.frame-title-control')).toBeVisible();\n});\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/tests/e2e/studio-flow.spec.ts"),
+        "import { test, expect } from '@playwright/test';\n\ntest('studio surface keeps frame title control visible', async ({ page }) => {\n  await page.goto('/studio');\n  await expect(page.getByTestId('frame-title-control')).toBeVisible();\n});\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/tests/canvas-text-document.test.ts"),
+        "test('frame title text document stores inline mode', () => {\n  expect('frame-title').toContain('title');\n});\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/tests/e2e/canvas-blueprint-rail-settings.spec.ts"),
+        "import { test, expect } from '@playwright/test';\n\ntest('canvas rail settings stay visible', async ({ page }) => {\n  await page.goto('/studio');\n  await expect(page.locator('.canvas-markup-rail__marker-chip')).toBeVisible();\n});\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/tests/e2e/accessibility-flow.spec.ts"),
+        "import { test, expect } from '@playwright/test';\n\ntest('settings button is accessible', async ({ page }) => {\n  await expect(page.getByLabel('Open settings panel')).toBeVisible();\n});\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/tests/e2e/orders-route.spec.ts"),
+        "import { test, expect } from '@playwright/test';\n\ntest('orders route opens', async ({ page }) => {\n  await page.goto('/orders/new');\n  await expect(page).toHaveURL('/orders/new');\n});\n",
+    );
+    write(
+        &repo.path().join("packages/app/tests/e2e/cart-flow.spec.ts"),
+        "import { test, expect } from '@playwright/test';\n\ntest('cart action is accessible', async ({ page }) => {\n  await expect(page.getByLabel('Remove from cart')).toBeVisible();\n});\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/tests/e2e/import-csv-flow.spec.ts"),
+        "import { test, expect } from '@playwright/test';\n\ntest('csv import action is accessible', async ({ page }) => {\n  await expect(page.getByLabel('Import (CSV)')).toBeVisible();\n});\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/tests/e2e/import-only-flow.spec.ts"),
+        "import '@app/aria-label-open-settings-panel';\nimport {\n  multi,\n} from '@app/data-testid-submit-order-button';\nconst lazy = import ('@app/route-orders-new');\nconst required = require ('@app/class-name-open-settings-panel');\nconst bareLazy = import ('aria-label-open-settings-panel');\nconst bareRequired = require ('data-testid-submit-order-button');\nconst commentedLazy = import(/* webpackChunkName: \"settings\" */ 'aria-label-open-settings-panel');\nimport { test, expect } from '@playwright/test';\n\ntest('unrelated flow has no shared UI surface', async ({ page }) => {\n  await expect(page.locator('.unrelated-widget')).toHaveCount(0);\n});\n",
     );
     write(
         &repo
@@ -389,7 +471,7 @@ fn proof_links_ui_anchor_to_named_unit_and_e2e_surfaces_without_imports() {
     assert!(
         proofs.iter().any(|surface| surface["path"]
             == "packages/app/tests/e2e/canvas-blueprint-title-drag.spec.ts"
-            && surface["evidence"] == "e2e_surface_tokens"
+            && surface["evidence"] == "e2e_surface_phrase"
             && surface["command"]
                 .as_str()
                 .unwrap_or_default()
@@ -397,10 +479,27 @@ fn proof_links_ui_anchor_to_named_unit_and_e2e_surfaces_without_imports() {
         "e2e proof should link by UI/domain surface tokens and use e2e script: {proof:#}"
     );
     assert!(
+        proofs.iter().any(|surface| surface["path"]
+            == "packages/app/tests/e2e/studio-flow.spec.ts"
+            && surface["evidence"] == "e2e_surface_phrase"),
+        "generic e2e path should still link through shared selector/test-id surface tokens: {proof:#}"
+    );
+    assert!(
         proofs
             .iter()
             .all(|surface| surface["path"] != "packages/app/tests/e2e/support/canvas-blueprint.ts"),
         "e2e support files are map surfaces, not runnable proof"
+    );
+    assert!(
+        proofs
+            .iter()
+            .all(|surface| surface["path"] != "packages/app/tests/canvas-text-document.test.ts"),
+        "broad token-only unit surfaces must not become proof: {proof:#}"
+    );
+    assert!(
+        proofs.iter().all(|surface| surface["path"]
+            != "packages/app/tests/e2e/canvas-blueprint-rail-settings.spec.ts"),
+        "e2e proof must require shared exact UI/test surface, not canvas/studio words: {proof:#}"
     );
     assert!(
         proof["fallback"].as_array().expect("fallback").is_empty(),
@@ -424,7 +523,136 @@ fn proof_links_ui_anchor_to_named_unit_and_e2e_surfaces_without_imports() {
             .iter()
             .any(|edge| edge["from"]
                 == "packages/app/tests/e2e/canvas-blueprint-title-drag.spec.ts"
-                && edge["evidence"] == "e2e_surface_tokens")
+                && edge["evidence"] == "e2e_surface_phrase")
+    );
+}
+
+#[test]
+fn proof_does_not_treat_module_specifiers_as_ui_surfaces() {
+    let (repo, cache) = fixture();
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "packages/app/src/features/studio/import-only-widget.tsx",
+            "--format",
+            "json",
+        ],
+    );
+
+    let proofs = proof["proofs"].as_array().expect("proofs");
+    assert!(
+        proofs
+            .iter()
+            .all(|surface| surface["path"] != "packages/app/tests/e2e/import-only-flow.spec.ts"),
+        "module specifier strings must not become e2e UI proof: {proof:#}"
+    );
+}
+
+#[test]
+fn proof_does_not_treat_multiline_comments_as_ui_surfaces() {
+    let (repo, cache) = fixture();
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "packages/app/src/features/studio/comment-only.tsx",
+            "--format",
+            "json",
+        ],
+    );
+
+    let proofs = proof["proofs"].as_array().expect("proofs");
+    assert!(
+        proofs
+            .iter()
+            .all(|surface| surface["evidence"] != "e2e_surface_phrase"),
+        "commented-out UI surfaces must not become e2e proof: {proof:#}"
+    );
+    assert!(
+        proofs.iter().all(|surface| surface["path"]
+            != "packages/app/tests/e2e/accessibility-flow.spec.ts"
+            && surface["path"] != "packages/app/tests/e2e/orders-route.spec.ts"),
+        "commented aria labels/routes must not link proof: {proof:#}"
+    );
+}
+
+#[test]
+fn proof_links_aria_labels_and_routes_as_exact_surfaces() {
+    let (repo, cache) = fixture();
+
+    let label_proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "packages/app/src/features/studio/settings-button.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    let label_proofs = label_proof["proofs"].as_array().expect("label proofs");
+    assert!(
+        label_proofs.iter().any(|surface| surface["path"]
+            == "packages/app/tests/e2e/accessibility-flow.spec.ts"
+            && surface["evidence"] == "e2e_surface_phrase"),
+        "aria-label/getByLabel exact surface should become e2e proof: {label_proof:#}"
+    );
+
+    let route_proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "packages/app/src/features/studio/orders-link.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    let route_proofs = route_proof["proofs"].as_array().expect("route proofs");
+    assert!(
+        route_proofs.iter().any(|surface| surface["path"]
+            == "packages/app/tests/e2e/orders-route.spec.ts"
+            && surface["evidence"] == "e2e_surface_phrase"),
+        "exact shared two-segment routes should become e2e proof: {route_proof:#}"
+    );
+
+    let cart_proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "packages/app/src/features/studio/cart-button.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    let cart_proofs = cart_proof["proofs"].as_array().expect("cart proofs");
+    assert!(
+        cart_proofs.iter().any(|surface| surface["path"]
+            == "packages/app/tests/e2e/cart-flow.spec.ts"
+            && surface["evidence"] == "e2e_surface_phrase"),
+        "aria labels containing `from` should not be mistaken for import syntax: {cart_proof:#}"
+    );
+
+    let import_proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "packages/app/src/features/studio/import-csv-button.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    let import_proofs = import_proof["proofs"].as_array().expect("import proofs");
+    assert!(
+        import_proofs.iter().any(|surface| surface["path"]
+            == "packages/app/tests/e2e/import-csv-flow.spec.ts"
+            && surface["evidence"] == "e2e_surface_phrase"),
+        "aria labels containing `Import (` should not be mistaken for dynamic import syntax: {import_proof:#}"
     );
 }
 

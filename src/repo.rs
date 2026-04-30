@@ -484,6 +484,8 @@ fn scan_files(root: &Path) -> Result<BTreeMap<String, FileInfo>> {
             exports: BTreeSet::new(),
             symbols: Vec::new(),
             tokens: path_tokens(&rel),
+            surface_tokens: BTreeSet::new(),
+            surface_phrases: BTreeSet::new(),
         };
         classify_roles(&mut info);
         extract_imports_exports(root, &mut info);
@@ -837,6 +839,9 @@ fn extract_imports_exports(root: &Path, info: &mut FileInfo) {
     if !is_source_ext(&info.ext) {
         return;
     }
+    let surfaces = extract_surfaces(&text, &info.ext);
+    info.surface_tokens = surfaces.tokens;
+    info.surface_phrases = surfaces.phrases;
     info.symbols = extract_symbols(&text, &info.ext);
     match info.ext.as_str() {
         "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte" => {
@@ -910,6 +915,397 @@ fn extract_symbols(text: &str, ext: &str) -> Vec<SymbolInfo> {
         _ => Vec::new(),
     };
     symbols_with_ranges(starts, text, ext)
+}
+
+#[derive(Debug, Default)]
+struct SurfaceExtraction {
+    tokens: BTreeSet<String>,
+    phrases: BTreeSet<String>,
+}
+
+fn extract_surfaces(text: &str, ext: &str) -> SurfaceExtraction {
+    if !matches!(
+        ext,
+        "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte"
+    ) {
+        return SurfaceExtraction::default();
+    }
+    let mut surfaces = SurfaceExtraction::default();
+    let mut in_block_comment = false;
+    for raw_line in text.lines() {
+        let line = strip_js_comments_from_line(raw_line, &mut in_block_comment);
+        if !line_has_surface_context(&line) {
+            continue;
+        }
+        let plain_label_context = line_accepts_plain_label_surface(&line);
+        for quoted in quoted_strings(&line) {
+            if quoted_value_is_module_specifier_context(&quoted.prefix) {
+                continue;
+            }
+            let value = quoted.value;
+            let structural_literal = surface_literal_is_structural(&value)
+                || (plain_label_context && surface_label_literal_is_structural(&value));
+            if !structural_literal {
+                continue;
+            }
+            surfaces.tokens.extend(surface_literal_terms(&value));
+            surfaces
+                .phrases
+                .extend(surface_literal_phrases(&value, plain_label_context));
+        }
+    }
+    surfaces
+}
+
+fn line_has_surface_context(line: &str) -> bool {
+    let lower = line.to_ascii_lowercase();
+    [
+        "classname",
+        "class=",
+        "contentclassname",
+        "data-testid",
+        "data-test",
+        "aria-",
+        "locator(",
+        "getbytestid",
+        "getbyrole",
+        "getbylabel",
+        "getbytext",
+        "queryselector",
+        "getattribute(",
+        "setattribute(",
+        "page.goto",
+        "tohaveurl",
+        "href=",
+        "mode=",
+    ]
+    .iter()
+    .any(|marker| lower.contains(marker))
+}
+
+fn strip_js_comments_from_line(line: &str, in_block_comment: &mut bool) -> String {
+    let chars: Vec<(usize, char)> = line.char_indices().collect();
+    let mut out = String::new();
+    let mut index = 0;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < chars.len() {
+        let (_, ch) = chars[index];
+        let next = chars.get(index + 1).map(|(_, next)| *next);
+        if *in_block_comment {
+            if ch == '*' && next == Some('/') {
+                *in_block_comment = false;
+                index += 2;
+            } else {
+                index += 1;
+            }
+            continue;
+        }
+        if let Some(active_quote) = quote {
+            out.push(ch);
+            index += 1;
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if ch == '/' && next == Some('/') {
+            break;
+        }
+        if ch == '/' && next == Some('*') {
+            *in_block_comment = true;
+            index += 2;
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+        }
+        out.push(ch);
+        index += 1;
+    }
+    out
+}
+
+fn line_accepts_plain_label_surface(line: &str) -> bool {
+    let lower = line.to_ascii_lowercase();
+    ["aria-label", "getbylabel", "getbyrole", "getbytext"]
+        .iter()
+        .any(|marker| lower.contains(marker))
+}
+
+fn quoted_value_is_module_specifier_context(prefix: &str) -> bool {
+    let lower = strip_trailing_js_comments(&prefix.to_ascii_lowercase());
+    let trimmed = lower.trim_end();
+    if token_ends_with(trimmed, "from") || token_ends_with(trimmed, "import") {
+        return true;
+    }
+    if let Some(before_call) = trimmed.strip_suffix('(') {
+        let before_call = before_call.trim_end();
+        return token_ends_with(before_call, "import") || token_ends_with(before_call, "require");
+    }
+    token_ends_with(trimmed, "require")
+}
+
+fn strip_trailing_js_comments(value: &str) -> String {
+    let mut out = value.trim_end().to_string();
+    loop {
+        let trimmed = out.trim_end();
+        if !trimmed.ends_with("*/") {
+            return trimmed.to_string();
+        }
+        let Some(start) = trimmed.rfind("/*") else {
+            return trimmed.to_string();
+        };
+        out.truncate(start);
+    }
+}
+
+fn token_ends_with(value: &str, token: &str) -> bool {
+    let Some(before) = value.strip_suffix(token) else {
+        return false;
+    };
+    before
+        .chars()
+        .next_back()
+        .map(|ch| !(ch.is_ascii_alphanumeric() || ch == '_' || ch == '$'))
+        .unwrap_or(true)
+}
+
+#[derive(Debug)]
+struct QuotedString {
+    value: String,
+    prefix: String,
+}
+
+fn quoted_strings(text: &str) -> Vec<QuotedString> {
+    let mut values = Vec::new();
+    let chars: Vec<(usize, char)> = text.char_indices().collect();
+    let mut index = 0;
+    let mut in_block_comment = false;
+    while index < chars.len() {
+        let (start, ch) = chars[index];
+        let next = chars.get(index + 1).map(|(_, next)| *next);
+        if in_block_comment {
+            if ch == '*' && next == Some('/') {
+                in_block_comment = false;
+                index += 2;
+            } else {
+                index += 1;
+            }
+            continue;
+        }
+        if ch == '/' && next == Some('/') {
+            break;
+        }
+        if ch == '/' && next == Some('*') {
+            in_block_comment = true;
+            index += 2;
+            continue;
+        }
+        if !matches!(ch, '"' | '\'' | '`') {
+            index += 1;
+            continue;
+        }
+        let quote = ch;
+        let mut value = String::new();
+        let mut escaped = false;
+        index += 1;
+        while index < chars.len() {
+            let (_, inner) = chars[index];
+            index += 1;
+            if escaped {
+                value.push(inner);
+                escaped = false;
+                continue;
+            }
+            if inner == '\\' {
+                escaped = true;
+                continue;
+            }
+            if inner == quote {
+                break;
+            }
+            value.push(inner);
+        }
+        values.push(QuotedString {
+            value,
+            prefix: text[..start].to_string(),
+        });
+    }
+    values
+}
+
+fn surface_literal_is_structural(value: &str) -> bool {
+    let trimmed = value.trim();
+    if trimmed.len() < 3 || trimmed.len() > 160 {
+        return false;
+    }
+    if surface_literal_is_module_specifier(trimmed) {
+        return false;
+    }
+    trimmed.starts_with('.')
+        || trimmed.starts_with('#')
+        || trimmed.starts_with('/')
+        || trimmed.contains("data-testid")
+        || trimmed.contains("data-test")
+        || trimmed.contains("aria-")
+        || trimmed.contains('-')
+        || trimmed.contains('_')
+}
+
+fn surface_literal_is_module_specifier(value: &str) -> bool {
+    let trimmed = value.trim();
+    trimmed.starts_with("./")
+        || trimmed.starts_with("../")
+        || trimmed.starts_with("@/")
+        || (trimmed.starts_with('@') && trimmed.contains('/'))
+        || (trimmed.contains('/')
+            && !trimmed.starts_with('/')
+            && !trimmed.starts_with('.')
+            && !trimmed.starts_with('#')
+            && !trimmed.contains(char::is_whitespace))
+}
+
+fn surface_label_literal_is_structural(value: &str) -> bool {
+    let trimmed = value.trim();
+    if trimmed.len() < 3 || trimmed.len() > 100 {
+        return false;
+    }
+    if surface_literal_is_module_specifier(trimmed) {
+        return false;
+    }
+    let terms = surface_phrase_terms(&normalize_surface_phrase(trimmed).unwrap_or_default());
+    !terms.is_empty()
+        && terms
+            .iter()
+            .all(|term| term.chars().all(|ch| ch.is_ascii_alphanumeric()))
+}
+
+fn surface_literal_phrases(value: &str, preserve_whole: bool) -> BTreeSet<String> {
+    let route_surface = value.trim().starts_with('/');
+    if preserve_whole
+        && let Some(phrase) = normalize_surface_phrase(value)
+        && (surface_phrase_is_specific(&phrase)
+            || (route_surface && surface_phrase_terms(&phrase).len() >= 2))
+    {
+        return BTreeSet::from([phrase]);
+    }
+    value
+        .split(|ch: char| ch.is_whitespace() || matches!(ch, '>' | '+' | '~' | ',' | '[' | ']'))
+        .filter_map(normalize_surface_phrase)
+        .filter(|phrase| {
+            surface_phrase_is_specific(phrase)
+                || (route_surface && surface_phrase_terms(phrase).len() >= 2)
+        })
+        .collect()
+}
+
+fn normalize_surface_phrase(value: &str) -> Option<String> {
+    let mut trimmed = value
+        .trim()
+        .trim_matches(|ch: char| {
+            matches!(
+                ch,
+                '.' | '#' | '"' | '\'' | '`' | '(' | ')' | '{' | '}' | ';'
+            )
+        })
+        .replace("__", "-")
+        .replace(['.', '#', '/', '_', ':', '(', ')'], "-");
+    trimmed = trimmed.split_whitespace().collect::<Vec<_>>().join("-");
+    while trimmed.contains("--") {
+        trimmed = trimmed.replace("--", "-");
+    }
+    let trimmed = trimmed.trim_matches('-').to_ascii_lowercase();
+    if trimmed.is_empty()
+        || trimmed.contains("${")
+        || trimmed.starts_with("http")
+        || trimmed.starts_with("mailto")
+    {
+        return None;
+    }
+    Some(trimmed)
+}
+
+fn surface_phrase_is_specific(phrase: &str) -> bool {
+    let terms = surface_phrase_terms(phrase);
+    terms.len() >= 2
+        && terms
+            .iter()
+            .any(|term| !matches!(term.as_str(), "frame" | "title" | "canvas" | "node"))
+}
+
+fn surface_phrase_terms(phrase: &str) -> BTreeSet<String> {
+    tokenize(&phrase.replace(['.', '#', '/', '-', '_', ':'], " "))
+        .into_iter()
+        .filter(|term| term.len() >= 3)
+        .filter(|term| {
+            !matches!(
+                term.as_str(),
+                "the"
+                    | "and"
+                    | "for"
+                    | "with"
+                    | "from"
+                    | "true"
+                    | "false"
+                    | "null"
+                    | "undefined"
+                    | "data"
+                    | "test"
+                    | "testid"
+                    | "aria"
+                    | "label"
+                    | "role"
+                    | "root"
+                    | "blueprint"
+                    | "nodrag"
+                    | "nopan"
+            )
+        })
+        .collect()
+}
+
+fn surface_literal_terms(value: &str) -> BTreeSet<String> {
+    tokenize(&value.replace(['.', '#', '/', '-', '_', ':'], " "))
+        .into_iter()
+        .filter(|term| term.len() >= 3)
+        .filter(|term| {
+            !matches!(
+                term.as_str(),
+                "the"
+                    | "and"
+                    | "for"
+                    | "with"
+                    | "from"
+                    | "true"
+                    | "false"
+                    | "null"
+                    | "undefined"
+                    | "data"
+                    | "test"
+                    | "testid"
+                    | "aria"
+                    | "label"
+                    | "role"
+                    | "button"
+                    | "link"
+                    | "input"
+                    | "text"
+                    | "page"
+                    | "root"
+                    | "blueprint"
+            )
+        })
+        .collect()
 }
 
 fn symbols_with_ranges(mut starts: Vec<SymbolStart>, text: &str, ext: &str) -> Vec<SymbolInfo> {
@@ -3716,6 +4112,125 @@ export function laterSymbol() {
             symbols.iter().all(|symbol| symbol.name != "ReplayDto"),
             "export-list members are not declarations"
         );
+    }
+
+    #[test]
+    fn javascript_surface_tokens_capture_ui_selectors_without_plain_text_noise() {
+        let text = r#"export function Button() {
+  return <button data-testid="submit-order-button" aria-label="Submit order">Submit order</button>;
+}
+
+test("flow", async ({ page }) => {
+  await test.step("submit-order-button string in prose is not evidence", async () => {});
+  await page.goto("/orders/new");
+  await expect(page.locator(".submit-order-button")).toBeVisible();
+});
+"#;
+
+        let surfaces = extract_surfaces(text, "tsx");
+        let tokens = &surfaces.tokens;
+
+        assert!(tokens.contains("submit"));
+        assert!(tokens.contains("order"));
+        assert!(tokens.contains("orders"));
+        assert!(surfaces.phrases.contains("submit-order-button"));
+        assert!(surfaces.phrases.contains("orders-new"));
+        assert!(!tokens.contains("button"));
+        assert!(!tokens.contains("flow"));
+        assert!(!tokens.contains("prose"));
+    }
+
+    #[test]
+    fn javascript_surface_phrases_skip_import_paths_and_broad_mode_literals() {
+        let text = r#"import { useFrameTitleDrag } from './use-frame-title-drag';
+
+export function Title() {
+  return <div className="blueprint-frame-node__title-input nodrag" data-mode="frame-title" />;
+}
+"#;
+
+        let surfaces = extract_surfaces(text, "tsx");
+
+        assert!(
+            surfaces
+                .phrases
+                .contains("blueprint-frame-node-title-input")
+        );
+        assert!(!surfaces.phrases.contains("use-frame-title-drag"));
+        assert!(!surfaces.phrases.contains("frame-title"));
+    }
+
+    #[test]
+    fn javascript_surface_phrases_capture_labels_and_routes_only_in_ui_context() {
+        let text = r#"test("Open settings panel is prose, not a surface", () => {});
+
+export function SettingsLink() {
+  return <a href="/orders/new" aria-label="Open settings panel">Orders</a>;
+}
+
+export function CartButton() {
+  return <button aria-label="Remove from cart">Remove</button>;
+}
+
+export function ImportButton() {
+  return <button aria-label="Import (CSV)">Import</button>;
+}
+
+test("flow", async ({ page }) => {
+  await page.goto("/orders/new");
+  await expect(page.getByLabel("Open settings panel")).toBeVisible();
+  await expect(page.getByLabel("Remove from cart")).toBeVisible();
+  await expect(page.getByLabel("Import (CSV)")).toBeVisible();
+});
+"#;
+
+        let surfaces = extract_surfaces(text, "tsx");
+
+        assert!(surfaces.phrases.contains("open-settings-panel"));
+        assert!(surfaces.phrases.contains("remove-from-cart"));
+        assert!(surfaces.phrases.contains("import-csv"));
+        assert!(surfaces.phrases.contains("orders-new"));
+        assert!(surfaces.tokens.contains("settings"));
+        assert!(surfaces.tokens.contains("orders"));
+        assert!(!surfaces.tokens.contains("prose"));
+    }
+
+    #[test]
+    fn javascript_surface_phrases_ignore_ui_looking_module_specifiers() {
+        let text = r#"import widget from '@app/aria-label-open-settings-panel';
+export { widget as openSettingsPanel } from '@app/route-orders-new';
+const lazy = import ('@app/data-testid-submit-order-button');
+const required = require ('@app/class-name-submit-order-button');
+const bareLazy = import ('aria-label-open-settings-panel');
+const bareRequired = require ('data-testid-submit-order-button');
+const commentedLazy = import(/* webpackChunkName: "settings" */ 'aria-label-open-settings-panel');
+import {
+  multi,
+} from '@app/aria-label-open-settings-panel';
+const bareSubpath = require ('@scope/data-testid-submit-order-button');
+"#;
+
+        let surfaces = extract_surfaces(text, "tsx");
+
+        assert!(surfaces.phrases.is_empty(), "{surfaces:#?}");
+        assert!(surfaces.tokens.is_empty(), "{surfaces:#?}");
+    }
+
+    #[test]
+    fn javascript_surface_phrases_ignore_multiline_comments() {
+        let text = r#"/*
+  <button aria-label="Open settings panel" data-testid="submit-order-button">Settings</button>
+  await page.goto("/orders/new");
+*/
+export function CommentOnly() {
+  return <div />;
+}
+"#;
+
+        let surfaces = extract_surfaces(text, "tsx");
+
+        assert!(surfaces.phrases.is_empty(), "{surfaces:#?}");
+        assert!(surfaces.tokens.is_empty(), "{surfaces:#?}");
     }
 
     #[test]

@@ -32,6 +32,7 @@ Keep this flat until a module is hard to change safely.
 - common build/cache/vendor ignores;
 - lightweight role classification;
 - lightweight symbol extraction for JS/TS, Rust, Python, and Go;
+- UI/test-facing surface phrase/token extraction from selectors, test ids, aria labels, and routes;
 - JS/TS, Rust, Python, and Go import extraction;
 - JS/TS relative import, workspace package import, package entrypoint, and simple `tsconfig.json` alias resolution;
 - Go local module import resolution;
@@ -64,6 +65,7 @@ Hard evidence:
 Soft evidence:
 
 - file names;
+- UI/test-facing string surfaces such as selectors, test ids, aria labels, and routes;
 - nearby test names;
 - directory roles;
 - script names.
@@ -96,6 +98,7 @@ Soft evidence may explain hidden or secondary surfaces. It must not become a ran
 - root `ls .` is a bounded domain/package map;
 - file `ls` and `cone` expose symbols, edges, proof, and boundaries;
 - `impact` and `proof` are structural without extra flags;
+- e2e proof links can use shared exact selector/test-id surfaces, not only test path names;
 - schema manifest has no removed task-router contracts;
 - schema printing is side-effect free.
 

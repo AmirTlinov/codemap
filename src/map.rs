@@ -1139,7 +1139,7 @@ fn strict_test_edges_for_file(
         .any(|(_, _, _, strength)| *strength == EvidenceStrength::High)
     {
         scored.retain(|(_, _, evidence, strength)| {
-            *strength == EvidenceStrength::High || evidence == "e2e_surface_tokens"
+            *strength == EvidenceStrength::High || evidence == "e2e_surface_phrase"
         });
     }
     scored
@@ -1159,6 +1159,24 @@ fn structural_test_surface_match(
     if anchor_terms.is_empty() {
         return None;
     }
+    let phrase_shared = shared_surface_phrases(project, rel, test);
+    if test.has_role("e2e_test") {
+        if phrase_shared.is_empty() {
+            return None;
+        }
+        return Some((
+            78 + phrase_shared.len().min(8) * 4,
+            "e2e_surface_phrase".to_string(),
+            EvidenceStrength::Medium,
+        ));
+    }
+    if !phrase_shared.is_empty() {
+        return Some((
+            72 + phrase_shared.len().min(8) * 4,
+            "test_surface_phrase".to_string(),
+            EvidenceStrength::Medium,
+        ));
+    }
     let test_terms = test_surface_terms(test);
     let shared = anchor_terms
         .intersection(&test_terms)
@@ -1173,18 +1191,11 @@ fn structural_test_surface_match(
         return None;
     }
     let same_parent_signal = same_parent_or_test_scope(rel, &test.rel);
-    if test.has_role("e2e_test") {
-        let has_specific_term = shared.iter().any(|term| !broad_e2e_term(term));
-        if !has_specific_term {
-            return None;
-        }
-        return Some((
-            45 + shared_count.min(8) + core_shared_count.min(4) * 10,
-            "e2e_surface_tokens".to_string(),
-            EvidenceStrength::Medium,
-        ));
-    }
-    if same_parent_signal || core_shared_count >= 2 || shared_count >= 3 {
+    let test_path_terms = semantic_path_terms(&test.rel);
+    let core_path_shared_count = anchor_core_terms.intersection(&test_path_terms).count();
+    if same_parent_signal
+        || (core_path_shared_count >= 2 && (core_shared_count >= 2 || shared_count >= 3))
+    {
         return Some((
             50 + shared_count.min(8) + core_shared_count.min(4) * 10,
             "test_surface_tokens".to_string(),
@@ -1193,7 +1204,11 @@ fn structural_test_surface_match(
     }
     let source_package = package_for_rel(project, rel).map(|package| package.path.clone());
     let test_package = package_for_rel(project, &test.rel).map(|package| package.path.clone());
-    if source_package.is_some() && source_package == test_package && core_shared_count >= 2 {
+    if source_package.is_some()
+        && source_package == test_package
+        && core_path_shared_count >= 2
+        && core_shared_count >= 2
+    {
         return Some((
             42 + shared_count.min(8) + core_shared_count.min(4) * 10,
             "test_surface_tokens".to_string(),
@@ -1201,6 +1216,20 @@ fn structural_test_surface_match(
         ));
     }
     None
+}
+
+fn shared_surface_phrases(project: &Project, rel: &str, test: &FileInfo) -> BTreeSet<String> {
+    project
+        .files
+        .get(rel)
+        .map(|file| {
+            file.surface_phrases
+                .intersection(&test.surface_phrases)
+                .filter(|phrase| meaningful_surface_phrase(phrase))
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn source_stem(rel: &str) -> String {
@@ -1246,6 +1275,7 @@ fn anchor_terms(project: &Project, rel: &str) -> BTreeSet<String> {
         for export in &file.exports {
             terms.extend(semantic_name_terms(export));
         }
+        terms.extend(file.surface_tokens.iter().cloned());
     }
     terms
 }
@@ -1281,7 +1311,9 @@ fn structural_anchor_symbol_kind(kind: &str) -> bool {
 }
 
 fn test_surface_terms(file: &FileInfo) -> BTreeSet<String> {
-    semantic_path_terms(&file.rel)
+    let mut terms = semantic_path_terms(&file.rel);
+    terms.extend(file.surface_tokens.iter().cloned());
+    terms
 }
 
 fn semantic_path_terms(path: &str) -> BTreeSet<String> {
@@ -1358,24 +1390,47 @@ fn meaningful_surface_term(term: &str) -> bool {
                 | "helpers"
                 | "fixture"
                 | "fixtures"
+                | "blueprint"
         )
 }
 
-fn broad_e2e_term(term: &str) -> bool {
-    matches!(
-        term,
-        "studio"
-            | "canvas"
-            | "frame"
-            | "board"
-            | "node"
-            | "client"
-            | "server"
-            | "route"
-            | "routes"
-            | "view"
-            | "screen"
-    )
+fn meaningful_surface_phrase(phrase: &str) -> bool {
+    let terms = surface_phrase_terms(phrase);
+    terms.len() >= 2
+        && terms
+            .iter()
+            .any(|term| !matches!(term.as_str(), "frame" | "title" | "canvas" | "node"))
+}
+
+fn surface_phrase_terms(phrase: &str) -> BTreeSet<String> {
+    repo::tokenize(&phrase.replace(['.', '#', '/', '-', '_', ':'], " "))
+        .into_iter()
+        .filter(|term| term.len() >= 3)
+        .filter(|term| {
+            !matches!(
+                term.as_str(),
+                "the"
+                    | "and"
+                    | "for"
+                    | "with"
+                    | "from"
+                    | "true"
+                    | "false"
+                    | "null"
+                    | "undefined"
+                    | "data"
+                    | "test"
+                    | "testid"
+                    | "aria"
+                    | "label"
+                    | "role"
+                    | "root"
+                    | "blueprint"
+                    | "nodrag"
+                    | "nopan"
+            )
+        })
+        .collect()
 }
 
 fn same_parent_or_test_scope(source: &str, test: &str) -> bool {
@@ -1593,11 +1648,7 @@ fn proof_surfaces_for_anchor(
             strength,
         });
     }
-    if depth <= 1
-        && out
-            .iter()
-            .any(|surface| surface.strength == EvidenceStrength::High)
-    {
+    if depth <= 1 && !out.is_empty() {
         return out;
     }
     let mut consumers = direct_consumer_edges(project, anchor);
@@ -1644,8 +1695,9 @@ fn proof_reason_for_evidence(evidence: &str, scope: &str) -> String {
     match evidence {
         "test_import" => format!("test imports {scope}"),
         "test_name" => format!("test name matches {scope}"),
+        "test_surface_phrase" => format!("test uses same UI/test surface as {scope}"),
+        "e2e_surface_phrase" => format!("e2e uses same UI/test surface as {scope}"),
         "test_surface_tokens" => format!("test path/symbols match {scope} surface"),
-        "e2e_surface_tokens" => format!("e2e path matches {scope} UI/domain surface"),
         _ => format!("structural proof for {scope}"),
     }
 }

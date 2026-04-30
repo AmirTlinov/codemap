@@ -44,6 +44,8 @@ pub struct FileInfo {
     pub exports: BTreeSet<String>,
     pub symbols: Vec<SymbolInfo>,
     pub tokens: BTreeSet<String>,
+    pub surface_tokens: BTreeSet<String>,
+    pub surface_phrases: BTreeSet<String>,
 }
 
 impl FileInfo {
