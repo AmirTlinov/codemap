@@ -893,6 +893,20 @@ fn extract_imports_exports(root: &Path, info: &mut FileInfo) {
         "go" => {
             info.imports.extend(extract_go_imports(&text));
         }
+        "swift" => {
+            let import_re = swift_import_re();
+            let import_text = code_without_comments_or_strings(&text, &info.ext);
+            for cap in import_re.captures_iter(&import_text) {
+                if let Some(m) = cap.get(1) {
+                    info.imports.insert(m.as_str().trim().to_string());
+                }
+            }
+            for symbol in &info.symbols {
+                if symbol.exported {
+                    info.exports.insert(symbol.name.clone());
+                }
+            }
+        }
         _ => {}
     }
 }
@@ -911,6 +925,10 @@ struct SymbolStart {
 }
 
 fn extract_symbols(text: &str, ext: &str) -> Vec<SymbolInfo> {
+    if ext == "swift" {
+        let cleaned = code_without_comments_or_strings(text, ext);
+        return symbols_with_ranges(extract_swift_symbols(&cleaned), &cleaned, ext);
+    }
     let starts = match ext {
         "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte" => extract_js_symbols(text),
         "rs" => extract_rust_symbols(text),
@@ -950,9 +968,8 @@ fn code_without_comments_or_strings(text: &str, ext: &str) -> String {
     for raw_line in text.lines() {
         let comment_stripped = match ext {
             "py" => strip_python_comment_from_line(raw_line),
-            "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte" | "rs" | "go" => {
-                strip_c_like_code_line_for_identifier_refs(raw_line, &mut code_state)
-            }
+            "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte" | "rs" | "go"
+            | "swift" => strip_c_like_code_line_for_identifier_refs(raw_line, &mut code_state),
             _ => raw_line.to_string(),
         };
         if ext == "py" {
@@ -1111,6 +1128,7 @@ fn language_keyword(name: &str) -> bool {
             | "impl"
             | "import"
             | "in"
+            | "internal"
             | "interface"
             | "let"
             | "match"
@@ -1120,7 +1138,10 @@ fn language_keyword(name: &str) -> bool {
             | "none"
             | "null"
             | "package"
+            | "private"
+            | "protocol"
             | "pub"
+            | "public"
             | "return"
             | "self"
             | "static"
@@ -1562,7 +1583,7 @@ fn symbols_with_ranges(mut starts: Vec<SymbolStart>, text: &str, ext: &str) -> V
 fn symbol_end(text: &str, ext: &str, line_start: usize, fallback_end: usize) -> usize {
     match ext {
         "py" => python_symbol_end(text, line_start, fallback_end),
-        "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte" | "rs" | "go" => {
+        "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte" | "rs" | "go" | "swift" => {
             brace_symbol_end(text, line_start, fallback_end).unwrap_or(line_start)
         }
         _ => fallback_end,
@@ -1826,6 +1847,70 @@ fn extract_go_symbols(text: &str) -> Vec<SymbolStart> {
         }
     }
     symbols
+}
+
+fn extract_swift_symbols(text: &str) -> Vec<SymbolStart> {
+    let mut symbols = Vec::new();
+    for (idx, line) in text.lines().enumerate() {
+        if is_noise_line(line, "//") {
+            continue;
+        }
+        let line_start = idx + 1;
+        if let Some(cap) = swift_type_symbol_re().captures(line) {
+            let Some(name) = cap.name("name").map(|m| m.as_str().to_string()) else {
+                continue;
+            };
+            let raw_kind = cap.name("kind").map(|m| m.as_str()).unwrap_or("symbol");
+            let modifiers = cap.name("mods").map(|m| m.as_str()).unwrap_or_default();
+            symbols.push(SymbolStart {
+                name,
+                kind: raw_kind.to_string(),
+                exported: swift_modifiers_are_exported(modifiers),
+                line_start,
+                indent: leading_spaces(line),
+            });
+            continue;
+        }
+        if let Some(cap) = swift_func_symbol_re().captures(line) {
+            let Some(name) = cap.name("name").map(|m| m.as_str().to_string()) else {
+                continue;
+            };
+            let modifiers = cap.name("mods").map(|m| m.as_str()).unwrap_or_default();
+            symbols.push(SymbolStart {
+                name,
+                kind: "function".to_string(),
+                exported: swift_modifiers_are_exported(modifiers),
+                line_start,
+                indent: leading_spaces(line),
+            });
+            continue;
+        }
+        if let Some(cap) = swift_property_symbol_re().captures(line) {
+            let Some(name) = cap.name("name").map(|m| m.as_str().to_string()) else {
+                continue;
+            };
+            let raw_kind = cap.name("kind").map(|m| m.as_str()).unwrap_or("var");
+            let modifiers = cap.name("mods").map(|m| m.as_str()).unwrap_or_default();
+            symbols.push(SymbolStart {
+                name,
+                kind: if raw_kind == "let" {
+                    "constant".to_string()
+                } else {
+                    "property".to_string()
+                },
+                exported: swift_modifiers_are_exported(modifiers),
+                line_start,
+                indent: leading_spaces(line),
+            });
+        }
+    }
+    symbols
+}
+
+fn swift_modifiers_are_exported(modifiers: &str) -> bool {
+    modifiers
+        .split_whitespace()
+        .any(|modifier| matches!(modifier, "public" | "open" | "package"))
 }
 
 fn is_noise_line(line: &str, comment_prefix: &str) -> bool {
@@ -4009,6 +4094,38 @@ fn swift_package_path_dependency_re() -> &'static Regex {
     })
 }
 
+fn swift_import_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"(?m)^\s*(?:@\w+(?:\([^)]*\))?\s+)?import\s+(?:(?:class|struct|enum|protocol|func|var|typealias)\s+)?([A-Za-z_][A-Za-z0-9_]*)"#)
+            .expect("valid swift import regex")
+    })
+}
+
+fn swift_type_symbol_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"^\s*(?:@\w+(?:\([^)]*\))?\s+)*(?P<mods>(?:(?:public|open|package|internal|fileprivate|private|final|static|class|indirect)\s+)*)?(?P<kind>class|struct|enum|protocol|actor)\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)"#)
+            .expect("valid swift type symbol regex")
+    })
+}
+
+fn swift_func_symbol_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"^\s*(?:@\w+(?:\([^)]*\))?\s+)*(?P<mods>(?:(?:public|open|package|internal|fileprivate|private|static|class|mutating|nonmutating|override|final)\s+)*)?func\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*\("#)
+            .expect("valid swift function symbol regex")
+    })
+}
+
+fn swift_property_symbol_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"^\s*(?:@\w+(?:\([^)]*\))?\s+)*(?P<mods>(?:(?:public|open|package|internal|fileprivate|private|static|class|weak|unowned|lazy|override|final)\s+)*)?(?P<kind>let|var)\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\b"#)
+            .expect("valid swift property symbol regex")
+    })
+}
+
 fn py_def_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
@@ -4623,6 +4740,63 @@ func (s Session) tick() {}
     }
 
     #[test]
+    fn swift_symbols_keep_modifiers_imports_and_ranges() {
+        let text = r#"import Foundation
+import SwiftUI
+
+@MainActor
+public final class ReplayViewModel: ObservableObject {
+    @Published public var selectedID: String?
+
+    public struct NavigationFrame {
+        let label: String
+    }
+
+    public var title: String {
+        "Replay"
+    }
+
+    private let frames: [NavigationFrame] = []
+
+    public func seekFrame(_ index: Int) -> NavigationFrame? {
+        frames.indices.contains(index) ? frames[index] : nil
+    }
+}
+
+private enum ReplayMode {
+    case paused
+}
+"#;
+
+        let symbols = extract_symbols(text, "swift");
+
+        assert_symbol(&symbols, "ReplayViewModel", "class", true, 5, 21);
+        assert_symbol(&symbols, "selectedID", "property", true, 6, 6);
+        assert_symbol(&symbols, "NavigationFrame", "struct", true, 8, 10);
+        assert_symbol(&symbols, "title", "property", true, 12, 14);
+        assert_symbol(&symbols, "frames", "constant", false, 16, 16);
+        assert_symbol(&symbols, "seekFrame", "function", true, 18, 20);
+        assert_symbol(&symbols, "ReplayMode", "enum", false, 23, 25);
+
+        let imports = swift_import_re()
+            .captures_iter(text)
+            .filter_map(|cap| cap.get(1).map(|m| m.as_str().to_string()))
+            .collect::<Vec<_>>();
+        assert_eq!(imports, vec!["Foundation", "SwiftUI"]);
+
+        let qualified_imports = swift_import_re()
+            .captures_iter(
+                "@testable import SwiftFixture\n@_spi(Internal) import Core\nimport struct Foundation.UUID\n",
+            )
+            .filter_map(|cap| cap.get(1).map(|m| m.as_str().to_string()))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            qualified_imports,
+            vec!["SwiftFixture", "Core", "Foundation"]
+        );
+    }
+
+    #[test]
     fn fixture_projects_populate_symbols_for_primary_languages() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures");
         let cases = [
@@ -4642,6 +4816,11 @@ func (s Session) tick() {}
                 "seek",
             ),
             ("go-workspace", "services/replay/session/session.go", "Seek"),
+            (
+                "swift-package",
+                "Sources/SwiftFixture/ViewModel.swift",
+                "ReplayViewModel",
+            ),
         ];
 
         for (fixture, rel, symbol) in cases {

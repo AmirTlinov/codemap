@@ -1215,6 +1215,9 @@ fn strict_test_edges_for_file(
         if source_domain.is_some() && source_domain != test_domain {
             continue;
         }
+        if !swift_test_can_prove_anchor(project, rel, file) {
+            continue;
+        }
         if file.resolved_imports.contains(rel) {
             scored.push((
                 80usize,
@@ -1378,6 +1381,22 @@ fn test_imports_support_consuming_anchor(project: &Project, rel: &str, test: &Fi
         frontier = next;
     }
     false
+}
+
+fn swift_test_can_prove_anchor(project: &Project, rel: &str, test: &FileInfo) -> bool {
+    let Some(anchor) = project.files.get(rel) else {
+        return true;
+    };
+    if anchor.ext != "swift" || test.ext != "swift" {
+        return true;
+    }
+    let Some((root, target)) = swift_source_scope(&anchor.rel) else {
+        return false;
+    };
+    swift_test_package_root(&test.rel)
+        .map(|test_root| test_root == root)
+        .unwrap_or(false)
+        && test.imports.contains(&target)
 }
 
 fn test_references_anchor_symbol(project: &Project, rel: &str, test: &FileInfo) -> bool {
@@ -2415,7 +2434,52 @@ fn same_symbol_reference_scope(anchor: &FileInfo, file: &FileInfo) -> bool {
     if anchor.ext == "go" && file.ext == "go" {
         return Path::new(&anchor.rel).parent() == Path::new(&file.rel).parent();
     }
+    if anchor.ext == "swift" && file.ext == "swift" {
+        return same_swift_target_reference_scope(anchor, file);
+    }
     false
+}
+
+fn same_swift_target_reference_scope(anchor: &FileInfo, file: &FileInfo) -> bool {
+    let Some((anchor_root, anchor_target)) = swift_source_scope(&anchor.rel) else {
+        return false;
+    };
+    if file.has_role("test") {
+        return swift_test_package_root(&file.rel)
+            .map(|test_root| test_root == anchor_root)
+            .unwrap_or(false)
+            && file.imports.contains(&anchor_target);
+    }
+    swift_source_scope(&file.rel)
+        .map(|scope| scope == (anchor_root, anchor_target))
+        .unwrap_or(false)
+}
+
+fn swift_source_scope(rel: &str) -> Option<(String, String)> {
+    let normalized = repo::normalize_rel_path(rel);
+    if let Some(rest) = normalized.strip_prefix("Sources/") {
+        return rest
+            .split('/')
+            .next()
+            .map(|target| (".".to_string(), target.to_string()));
+    }
+    if let Some((root, rest)) = normalized.split_once("/Sources/") {
+        return rest
+            .split('/')
+            .next()
+            .map(|target| (root.to_string(), target.to_string()));
+    }
+    None
+}
+
+fn swift_test_package_root(rel: &str) -> Option<String> {
+    let normalized = repo::normalize_rel_path(rel);
+    if normalized.starts_with("Tests/") {
+        return Some(".".to_string());
+    }
+    normalized
+        .split_once("/Tests/")
+        .map(|(root, _)| root.to_string())
 }
 
 fn cross_boundary_consumer_edges(
