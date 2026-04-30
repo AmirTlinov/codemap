@@ -666,6 +666,36 @@ fn proof_root_stays_bounded_without_expanding_test_galaxy() {
 #[test]
 fn cone_shows_proof_edges_through_direct_consumers() {
     let (repo, cache) = fixture();
+    let public_impact = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "impact",
+            "--files",
+            "packages/replay/src/public-only.ts",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/impact.schema.json", &public_impact);
+    assert_eq!(public_impact["clusters"][0]["risk"], "high");
+
+    let public_proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "packages/replay/src/public-only.ts",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &public_proof);
+    assert_eq!(
+        public_proof["risk"], public_impact["clusters"][0]["risk"],
+        "proof risk should reflect structural impact when a direct consumer is a contract/public surface: {public_proof:#}"
+    );
+
     let cone = run_json(
         repo.path(),
         cache.path(),
@@ -712,6 +742,54 @@ fn cone_shows_proof_edges_through_direct_consumers() {
             .iter()
             .all(|edge| edge["from"] != "packages/replay/tests/public-api.test.ts"),
         "a test importing a shared public consumer must still mention this anchor before becoming via-consumer proof: {session_cone:#}"
+    );
+}
+
+#[test]
+fn proof_risk_uses_structural_edges_without_high_inflation() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("packages/replay/src/plain-value.ts"),
+        "export const plainValue = 1;\n",
+    );
+    write(
+        &repo.path().join("packages/replay/src/plain-consumer.ts"),
+        "import { plainValue } from './plain-value';\n\nexport const doubled = plainValue * 2;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "plain direct consumer"]);
+
+    let impact = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "impact",
+            "--files",
+            "packages/replay/src/plain-value.ts",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/impact.schema.json", &impact);
+    assert_eq!(
+        impact["clusters"][0]["risk"], "medium",
+        "a plain direct consumer should raise local risk without pretending to be a contract blast radius: {impact:#}"
+    );
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "packages/replay/src/plain-value.ts",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert_eq!(
+        proof["risk"], impact["clusters"][0]["risk"],
+        "proof should share structural risk semantics with impact without high inflation: {proof:#}"
     );
 }
 

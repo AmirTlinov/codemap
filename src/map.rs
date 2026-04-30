@@ -3323,7 +3323,7 @@ pub fn proof_report(
                     project
                         .files
                         .get(&file_rel)
-                        .map(|_| risk_for_file(project, &file_rel).0)
+                        .map(|_| structural_risk_for_file(project, &file_rel, depth).0)
                         .unwrap_or(Risk::Medium),
                 );
                 proofs.extend(proof_surfaces_for_symbol_anchor(
@@ -3335,10 +3335,10 @@ pub fn proof_report(
                 ));
             } else {
                 if project.files.contains_key(anchor) {
-                    risk = risk.max(risk_for_file(project, anchor).0);
+                    risk = risk.max(structural_risk_for_file(project, anchor, depth).0);
                     proofs.extend(proof_surfaces_for_anchor(project, anchor, depth, limit));
                 } else if anchor != "." && directory_has_files(project, anchor) {
-                    risk = risk.max(risk_for_directory(project, anchor));
+                    risk = risk.max(risk_for_directory(project, anchor, depth));
                     proofs.extend(proof_surfaces_for_directory(project, anchor, depth, limit));
                 } else {
                     risk = risk.max(Risk::Medium);
@@ -3516,13 +3516,33 @@ fn proof_surfaces_for_symbol_anchor(
     out
 }
 
-fn risk_for_directory(project: &Project, rel: &str) -> Risk {
+fn risk_for_directory(project: &Project, rel: &str, depth: usize) -> Risk {
     files_under_directory(project, rel)
         .into_iter()
         .filter(|file| !file.has_role("generated") && !is_generic_noise(file))
-        .map(|file| risk_for_file(project, &file.rel).0)
+        .map(|file| structural_risk_for_file(project, &file.rel, depth).0)
         .max()
         .unwrap_or(Risk::Medium)
+}
+
+fn structural_risk_for_file(project: &Project, rel: &str, depth: usize) -> (Risk, Vec<String>) {
+    let (file_risk, mut reasons) = risk_for_file(project, rel);
+    if !project.files.contains_key(rel) {
+        return (file_risk, reasons);
+    }
+    let direct_consumers = direct_consumer_edges(project, rel);
+    let cross_boundary_consumers =
+        cross_boundary_consumer_edges(project, rel, &direct_consumers, depth.max(1));
+    let contract_risks = contract_risk_edges(project, rel, &direct_consumers);
+    let (structural_risk, structural_reasons) = structural_impact_risk(
+        project,
+        rel,
+        &direct_consumers,
+        &cross_boundary_consumers,
+        &contract_risks,
+    );
+    reasons.extend(structural_reasons);
+    (file_risk.max(structural_risk), unique(reasons))
 }
 
 fn proof_reason_for_evidence(evidence: &str, scope: &str) -> String {
