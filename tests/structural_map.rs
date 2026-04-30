@@ -1620,6 +1620,18 @@ fn symbol_anchor_cone_filters_javascript_import_bindings() {
         "import { GroupCard as Card } from './card';\n\nexport function HomePage() {\n  return <Card />;\n}\n",
     );
     write(
+        &repo.path().join("src/two-cards.tsx"),
+        "import { AdminCard, GroupCard } from './card';\n\nexport function TwoCards() {\n  return <><GroupCard /><AdminCard /></>;\n}\n",
+    );
+    write(
+        &repo.path().join("src/helpers.tsx"),
+        "export function custom() {\n  return null;\n}\n",
+    );
+    write(
+        &repo.path().join("src/lowercase-jsx.tsx"),
+        "import { custom } from './helpers';\n\nexport function LowercaseView() {\n  return <custom />;\n}\n",
+    );
+    write(
         &repo.path().join("src/admin.tsx"),
         "import { AdminCard } from './card';\n\nexport function AdminPage() {\n  return <AdminCard />;\n}\n",
     );
@@ -1702,6 +1714,10 @@ fn symbol_anchor_cone_filters_javascript_import_bindings() {
     write(
         &repo.path().join("src/generic-arrow.tsx"),
         "import { GroupCard } from './card';\n\nexport const make = <GroupCard extends object>() => null;\n",
+    );
+    write(
+        &repo.path().join("src/angle-assertion.ts"),
+        "import { GroupCard } from './card';\n\nexport function cast(value: unknown) {\n  return <GroupCard>value;\n}\n",
     );
     write(
         &repo.path().join("src/await-regex.test.tsx"),
@@ -1847,6 +1863,106 @@ fn symbol_anchor_cone_filters_javascript_import_bindings() {
                 && edge["to"] == "src/card.tsx#GroupCard"
                 && edge["evidence"] == "test_imported_symbol_reference"),
         "symbol cone should expose exact symbol proof: {cone:#}"
+    );
+
+    let home_cone = run_json(
+        repo.path(),
+        cache.path(),
+        &["cone", "src/home.tsx#HomePage", "--format", "json"],
+    );
+    assert_schema("schemas/cone.schema.json", &home_cone);
+    assert!(
+        home_cone["outgoing"]
+            .as_array()
+            .expect("home outgoing")
+            .iter()
+            .any(|edge| edge["from"] == "src/home.tsx#HomePage"
+                && edge["to"] == "src/card.tsx#GroupCard"
+                && edge["type"] == "symbol_uses"
+                && edge["evidence"] == "imported_symbol_in_symbol_body"),
+        "symbol cone should show imported symbols used inside the selected symbol body: {home_cone:#}"
+    );
+    assert!(
+        home_cone["unknowns"]
+            .as_array()
+            .expect("home unknowns")
+            .is_empty(),
+        "symbol cone should not claim outgoing unknown when it found structural symbol uses: {home_cone:#}"
+    );
+
+    for false_anchor in [
+        "src/unused.tsx#unused",
+        "src/if-regex-consumer.tsx#regexConsumer",
+        "src/generic-arrow.tsx#make",
+        "src/angle-assertion.ts#cast",
+        "src/local-shadow.tsx#ShadowPage",
+    ] {
+        let false_cone = run_json(
+            repo.path(),
+            cache.path(),
+            &["cone", false_anchor, "--format", "json"],
+        );
+        assert_schema("schemas/cone.schema.json", &false_cone);
+        assert!(
+            false_cone["outgoing"]
+                .as_array()
+                .expect("false outgoing")
+                .iter()
+                .all(|edge| edge["to"] != "src/card.tsx#GroupCard"),
+            "symbol outgoing must not link unused imports, regex-only mentions, or local shadows for {false_anchor}: {false_cone:#}"
+        );
+    }
+    let lowercase_cone = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "cone",
+            "src/lowercase-jsx.tsx#LowercaseView",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/cone.schema.json", &lowercase_cone);
+    assert!(
+        lowercase_cone["outgoing"]
+            .as_array()
+            .expect("lowercase outgoing")
+            .iter()
+            .all(|edge| edge["to"] != "src/helpers.tsx#custom"),
+        "lowercase JSX tags must not become imported symbol edges: {lowercase_cone:#}"
+    );
+
+    let limited_cone = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "cone",
+            "src/two-cards.tsx#TwoCards",
+            "--limit",
+            "1",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/cone.schema.json", &limited_cone);
+    assert_eq!(
+        limited_cone["outgoing"]
+            .as_array()
+            .expect("limited outgoing")
+            .len(),
+        1,
+        "symbol outgoing should honor cone limit: {limited_cone:#}"
+    );
+    assert!(
+        limited_cone["hidden"]
+            .as_array()
+            .expect("limited hidden")
+            .iter()
+            .any(
+                |group| group["reason"] == "symbol outgoing edges hidden by limit"
+                    && group["count"] == 1
+            ),
+        "symbol outgoing should report hidden edges when truncated: {limited_cone:#}"
     );
 
     let proof = run_json(

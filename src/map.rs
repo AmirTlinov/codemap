@@ -697,12 +697,24 @@ fn cone_symbol_report(
     let anchor_path = symbol_anchor_path(file_rel, symbol_name);
     let mut incoming = symbol_reference_edges(project, file_rel, symbol_name, false);
     let mut proof = symbol_proof_edges(project, file_rel, symbol_name);
-    let outgoing = symbol_outgoing_edges(project, info, symbol_name);
+    let mut outgoing = symbol_outgoing_edges(project, info, symbol_name);
     let contracts = symbol_contract_edges(project, file_rel, symbol_name);
     let boundary = Vec::new();
     let mut hidden = Vec::new();
+    sort_edges(&mut outgoing);
     sort_edges(&mut incoming);
     sort_edges(&mut proof);
+    limit_edge_section(
+        &mut outgoing,
+        &mut hidden,
+        include_hidden,
+        limit,
+        "symbol outgoing edges hidden by limit",
+        &format!(
+            "codemap cone {} --include-hidden",
+            shell_quote(&anchor_path)
+        ),
+    );
     limit_edge_section(
         &mut incoming,
         &mut hidden,
@@ -1555,11 +1567,154 @@ fn symbol_proof_edges(project: &Project, file_rel: &str, symbol_name: &str) -> V
 }
 
 fn symbol_outgoing_edges(
-    _project: &Project,
-    _info: &FileInfo,
-    _symbol_name: &str,
+    project: &Project,
+    info: &FileInfo,
+    symbol_name: &str,
 ) -> Vec<StructuralEdge> {
-    Vec::new()
+    if !matches!(
+        info.ext.as_str(),
+        "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte"
+    ) {
+        return Vec::new();
+    }
+    let Some(body) = symbol_body_text(project, info, symbol_name) else {
+        return Vec::new();
+    };
+    let mut edges = Vec::new();
+    for (target_rel, bindings) in &info.resolved_import_bindings {
+        for (local, imported) in bindings {
+            if file_has_local_value_shadow(info, local) {
+                continue;
+            }
+            if !symbol_body_references_imported_local(&body, local, &info.ext) {
+                continue;
+            }
+            let Some(target_symbol) =
+                imported_binding_target_symbol_name(project, target_rel, imported)
+            else {
+                continue;
+            };
+            edges.push(StructuralEdge {
+                from: symbol_anchor_path(&info.rel, symbol_name),
+                to: symbol_anchor_path(target_rel, &target_symbol),
+                edge_type: "symbol_uses".to_string(),
+                evidence: "imported_symbol_in_symbol_body".to_string(),
+                strength: EvidenceStrength::High,
+            });
+        }
+    }
+    sort_edges(&mut edges);
+    edges
+}
+
+fn symbol_body_text(project: &Project, info: &FileInfo, symbol_name: &str) -> Option<String> {
+    let symbols = matching_symbols(info, symbol_name);
+    if symbols.is_empty() {
+        return None;
+    }
+    let line_start = symbols.iter().map(|symbol| symbol.line_start).min()?;
+    let line_end = symbols
+        .iter()
+        .map(|symbol| symbol.line_end)
+        .max()
+        .unwrap_or(line_start);
+    let text = std::fs::read_to_string(project.root.join(&info.rel)).ok()?;
+    Some(
+        text.lines()
+            .skip(line_start.saturating_sub(1))
+            .take(line_end.saturating_sub(line_start).saturating_add(1))
+            .collect::<Vec<_>>()
+            .join("\n"),
+    )
+}
+
+fn imported_binding_target_symbol_name(
+    project: &Project,
+    target_rel: &str,
+    imported: &str,
+) -> Option<String> {
+    let target = project.files.get(target_rel)?;
+    if imported == "default" {
+        let name = default_export_symbol_name(project, target_rel)?;
+        return (!matching_symbols(target, &name).is_empty()).then_some(name);
+    }
+    (!matching_symbols(target, imported).is_empty()).then(|| imported.to_string())
+}
+
+fn symbol_body_references_imported_local(body: &str, local: &str, ext: &str) -> bool {
+    let mut in_block_comment = false;
+    let mut quote = None;
+    let mut type_brace_depth: Option<usize> = None;
+    let jsx_capable = matches!(ext, "tsx" | "jsx" | "vue" | "svelte");
+    for line in body.lines() {
+        let trimmed = line.trim_start();
+        let code =
+            js_code_line_without_strings_and_comments(line, &mut in_block_comment, &mut quote);
+        if let Some(depth) = type_brace_depth.as_mut() {
+            *depth = js_brace_depth_after_line(*depth, &code);
+            if js_type_context_line_is_complete(trimmed, *depth) {
+                type_brace_depth = None;
+            }
+            continue;
+        }
+        if js_type_context_line_starts(trimmed) {
+            let depth = js_brace_depth_after_line(0, &code);
+            if !js_type_context_line_is_complete(trimmed, depth) {
+                type_brace_depth = Some(depth);
+            }
+            continue;
+        }
+        if line_has_value_identifier_reference(&code, local)
+            || (jsx_capable && line_has_jsx_tag_identifier_reference(&code, local))
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn line_has_jsx_tag_identifier_reference(line: &str, name: &str) -> bool {
+    if !name
+        .bytes()
+        .next()
+        .map(|byte| byte.is_ascii_uppercase())
+        .unwrap_or(false)
+    {
+        return false;
+    }
+    identifier_ranges(line, name).any(|(start, end)| {
+        let before = &line[..start];
+        let Some(tag_start) = before.rfind('<') else {
+            return false;
+        };
+        if previous_nonspace_byte(&before[tag_start + 1..]).is_some() {
+            return false;
+        }
+        let tag_before = before[..tag_start].bytes().next_back();
+        if tag_before
+            .map(|byte| is_identifier_byte(byte) || matches!(byte, b'.' | b'$' | b'/'))
+            .unwrap_or(false)
+        {
+            return false;
+        }
+        let after = line[end..].trim_start();
+        if matches!(after.bytes().next(), Some(b'|' | b'&' | b',' | b'=')) {
+            return false;
+        }
+        if after.starts_with("extends ")
+            || after.starts_with("extends\t")
+            || after.starts_with("extends\n")
+            || after.starts_with(">()")
+            || after.starts_with("> ()")
+        {
+            return false;
+        }
+        line[end..]
+            .bytes()
+            .next()
+            .map(|byte| byte.is_ascii_whitespace() || matches!(byte, b'>' | b'/'))
+            .unwrap_or(true)
+    })
 }
 
 fn symbol_contract_edges(
