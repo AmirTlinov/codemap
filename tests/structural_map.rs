@@ -3858,6 +3858,96 @@ fn root_ls_balances_directory_edges_across_structural_sources() {
 }
 
 #[test]
+fn root_ls_collapses_nested_manifest_edges_to_current_level_package() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{
+  "name": "nested-manifest-root-map-fixture",
+  "private": true,
+  "workspaces": ["packages/*"]
+}
+"#,
+    );
+    write(
+        &repo.path().join("packages/storefront-kit/package.json"),
+        r#"{
+  "name": "@fixture/storefront-kit",
+  "private": true
+}
+"#,
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/storefront-kit/src/ui/hooks/package.json"),
+        r#"{
+  "name": "@fixture/storefront-hooks",
+  "private": true
+}
+"#,
+    );
+    write(
+        &repo.path().join("packages/contracts/package.json"),
+        r#"{
+  "name": "@fixture/contracts",
+  "private": true
+}
+"#,
+    );
+    write(
+        &repo.path().join("packages/contracts/src/index.ts"),
+        "export const contractValue = true;\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/storefront-kit/src/ui/hooks/use-contract.ts"),
+        "import { contractValue } from '../../../../contracts/src/index';\nexport const useContract = () => contractValue;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let json = run_json(repo.path(), cache.path(), &["ls", ".", "--format", "json"]);
+    assert_schema("schemas/ls.schema.json", &json);
+    let edges = json["edges"].as_array().expect("edges");
+    assert!(
+        edges.iter().any(|edge| edge["type"] == "outgoing_import"
+            && edge["from"] == "packages/storefront-kit/"
+            && edge["to"] == "packages/contracts/"),
+        "root map should show the current-level package relation: {json:#}"
+    );
+    assert!(
+        edges.iter().all(
+            |edge| edge["from"] != "packages/storefront-kit/src/ui/hooks/"
+                && edge["to"] != "packages/storefront-kit/src/ui/hooks/"
+        ),
+        "root map must not leak nested package internals as top-level edge endpoints: {json:#}"
+    );
+    assert_eq!(json.get("read_first"), None);
+
+    let scoped = run_json(
+        repo.path(),
+        cache.path(),
+        &["ls", "packages/storefront-kit/src/ui", "--format", "json"],
+    );
+    assert_schema("schemas/ls.schema.json", &scoped);
+    let scoped_edges = scoped["edges"].as_array().expect("scoped edges");
+    assert!(
+        scoped_edges
+            .iter()
+            .any(|edge| edge["type"] == "outgoing_import"
+                && edge["from"] == "packages/storefront-kit/src/ui/hooks/"
+                && edge["to"] == "packages/contracts/"),
+        "scoped maps should still expose the nested relation once the agent drills into that level: {scoped:#}"
+    );
+}
+
+#[test]
 fn root_ls_preserves_rust_workspace_package_edges_under_shared_src_parent() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");

@@ -697,11 +697,12 @@ fn directory_edge_endpoint_at_depth(
 
 fn package_endpoint_at_depth(project: &Project, path: &str, depth: usize) -> Option<String> {
     let path = repo::normalize_rel_path(path);
+    // The outermost package is the map envelope; depth expands inside that envelope.
     let package = project
         .packages
         .iter()
         .filter(|package| package.path != "." && path_under_scope(&path, &package.path))
-        .max_by_key(|package| package.path.len())?;
+        .min_by_key(|package| package.path.len())?;
     let rest = path_relative_to_map(&path, &package.path).unwrap_or_else(|| ".".to_string());
     if depth <= 1 || rest == "." {
         return Some(format!("{}/", package.path.trim_end_matches('/')));
