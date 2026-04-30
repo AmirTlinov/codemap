@@ -898,13 +898,13 @@ fn extract_imports_exports(root: &Path, info: &mut FileInfo) {
                     info.imports.insert(m.as_str().trim().to_string());
                 }
             }
-            for symbol in &info.symbols {
-                if symbol.exported {
-                    info.exports.insert(symbol.name.clone());
-                }
-            }
         }
         _ => {}
+    }
+    for symbol in &info.symbols {
+        if symbol.exported {
+            info.exports.insert(symbol.name.clone());
+        }
     }
 }
 

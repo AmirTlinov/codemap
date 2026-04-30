@@ -746,6 +746,46 @@ fn cone_shows_proof_edges_through_direct_consumers() {
 }
 
 #[test]
+fn file_ls_exports_async_symbols_from_symbol_map() {
+    let (repo, cache) = fixture();
+    let ls = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "ls",
+            "packages/app/tests/e2e/support/mixed-layout-page.ts",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/ls.schema.json", &ls);
+    assert!(
+        ls["anchor"]["symbols"]
+            .as_array()
+            .expect("symbols")
+            .iter()
+            .any(|symbol| symbol["name"] == "openMixedLayout" && symbol["exported"] == true),
+        "symbol map should mark exported async functions: {ls:#}"
+    );
+    assert!(
+        ls["anchor"]["exports"]
+            .as_array()
+            .expect("exports")
+            .iter()
+            .any(|export| export == "openMixedLayout"),
+        "file export surface should include exported async functions discovered by the symbol map: {ls:#}"
+    );
+    assert!(
+        ls["anchor"]["exports"]
+            .as_array()
+            .expect("exports")
+            .iter()
+            .all(|export| export != "page"),
+        "file export surface must not promote non-exported parameters or local bindings: {ls:#}"
+    );
+}
+
+#[test]
 fn proof_risk_uses_structural_edges_without_high_inflation() {
     let (repo, cache) = fixture();
     write(
