@@ -409,7 +409,13 @@ fn ls_directory_report(
         }
     }
     let direct_files = direct_files_under_directory(project, rel);
+    let scope_is_support = is_support_artifact_path(rel);
+    let mut hidden_support_artifact_count = 0;
     for dir in immediate_child_dirs(project, rel) {
+        if is_support_artifact_path(&dir) && !scope_is_support && !include_hidden {
+            hidden_support_artifact_count += 1;
+            continue;
+        }
         if let Some(kind) = directory_role_surface(project, &dir) {
             grouped.entry(kind).or_default().push(dir.clone());
         }
@@ -493,8 +499,15 @@ fn ls_directory_report(
     }
     if hidden_support_package_count > 0 {
         hidden.push(HiddenGroup {
-            reason: "support packages hidden below fixture/example/sample scopes".to_string(),
+            reason: "support packages hidden below support scopes".to_string(),
             count: hidden_support_package_count,
+            expand: format!("codemap ls {} --include-hidden", shell_quote(rel)),
+        });
+    }
+    if hidden_support_artifact_count > 0 {
+        hidden.push(HiddenGroup {
+            reason: "support artifacts hidden".to_string(),
+            count: hidden_support_artifact_count,
             expand: format!("codemap ls {} --include-hidden", shell_quote(rel)),
         });
     }
@@ -1762,6 +1775,9 @@ fn directory_container_role_surface(project: &Project, dir: &str) -> Option<Stri
         ".github" | "workflows" | ".circleci" | ".buildkite"
     ) {
         return Some("build_ci".to_string());
+    }
+    if matches!(name.as_str(), ".agents" | ".codex" | ".claude") {
+        return Some("agent_support".to_string());
     }
     None
 }
@@ -4354,15 +4370,12 @@ fn surface_priority(kind: &str) -> usize {
 
 fn is_support_artifact_path(rel: &str) -> bool {
     let rel = repo::normalize_rel_path(rel);
-    rel == "fixtures"
-        || rel.starts_with("fixtures/")
-        || rel.contains("/fixtures/")
-        || rel == "examples"
-        || rel.starts_with("examples/")
-        || rel.contains("/examples/")
-        || rel == "samples"
-        || rel.starts_with("samples/")
-        || rel.contains("/samples/")
+    rel.split('/').any(|part| {
+        matches!(
+            part,
+            "fixtures" | "examples" | "samples" | ".agents" | ".codex" | ".claude"
+        )
+    })
 }
 
 pub fn impact_report(
