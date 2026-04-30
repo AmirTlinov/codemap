@@ -4622,6 +4622,689 @@ fn schema_manifest_has_no_removed_router_contracts_and_schema_command_is_side_ef
 }
 
 #[test]
+fn symbol_anchor_cone_follows_export_star_barrel_consumers() {
+    let (repo, cache) = fixture();
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/selection-core.ts"),
+        "export function pickFocusForSelection(selection: Set<string>, orderedIds: string[]): string | null {\n  return orderedIds.find((id) => selection.has(id)) ?? null;\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/selection-barrel.ts"),
+        "export * from './selection-core';\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/selection-consumer.ts"),
+        "import { pickFocusForSelection } from './selection-barrel';\n\nexport const selectedFocus = pickFocusForSelection(new Set(['a']), ['a']);\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/selection-core.test.ts"),
+        "import { pickFocusForSelection } from './selection-barrel';\n\ntest('selection focus', () => {\n  expect(pickFocusForSelection(new Set(['a']), ['a'])).toBe('a');\n});\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "symbol barrel fixture"]);
+
+    let cone = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "cone",
+            "packages/app/src/features/studio/canvas/selection-core.ts#pickFocusForSelection",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/cone.schema.json", &cone);
+    assert!(
+        cone["incoming"]
+            .as_array()
+            .expect("incoming")
+            .iter()
+            .any(|edge| edge["from"]
+                == "packages/app/src/features/studio/canvas/selection-consumer.ts"
+                && edge["evidence"] == "reexported_symbol_reference"),
+        "symbol xref should follow explicit export-star barrels to concrete consumers: {cone:#}"
+    );
+    assert!(
+        cone["proof"]
+            .as_array()
+            .expect("proof")
+            .iter()
+            .any(|edge| edge["from"]
+                == "packages/app/src/features/studio/canvas/selection-core.test.ts"
+                && edge["evidence"] == "test_reexported_symbol_reference"),
+        "symbol proof should follow exact re-export barrels used by tests: {cone:#}"
+    );
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "packages/app/src/features/studio/canvas/selection-core.ts#pickFocusForSelection",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        proof["proofs"]
+            .as_array()
+            .expect("proofs")
+            .iter()
+            .any(|surface| surface["path"]
+                == "packages/app/src/features/studio/canvas/selection-core.test.ts"
+                && surface["evidence"] == "test_reexported_symbol_reference"),
+        "proof command should expose re-exported symbol test evidence: {proof:#}"
+    );
+}
+
+#[test]
+fn symbol_anchor_cone_follows_named_reexport_barrel_aliases() {
+    let (repo, cache) = fixture();
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/selection-core.ts"),
+        "export function pickFocusForSelection(selection: Set<string>, orderedIds: string[]): string | null {\n  return orderedIds.find((id) => selection.has(id)) ?? null;\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/selection-barrel.ts"),
+        "export { pickFocusForSelection as publicPickFocus } from './selection-core';\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/selection-consumer.ts"),
+        "import { publicPickFocus as usePickFocus } from './selection-barrel';\n\nexport const selectedFocus = usePickFocus(new Set(['a']), ['a']);\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(
+        repo.path(),
+        &["commit", "-qm", "symbol named barrel fixture"],
+    );
+
+    let cone = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "cone",
+            "packages/app/src/features/studio/canvas/selection-core.ts#pickFocusForSelection",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/cone.schema.json", &cone);
+    assert!(
+        cone["incoming"]
+            .as_array()
+            .expect("incoming")
+            .iter()
+            .any(|edge| edge["from"]
+                == "packages/app/src/features/studio/canvas/selection-consumer.ts"
+                && edge["evidence"] == "reexported_symbol_reference"),
+        "symbol xref should follow exact named re-export aliases to concrete consumers: {cone:#}"
+    );
+}
+
+#[test]
+fn symbol_anchor_cone_follows_target_local_export_lists() {
+    let (repo, cache) = fixture();
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/selection-core.ts"),
+        "function pickFocusForSelection(selection: Set<string>, orderedIds: string[]): string | null {\n  return orderedIds.find((id) => selection.has(id)) ?? null;\n}\n\nexport { pickFocusForSelection };\nexport { pickFocusForSelection as publicPickFocus };\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/selection-barrel.ts"),
+        "export * from './selection-core';\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/direct-consumer.ts"),
+        "import { pickFocusForSelection } from './selection-core';\n\nexport const selectedFocus = pickFocusForSelection(new Set(['a']), ['a']);\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/barrel-consumer.ts"),
+        "import { pickFocusForSelection } from './selection-barrel';\n\nexport const selectedFocus = pickFocusForSelection(new Set(['a']), ['a']);\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/alias-consumer.ts"),
+        "import { publicPickFocus } from './selection-core';\n\nexport const selectedFocus = publicPickFocus(new Set(['a']), ['a']);\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/barrel-alias-consumer.ts"),
+        "import { publicPickFocus } from './selection-barrel';\n\nexport const selectedFocus = publicPickFocus(new Set(['a']), ['a']);\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(
+        repo.path(),
+        &["commit", "-qm", "symbol local export list fixture"],
+    );
+
+    let cone = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "cone",
+            "packages/app/src/features/studio/canvas/selection-core.ts#pickFocusForSelection",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/cone.schema.json", &cone);
+    for consumer in [
+        "packages/app/src/features/studio/canvas/direct-consumer.ts",
+        "packages/app/src/features/studio/canvas/barrel-consumer.ts",
+        "packages/app/src/features/studio/canvas/alias-consumer.ts",
+        "packages/app/src/features/studio/canvas/barrel-alias-consumer.ts",
+    ] {
+        assert!(
+            cone["incoming"]
+                .as_array()
+                .expect("incoming")
+                .iter()
+                .any(|edge| edge["from"] == consumer),
+            "target-side local export lists should create structural symbol xrefs for {consumer}: {cone:#}"
+        );
+    }
+}
+
+#[test]
+fn symbol_anchor_cone_rejects_inexact_type_only_and_shadowed_barrel_reexports() {
+    let (repo, cache) = fixture();
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/selection-core.ts"),
+        "export type SelectionFocus = string;\n\nexport function pickFocusForSelection(selection: Set<string>, orderedIds: string[]): string | null {\n  return orderedIds.find((id) => selection.has(id)) ?? null;\n}\n\nexport function otherSymbol() {\n  return 'other';\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/other-core.ts"),
+        "export function pickFocusForSelection() {\n  return 'other';\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/default-core.ts"),
+        "export default function PickFocus() {\n  return 'default';\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/default-list-core.ts"),
+        "function pickFocusForSelection() {\n  return 'default';\n}\n\nexport { pickFocusForSelection as default };\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/fake-string-core.ts"),
+        "function pickFocusForSelection() {\n  return 'private';\n}\n\nconst docs = `\nexport { pickFocusForSelection };\n`;\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/fake-comment-core.ts"),
+        "function pickFocusForSelection() {\n  return 'private';\n}\n\n/*\nexport { pickFocusForSelection };\n*/\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/fake-regex-core.ts"),
+        "function pickFocusForSelection() {\n  return 'private';\n}\n\nconst exportSyntaxPattern = /export { pickFocusForSelection }/;\nexport const keep = exportSyntaxPattern.test('x');\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/comment-gap-core.ts"),
+        "function localPick() {\n  return 'private-local';\n}\n\nexport { localPick as publicPick } /* valid comment gap */ from './comment-gap-remote';\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/comment-gap-remote.ts"),
+        "export function localPick() {\n  return 'remote';\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/other-barrel.ts"),
+        "export { otherSymbol } from './selection-core';\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/type-barrel.ts"),
+        "export type { SelectionFocus } from './selection-core';\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/star-barrel.ts"),
+        "export * from './selection-core';\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/conflict-barrel.ts"),
+        "export * from './selection-core';\nexport { pickFocusForSelection } from './other-core';\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/same-file-override-barrel.ts"),
+        "export * from './selection-core';\nexport { otherSymbol as pickFocusForSelection } from './selection-core';\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/commented-reexport-barrel.ts"),
+        "export * from './selection-core';\nexport { /* pickFocusForSelection is only a comment */ otherSymbol as pickFocusForSelection } from './selection-core';\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/duplicate-star-barrel.ts"),
+        "export * from './selection-core';\nexport * from './other-core';\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/local-barrel.ts"),
+        "export * from './selection-core';\n\nexport function pickFocusForSelection() {\n  return 'local';\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/multiline-local-barrel.ts"),
+        "import { pickFocusForSelection as otherPickFocus } from './other-core';\nexport * from './selection-core';\nexport {\n  otherPickFocus as pickFocusForSelection,\n};\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/commented-local-barrel.ts"),
+        "import { pickFocusForSelection } from './other-core';\nexport * from './selection-core';\nexport {\n  pickFocusForSelection, // from other-core intentionally\n};\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/default-star-barrel.ts"),
+        "export * from './default-core';\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/default-list-star-barrel.ts"),
+        "export * from './default-list-core';\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/fake-string-star-barrel.ts"),
+        "export * from './fake-string-core';\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/fake-comment-star-barrel.ts"),
+        "export * from './fake-comment-core';\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/fake-regex-star-barrel.ts"),
+        "export * from './fake-regex-core';\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/comment-gap-star-barrel.ts"),
+        "export * from './comment-gap-core';\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/default-named-barrel.ts"),
+        "export { default as PickFocus } from './default-core';\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/not-reexported-consumer.ts"),
+        "import { otherSymbol as pickFocusForSelection } from './other-barrel';\n\nexport const selectedFocus = pickFocusForSelection();\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/type-only-consumer.ts"),
+        "import type { SelectionFocus } from './type-barrel';\n\nexport type FocusAlias = SelectionFocus;\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/shadowed-consumer.ts"),
+        "import { pickFocusForSelection as localPickFocus } from './star-barrel';\n\nexport function selectedFocus() {\n  const localPickFocus = () => 'local';\n  return localPickFocus();\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/conflict-consumer.ts"),
+        "import { pickFocusForSelection } from './conflict-barrel';\n\nexport const selectedFocus = pickFocusForSelection();\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/same-file-override-consumer.ts"),
+        "import { pickFocusForSelection } from './same-file-override-barrel';\n\nexport const selectedFocus = pickFocusForSelection();\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/commented-reexport-consumer.ts"),
+        "import { pickFocusForSelection } from './commented-reexport-barrel';\n\nexport const selectedFocus = pickFocusForSelection();\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/duplicate-star-consumer.ts"),
+        "import { pickFocusForSelection } from './duplicate-star-barrel';\n\nexport const selectedFocus = pickFocusForSelection();\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/local-consumer.ts"),
+        "import { pickFocusForSelection } from './local-barrel';\n\nexport const selectedFocus = pickFocusForSelection();\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/multiline-local-consumer.ts"),
+        "import { pickFocusForSelection } from './multiline-local-barrel';\n\nexport const selectedFocus = pickFocusForSelection();\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/commented-local-consumer.ts"),
+        "import { pickFocusForSelection } from './commented-local-barrel';\n\nexport const selectedFocus = pickFocusForSelection();\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/default-star-consumer.ts"),
+        "import { PickFocus } from './default-star-barrel';\n\nexport const selectedFocus = PickFocus();\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/default-list-star-consumer.ts"),
+        "import { default as usePickFocus } from './default-list-star-barrel';\n\nexport const selectedFocus = usePickFocus();\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/fake-string-consumer.ts"),
+        "import { pickFocusForSelection } from './fake-string-star-barrel';\n\nexport const selectedFocus = pickFocusForSelection();\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/fake-string-core.test.ts"),
+        "import { pickFocusForSelection } from './fake-string-star-barrel';\n\ntest('fake string export is documentation only', () => {\n  expect(pickFocusForSelection()).toBe('private');\n});\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/fake-comment-consumer.ts"),
+        "import { pickFocusForSelection } from './fake-comment-star-barrel';\n\nexport const selectedFocus = pickFocusForSelection();\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/fake-comment-core.test.ts"),
+        "import { pickFocusForSelection } from './fake-comment-star-barrel';\n\ntest('fake comment export is documentation only', () => {\n  expect(pickFocusForSelection()).toBe('private');\n});\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/fake-regex-consumer.ts"),
+        "import { pickFocusForSelection } from './fake-regex-star-barrel';\n\nexport const selectedFocus = pickFocusForSelection();\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/fake-regex-core.test.ts"),
+        "import { pickFocusForSelection } from './fake-regex-star-barrel';\n\ntest('fake regex export is syntax text only', () => {\n  expect(pickFocusForSelection()).toBe('private');\n});\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/comment-gap-consumer.ts"),
+        "import { publicPick } from './comment-gap-star-barrel';\n\nexport const selectedFocus = publicPick();\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/comment-gap-core.test.ts"),
+        "import { publicPick } from './comment-gap-star-barrel';\n\ntest('comment gap re-export stays remote-owned', () => {\n  expect(publicPick()).toBe('remote');\n});\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/default-named-consumer.ts"),
+        "import { PickFocus } from './default-named-barrel';\n\nexport const selectedFocus = PickFocus();\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(
+        repo.path(),
+        &["commit", "-qm", "symbol negative barrel fixture"],
+    );
+
+    let value_cone = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "cone",
+            "packages/app/src/features/studio/canvas/selection-core.ts#pickFocusForSelection",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/cone.schema.json", &value_cone);
+    for false_consumer in [
+        "packages/app/src/features/studio/canvas/not-reexported-consumer.ts",
+        "packages/app/src/features/studio/canvas/shadowed-consumer.ts",
+        "packages/app/src/features/studio/canvas/conflict-consumer.ts",
+        "packages/app/src/features/studio/canvas/same-file-override-consumer.ts",
+        "packages/app/src/features/studio/canvas/commented-reexport-consumer.ts",
+        "packages/app/src/features/studio/canvas/duplicate-star-consumer.ts",
+        "packages/app/src/features/studio/canvas/local-consumer.ts",
+        "packages/app/src/features/studio/canvas/multiline-local-consumer.ts",
+        "packages/app/src/features/studio/canvas/commented-local-consumer.ts",
+    ] {
+        assert!(
+            value_cone["incoming"]
+                .as_array()
+                .expect("incoming")
+                .iter()
+                .all(|edge| edge["from"] != false_consumer),
+            "barrel xref must not link inexact or locally shadowed consumers: {value_cone:#}"
+        );
+    }
+
+    let other_symbol_cone = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "cone",
+            "packages/app/src/features/studio/canvas/selection-core.ts#otherSymbol",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/cone.schema.json", &other_symbol_cone);
+    assert!(
+        other_symbol_cone["incoming"]
+            .as_array()
+            .expect("incoming")
+            .iter()
+            .any(|edge| edge["from"]
+                == "packages/app/src/features/studio/canvas/same-file-override-consumer.ts"
+                && edge["evidence"] == "reexported_symbol_reference"),
+        "explicit same-file re-export should resolve to the exact imported symbol binding: {other_symbol_cone:#}"
+    );
+    assert!(
+        other_symbol_cone["incoming"]
+            .as_array()
+            .expect("incoming")
+            .iter()
+            .any(|edge| edge["from"]
+                == "packages/app/src/features/studio/canvas/commented-reexport-consumer.ts"
+                && edge["evidence"] == "reexported_symbol_reference"),
+        "comments inside re-export clauses must not become imported symbol bindings: {other_symbol_cone:#}"
+    );
+
+    let default_cone = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "cone",
+            "packages/app/src/features/studio/canvas/default-core.ts#PickFocus",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/cone.schema.json", &default_cone);
+    assert!(
+        default_cone["incoming"]
+            .as_array()
+            .expect("incoming")
+            .iter()
+            .all(|edge| edge["from"]
+                != "packages/app/src/features/studio/canvas/default-star-consumer.ts"),
+        "export-star must not expose default export symbol names as named public exports: {default_cone:#}"
+    );
+    assert!(
+        default_cone["incoming"]
+            .as_array()
+            .expect("incoming")
+            .iter()
+            .any(|edge| edge["from"]
+                == "packages/app/src/features/studio/canvas/default-named-consumer.ts"
+                && edge["evidence"] == "reexported_symbol_reference"),
+        "explicit default-as named re-export should still link to the default symbol: {default_cone:#}"
+    );
+
+    let default_list_cone = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "cone",
+            "packages/app/src/features/studio/canvas/default-list-core.ts#pickFocusForSelection",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/cone.schema.json", &default_list_cone);
+    assert!(
+        default_list_cone["incoming"]
+            .as_array()
+            .expect("incoming")
+            .iter()
+            .all(|edge| edge["from"]
+                != "packages/app/src/features/studio/canvas/default-list-star-consumer.ts"),
+        "export-star must not expose target-side default export-list aliases as named public exports: {default_list_cone:#}"
+    );
+
+    for (anchor, false_consumer, false_test) in [
+        (
+            "packages/app/src/features/studio/canvas/fake-string-core.ts#pickFocusForSelection",
+            "packages/app/src/features/studio/canvas/fake-string-consumer.ts",
+            "packages/app/src/features/studio/canvas/fake-string-core.test.ts",
+        ),
+        (
+            "packages/app/src/features/studio/canvas/fake-comment-core.ts#pickFocusForSelection",
+            "packages/app/src/features/studio/canvas/fake-comment-consumer.ts",
+            "packages/app/src/features/studio/canvas/fake-comment-core.test.ts",
+        ),
+        (
+            "packages/app/src/features/studio/canvas/fake-regex-core.ts#pickFocusForSelection",
+            "packages/app/src/features/studio/canvas/fake-regex-consumer.ts",
+            "packages/app/src/features/studio/canvas/fake-regex-core.test.ts",
+        ),
+        (
+            "packages/app/src/features/studio/canvas/comment-gap-core.ts#localPick",
+            "packages/app/src/features/studio/canvas/comment-gap-consumer.ts",
+            "packages/app/src/features/studio/canvas/comment-gap-core.test.ts",
+        ),
+    ] {
+        let fake_cone = run_json(
+            repo.path(),
+            cache.path(),
+            &["cone", anchor, "--format", "json"],
+        );
+        assert_schema("schemas/cone.schema.json", &fake_cone);
+        assert!(
+            fake_cone["incoming"]
+                .as_array()
+                .expect("incoming")
+                .iter()
+                .all(|edge| edge["from"] != false_consumer),
+            "export-list text inside strings/comments must not create re-exported symbol xrefs for {anchor}: {fake_cone:#}"
+        );
+        assert!(
+            fake_cone["proof"]
+                .as_array()
+                .expect("proof")
+                .iter()
+                .all(|edge| edge["from"] != false_test),
+            "export-list text inside strings/comments must not create proof edges for {anchor}: {fake_cone:#}"
+        );
+    }
+
+    let type_cone = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "cone",
+            "packages/app/src/features/studio/canvas/selection-core.ts#SelectionFocus",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/cone.schema.json", &type_cone);
+    assert!(
+        type_cone["incoming"]
+            .as_array()
+            .expect("incoming")
+            .iter()
+            .all(|edge| edge["from"]
+                != "packages/app/src/features/studio/canvas/type-only-consumer.ts"),
+        "type-only re-export/import must not become a runtime symbol xref: {type_cone:#}"
+    );
+}
+
+#[test]
 fn removed_graph_lens_aliases_fail_closed() {
     let (repo, cache) = fixture();
     let output = codemap()

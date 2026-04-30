@@ -1289,6 +1289,45 @@ fn extract_js_import_bindings(text: &str) -> ImportBindingsBySpec {
                 .extend(bindings);
         }
     }
+    for (spec, bindings) in extract_js_reexport_bindings(text) {
+        out.entry(spec)
+            .or_insert_with(BTreeMap::new)
+            .extend(bindings);
+    }
+    out
+}
+
+fn extract_js_reexport_bindings(text: &str) -> ImportBindingsBySpec {
+    let mut out = BTreeMap::new();
+    for start in js_keyword_positions(text, "export") {
+        let statement = js_statement_slice(text, start);
+        let statement_without_comments = strip_js_comments_from_text(statement);
+        let Some(cap) = js_reexport_statement_re().captures(&statement_without_comments) else {
+            continue;
+        };
+        if cap.name("type").is_some() {
+            continue;
+        }
+        let Some(spec) = cap.name("spec").map(|m| m.as_str().trim().to_string()) else {
+            continue;
+        };
+        let mut bindings = BTreeMap::new();
+        if cap.name("star").is_some() {
+            bindings.insert("export:*".to_string(), "*".to_string());
+        } else if let Some(named) = cap.name("named") {
+            let clause = format!("{{{}}}", named.as_str());
+            let mut named_bindings = BTreeMap::new();
+            collect_js_named_import_bindings(&clause, &mut named_bindings);
+            for (exported, imported) in named_bindings {
+                bindings.insert(format!("export:{exported}"), imported);
+            }
+        }
+        if !bindings.is_empty() {
+            out.entry(spec)
+                .or_insert_with(BTreeMap::new)
+                .extend(bindings);
+        }
+    }
     out
 }
 
@@ -1401,6 +1440,15 @@ fn js_statement_slice(text: &str, start: usize) -> &str {
                     index += 2;
                     continue;
                 }
+                if bytes[index] == b'/'
+                    && js_regex_literal_can_start(
+                        std::string::String::from_utf8_lossy(&bytes[start..index]).as_ref(),
+                    )
+                    && let Some(end) = js_regex_literal_end(bytes, index)
+                {
+                    index = end;
+                    continue;
+                }
                 if matches!(bytes[index], b'\'' | b'"') {
                     state = JsScanState::Quoted(bytes[index]);
                 } else if bytes[index] == b'`' {
@@ -1469,6 +1517,15 @@ fn js_keyword_positions(text: &str, keyword: &str) -> Vec<usize> {
                 if bytes[index] == b'/' && bytes.get(index + 1) == Some(&b'*') {
                     state = JsScanState::BlockComment;
                     index += 2;
+                    continue;
+                }
+                if bytes[index] == b'/'
+                    && js_regex_literal_can_start(
+                        std::string::String::from_utf8_lossy(&bytes[..index]).as_ref(),
+                    )
+                    && let Some(end) = js_regex_literal_end(bytes, index)
+                {
+                    index = end;
                     continue;
                 }
                 if matches!(bytes[index], b'\'' | b'"') {
@@ -1576,7 +1633,8 @@ fn collect_js_named_import_bindings(clause: &str, out: &mut BTreeMap<String, Str
     let Some(end) = clause.rfind('}') else {
         return;
     };
-    for part in clause[start + 1..end].split(',') {
+    let inner = strip_js_comments_from_text(&clause[start + 1..end]);
+    for part in inner.split(',') {
         let part = part.trim();
         if part.is_empty() || part.starts_with("type ") {
             continue;
@@ -1592,6 +1650,16 @@ fn collect_js_named_import_bindings(clause: &str, out: &mut BTreeMap<String, Str
             out.insert(local_name, imported_name);
         }
     }
+}
+
+fn strip_js_comments_from_text(text: &str) -> String {
+    let mut out = String::new();
+    let mut in_block_comment = false;
+    for line in text.lines() {
+        out.push_str(&strip_js_comments_from_line(line, &mut in_block_comment));
+        out.push('\n');
+    }
+    out
 }
 
 fn first_identifier(value: &str) -> Option<String> {
@@ -5098,6 +5166,14 @@ fn js_static_import_statement_re() -> &'static Regex {
     })
 }
 
+fn js_reexport_statement_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"(?s)^\s*export\s+(?P<type>type\s+)?(?:(?P<star>\*)|\{(?P<named>.*?)\})\s+from\s*['"](?P<spec>[^'"]+)['"]"#)
+            .expect("valid js re-export statement regex")
+    })
+}
+
 fn js_export_from_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
@@ -5406,8 +5482,12 @@ edition = "2024"
     fn javascript_import_specs_ignore_import_text_inside_strings() {
         let text = r#"const docs = "import { ShellHint } from './shell-hint';";
 const tmpl = `require('./shadow')`;
+const importPattern = /import { RegexHint } from '.\/regex-hint'/;
+const exportPattern = /export { RegexOther } from '.\/regex-other'/;
 import { Real as LocalReal } from './real';
 export { Other } from './other';
+export { /* Real is only a comment */ Other as PublicOther } from './commented';
+export { CommentedGap as PublicGap } /* valid comment gap */ from './comment-gap';
 const lazy = import('./lazy');
 const required = require('./required');
 "#;
@@ -5416,10 +5496,14 @@ const required = require('./required');
 
         assert!(specs.contains("./real"));
         assert!(specs.contains("./other"));
+        assert!(specs.contains("./commented"));
+        assert!(specs.contains("./comment-gap"));
         assert!(specs.contains("./lazy"));
         assert!(specs.contains("./required"));
         assert!(!specs.contains("./shell-hint"));
         assert!(!specs.contains("./shadow"));
+        assert!(!specs.contains("./regex-hint"));
+        assert!(!specs.contains("./regex-other"));
 
         let bindings = extract_js_import_bindings(text);
         assert_eq!(
@@ -5429,7 +5513,23 @@ const required = require('./required');
                 .map(String::as_str),
             Some("Real")
         );
+        assert_eq!(
+            bindings
+                .get("./commented")
+                .and_then(|map| map.get("export:PublicOther"))
+                .map(String::as_str),
+            Some("Other")
+        );
+        assert_eq!(
+            bindings
+                .get("./comment-gap")
+                .and_then(|map| map.get("export:PublicGap"))
+                .map(String::as_str),
+            Some("CommentedGap")
+        );
         assert!(!bindings.contains_key("./shell-hint"));
+        assert!(!bindings.contains_key("./regex-hint"));
+        assert!(!bindings.contains_key("./regex-other"));
     }
 
     #[test]

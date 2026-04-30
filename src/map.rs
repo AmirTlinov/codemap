@@ -1801,6 +1801,23 @@ fn symbol_anchor_path(file_rel: &str, symbol_name: &str) -> String {
     format!("{file_rel}#{symbol_name}")
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ImportedSymbolReferenceKind {
+    Direct,
+    Reexported,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum BarrelPublicNameResolution {
+    Explicit {
+        target_rel: String,
+        imported_name: String,
+    },
+    Star {
+        target_rel: String,
+    },
+}
+
 fn symbol_reference_edges(
     project: &Project,
     file_rel: &str,
@@ -1822,12 +1839,18 @@ fn symbol_reference_edges(
         if !include_tests && (file.has_role("test") || file.has_role("test_support")) {
             continue;
         }
-        if file_references_imported_symbol(project, file, file_rel, symbol_name) {
+        if let Some(kind) =
+            file_imported_symbol_reference_kind(project, file, file_rel, symbol_name)
+        {
             edges.push(StructuralEdge {
                 from: file.rel.clone(),
                 to: anchor_path.clone(),
                 edge_type: "symbol_reference".to_string(),
-                evidence: "imported_symbol_reference".to_string(),
+                evidence: match kind {
+                    ImportedSymbolReferenceKind::Direct => "imported_symbol_reference",
+                    ImportedSymbolReferenceKind::Reexported => "reexported_symbol_reference",
+                }
+                .to_string(),
                 strength: EvidenceStrength::High,
             });
             continue;
@@ -1859,8 +1882,13 @@ fn symbol_proof_edges(project: &Project, file_rel: &str, symbol_name: &str) -> V
         if !file.has_role("test") {
             continue;
         }
-        let evidence = if file_references_imported_symbol(project, file, file_rel, symbol_name) {
-            Some("test_imported_symbol_reference")
+        let evidence = if let Some(kind) =
+            file_imported_symbol_reference_kind(project, file, file_rel, symbol_name)
+        {
+            Some(match kind {
+                ImportedSymbolReferenceKind::Direct => "test_imported_symbol_reference",
+                ImportedSymbolReferenceKind::Reexported => "test_reexported_symbol_reference",
+            })
         } else if same_scope_file_references_symbol(anchor, file, symbol_name) {
             Some("test_symbol_reference")
         } else {
@@ -2049,7 +2077,22 @@ fn symbol_contract_edges(
     }]
 }
 
-fn file_references_imported_symbol(
+fn file_imported_symbol_reference_kind(
+    project: &Project,
+    file: &FileInfo,
+    file_rel: &str,
+    symbol_name: &str,
+) -> Option<ImportedSymbolReferenceKind> {
+    if file_directly_references_imported_symbol(project, file, file_rel, symbol_name) {
+        return Some(ImportedSymbolReferenceKind::Direct);
+    }
+    if file_references_reexported_symbol(project, file, file_rel, symbol_name) {
+        return Some(ImportedSymbolReferenceKind::Reexported);
+    }
+    None
+}
+
+fn file_directly_references_imported_symbol(
     project: &Project,
     file: &FileInfo,
     file_rel: &str,
@@ -2066,6 +2109,460 @@ fn file_references_imported_symbol(
     })
 }
 
+fn file_references_reexported_symbol(
+    project: &Project,
+    file: &FileInfo,
+    file_rel: &str,
+    symbol_name: &str,
+) -> bool {
+    for (barrel_rel, imported_from_barrel) in &file.resolved_import_bindings {
+        if barrel_rel == file_rel {
+            continue;
+        }
+        let Some(barrel) = project.files.get(barrel_rel) else {
+            continue;
+        };
+        for (local, imported_public_name) in imported_from_barrel {
+            if !barrel_reexports_symbol_from_file(
+                project,
+                barrel,
+                file_rel,
+                symbol_name,
+                imported_public_name,
+            ) {
+                continue;
+            }
+            if file_has_local_value_shadow(file, local) {
+                continue;
+            }
+            if file.jsx_tags.contains(local)
+                || file_references_identifier_after_imports(project, file, local)
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn barrel_reexports_symbol_from_file(
+    project: &Project,
+    barrel: &FileInfo,
+    file_rel: &str,
+    symbol_name: &str,
+    imported_public_name: &str,
+) -> bool {
+    match barrel_public_name_resolution(project, barrel, imported_public_name) {
+        Some(BarrelPublicNameResolution::Explicit {
+            target_rel,
+            imported_name,
+        }) => {
+            target_rel == file_rel
+                && imported_symbol_binding_matches(project, file_rel, symbol_name, &imported_name)
+        }
+        Some(BarrelPublicNameResolution::Star { target_rel }) => {
+            target_rel == file_rel
+                && symbol_exported_under_public_name(
+                    project,
+                    file_rel,
+                    symbol_name,
+                    imported_public_name,
+                )
+        }
+        None => false,
+    }
+}
+
+fn barrel_public_name_resolution(
+    project: &Project,
+    barrel: &FileInfo,
+    public_name: &str,
+) -> Option<BarrelPublicNameResolution> {
+    let mut explicit_owners = BTreeSet::new();
+    if file_has_inline_named_export(project, &barrel.rel, public_name)
+        || barrel_has_local_named_export_public_name(project, barrel, public_name)
+    {
+        explicit_owners.insert((barrel.rel.clone(), public_name.to_string()));
+    }
+    for (target_rel, bindings) in &barrel.resolved_import_bindings {
+        for (exported, imported_name) in bindings {
+            if exported.strip_prefix("export:") == Some(public_name) {
+                explicit_owners.insert((target_rel.clone(), imported_name.clone()));
+            }
+        }
+    }
+    if !explicit_owners.is_empty() {
+        if explicit_owners.len() != 1 {
+            return None;
+        }
+        let (target_rel, imported_name) = explicit_owners.into_iter().next()?;
+        return Some(BarrelPublicNameResolution::Explicit {
+            target_rel,
+            imported_name,
+        });
+    }
+    if public_name == "default" {
+        return None;
+    }
+
+    let star_owners = barrel
+        .resolved_import_bindings
+        .iter()
+        .filter(|(target_rel, bindings)| {
+            bindings
+                .get("export:*")
+                .map(|value| {
+                    value == "*" && file_has_named_public_export(project, target_rel, public_name)
+                })
+                .unwrap_or(false)
+        })
+        .map(|(target_rel, _)| target_rel.clone())
+        .collect::<BTreeSet<_>>();
+    if star_owners.len() != 1 {
+        return None;
+    }
+    star_owners
+        .into_iter()
+        .next()
+        .map(|target_rel| BarrelPublicNameResolution::Star { target_rel })
+}
+
+fn barrel_has_local_named_export_public_name(
+    project: &Project,
+    barrel: &FileInfo,
+    public_name: &str,
+) -> bool {
+    let Ok(text) = std::fs::read_to_string(project.root.join(&barrel.rel)) else {
+        return false;
+    };
+    for statement in local_named_export_statement_slices(&text) {
+        if local_named_export_bindings_from_statement(statement).contains_key(public_name) {
+            return true;
+        }
+    }
+    false
+}
+
+fn local_named_export_bindings(
+    project: &Project,
+    file_rel: &str,
+) -> BTreeMap<String, BTreeSet<String>> {
+    let Ok(text) = std::fs::read_to_string(project.root.join(file_rel)) else {
+        return BTreeMap::new();
+    };
+    let mut out = BTreeMap::new();
+    for statement in local_named_export_statement_slices(&text) {
+        for (public_name, local_names) in local_named_export_bindings_from_statement(statement) {
+            out.entry(public_name)
+                .or_insert_with(BTreeSet::new)
+                .extend(local_names);
+        }
+    }
+    out
+}
+
+fn local_named_export_statement_slices(text: &str) -> Vec<&str> {
+    js_map_keyword_positions(text, "export")
+        .into_iter()
+        .filter_map(|start| js_local_named_export_statement_slice(text, start))
+        .collect()
+}
+
+fn js_local_named_export_statement_slice(text: &str, start: usize) -> Option<&str> {
+    let bytes = text.as_bytes();
+    let mut index = js_map_skip_ascii_whitespace(text, start + "export".len());
+    if js_map_keyword_at(bytes, index, b"type") {
+        return None;
+    }
+    if bytes.get(index) != Some(&b'{') {
+        return None;
+    }
+
+    let mut state = JsMapScanState::Code;
+    let mut brace_depth = 0usize;
+    while index < bytes.len() {
+        match state {
+            JsMapScanState::Code => {
+                if bytes[index] == b'/' && bytes.get(index + 1) == Some(&b'/') {
+                    state = JsMapScanState::LineComment;
+                    index += 2;
+                    continue;
+                }
+                if bytes[index] == b'/' && bytes.get(index + 1) == Some(&b'*') {
+                    state = JsMapScanState::BlockComment;
+                    index += 2;
+                    continue;
+                }
+                if bytes[index] == b'/'
+                    && js_regex_literal_can_start(
+                        std::string::String::from_utf8_lossy(&bytes[start..index]).as_ref(),
+                    )
+                    && let Some(end) = js_regex_literal_end(bytes, index)
+                {
+                    index = end;
+                    continue;
+                }
+                if matches!(bytes[index], b'\'' | b'"') {
+                    state = JsMapScanState::Quoted(bytes[index]);
+                } else if bytes[index] == b'`' {
+                    state = JsMapScanState::Template;
+                } else if bytes[index] == b'{' {
+                    brace_depth += 1;
+                } else if bytes[index] == b'}' {
+                    brace_depth = brace_depth.saturating_sub(1);
+                    if brace_depth == 0 {
+                        let after_brace = js_map_skip_trivia(text, index + 1);
+                        if js_map_keyword_at(bytes, after_brace, b"from") {
+                            return None;
+                        }
+                        let end = if bytes.get(after_brace) == Some(&b';') {
+                            after_brace + 1
+                        } else {
+                            index + 1
+                        };
+                        return Some(&text[start..end]);
+                    }
+                }
+            }
+            JsMapScanState::LineComment => {
+                if bytes[index] == b'\n' {
+                    state = JsMapScanState::Code;
+                }
+            }
+            JsMapScanState::BlockComment => {
+                if bytes[index] == b'*' && bytes.get(index + 1) == Some(&b'/') {
+                    state = JsMapScanState::Code;
+                    index += 2;
+                    continue;
+                }
+            }
+            JsMapScanState::Quoted(quote) => {
+                if bytes[index] == b'\\' {
+                    index = index.saturating_add(2);
+                    continue;
+                }
+                if bytes[index] == quote {
+                    state = JsMapScanState::Code;
+                }
+            }
+            JsMapScanState::Template => {
+                if bytes[index] == b'\\' {
+                    index = index.saturating_add(2);
+                    continue;
+                }
+                if bytes[index] == b'`' {
+                    state = JsMapScanState::Code;
+                }
+            }
+        }
+        index += 1;
+    }
+    None
+}
+
+#[derive(Clone, Copy)]
+enum JsMapScanState {
+    Code,
+    LineComment,
+    BlockComment,
+    Quoted(u8),
+    Template,
+}
+
+fn js_map_keyword_positions(text: &str, keyword: &str) -> Vec<usize> {
+    let bytes = text.as_bytes();
+    let keyword_bytes = keyword.as_bytes();
+    let mut out = Vec::new();
+    let mut index = 0;
+    let mut state = JsMapScanState::Code;
+    while index < bytes.len() {
+        match state {
+            JsMapScanState::Code => {
+                if bytes[index] == b'/' && bytes.get(index + 1) == Some(&b'/') {
+                    state = JsMapScanState::LineComment;
+                    index += 2;
+                    continue;
+                }
+                if bytes[index] == b'/' && bytes.get(index + 1) == Some(&b'*') {
+                    state = JsMapScanState::BlockComment;
+                    index += 2;
+                    continue;
+                }
+                if bytes[index] == b'/'
+                    && js_regex_literal_can_start(
+                        std::string::String::from_utf8_lossy(&bytes[..index]).as_ref(),
+                    )
+                    && let Some(end) = js_regex_literal_end(bytes, index)
+                {
+                    index = end;
+                    continue;
+                }
+                if matches!(bytes[index], b'\'' | b'"') {
+                    state = JsMapScanState::Quoted(bytes[index]);
+                } else if bytes[index] == b'`' {
+                    state = JsMapScanState::Template;
+                } else if bytes[index..].starts_with(keyword_bytes)
+                    && js_map_keyword_boundary(bytes, index, keyword_bytes.len())
+                {
+                    out.push(index);
+                    index += keyword_bytes.len();
+                    continue;
+                }
+            }
+            JsMapScanState::LineComment => {
+                if bytes[index] == b'\n' {
+                    state = JsMapScanState::Code;
+                }
+            }
+            JsMapScanState::BlockComment => {
+                if bytes[index] == b'*' && bytes.get(index + 1) == Some(&b'/') {
+                    state = JsMapScanState::Code;
+                    index += 2;
+                    continue;
+                }
+            }
+            JsMapScanState::Quoted(quote) => {
+                if bytes[index] == b'\\' {
+                    index = index.saturating_add(2);
+                    continue;
+                }
+                if bytes[index] == quote {
+                    state = JsMapScanState::Code;
+                }
+            }
+            JsMapScanState::Template => {
+                if bytes[index] == b'\\' {
+                    index = index.saturating_add(2);
+                    continue;
+                }
+                if bytes[index] == b'`' {
+                    state = JsMapScanState::Code;
+                }
+            }
+        }
+        index += 1;
+    }
+    out
+}
+
+fn js_map_keyword_at(bytes: &[u8], index: usize, keyword: &[u8]) -> bool {
+    bytes
+        .get(index..)
+        .map(|rest| rest.starts_with(keyword))
+        .unwrap_or(false)
+        && js_map_keyword_boundary(bytes, index, keyword.len())
+}
+
+fn js_map_keyword_boundary(bytes: &[u8], start: usize, len: usize) -> bool {
+    let before = start
+        .checked_sub(1)
+        .and_then(|index| bytes.get(index))
+        .copied();
+    let after = bytes.get(start + len).copied();
+    !before.map(is_identifier_byte).unwrap_or(false)
+        && !after.map(is_identifier_byte).unwrap_or(false)
+}
+
+fn js_map_skip_ascii_whitespace(text: &str, mut index: usize) -> usize {
+    let bytes = text.as_bytes();
+    while bytes
+        .get(index)
+        .map(|byte| byte.is_ascii_whitespace())
+        .unwrap_or(false)
+    {
+        index += 1;
+    }
+    index
+}
+
+fn js_map_skip_trivia(text: &str, mut index: usize) -> usize {
+    let bytes = text.as_bytes();
+    loop {
+        index = js_map_skip_ascii_whitespace(text, index);
+        if bytes.get(index) == Some(&b'/') && bytes.get(index + 1) == Some(&b'/') {
+            index += 2;
+            while bytes.get(index).map(|byte| *byte != b'\n').unwrap_or(false) {
+                index += 1;
+            }
+            continue;
+        }
+        if bytes.get(index) == Some(&b'/') && bytes.get(index + 1) == Some(&b'*') {
+            index += 2;
+            while index < bytes.len() {
+                if bytes[index] == b'*' && bytes.get(index + 1) == Some(&b'/') {
+                    index += 2;
+                    break;
+                }
+                index += 1;
+            }
+            continue;
+        }
+        return index;
+    }
+}
+
+fn local_named_export_bindings_from_statement(
+    statement: &str,
+) -> BTreeMap<String, BTreeSet<String>> {
+    let mut out = BTreeMap::new();
+    let Some(start) = statement.find('{') else {
+        return out;
+    };
+    let Some(end) = statement.rfind('}') else {
+        return out;
+    };
+    let inner = js_code_without_strings_and_comments(&statement[start + 1..end]);
+    for part in inner.split(',') {
+        let part = part.trim();
+        if part.is_empty() || part.starts_with("type ") {
+            continue;
+        }
+        let (local, public) = part
+            .split_once(" as ")
+            .map(|(local, alias)| (local.trim(), alias.trim()))
+            .unwrap_or((part, part));
+        let Some(local_name) = first_js_identifier(local) else {
+            continue;
+        };
+        if let Some(public_name) = first_js_identifier(public) {
+            out.entry(public_name)
+                .or_insert_with(BTreeSet::new)
+                .insert(local_name);
+        }
+    }
+    out
+}
+
+fn js_code_without_strings_and_comments(text: &str) -> String {
+    let mut out = String::new();
+    let mut in_block_comment = false;
+    let mut quote = None;
+    for line in text.lines() {
+        out.push_str(&js_code_line_without_strings_and_comments(
+            line,
+            &mut in_block_comment,
+            &mut quote,
+        ));
+        out.push('\n');
+    }
+    out
+}
+
+fn first_js_identifier(value: &str) -> Option<String> {
+    let (start, _) = value
+        .char_indices()
+        .find(|(_, ch)| ch.is_ascii_alphabetic() || *ch == '_' || *ch == '$')?;
+    let mut end = start;
+    for (idx, ch) in value[start..].char_indices() {
+        if ch.is_ascii_alphanumeric() || ch == '_' || ch == '$' {
+            end = start + idx + ch.len_utf8();
+        } else {
+            break;
+        }
+    }
+    Some(value[start..end].to_string())
+}
+
 fn file_has_local_value_shadow(file: &FileInfo, local: &str) -> bool {
     file.local_bindings.contains(local) || file.symbols.iter().any(|symbol| symbol.name == local)
 }
@@ -2080,13 +2577,67 @@ fn symbol_is_exported(project: &Project, file_rel: &str, symbol_name: &str) -> b
         || default_export_symbol_name(project, file_rel).as_deref() == Some(symbol_name)
 }
 
+fn symbol_exported_under_public_name(
+    project: &Project,
+    file_rel: &str,
+    symbol_name: &str,
+    public_name: &str,
+) -> bool {
+    (file_has_inline_named_export(project, file_rel, symbol_name) && public_name == symbol_name)
+        || local_named_export_bindings(project, file_rel)
+            .get(public_name)
+            .map(|locals| locals.len() == 1 && locals.contains(symbol_name))
+            .unwrap_or(false)
+}
+
+fn file_has_named_public_export(project: &Project, file_rel: &str, public_name: &str) -> bool {
+    file_has_inline_named_export(project, file_rel, public_name)
+        || local_named_export_bindings(project, file_rel)
+            .get(public_name)
+            .map(|locals| {
+                locals.len() == 1
+                    && locals
+                        .iter()
+                        .any(|local| !matching_symbols_for_rel(project, file_rel, local).is_empty())
+            })
+            .unwrap_or(false)
+}
+
+fn file_has_inline_named_export(project: &Project, file_rel: &str, symbol_name: &str) -> bool {
+    let Some(info) = project.files.get(file_rel) else {
+        return false;
+    };
+    let text = std::fs::read_to_string(project.root.join(file_rel)).unwrap_or_default();
+    matching_symbols(info, symbol_name).iter().any(|symbol| {
+        if !symbol.exported {
+            return false;
+        }
+        text.lines()
+            .nth(symbol.line_start.saturating_sub(1))
+            .map(|line| !line.trim_start().starts_with("export default"))
+            .unwrap_or(true)
+    })
+}
+
+fn matching_symbols_for_rel(
+    project: &Project,
+    file_rel: &str,
+    symbol_name: &str,
+) -> Vec<crate::model::SymbolInfo> {
+    project
+        .files
+        .get(file_rel)
+        .map(|info| matching_symbols(info, symbol_name))
+        .unwrap_or_default()
+}
+
 fn imported_symbol_binding_matches(
     project: &Project,
     file_rel: &str,
     symbol_name: &str,
     imported: &str,
 ) -> bool {
-    if imported == symbol_name {
+    if symbol_exported_under_public_name(project, file_rel, symbol_name, imported) {
         return true;
     }
     imported == "default"
@@ -3595,6 +4146,9 @@ fn proof_reason_for_evidence(evidence: &str, scope: &str) -> String {
         "test_imported_symbol_reference" => {
             format!("test imports and references {scope}")
         }
+        "test_reexported_symbol_reference" => {
+            format!("test imports and references re-exported {scope}")
+        }
         "e2e_route" => format!("e2e visits route for {scope}"),
         "test_name" => format!("test name matches {scope}"),
         "test_support_import" => format!("test imports support code that imports {scope}"),
@@ -3946,6 +4500,7 @@ fn proof_evidence_precedence(evidence: &str) -> usize {
     match evidence {
         "test_import" => 6,
         "test_imported_symbol_reference" => 6,
+        "test_reexported_symbol_reference" => 6,
         "e2e_route" => 5,
         "test_support_import" => 5,
         "test_symbol_reference" => 4,
