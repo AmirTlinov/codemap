@@ -2200,13 +2200,22 @@ fn e2e_test_visits_route(rel: &str, test: &FileInfo) -> bool {
     if !test.has_role("e2e_test") {
         return false;
     }
-    let Some(route) = next_app_route_path(rel) else {
+    let Some(route) = next_app_route_pattern(rel) else {
         return false;
     };
-    test.visited_route_paths.contains(&route)
+    test.visited_route_paths
+        .iter()
+        .any(|visited| route_pattern_matches(&route, visited))
 }
 
-fn next_app_route_path(rel: &str) -> Option<String> {
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum RoutePatternSegment {
+    Static(String),
+    Dynamic,
+    CatchAll { optional: bool },
+}
+
+fn next_app_route_pattern(rel: &str) -> Option<Vec<RoutePatternSegment>> {
     let rest = rel.strip_prefix("app/")?;
     let route_dir = ["page.tsx", "page.ts", "page.jsx", "page.js"]
         .iter()
@@ -2218,20 +2227,108 @@ fn next_app_route_path(rel: &str) -> Option<String> {
             }
         })?;
     let mut segments = Vec::new();
-    for segment in route_dir.split('/').filter(|segment| !segment.is_empty()) {
+    let route_segments = route_dir
+        .split('/')
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>();
+    for (index, segment) in route_segments.iter().enumerate() {
         if segment.starts_with('(') && segment.ends_with(')') {
             continue;
         }
-        if segment.starts_with('@') || segment.contains('[') {
+        if segment.starts_with('@') {
             return None;
         }
-        segments.push(segment);
+        if let Some(dynamic) = next_dynamic_route_segment(segment) {
+            if matches!(dynamic, RoutePatternSegment::CatchAll { .. })
+                && index + 1 != route_segments.len()
+            {
+                return None;
+            }
+            segments.push(dynamic);
+            continue;
+        }
+        if segment.contains('[') || segment.contains(']') {
+            return None;
+        }
+        segments.push(RoutePatternSegment::Static((*segment).to_string()));
     }
-    if segments.is_empty() {
-        Some("/".to_string())
-    } else {
-        Some(format!("/{}", segments.join("/")))
+    Some(segments)
+}
+
+fn next_dynamic_route_segment(segment: &str) -> Option<RoutePatternSegment> {
+    if let Some(name) = segment
+        .strip_prefix("[[...")
+        .and_then(|value| value.strip_suffix("]]"))
+    {
+        if valid_dynamic_segment_name(name) {
+            return Some(RoutePatternSegment::CatchAll { optional: true });
+        }
+        return None;
     }
+    if let Some(name) = segment
+        .strip_prefix("[...")
+        .and_then(|value| value.strip_suffix(']'))
+    {
+        if valid_dynamic_segment_name(name) {
+            return Some(RoutePatternSegment::CatchAll { optional: false });
+        }
+        return None;
+    }
+    if let Some(name) = segment
+        .strip_prefix('[')
+        .and_then(|value| value.strip_suffix(']'))
+    {
+        if valid_dynamic_segment_name(name) {
+            return Some(RoutePatternSegment::Dynamic);
+        }
+        return None;
+    }
+    None
+}
+
+fn valid_dynamic_segment_name(name: &str) -> bool {
+    !name.is_empty()
+        && name
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
+}
+
+fn route_pattern_matches(pattern: &[RoutePatternSegment], visited_route: &str) -> bool {
+    let visited = visited_route
+        .trim_matches('/')
+        .split('/')
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>();
+    if pattern.is_empty() {
+        return visited.is_empty();
+    }
+    let mut visited_index = 0usize;
+    for (pattern_index, segment) in pattern.iter().enumerate() {
+        match segment {
+            RoutePatternSegment::Static(expected) => {
+                if visited.get(visited_index).copied() != Some(expected.as_str()) {
+                    return false;
+                }
+                visited_index += 1;
+            }
+            RoutePatternSegment::Dynamic => {
+                let Some(actual) = visited.get(visited_index) else {
+                    return false;
+                };
+                if actual.is_empty() {
+                    return false;
+                }
+                visited_index += 1;
+            }
+            RoutePatternSegment::CatchAll { optional } => {
+                if pattern_index + 1 != pattern.len() {
+                    return false;
+                }
+                return *optional || visited_index < visited.len();
+            }
+        }
+    }
+    visited_index == visited.len()
 }
 
 fn test_imports_support_consuming_anchor(project: &Project, rel: &str, test: &FileInfo) -> bool {
