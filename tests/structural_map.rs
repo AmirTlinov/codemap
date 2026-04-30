@@ -1771,6 +1771,135 @@ fn root_ls_balances_directory_edges_across_structural_sources() {
 }
 
 #[test]
+fn tsconfig_jsonc_path_aliases_create_reverse_edges() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{
+  "name": "jsonc-alias-fixture",
+  "private": true
+}
+"#,
+    );
+    write(
+        &repo.path().join("tsconfig.json"),
+        r#"{
+  // Real tsconfig files commonly use JSONC syntax.
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "./src/*",
+      ],
+    },
+  },
+  "include": ["**/*.ts", "**/*.tsx"],
+  "exclude": [
+    "node_modules",
+  ],
+}
+"#,
+    );
+    write(
+        &repo.path().join("src/features/studio/studio-shell.tsx"),
+        "export function StudioShell() {\n  return null;\n}\n",
+    );
+    write(
+        &repo.path().join("app/app/page.tsx"),
+        "import { StudioShell } from '@/features/studio/studio-shell';\n\nexport default function Page() {\n  return <StudioShell />;\n}\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let cone = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "cone",
+            "src/features/studio/studio-shell.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/cone.schema.json", &cone);
+    assert_eq!(cone["anchor"]["imported_by_count"], 1);
+    assert!(
+        cone["incoming"]
+            .as_array()
+            .expect("incoming")
+            .iter()
+            .any(|edge| edge["from"] == "app/app/page.tsx"
+                && edge["to"] == "src/features/studio/studio-shell.tsx"
+                && edge["type"] == "imported_by"
+                && edge["evidence"] == "reverse_import"),
+        "JSONC tsconfig path aliases should produce reverse structural edges: {cone:#}"
+    );
+    assert_eq!(cone.get("read_first"), None);
+}
+
+#[test]
+fn malformed_tsconfig_jsonc_does_not_create_alias_edges() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{
+  "name": "malformed-jsonc-alias-fixture",
+  "private": true
+}
+"#,
+    );
+    write(
+        &repo.path().join("tsconfig.json"),
+        r#"{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  }
+}
+/* unterminated
+"#,
+    );
+    write(
+        &repo.path().join("src/features/studio/studio-shell.tsx"),
+        "export function StudioShell() {\n  return null;\n}\n",
+    );
+    write(
+        &repo.path().join("app/app/page.tsx"),
+        "import { StudioShell } from '@/features/studio/studio-shell';\n\nexport default function Page() {\n  return <StudioShell />;\n}\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let cone = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "cone",
+            "src/features/studio/studio-shell.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/cone.schema.json", &cone);
+    assert_eq!(cone["anchor"]["imported_by_count"], 0);
+    assert!(
+        cone["incoming"].as_array().expect("incoming").is_empty(),
+        "malformed tsconfig JSONC must fail closed instead of creating alias edges: {cone:#}"
+    );
+    assert_eq!(cone.get("read_first"), None);
+}
+
+#[test]
 fn anchors_validate_reports_summary_and_actionable_warnings() {
     let (repo, cache) = fixture();
     let validation = run_json(

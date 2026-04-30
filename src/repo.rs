@@ -2245,7 +2245,7 @@ fn read_ts_path_aliases(root: &Path, rel: &str) -> Vec<TsPathAlias> {
     let Ok(text) = fs::read_to_string(root.join(rel)) else {
         return Vec::new();
     };
-    let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {
+    let Ok(value) = parse_tsconfig_json(&text) else {
         return Vec::new();
     };
     let Some(options) = value
@@ -2282,6 +2282,127 @@ fn read_ts_path_aliases(root: &Path, rel: &str) -> Vec<TsPathAlias> {
         }
     }
     aliases
+}
+
+fn parse_tsconfig_json(text: &str) -> std::result::Result<serde_json::Value, serde_json::Error> {
+    serde_json::from_str(text).or_else(|strict_error| {
+        let Some(json) = strip_jsonc_comments_and_trailing_commas(text) else {
+            return Err(strict_error);
+        };
+        serde_json::from_str(&json)
+    })
+}
+
+fn strip_jsonc_comments_and_trailing_commas(text: &str) -> Option<String> {
+    Some(strip_json_trailing_commas(&strip_jsonc_comments(text)?))
+}
+
+fn strip_jsonc_comments(text: &str) -> Option<String> {
+    let chars = text.chars().collect::<Vec<_>>();
+    let mut out = String::with_capacity(text.len());
+    let mut i = 0;
+    let mut in_string = false;
+    let mut escape = false;
+
+    while i < chars.len() {
+        let ch = chars[i];
+        if in_string {
+            out.push(ch);
+            if escape {
+                escape = false;
+            } else if ch == '\\' {
+                escape = true;
+            } else if ch == '"' {
+                in_string = false;
+            }
+            i += 1;
+            continue;
+        }
+
+        if ch == '"' {
+            in_string = true;
+            out.push(ch);
+            i += 1;
+            continue;
+        }
+
+        if ch == '/' && chars.get(i + 1) == Some(&'/') {
+            i += 2;
+            while i < chars.len() && chars[i] != '\n' {
+                i += 1;
+            }
+            if i < chars.len() {
+                out.push('\n');
+                i += 1;
+            }
+            continue;
+        }
+
+        if ch == '/' && chars.get(i + 1) == Some(&'*') {
+            i += 2;
+            let mut closed = false;
+            while i + 1 < chars.len() {
+                if chars[i] == '\n' {
+                    out.push('\n');
+                }
+                if chars[i] == '*' && chars[i + 1] == '/' {
+                    i += 2;
+                    closed = true;
+                    break;
+                }
+                i += 1;
+            }
+            if !closed {
+                return None;
+            }
+            continue;
+        }
+
+        out.push(ch);
+        i += 1;
+    }
+
+    Some(out)
+}
+
+fn strip_json_trailing_commas(text: &str) -> String {
+    let mut out = Vec::with_capacity(text.len());
+    let mut in_string = false;
+    let mut escape = false;
+
+    for ch in text.chars() {
+        if in_string {
+            out.push(ch);
+            if escape {
+                escape = false;
+            } else if ch == '\\' {
+                escape = true;
+            } else if ch == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+
+        if ch == '"' {
+            in_string = true;
+            out.push(ch);
+            continue;
+        }
+
+        if matches!(ch, '}' | ']') {
+            let mut index = out.len();
+            while index > 0 && out[index - 1].is_whitespace() {
+                index -= 1;
+            }
+            if index > 0 && out[index - 1] == ',' {
+                out.remove(index - 1);
+            }
+        }
+
+        out.push(ch);
+    }
+
+    out.into_iter().collect()
 }
 
 fn ts_alias_applies_to_importer(alias: &TsPathAlias, from: &str) -> bool {
