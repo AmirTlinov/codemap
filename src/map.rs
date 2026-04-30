@@ -3334,14 +3334,16 @@ pub fn proof_report(
                     limit,
                 ));
             } else {
-                risk = risk.max(
-                    project
-                        .files
-                        .get(anchor)
-                        .map(|_| risk_for_file(project, anchor).0)
-                        .unwrap_or(Risk::Medium),
-                );
-                proofs.extend(proof_surfaces_for_anchor(project, anchor, depth, limit));
+                if project.files.contains_key(anchor) {
+                    risk = risk.max(risk_for_file(project, anchor).0);
+                    proofs.extend(proof_surfaces_for_anchor(project, anchor, depth, limit));
+                } else if anchor != "." && directory_has_files(project, anchor) {
+                    risk = risk.max(risk_for_directory(project, anchor));
+                    proofs.extend(proof_surfaces_for_directory(project, anchor, depth, limit));
+                } else {
+                    risk = risk.max(Risk::Medium);
+                    proofs.extend(proof_surfaces_for_anchor(project, anchor, depth, limit));
+                }
             }
         }
     }
@@ -3461,6 +3463,19 @@ fn proof_surfaces_for_anchor(
     out
 }
 
+fn proof_surfaces_for_directory(
+    project: &Project,
+    rel: &str,
+    depth: usize,
+    limit: usize,
+) -> Vec<ProofSurface> {
+    let mut out = Vec::new();
+    for file in directory_seed_file_paths(project, rel, false) {
+        out.extend(proof_surfaces_for_anchor(project, &file, depth, limit));
+    }
+    out
+}
+
 fn proof_surfaces_for_symbol_anchor(
     project: &Project,
     file_rel: &str,
@@ -3499,6 +3514,15 @@ fn proof_surfaces_for_symbol_anchor(
         }
     }
     out
+}
+
+fn risk_for_directory(project: &Project, rel: &str) -> Risk {
+    files_under_directory(project, rel)
+        .into_iter()
+        .filter(|file| !file.has_role("generated") && !is_generic_noise(file))
+        .map(|file| risk_for_file(project, &file.rel).0)
+        .max()
+        .unwrap_or(Risk::Medium)
 }
 
 fn proof_reason_for_evidence(evidence: &str, scope: &str) -> String {

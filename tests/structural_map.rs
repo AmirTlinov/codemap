@@ -608,6 +608,62 @@ fn file_ls_and_cone_show_symbols_edges_proof_and_boundary() {
 }
 
 #[test]
+fn proof_directory_aggregates_member_file_proofs_without_broad_fallback() {
+    let (repo, cache) = fixture();
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &["proof", "packages/replay/src", "--format", "json"],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    let proofs = proof["proofs"].as_array().expect("proofs");
+    assert!(
+        proofs.iter().any(
+            |surface| surface["path"] == "packages/replay/tests/session.test.ts"
+                && surface["evidence"] == "test_import"
+        ),
+        "directory proof should include direct member-file unit proof: {proof:#}"
+    );
+    assert!(
+        proofs
+            .iter()
+            .any(|surface| surface["path"] == "packages/replay/tests/e2e/seek.e2e.ts"),
+        "directory proof should preserve e2e proof for files inside the directory: {proof:#}"
+    );
+    assert!(
+        proof["fallback"].as_array().expect("fallback").is_empty(),
+        "specific directory proofs should suppress broad package fallback: {proof:#}"
+    );
+    assert_eq!(proof.get("read_first"), None);
+}
+
+#[test]
+fn proof_root_stays_bounded_without_expanding_test_galaxy() {
+    let (repo, cache) = fixture();
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &["proof", ".", "--format", "json"],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        proof["proofs"].as_array().expect("proofs").is_empty(),
+        "root proof should not enumerate every repository test: {proof:#}"
+    );
+    assert!(
+        proof["fallback"]
+            .as_array()
+            .expect("fallback")
+            .iter()
+            .any(|command| command
+                .as_str()
+                .is_some_and(|value| value.ends_with(" test"))),
+        "root proof should stay at broad command level instead of expanding the map: {proof:#}"
+    );
+    assert_eq!(proof.get("read_first"), None);
+}
+
+#[test]
 fn cone_shows_proof_edges_through_direct_consumers() {
     let (repo, cache) = fixture();
     let cone = run_json(
