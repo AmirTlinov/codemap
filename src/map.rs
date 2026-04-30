@@ -1011,6 +1011,7 @@ fn cone_symbol_report(
     let anchor = symbol_file_summary(project, info, symbol_name)?;
     let anchor_path = symbol_anchor_path(file_rel, symbol_name);
     let mut incoming = symbol_reference_edges(project, file_rel, symbol_name, false);
+    incoming.extend(symbol_local_incoming_edges(project, info, symbol_name));
     let mut proof = symbol_proof_edges_with_owning_file(project, file_rel, symbol_name, usize::MAX);
     let mut outgoing = symbol_outgoing_edges(project, info, symbol_name);
     let contracts = symbol_contract_edges(project, file_rel, symbol_name);
@@ -1879,7 +1880,7 @@ fn symbol_proof_edges(project: &Project, file_rel: &str, symbol_name: &str) -> V
     let anchor_path = symbol_anchor_path(file_rel, symbol_name);
     let mut edges = Vec::new();
     for file in project.files.values() {
-        if !file.has_role("test") {
+        if !file.has_role("test") || file.has_role("test_support") {
             continue;
         }
         let evidence = if let Some(kind) =
@@ -1918,7 +1919,53 @@ fn symbol_proof_edges_with_owning_file(
     if !exact.is_empty() {
         return exact;
     }
+    let via_local_consumers =
+        symbol_proof_edges_via_local_consumers(project, file_rel, symbol_name, limit);
+    if !via_local_consumers.is_empty() {
+        return via_local_consumers;
+    }
     symbol_owning_file_proof_edges(project, file_rel, symbol_name, limit)
+}
+
+fn symbol_proof_edges_via_local_consumers(
+    project: &Project,
+    file_rel: &str,
+    symbol_name: &str,
+    limit: usize,
+) -> Vec<StructuralEdge> {
+    let Some(info) = project.files.get(file_rel) else {
+        return Vec::new();
+    };
+    let target_anchor = symbol_anchor_path(file_rel, symbol_name);
+    let mut edges = Vec::new();
+    for consumer in symbol_local_incoming_edges(project, info, symbol_name)
+        .into_iter()
+        .take(limit)
+    {
+        let Some((consumer_file, consumer_symbol)) = split_symbol_anchor(&consumer.from) else {
+            continue;
+        };
+        if consumer_file != file_rel {
+            continue;
+        }
+        for proof in symbol_proof_edges(project, file_rel, &consumer_symbol)
+            .into_iter()
+            .take(limit)
+        {
+            edges.push(StructuralEdge {
+                from: proof.from,
+                to: target_anchor.clone(),
+                edge_type: "tests".to_string(),
+                evidence: format!("{}_via_local_symbol_consumer", proof.evidence),
+                strength: proof.strength.min(EvidenceStrength::Medium),
+            });
+        }
+    }
+    sort_edges(&mut edges);
+    edges.dedup_by(|a, b| {
+        a.from == b.from && a.to == b.to && a.edge_type == b.edge_type && a.evidence == b.evidence
+    });
+    edges
 }
 
 fn symbol_owning_file_proof_edges(
@@ -2077,6 +2124,36 @@ fn symbol_local_outgoing_edges(
             strength: EvidenceStrength::High,
         });
     }
+    edges
+}
+
+fn symbol_local_incoming_edges(
+    project: &Project,
+    info: &FileInfo,
+    symbol_name: &str,
+) -> Vec<StructuralEdge> {
+    let target_anchor = symbol_anchor_path(&info.rel, symbol_name);
+    let mut edges = Vec::new();
+    for source in &info.symbols {
+        if source.name == symbol_name {
+            continue;
+        }
+        if !symbol_is_top_level(project, info, source) {
+            continue;
+        }
+        let Some(body) = symbol_body_text(project, info, &source.name) else {
+            continue;
+        };
+        edges.extend(
+            symbol_local_outgoing_edges(project, info, &source.name, &body)
+                .into_iter()
+                .filter(|edge| edge.to == target_anchor),
+        );
+    }
+    sort_edges(&mut edges);
+    edges.dedup_by(|a, b| {
+        a.from == b.from && a.to == b.to && a.edge_type == b.edge_type && a.evidence == b.evidence
+    });
     edges
 }
 
@@ -4468,6 +4545,12 @@ fn proof_reason_for_evidence(evidence: &str, scope: &str) -> String {
             proof_reason_for_evidence(base, scope)
         );
     }
+    if let Some(base) = evidence.strip_suffix("_via_local_symbol_consumer") {
+        return format!(
+            "{} via same-file symbol consumer",
+            proof_reason_for_evidence(base, scope)
+        );
+    }
     match evidence {
         "test_import" => format!("test imports {scope}"),
         "test_imported_symbol_reference" => {
@@ -4824,6 +4907,7 @@ fn proof_evidence_precedence(evidence: &str) -> usize {
         .strip_suffix("_owning_file")
         .or_else(|| evidence.strip_suffix("_via_direct_consumer"))
         .or_else(|| evidence.strip_suffix("_via_direct_dependency"))
+        .or_else(|| evidence.strip_suffix("_via_local_symbol_consumer"))
         .unwrap_or(evidence);
     match evidence {
         "test_import" => 6,
