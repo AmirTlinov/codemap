@@ -2235,7 +2235,7 @@ func hostViewModelRefreshes() {
             .expect("edges")
             .iter()
             .any(|edge| edge["from"] == "Package.swift"
-                && edge["to"] == "Packages/"
+                && edge["to"] == "Packages/Core/"
                 && edge["type"] == "package_internal"
                 && edge["evidence"] == "package_manifest:Core"),
         "SwiftPM local path dependencies should become package graph edges: {ls:#}"
@@ -2857,6 +2857,114 @@ fn root_ls_balances_directory_edges_across_structural_sources() {
         "hidden edge count should still make the bounded cut explicit: {json:#}"
     );
     assert_eq!(json.get("read_first"), None);
+}
+
+#[test]
+fn root_ls_preserves_rust_workspace_package_edges_under_shared_src_parent() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("Cargo.toml"),
+        r#"[workspace]
+members = ["src/app", "src/core", "src/config"]
+resolver = "2"
+"#,
+    );
+    write(
+        &repo.path().join("src/app/Cargo.toml"),
+        r#"[package]
+name = "app"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+masque-core = { path = "../core" }
+silentway-config = { path = "../config" }
+"#,
+    );
+    write(
+        &repo.path().join("src/core/Cargo.toml"),
+        r#"[package]
+name = "masque-core"
+version = "0.1.0"
+edition = "2021"
+"#,
+    );
+    write(
+        &repo.path().join("src/config/Cargo.toml"),
+        r#"[package]
+name = "silentway-config"
+version = "0.1.0"
+edition = "2021"
+"#,
+    );
+    write(&repo.path().join("src/app/src/lib.rs"), "pub fn app() {}\n");
+    write(
+        &repo.path().join("src/core/src/lib.rs"),
+        "pub fn core() {}\n",
+    );
+    write(
+        &repo.path().join("src/config/src/lib.rs"),
+        "pub fn config() {}\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let json = run_json(repo.path(), cache.path(), &["ls", ".", "--format", "json"]);
+    assert_schema("schemas/ls.schema.json", &json);
+    let edges = json["edges"].as_array().expect("edges");
+    assert!(
+        edges.iter().any(|edge| edge["type"] == "package_internal"
+            && edge["from"] == "src/app/"
+            && edge["to"] == "src/core/"
+            && edge["evidence"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("masque-core")),
+        "root map must keep package endpoints under shared src parent instead of collapsing them away: {json:#}"
+    );
+    assert!(
+        edges.iter().any(|edge| edge["type"] == "package_internal"
+            && edge["from"] == "src/app/"
+            && edge["to"] == "src/config/"
+            && edge["evidence"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("silentway-config")),
+        "root map should preserve each structural package dependency under src/: {json:#}"
+    );
+    assert!(
+        !edges
+            .iter()
+            .any(|edge| edge["from"] == "src/" && edge["to"] == "src/"),
+        "self-collapsed src edges are not useful map output: {json:#}"
+    );
+    assert_eq!(json.get("read_first"), None);
+
+    let cone = run_json(
+        repo.path(),
+        cache.path(),
+        &["cone", ".", "--depth", "2", "--format", "json"],
+    );
+    assert_schema("schemas/cone.schema.json", &cone);
+    let outgoing = cone["outgoing"].as_array().expect("outgoing");
+    assert!(
+        outgoing
+            .iter()
+            .any(|edge| edge["type"] == "package_internal"
+                && edge["from"] == "src/app/"
+                && edge["to"] == "src/core/"),
+        "directory cone should keep shared-src package endpoints instead of expanding to files: {cone:#}"
+    );
+    assert!(
+        !outgoing
+            .iter()
+            .any(|edge| edge["from"] == "src/" && edge["to"] == "src/"),
+        "directory cone should not expose self-collapsed shared-parent edges: {cone:#}"
+    );
 }
 
 #[test]

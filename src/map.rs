@@ -539,8 +539,8 @@ fn directory_edges_at_depth(
             {
                 continue;
             }
-            let from = directory_edge_endpoint_at_depth(rel, &file.rel, endpoint_depth);
-            let to = directory_edge_endpoint_at_depth(rel, target, endpoint_depth);
+            let from = directory_edge_endpoint_at_depth(project, rel, &file.rel, endpoint_depth);
+            let to = directory_edge_endpoint_at_depth(project, rel, target, endpoint_depth);
             if from != to {
                 add_directory_edge(
                     &mut grouped,
@@ -563,8 +563,8 @@ fn directory_edges_at_depth(
                 {
                     continue;
                 }
-                let from = directory_edge_endpoint_at_depth(rel, importer, endpoint_depth);
-                let to = directory_edge_endpoint_at_depth(rel, &file.rel, endpoint_depth);
+                let from = directory_edge_endpoint_at_depth(project, rel, importer, endpoint_depth);
+                let to = directory_edge_endpoint_at_depth(project, rel, &file.rel, endpoint_depth);
                 if from != to {
                     add_directory_edge(
                         &mut grouped,
@@ -599,8 +599,9 @@ fn directory_edges_at_depth(
         if from_in || to_in {
             add_directory_edge(
                 &mut grouped,
-                directory_edge_endpoint_at_depth(rel, &edge.from_manifest, endpoint_depth),
+                directory_edge_endpoint_at_depth(project, rel, &edge.from_manifest, endpoint_depth),
                 directory_edge_endpoint_at_depth(
+                    project,
                     rel,
                     &edge.to_manifest.clone().unwrap_or_else(|| edge.to.clone()),
                     endpoint_depth,
@@ -659,11 +660,19 @@ fn add_directory_edge(
         .or_insert(0) += 1;
 }
 
-fn directory_edge_endpoint_at_depth(scope: &str, path: &str, depth: usize) -> String {
+fn directory_edge_endpoint_at_depth(
+    project: &Project,
+    scope: &str,
+    path: &str,
+    depth: usize,
+) -> String {
     let scope = repo::normalize_rel_path(scope);
     let path = repo::normalize_rel_path(path);
     let depth = depth.max(1);
     if scope == "." {
+        if let Some(endpoint) = package_endpoint_at_depth(project, &path, depth) {
+            return endpoint;
+        }
         return top_level_endpoint_at_depth(&path, depth);
     }
     if let Some(rest) = path.strip_prefix(&format!("{}/", scope.trim_end_matches('/'))) {
@@ -679,8 +688,55 @@ fn directory_edge_endpoint_at_depth(scope: &str, path: &str, depth: usize) -> St
             format!("{}/{}/", scope.trim_end_matches('/'), dirs.join("/"))
         }
     } else {
+        if let Some(endpoint) = package_endpoint_at_depth(project, &path, depth) {
+            return endpoint;
+        }
         top_level_endpoint_at_depth(&path, depth)
     }
+}
+
+fn package_endpoint_at_depth(project: &Project, path: &str, depth: usize) -> Option<String> {
+    let path = repo::normalize_rel_path(path);
+    let package = project
+        .packages
+        .iter()
+        .filter(|package| package.path != "." && path_under_scope(&path, &package.path))
+        .max_by_key(|package| package.path.len())?;
+    let rest = path_relative_to_map(&path, &package.path).unwrap_or_else(|| ".".to_string());
+    if depth <= 1 || rest == "." {
+        return Some(format!("{}/", package.path.trim_end_matches('/')));
+    }
+    let mut parts = rest.split('/').collect::<Vec<_>>();
+    if parts.len() <= 1 {
+        return Some(format!("{}/", package.path.trim_end_matches('/')));
+    }
+    parts.pop();
+    let dirs = parts
+        .into_iter()
+        .take(depth.saturating_sub(1))
+        .collect::<Vec<_>>();
+    if dirs.is_empty() {
+        Some(format!("{}/", package.path.trim_end_matches('/')))
+    } else {
+        Some(format!(
+            "{}/{}/",
+            package.path.trim_end_matches('/'),
+            dirs.join("/")
+        ))
+    }
+}
+
+fn path_relative_to_map(path: &str, base: &str) -> Option<String> {
+    let path = repo::normalize_rel_path(path);
+    let base = repo::normalize_rel_path(base);
+    if base == "." {
+        return Some(path);
+    }
+    if path == base {
+        return Some(".".to_string());
+    }
+    path.strip_prefix(&format!("{}/", base.trim_end_matches('/')))
+        .map(str::to_string)
 }
 
 fn top_level_endpoint_at_depth(path: &str, depth: usize) -> String {
@@ -845,6 +901,7 @@ fn directory_proof_edges_at_depth(
 ) -> Vec<StructuralEdge> {
     let seeds = directory_seed_file_paths(project, rel, include_hidden);
     dedupe_proof_edges_by_endpoint(aggregate_edges_at_directory_depth(
+        project,
         cone_proof_edges_with_direct_consumers(project, &seeds),
         rel,
         endpoint_depth,
@@ -874,7 +931,7 @@ fn directory_contract_edges_at_depth(
             })
         })
         .collect::<Vec<_>>();
-    aggregate_edges_at_directory_depth(edges, rel, endpoint_depth)
+    aggregate_edges_at_directory_depth(project, edges, rel, endpoint_depth)
 }
 
 fn directory_boundary_edges_at_depth(
@@ -903,10 +960,11 @@ fn directory_boundary_edges_at_depth(
             },
         })
         .collect::<Vec<_>>();
-    aggregate_edges_at_directory_depth(edges, rel, endpoint_depth)
+    aggregate_edges_at_directory_depth(project, edges, rel, endpoint_depth)
 }
 
 fn aggregate_edges_at_directory_depth(
+    project: &Project,
     edges: Vec<StructuralEdge>,
     rel: &str,
     endpoint_depth: usize,
@@ -916,8 +974,8 @@ fn aggregate_edges_at_directory_depth(
     for edge in edges {
         add_directory_edge(
             &mut grouped,
-            directory_edge_endpoint_at_depth(rel, &edge.from, endpoint_depth),
-            directory_edge_endpoint_at_depth(rel, &edge.to, endpoint_depth),
+            directory_edge_endpoint_at_depth(project, rel, &edge.from, endpoint_depth),
+            directory_edge_endpoint_at_depth(project, rel, &edge.to, endpoint_depth),
             &edge.edge_type,
             &edge.evidence,
             edge.strength,
