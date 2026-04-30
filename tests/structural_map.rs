@@ -1596,6 +1596,403 @@ fn proof_and_impact_link_same_package_symbol_references_without_imports() {
 }
 
 #[test]
+fn symbol_anchor_cone_filters_javascript_import_bindings() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{
+  "name": "symbol-anchor-fixture",
+  "private": true,
+  "scripts": { "test": "vitest run" }
+}
+"#,
+    );
+    write(
+        &repo.path().join("src/card.tsx"),
+        "export function GroupCard() {\n  return <section>Group</section>;\n}\n\nexport function AdminCard() {\n  return <section>Admin</section>;\n}\n",
+    );
+    write(
+        &repo.path().join("src/home.tsx"),
+        "import { GroupCard as Card } from './card';\n\nexport function HomePage() {\n  return <Card />;\n}\n",
+    );
+    write(
+        &repo.path().join("src/admin.tsx"),
+        "import { AdminCard } from './card';\n\nexport function AdminPage() {\n  return <AdminCard />;\n}\n",
+    );
+    write(
+        &repo.path().join("src/unused.tsx"),
+        "import { GroupCard } from './card';\n\nexport const unused = true;\n",
+    );
+    write(
+        &repo.path().join("src/side-effect.tsx"),
+        "import { GroupCard } from './card'\nimport './setup'\n\nexport function SideEffectPage() {\n  return <GroupCard />;\n}\n",
+    );
+    write(
+        &repo.path().join("src/setup.ts"),
+        "export const setup = true;\n",
+    );
+    write(
+        &repo.path().join("src/string-only.tsx"),
+        "import { GroupCard } from './card';\n\nexport const fixture = 'GroupCard';\n",
+    );
+    write(
+        &repo.path().join("src/card.test.tsx"),
+        "import { GroupCard } from './card';\n\ntest('group card export stays usable', () => {\n  expect(GroupCard).toBeDefined();\n});\n",
+    );
+    write(
+        &repo.path().join("src/type-only-consumer.test.tsx"),
+        "import { GroupCard } from './card';\n\ntype Props = {\n  id: string;\n  component: typeof GroupCard;\n};\n\ntest('type-only mention does not prove runtime behavior', () => {\n  const props: Props | null = null;\n  expect(props).toBeNull();\n});\n",
+    );
+    write(
+        &repo.path().join("src/type-annotation-consumer.test.tsx"),
+        "import { GroupCard } from './card';\n\ntest('typeof annotation does not prove runtime behavior', () => {\n  let component: typeof GroupCard | null = null;\n  expect(component).toBeNull();\n});\n",
+    );
+    write(
+        &repo.path().join("src/type-assertion-consumer.test.tsx"),
+        "import { GroupCard } from './card';\n\ntest('typeof assertion does not prove runtime behavior', () => {\n  const value = null as unknown as typeof GroupCard;\n  expect(value).toBeNull();\n});\n",
+    );
+    write(
+        &repo.path().join("src/implements-only.test.tsx"),
+        "import { GroupCard } from './card';\n\nclass Fake implements GroupCard {\n  value = 1;\n}\n\ntest('implements mention does not prove runtime behavior', () => {\n  expect(new Fake().value).toBe(1);\n});\n",
+    );
+    write(
+        &repo.path().join("src/object-key.test.tsx"),
+        "import { GroupCard } from './card';\n\ntest('object key does not prove runtime behavior', () => {\n  const metadata = { GroupCard: true };\n  expect(metadata.GroupCard).toBe(true);\n});\n",
+    );
+    write(
+        &repo.path().join("src/regex-only.test.tsx"),
+        "import { GroupCard } from './card';\n\ntest('regex mention does not prove runtime behavior', () => {\n  expect(/GroupCard/.test('GroupCard')).toBe(true);\n});\n",
+    );
+    write(
+        &repo.path().join("src/regex-angle.test.tsx"),
+        "import { GroupCard } from './card';\n\ntest('regex markup mention does not prove runtime behavior', () => {\n  expect(/<GroupCard>/.test('<GroupCard>')).toBe(true);\n});\n",
+    );
+    write(
+        &repo.path().join("src/regex-group.test.tsx"),
+        "import { GroupCard } from './card';\n\ntest('regex group mention does not prove runtime behavior', () => {\n  expect(/foo (GroupCard) bar/.test('GroupCard')).toBe(true);\n});\n",
+    );
+    write(
+        &repo.path().join("src/arrow-regex-group.test.tsx"),
+        "import { GroupCard } from './card';\n\ntest('arrow regex group mention does not prove runtime behavior', () => {\n  const matcher = () => /foo (GroupCard) bar/.test('GroupCard');\n  expect(matcher()).toBe(true);\n});\n",
+    );
+    write(
+        &repo.path().join("src/await-regex-consumer.ts"),
+        "import { GroupCard } from './card';\n\nexport async function regexConsumer(value: string) {\n  return await /foo (GroupCard) bar/.test(value);\n}\n",
+    );
+    write(
+        &repo.path().join("src/if-regex-consumer.tsx"),
+        "import { GroupCard } from './card';\n\nexport function regexConsumer(enabled: boolean, value: string) {\n  if (enabled) /foo (GroupCard) bar/.test(value);\n  if (enabled) /<GroupCard>/.test(value);\n}\n",
+    );
+    write(
+        &repo.path().join("src/else-regex-consumer.tsx"),
+        "import { GroupCard } from './card';\n\nexport function regexConsumer(enabled: boolean, value: string) {\n  if (enabled) return;\n  else /foo (GroupCard) bar/.test(value);\n}\n",
+    );
+    write(
+        &repo.path().join("src/type-generic-consumer.tsx"),
+        "import { GroupCard } from './card';\n\nfunction identity<T>(value: T) {\n  return value;\n}\n\nexport const value = identity<GroupCard | null>(null);\n",
+    );
+    write(
+        &repo.path().join("src/template-consumer.tsx"),
+        "import { GroupCard } from './card';\n\nexport const snippet = `\n  GroupCard()\n`;\n",
+    );
+    write(
+        &repo.path().join("src/generic-arrow.tsx"),
+        "import { GroupCard } from './card';\n\nexport const make = <GroupCard extends object>() => null;\n",
+    );
+    write(
+        &repo.path().join("src/await-regex.test.tsx"),
+        "import { GroupCard } from './card';\n\ntest('await regex mention does not prove runtime behavior', async () => {\n  const matched = await /foo (GroupCard) bar/.test('GroupCard');\n  expect(matched).toBe(true);\n});\n",
+    );
+    write(
+        &repo.path().join("src/if-regex.test.tsx"),
+        "import { GroupCard } from './card';\n\ntest('if regex mention does not prove runtime behavior', () => {\n  if (true) /foo (GroupCard) bar/.test('GroupCard');\n  if (true) /<GroupCard>/.test('GroupCard');\n});\n",
+    );
+    write(
+        &repo.path().join("src/else-regex.test.tsx"),
+        "import { GroupCard } from './card';\n\ntest('else regex mention does not prove runtime behavior', () => {\n  if (false) return;\n  else /foo (GroupCard) bar/.test('GroupCard');\n});\n",
+    );
+    write(
+        &repo.path().join("src/throw-regex.test.tsx"),
+        "import { GroupCard } from './card';\n\ntest('throw regex mention does not prove runtime behavior', () => {\n  try {\n    throw /foo (GroupCard) bar/;\n  } catch (pattern) {\n    expect(pattern.test('GroupCard')).toBe(true);\n  }\n});\n",
+    );
+    write(
+        &repo.path().join("src/type-generic.test.tsx"),
+        "import { GroupCard } from './card';\n\nfunction identity<T>(value: T) {\n  return value;\n}\n\ntest('generic type argument does not prove runtime behavior', () => {\n  expect(identity<GroupCard | null>(null)).toBeNull();\n});\n",
+    );
+    write(
+        &repo.path().join("src/type-factory.test.tsx"),
+        "import { GroupCard } from './card';\n\ntype Factory = <GroupCard>() => void;\n\ntest('generic type parameter does not prove runtime behavior', () => {\n  const noop: Factory | null = null;\n  expect(noop).toBeNull();\n});\n",
+    );
+    write(
+        &repo.path().join("src/generic-arrow.test.tsx"),
+        "import { GroupCard } from './card';\n\ntest('generic arrow type parameter does not prove runtime behavior', () => {\n  const make = <GroupCard extends object>() => null;\n  expect(make()).toBeNull();\n});\n",
+    );
+    write(
+        &repo.path().join("src/template-only.test.tsx"),
+        "import { GroupCard } from './card';\n\ntest('template snippet does not prove runtime behavior', () => {\n  const snippet = `\n    GroupCard()\n  `;\n  expect(snippet).toContain('GroupCard');\n});\n",
+    );
+    write(
+        &repo.path().join("src/admin.test.tsx"),
+        "import { AdminCard } from './card';\n\ntest('admin card export stays usable', () => {\n  expect(AdminCard).toBeDefined();\n});\n",
+    );
+    write(
+        &repo.path().join("src/local-shadow.tsx"),
+        "import { GroupCard } from './card';\n\nexport function ShadowPage() {\n  const GroupCard = () => <section>Local</section>;\n  return <GroupCard />;\n}\n",
+    );
+    write(
+        &repo.path().join("src/for-shadow.tsx"),
+        "import { GroupCard } from './card';\n\nconst cards = [() => <section>Local</section>];\n\nexport function ForShadowPage() {\n  for (const GroupCard of cards) {\n    return <GroupCard />;\n  }\n  return null;\n}\n",
+    );
+    write(
+        &repo.path().join("src/for-await-shadow.tsx"),
+        "import { GroupCard } from './card';\n\nasync function* cards() {\n  yield () => <section>Local</section>;\n}\n\nexport async function ForAwaitShadowPage() {\n  for await (const GroupCard of cards()) {\n    return <GroupCard />;\n  }\n  return null;\n}\n",
+    );
+    write(
+        &repo.path().join("src/catch-shadow.tsx"),
+        "import { GroupCard } from './card';\n\nexport function CatchShadowPage() {\n  try {\n    throw new Error('x');\n  } catch (GroupCard) {\n    return <GroupCard />;\n  }\n}\n",
+    );
+    write(
+        &repo.path().join("src/for-await-shadow.test.tsx"),
+        "import { GroupCard } from './card';\n\nasync function* cards() {\n  yield () => <section>Local</section>;\n}\n\ntest('for await shadow does not prove runtime behavior', async () => {\n  for await (const GroupCard of cards()) {\n    expect(GroupCard).toBeDefined();\n  }\n});\n",
+    );
+    write(
+        &repo.path().join("src/default-card.tsx"),
+        "export default function DefaultCard() {\n  return <section>Default</section>;\n}\n",
+    );
+    write(
+        &repo.path().join("src/default-consumer.tsx"),
+        "import RenamedCard from './default-card';\n\nexport function DefaultPage() {\n  return <RenamedCard />;\n}\n",
+    );
+    write(
+        &repo.path().join("src/default-card.test.tsx"),
+        "import RenamedCard from './default-card';\n\ntest('default card export stays usable', () => {\n  expect(RenamedCard).toBeDefined();\n});\n",
+    );
+    write(
+        &repo.path().join("src/default-const-card.tsx"),
+        "const DefaultConstCard = () => <section>Default const</section>;\n\nexport default DefaultConstCard;\n",
+    );
+    write(
+        &repo.path().join("src/default-const-consumer.tsx"),
+        "import RenamedConstCard from './default-const-card';\n\nexport function DefaultConstPage() {\n  return <RenamedConstCard />;\n}\n",
+    );
+    write(
+        &repo.path().join("src/default-const-card.test.tsx"),
+        "import RenamedConstCard from './default-const-card';\n\ntest('default const card export stays usable', () => {\n  expect(RenamedConstCard).toBeDefined();\n});\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let ls = run_json(
+        repo.path(),
+        cache.path(),
+        &["ls", "src/card.tsx#GroupCard", "--format", "json"],
+    );
+    assert_schema("schemas/ls.schema.json", &ls);
+    assert_eq!(ls["anchor"]["path"], "src/card.tsx#GroupCard");
+    assert_eq!(ls["anchor"]["kind"], "symbol:component");
+    assert_eq!(
+        ls["anchor"]["symbols"].as_array().expect("symbols").len(),
+        1
+    );
+
+    let cone = run_json(
+        repo.path(),
+        cache.path(),
+        &["cone", "src/card.tsx#GroupCard", "--format", "json"],
+    );
+    assert_schema("schemas/cone.schema.json", &cone);
+    let incoming = cone["incoming"].as_array().expect("incoming");
+    assert!(
+        incoming.iter().any(|edge| {
+            edge["from"] == "src/home.tsx"
+                && edge["to"] == "src/card.tsx#GroupCard"
+                && edge["evidence"] == "imported_symbol_reference"
+        }),
+        "symbol cone should show the aliased component consumer: {cone:#}"
+    );
+    assert!(
+        incoming
+            .iter()
+            .any(|edge| edge["from"] == "src/side-effect.tsx"
+                && edge["to"] == "src/card.tsx#GroupCard"
+                && edge["evidence"] == "imported_symbol_reference"),
+        "semicolonless side-effect imports must not hide later symbol references: {cone:#}"
+    );
+    assert!(
+        incoming.iter().all(|edge| edge["from"] != "src/admin.tsx"
+            && edge["from"] != "src/unused.tsx"
+            && edge["from"] != "src/string-only.tsx"
+            && edge["from"] != "src/await-regex-consumer.ts"
+            && edge["from"] != "src/if-regex-consumer.tsx"
+            && edge["from"] != "src/else-regex-consumer.tsx"
+            && edge["from"] != "src/type-generic-consumer.tsx"
+            && edge["from"] != "src/template-consumer.tsx"
+            && edge["from"] != "src/generic-arrow.tsx"
+            && edge["from"] != "src/local-shadow.tsx"
+            && edge["from"] != "src/for-shadow.tsx"
+            && edge["from"] != "src/for-await-shadow.tsx"
+            && edge["from"] != "src/catch-shadow.tsx"),
+        "symbol cone must not include other exports, unused imports, string-only mentions, or local/loop/catch shadows: {cone:#}"
+    );
+    assert!(
+        cone["proof"]
+            .as_array()
+            .expect("proof")
+            .iter()
+            .any(|edge| edge["from"] == "src/card.test.tsx"
+                && edge["to"] == "src/card.tsx#GroupCard"
+                && edge["evidence"] == "test_imported_symbol_reference"),
+        "symbol cone should expose exact symbol proof: {cone:#}"
+    );
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &["proof", "src/card.tsx#GroupCard", "--format", "json"],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    let proofs = proof["proofs"].as_array().expect("proofs");
+    assert!(
+        proofs
+            .iter()
+            .any(|surface| surface["path"] == "src/card.test.tsx"
+                && surface["evidence"] == "test_imported_symbol_reference"
+                && surface["command"] == "npx vitest run src/card.test.tsx"),
+        "symbol proof should prefer the exact importing test file: {proof:#}"
+    );
+    assert!(
+        proofs
+            .iter()
+            .all(|surface| surface["path"] != "src/admin.test.tsx"),
+        "symbol proof must not inherit tests for sibling exports: {proof:#}"
+    );
+    assert!(
+        proofs
+            .iter()
+            .all(|surface| surface["path"] != "src/type-only-consumer.test.tsx"),
+        "type-only symbol mentions must not become runtime proof: {proof:#}"
+    );
+    assert!(
+        proofs.iter().all(
+            |surface| surface["path"] != "src/type-annotation-consumer.test.tsx"
+                && surface["path"] != "src/type-assertion-consumer.test.tsx"
+                && surface["path"] != "src/implements-only.test.tsx"
+                && surface["path"] != "src/object-key.test.tsx"
+                && surface["path"] != "src/regex-only.test.tsx"
+                && surface["path"] != "src/regex-angle.test.tsx"
+                && surface["path"] != "src/regex-group.test.tsx"
+                && surface["path"] != "src/arrow-regex-group.test.tsx"
+                && surface["path"] != "src/await-regex.test.tsx"
+                && surface["path"] != "src/if-regex.test.tsx"
+                && surface["path"] != "src/else-regex.test.tsx"
+                && surface["path"] != "src/throw-regex.test.tsx"
+                && surface["path"] != "src/type-generic.test.tsx"
+                && surface["path"] != "src/type-factory.test.tsx"
+                && surface["path"] != "src/generic-arrow.test.tsx"
+                && surface["path"] != "src/template-only.test.tsx"
+                && surface["path"] != "src/for-await-shadow.test.tsx"
+        ),
+        "type-only/object-key/regex mentions must not become runtime proof: {proof:#}"
+    );
+    assert!(
+        proof["fallback"].as_array().expect("fallback").is_empty(),
+        "exact symbol proof should suppress broad fallback: {proof:#}"
+    );
+
+    let default_cone = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "cone",
+            "src/default-card.tsx#DefaultCard",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/cone.schema.json", &default_cone);
+    assert!(
+        default_cone["incoming"]
+            .as_array()
+            .expect("default incoming")
+            .iter()
+            .any(|edge| edge["from"] == "src/default-consumer.tsx"
+                && edge["to"] == "src/default-card.tsx#DefaultCard"
+                && edge["evidence"] == "imported_symbol_reference"),
+        "default import aliases should link to the named default symbol anchor: {default_cone:#}"
+    );
+
+    let default_proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "src/default-card.tsx#DefaultCard",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &default_proof);
+    assert!(
+        default_proof["proofs"]
+            .as_array()
+            .expect("default proofs")
+            .iter()
+            .any(|surface| surface["path"] == "src/default-card.test.tsx"
+                && surface["evidence"] == "test_imported_symbol_reference"),
+        "default import aliases should become exact symbol proof: {default_proof:#}"
+    );
+
+    let default_const_cone = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "cone",
+            "src/default-const-card.tsx#DefaultConstCard",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/cone.schema.json", &default_const_cone);
+    assert!(
+        default_const_cone["incoming"]
+            .as_array()
+            .expect("default const incoming")
+            .iter()
+            .any(|edge| edge["from"] == "src/default-const-consumer.tsx"
+                && edge["to"] == "src/default-const-card.tsx#DefaultConstCard"
+                && edge["evidence"] == "imported_symbol_reference"),
+        "default identifier aliases should link to the local default-exported symbol anchor: {default_const_cone:#}"
+    );
+
+    let default_const_proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "src/default-const-card.tsx#DefaultConstCard",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &default_const_proof);
+    assert!(
+        default_const_proof["proofs"]
+            .as_array()
+            .expect("default const proofs")
+            .iter()
+            .any(
+                |surface| surface["path"] == "src/default-const-card.test.tsx"
+                    && surface["evidence"] == "test_imported_symbol_reference"
+            ),
+        "default identifier aliases should become exact symbol proof: {default_const_proof:#}"
+    );
+}
+
+#[test]
 fn swift_package_manifest_surfaces_packages_scripts_and_local_path_edges() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");

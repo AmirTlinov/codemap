@@ -92,6 +92,11 @@ pub fn status_report(project: &Project) -> StatusReport {
 
 pub fn ls_report(project: &Project, path: &str, include_hidden: bool, limit: usize) -> LsReport {
     let rel = repo::normalize_rel_path(path);
+    if let Some((file_rel, symbol_name)) = split_symbol_anchor(&rel)
+        && let Some(info) = project.files.get(&file_rel)
+    {
+        return ls_symbol_report(project, info, &symbol_name, include_hidden, limit.max(1));
+    }
     if let Some(info) = project.files.get(&rel) {
         return ls_file_report(project, info, include_hidden, limit.max(1));
     }
@@ -124,6 +129,18 @@ pub fn cone_report(
     let rel = repo::normalize_rel_path(path);
     let depth = depth.min(4);
     let limit = limit.max(1);
+    if let Some((file_rel, symbol_name)) = split_symbol_anchor(&rel)
+        && let Some(report) = cone_symbol_report(
+            project,
+            &file_rel,
+            &symbol_name,
+            depth,
+            include_hidden,
+            limit,
+        )
+    {
+        return report;
+    }
     let (anchor, seed_files, mut unknowns, mut hidden) =
         cone_anchor(project, &rel, include_hidden, limit);
     let depths = cone_depths(project, &seed_files, depth);
@@ -211,6 +228,58 @@ pub fn cone_report(
             format!("codemap cone {} --depth {}", shell_quote(&rel), depth + 1),
             format!("codemap ls {} --include-hidden", shell_quote(&rel)),
         ],
+    }
+}
+
+fn ls_symbol_report(
+    project: &Project,
+    info: &FileInfo,
+    symbol_name: &str,
+    include_hidden: bool,
+    limit: usize,
+) -> LsReport {
+    let anchor_path = symbol_anchor_path(&info.rel, symbol_name);
+    let Some(anchor) = symbol_file_summary(project, info, symbol_name) else {
+        return LsReport {
+            kind: "ls_report",
+            schema_version: "2",
+            path: anchor_path.clone(),
+            mode: "missing".to_string(),
+            anchor: None,
+            directory: Vec::new(),
+            edges: Vec::new(),
+            hidden: Vec::new(),
+            next: vec![format!("codemap ls {}", shell_quote(&info.rel))],
+        };
+    };
+    let mut edges = symbol_reference_edges(project, &info.rel, symbol_name, false);
+    edges.extend(symbol_proof_edges(project, &info.rel, symbol_name));
+    sort_edges(&mut edges);
+    edges.dedup_by(|a, b| {
+        a.from == b.from && a.to == b.to && a.edge_type == b.edge_type && a.evidence == b.evidence
+    });
+    let edge_count = edges.len();
+    let mut hidden = Vec::new();
+    if !include_hidden {
+        edges.truncate(limit);
+        if edge_count > edges.len() {
+            hidden.push(HiddenGroup {
+                reason: "symbol edges hidden by limit".to_string(),
+                count: edge_count - edges.len(),
+                expand: format!("codemap ls {} --include-hidden", shell_quote(&anchor_path)),
+            });
+        }
+    }
+    LsReport {
+        kind: "ls_report",
+        schema_version: "2",
+        path: anchor_path.clone(),
+        mode: "file".to_string(),
+        anchor: Some(anchor),
+        directory: Vec::new(),
+        edges,
+        hidden,
+        next: vec![format!("codemap cone {}", shell_quote(&anchor_path))],
     }
 }
 
@@ -613,6 +682,77 @@ fn path_under_scope(path: &str, scope: &str) -> bool {
     let path = repo::normalize_rel_path(path);
     let scope = repo::normalize_rel_path(scope);
     scope == "." || path == scope || path.starts_with(&format!("{}/", scope.trim_end_matches('/')))
+}
+
+fn cone_symbol_report(
+    project: &Project,
+    file_rel: &str,
+    symbol_name: &str,
+    depth: usize,
+    include_hidden: bool,
+    limit: usize,
+) -> Option<ConeReport> {
+    let info = project.files.get(file_rel)?;
+    let anchor = symbol_file_summary(project, info, symbol_name)?;
+    let anchor_path = symbol_anchor_path(file_rel, symbol_name);
+    let mut incoming = symbol_reference_edges(project, file_rel, symbol_name, false);
+    let mut proof = symbol_proof_edges(project, file_rel, symbol_name);
+    let outgoing = symbol_outgoing_edges(project, info, symbol_name);
+    let contracts = symbol_contract_edges(project, file_rel, symbol_name);
+    let boundary = Vec::new();
+    let mut hidden = Vec::new();
+    sort_edges(&mut incoming);
+    sort_edges(&mut proof);
+    limit_edge_section(
+        &mut incoming,
+        &mut hidden,
+        include_hidden,
+        limit,
+        "symbol incoming edges hidden by limit",
+        &format!(
+            "codemap cone {} --include-hidden",
+            shell_quote(&anchor_path)
+        ),
+    );
+    limit_edge_section(
+        &mut proof,
+        &mut hidden,
+        include_hidden,
+        limit,
+        "symbol proof edges hidden by limit",
+        &format!(
+            "codemap cone {} --include-hidden",
+            shell_quote(&anchor_path)
+        ),
+    );
+    let mut unknowns = Vec::new();
+    if outgoing.is_empty() {
+        unknowns.push(
+            "symbol-level outgoing call/dataflow is not inferred without structural evidence"
+                .to_string(),
+        );
+    }
+    Some(ConeReport {
+        kind: "cone_report",
+        schema_version: "2",
+        anchor,
+        depth,
+        outgoing,
+        incoming,
+        proof,
+        contracts,
+        boundary,
+        hidden,
+        unknowns,
+        expand: vec![
+            format!(
+                "codemap cone {} --depth {}",
+                shell_quote(file_rel),
+                depth + 1
+            ),
+            format!("codemap ls {}", shell_quote(file_rel)),
+        ],
+    })
 }
 
 fn cone_anchor(
@@ -1269,6 +1409,560 @@ fn file_summary(
             .map(|importers| importers.len())
             .unwrap_or(0),
     }
+}
+
+fn symbol_file_summary(
+    project: &Project,
+    info: &FileInfo,
+    symbol_name: &str,
+) -> Option<FileSummary> {
+    let symbols = matching_symbols(info, symbol_name);
+    if symbols.is_empty() {
+        return None;
+    }
+    let line_start = symbols
+        .iter()
+        .map(|symbol| symbol.line_start)
+        .min()
+        .unwrap_or(1);
+    let line_end = symbols
+        .iter()
+        .map(|symbol| symbol.line_end)
+        .max()
+        .unwrap_or(line_start);
+    let exported = symbol_is_exported(project, &info.rel, symbol_name);
+    let kind = if symbols.len() == 1 {
+        format!("symbol:{}", symbols[0].kind)
+    } else {
+        "symbol".to_string()
+    };
+    Some(FileSummary {
+        path: symbol_anchor_path(&info.rel, symbol_name),
+        kind,
+        package: package_name_for_file(project, &info.rel),
+        language: info.language.clone(),
+        lines: line_end.saturating_sub(line_start).saturating_add(1),
+        roles: structural_roles_for_ls(info),
+        symbols,
+        exports: exported
+            .then(|| symbol_name.to_string())
+            .into_iter()
+            .collect(),
+        imports: Vec::new(),
+        imported_by_count: symbol_reference_edges(project, &info.rel, symbol_name, true).len(),
+    })
+}
+
+fn matching_symbols(info: &FileInfo, symbol_name: &str) -> Vec<crate::model::SymbolInfo> {
+    info.symbols
+        .iter()
+        .filter(|symbol| symbol.name == symbol_name)
+        .cloned()
+        .collect()
+}
+
+fn split_symbol_anchor(rel: &str) -> Option<(String, String)> {
+    let (file, symbol) = rel.rsplit_once('#')?;
+    let file = repo::normalize_rel_path(file);
+    let symbol = symbol.trim();
+    if file == "." || symbol.is_empty() || symbol.contains('/') || symbol.contains('\\') {
+        return None;
+    }
+    Some((file, symbol.to_string()))
+}
+
+fn symbol_anchor_path(file_rel: &str, symbol_name: &str) -> String {
+    format!("{file_rel}#{symbol_name}")
+}
+
+fn symbol_reference_edges(
+    project: &Project,
+    file_rel: &str,
+    symbol_name: &str,
+    include_tests: bool,
+) -> Vec<StructuralEdge> {
+    let Some(anchor) = project.files.get(file_rel) else {
+        return Vec::new();
+    };
+    if matching_symbols(anchor, symbol_name).is_empty() {
+        return Vec::new();
+    }
+    let anchor_path = symbol_anchor_path(file_rel, symbol_name);
+    let mut edges = Vec::new();
+    for file in project.files.values() {
+        if file.rel == file_rel {
+            continue;
+        }
+        if !include_tests && (file.has_role("test") || file.has_role("test_support")) {
+            continue;
+        }
+        if file_references_imported_symbol(project, file, file_rel, symbol_name) {
+            edges.push(StructuralEdge {
+                from: file.rel.clone(),
+                to: anchor_path.clone(),
+                edge_type: "symbol_reference".to_string(),
+                evidence: "imported_symbol_reference".to_string(),
+                strength: EvidenceStrength::High,
+            });
+            continue;
+        }
+        if same_scope_file_references_symbol(anchor, file, symbol_name) {
+            edges.push(StructuralEdge {
+                from: file.rel.clone(),
+                to: anchor_path.clone(),
+                edge_type: "symbol_reference".to_string(),
+                evidence: "same_scope_symbol_reference".to_string(),
+                strength: EvidenceStrength::High,
+            });
+        }
+    }
+    sort_edges(&mut edges);
+    edges
+}
+
+fn symbol_proof_edges(project: &Project, file_rel: &str, symbol_name: &str) -> Vec<StructuralEdge> {
+    let Some(anchor) = project.files.get(file_rel) else {
+        return Vec::new();
+    };
+    if matching_symbols(anchor, symbol_name).is_empty() {
+        return Vec::new();
+    }
+    let anchor_path = symbol_anchor_path(file_rel, symbol_name);
+    let mut edges = Vec::new();
+    for file in project.files.values() {
+        if !file.has_role("test") {
+            continue;
+        }
+        let evidence = if file_references_imported_symbol(project, file, file_rel, symbol_name) {
+            Some("test_imported_symbol_reference")
+        } else if same_scope_file_references_symbol(anchor, file, symbol_name) {
+            Some("test_symbol_reference")
+        } else {
+            None
+        };
+        if let Some(evidence) = evidence {
+            edges.push(StructuralEdge {
+                from: file.rel.clone(),
+                to: anchor_path.clone(),
+                edge_type: "tests".to_string(),
+                evidence: evidence.to_string(),
+                strength: EvidenceStrength::High,
+            });
+        }
+    }
+    sort_edges(&mut edges);
+    edges
+}
+
+fn symbol_outgoing_edges(
+    _project: &Project,
+    _info: &FileInfo,
+    _symbol_name: &str,
+) -> Vec<StructuralEdge> {
+    Vec::new()
+}
+
+fn symbol_contract_edges(
+    project: &Project,
+    file_rel: &str,
+    symbol_name: &str,
+) -> Vec<StructuralEdge> {
+    let exported = symbol_is_exported(project, file_rel, symbol_name);
+    if !exported {
+        return Vec::new();
+    }
+    vec![StructuralEdge {
+        from: symbol_anchor_path(file_rel, symbol_name),
+        to: file_rel.to_string(),
+        edge_type: "contract".to_string(),
+        evidence: "exported_symbol".to_string(),
+        strength: EvidenceStrength::High,
+    }]
+}
+
+fn file_references_imported_symbol(
+    project: &Project,
+    file: &FileInfo,
+    file_rel: &str,
+    symbol_name: &str,
+) -> bool {
+    let Some(bindings) = file.resolved_import_bindings.get(file_rel) else {
+        return false;
+    };
+    bindings.iter().any(|(local, imported)| {
+        imported_symbol_binding_matches(project, file_rel, symbol_name, imported)
+            && !file_has_local_value_shadow(file, local)
+            && (file.jsx_tags.contains(local)
+                || file_references_identifier_after_imports(project, file, local))
+    })
+}
+
+fn file_has_local_value_shadow(file: &FileInfo, local: &str) -> bool {
+    file.local_bindings.contains(local) || file.symbols.iter().any(|symbol| symbol.name == local)
+}
+
+fn symbol_is_exported(project: &Project, file_rel: &str, symbol_name: &str) -> bool {
+    let Some(info) = project.files.get(file_rel) else {
+        return false;
+    };
+    matching_symbols(info, symbol_name)
+        .iter()
+        .any(|symbol| symbol.exported)
+        || default_export_symbol_name(project, file_rel).as_deref() == Some(symbol_name)
+}
+
+fn imported_symbol_binding_matches(
+    project: &Project,
+    file_rel: &str,
+    symbol_name: &str,
+    imported: &str,
+) -> bool {
+    if imported == symbol_name {
+        return true;
+    }
+    imported == "default"
+        && (symbol_name == "default"
+            || default_export_symbol_name(project, file_rel).as_deref() == Some(symbol_name))
+}
+
+fn default_export_symbol_name(project: &Project, file_rel: &str) -> Option<String> {
+    let text = std::fs::read_to_string(project.root.join(file_rel)).ok()?;
+    for line in text.lines() {
+        let trimmed = line.trim_start();
+        let Some(rest) = trimmed.strip_prefix("export default ") else {
+            continue;
+        };
+        let rest = rest.strip_prefix("async ").unwrap_or(rest).trim_start();
+        let rest = rest
+            .strip_prefix("function ")
+            .or_else(|| rest.strip_prefix("class "))
+            .unwrap_or(rest);
+        let name = rest
+            .split(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '_' || ch == '$'))
+            .next()
+            .unwrap_or_default();
+        if !name.is_empty() {
+            return Some(name.to_string());
+        }
+    }
+    None
+}
+
+fn file_references_identifier_after_imports(
+    project: &Project,
+    file: &FileInfo,
+    name: &str,
+) -> bool {
+    let Ok(text) = std::fs::read_to_string(project.root.join(&file.rel)) else {
+        return file.references.contains(name);
+    };
+    let mut skipping_import = false;
+    let mut type_brace_depth: Option<usize> = None;
+    let mut in_block_comment = false;
+    let mut quote = None;
+    for line in text.lines() {
+        let trimmed = line.trim_start();
+        if skipping_import {
+            if trimmed.contains(';') || trimmed.contains(" from ") {
+                skipping_import = false;
+            }
+            continue;
+        }
+        let code =
+            js_code_line_without_strings_and_comments(line, &mut in_block_comment, &mut quote);
+        if let Some(depth) = type_brace_depth.as_mut() {
+            *depth = js_brace_depth_after_line(*depth, &code);
+            if js_type_context_line_is_complete(trimmed, *depth) {
+                type_brace_depth = None;
+            }
+            continue;
+        }
+        if js_import_or_export_from_line_starts(trimmed) {
+            if !js_import_or_export_from_line_is_complete(trimmed) {
+                skipping_import = true;
+            }
+            continue;
+        }
+        if js_type_context_line_starts(trimmed) {
+            let depth = js_brace_depth_after_line(0, &code);
+            if !js_type_context_line_is_complete(trimmed, depth) {
+                type_brace_depth = Some(depth);
+            }
+            continue;
+        }
+        if line_has_value_identifier_reference(&code, name) {
+            return true;
+        }
+    }
+    false
+}
+
+fn js_import_or_export_from_line_starts(trimmed: &str) -> bool {
+    trimmed.starts_with("import ")
+        || trimmed.starts_with("import type ")
+        || (trimmed.starts_with("export ") && trimmed.contains(" from "))
+}
+
+fn js_import_or_export_from_line_is_complete(trimmed: &str) -> bool {
+    trimmed.contains(';')
+        || trimmed.contains(" from ")
+        || trimmed.starts_with("import '")
+        || trimmed.starts_with("import \"")
+}
+
+fn js_type_context_line_starts(trimmed: &str) -> bool {
+    trimmed.starts_with("type ")
+        || trimmed.starts_with("export type ")
+        || trimmed.starts_with("interface ")
+        || trimmed.starts_with("export interface ")
+}
+
+fn js_type_context_line_is_complete(trimmed: &str, brace_depth: usize) -> bool {
+    brace_depth == 0 && (trimmed.contains(';') || trimmed.ends_with('}') || trimmed.ends_with("};"))
+}
+
+fn js_brace_depth_after_line(mut depth: usize, code: &str) -> usize {
+    for byte in code.bytes() {
+        match byte {
+            b'{' => depth = depth.saturating_add(1),
+            b'}' => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+    }
+    depth
+}
+
+fn line_has_value_identifier_reference(line: &str, name: &str) -> bool {
+    identifier_ranges(line, name)
+        .any(|(start, end)| identifier_occurrence_is_value_evidence(line, start, end))
+}
+
+fn identifier_ranges<'a>(
+    line: &'a str,
+    name: &'a str,
+) -> impl Iterator<Item = (usize, usize)> + 'a {
+    let bytes = line.as_bytes();
+    let name_bytes = name.as_bytes();
+    let mut index = 0;
+    std::iter::from_fn(move || {
+        if name_bytes.is_empty() {
+            return None;
+        }
+        while index + name_bytes.len() <= bytes.len() {
+            let start = index;
+            index += 1;
+            if &bytes[start..start + name_bytes.len()] != name_bytes {
+                continue;
+            }
+            let before = start.checked_sub(1).and_then(|idx| bytes.get(idx)).copied();
+            let after = bytes.get(start + name_bytes.len()).copied();
+            if !before.map(is_identifier_byte).unwrap_or(false)
+                && !after.map(is_identifier_byte).unwrap_or(false)
+            {
+                return Some((start, start + name_bytes.len()));
+            }
+        }
+        None
+    })
+}
+
+fn identifier_occurrence_is_type_only(line: &str, start: usize, end: usize) -> bool {
+    let before = &line[..start];
+    let after = &line[end..];
+    if ["typeof", "as", "implements", "satisfies", "keyof", "infer"]
+        .iter()
+        .any(|word| previous_word_is(before, word))
+    {
+        return true;
+    }
+    if previous_nonspace_byte(before) == Some(b'<') || next_nonspace_byte(after) == Some(b'>') {
+        return true;
+    }
+    js_type_annotation_before_identifier(before)
+}
+
+fn identifier_occurrence_is_value_evidence(line: &str, start: usize, end: usize) -> bool {
+    if identifier_occurrence_is_type_only(line, start, end) {
+        return false;
+    }
+    let before = &line[..start];
+    let after = &line[end..];
+    let previous = previous_nonspace_byte(before);
+    let next = next_nonspace_byte(after);
+    if matches!(previous, Some(b'.' | b'/' | b':' | b'\'' | b'"' | b'`'))
+        || matches!(next, Some(b':' | b'/'))
+    {
+        return false;
+    }
+    if previous_word_is(before, "return") || previous_word_is(before, "throw") {
+        return true;
+    }
+    matches!(next, Some(b'('))
+        || (matches!(previous, Some(b'(' | b',' | b'=' | b'['))
+            && matches!(next, Some(b')' | b',' | b'.' | b';' | b']' | b'}' | b'?')))
+}
+
+fn previous_word_is(before: &str, word: &str) -> bool {
+    let bytes = before.as_bytes();
+    let mut end = bytes.len();
+    while end > 0 && bytes[end - 1].is_ascii_whitespace() {
+        end -= 1;
+    }
+    if end == 0 {
+        return false;
+    }
+    let mut start = end;
+    while start > 0 && is_identifier_byte(bytes[start - 1]) {
+        start -= 1;
+    }
+    std::str::from_utf8(&bytes[start..end]) == Ok(word)
+}
+
+fn previous_nonspace_byte(before: &str) -> Option<u8> {
+    before
+        .bytes()
+        .rev()
+        .find(|byte| !byte.is_ascii_whitespace())
+}
+
+fn next_nonspace_byte(after: &str) -> Option<u8> {
+    after.bytes().find(|byte| !byte.is_ascii_whitespace())
+}
+
+fn js_type_annotation_before_identifier(before: &str) -> bool {
+    let Some(colon) = before.rfind(':') else {
+        return false;
+    };
+    let last_value_separator = before.rfind(['=', '(', ',', '{', '[', ';']).unwrap_or(0);
+    colon > last_value_separator
+}
+
+fn is_identifier_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'$')
+}
+
+fn js_code_line_without_strings_and_comments(
+    line: &str,
+    in_block_comment: &mut bool,
+    quote: &mut Option<u8>,
+) -> String {
+    let bytes = line.as_bytes();
+    let mut out = String::new();
+    let mut index = 0;
+    while index < bytes.len() {
+        if *in_block_comment {
+            if bytes[index] == b'*' && bytes.get(index + 1) == Some(&b'/') {
+                *in_block_comment = false;
+                index += 2;
+            } else {
+                index += 1;
+            }
+            continue;
+        }
+        if let Some(quote_byte) = *quote {
+            if bytes[index] == b'\\' {
+                index += 2;
+                continue;
+            }
+            if bytes[index] == quote_byte {
+                *quote = None;
+            }
+            index += 1;
+            continue;
+        }
+        if bytes[index] == b'/' && bytes.get(index + 1) == Some(&b'/') {
+            break;
+        }
+        if bytes[index] == b'/' && bytes.get(index + 1) == Some(&b'*') {
+            *in_block_comment = true;
+            index += 2;
+            continue;
+        }
+        if bytes[index] == b'/'
+            && js_regex_literal_can_start(&out)
+            && let Some(end) = js_regex_literal_end(bytes, index)
+        {
+            index = end;
+            continue;
+        }
+        if matches!(bytes[index], b'\'' | b'"' | b'`') {
+            *quote = Some(bytes[index]);
+            index += 1;
+            continue;
+        }
+        out.push(bytes[index] as char);
+        index += 1;
+    }
+    out
+}
+
+fn js_regex_literal_can_start(prefix: &str) -> bool {
+    [
+        "return", "await", "throw", "yield", "case", "delete", "void", "typeof", "else",
+    ]
+    .iter()
+    .any(|word| previous_word_is(prefix, word))
+        || prefix.trim_end().ends_with("=>")
+        || previous_nonspace_byte(prefix)
+            .map(|byte| {
+                matches!(
+                    byte,
+                    b'(' | b')'
+                        | b'='
+                        | b':'
+                        | b'['
+                        | b'{'
+                        | b','
+                        | b'!'
+                        | b'?'
+                        | b';'
+                        | b'|'
+                        | b'&'
+                )
+            })
+            .unwrap_or(true)
+}
+
+fn js_regex_literal_end(bytes: &[u8], start: usize) -> Option<usize> {
+    if bytes.get(start) != Some(&b'/') || matches!(bytes.get(start + 1), Some(b'/' | b'*') | None) {
+        return None;
+    }
+    let mut index = start + 1;
+    let mut in_class = false;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'\\' => {
+                index = index.saturating_add(2);
+                continue;
+            }
+            b'[' => in_class = true,
+            b']' => in_class = false,
+            b'/' if !in_class => {
+                index += 1;
+                while bytes
+                    .get(index)
+                    .map(|byte| byte.is_ascii_alphabetic())
+                    .unwrap_or(false)
+                {
+                    index += 1;
+                }
+                return Some(index);
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    None
+}
+
+fn same_scope_file_references_symbol(
+    anchor: &FileInfo,
+    file: &FileInfo,
+    symbol_name: &str,
+) -> bool {
+    !file.resolved_imports.contains(&anchor.rel)
+        && same_symbol_reference_scope(anchor, file)
+        && file.references.contains(symbol_name)
 }
 
 fn structural_roles_for_ls(info: &FileInfo) -> Vec<String> {
@@ -2041,14 +2735,31 @@ pub fn proof_report(
         }
     } else {
         for anchor in &anchors {
-            risk = risk.max(
-                project
-                    .files
-                    .get(anchor)
-                    .map(|_| risk_for_file(project, anchor).0)
-                    .unwrap_or(Risk::Medium),
-            );
-            proofs.extend(proof_surfaces_for_anchor(project, anchor, depth, limit));
+            if let Some((file_rel, symbol_name)) = split_symbol_anchor(anchor) {
+                risk = risk.max(
+                    project
+                        .files
+                        .get(&file_rel)
+                        .map(|_| risk_for_file(project, &file_rel).0)
+                        .unwrap_or(Risk::Medium),
+                );
+                proofs.extend(proof_surfaces_for_symbol_anchor(
+                    project,
+                    &file_rel,
+                    &symbol_name,
+                    depth,
+                    limit,
+                ));
+            } else {
+                risk = risk.max(
+                    project
+                        .files
+                        .get(anchor)
+                        .map(|_| risk_for_file(project, anchor).0)
+                        .unwrap_or(Risk::Medium),
+                );
+                proofs.extend(proof_surfaces_for_anchor(project, anchor, depth, limit));
+            }
         }
     }
     proofs = unique_proof_surfaces(proofs);
@@ -2167,6 +2878,46 @@ fn proof_surfaces_for_anchor(
     out
 }
 
+fn proof_surfaces_for_symbol_anchor(
+    project: &Project,
+    file_rel: &str,
+    symbol_name: &str,
+    depth: usize,
+    limit: usize,
+) -> Vec<ProofSurface> {
+    let mut out = symbol_proof_edges(project, file_rel, symbol_name)
+        .into_iter()
+        .take(limit)
+        .map(|edge| ProofSurface {
+            command: proof_command_for_test(project, &edge.from),
+            path: Some(edge.from),
+            reason: proof_reason_for_evidence(&edge.evidence, "symbol anchor"),
+            evidence: edge.evidence,
+            strength: edge.strength,
+        })
+        .collect::<Vec<_>>();
+    if depth <= 1 || !out.is_empty() {
+        return out;
+    }
+    for consumer in symbol_reference_edges(project, file_rel, symbol_name, false)
+        .into_iter()
+        .take(limit)
+    {
+        let consumer_file = consumer.from;
+        for (test, evidence, strength) in strict_test_edges_for_file(project, &consumer_file, limit)
+        {
+            out.push(ProofSurface {
+                command: proof_command_for_test(project, &test),
+                path: Some(test),
+                reason: proof_reason_for_evidence(&evidence, "symbol consumer"),
+                evidence,
+                strength,
+            });
+        }
+    }
+    out
+}
+
 fn proof_reason_for_evidence(evidence: &str, scope: &str) -> String {
     if let Some(base) = evidence.strip_suffix("_via_direct_consumer") {
         return format!(
@@ -2182,6 +2933,9 @@ fn proof_reason_for_evidence(evidence: &str, scope: &str) -> String {
     }
     match evidence {
         "test_import" => format!("test imports {scope}"),
+        "test_imported_symbol_reference" => {
+            format!("test imports and references {scope}")
+        }
         "e2e_route" => format!("e2e visits route for {scope}"),
         "test_name" => format!("test name matches {scope}"),
         "test_support_import" => format!("test imports support code that imports {scope}"),
@@ -2455,7 +3209,10 @@ fn proof_fallback_commands(
     let all_files = if anchors.is_empty() {
         changed.to_vec()
     } else {
-        anchors.to_vec()
+        anchors
+            .iter()
+            .map(|anchor| anchor_file_rel(anchor))
+            .collect()
     };
     let impacted = if changed.is_empty() {
         Vec::new()
@@ -2485,6 +3242,12 @@ fn proof_fallback_commands(
         .filter(|command| !proof_commands.iter().any(|existing| existing == command))
         .take(3)
         .collect()
+}
+
+fn anchor_file_rel(anchor: &str) -> String {
+    split_symbol_anchor(anchor)
+        .map(|(file_rel, _)| file_rel)
+        .unwrap_or_else(|| anchor.to_string())
 }
 
 fn unique_proof_surfaces(values: Vec<ProofSurface>) -> Vec<ProofSurface> {
@@ -2518,6 +3281,7 @@ fn proof_evidence_precedence(evidence: &str) -> usize {
         .unwrap_or(evidence);
     match evidence {
         "test_import" => 6,
+        "test_imported_symbol_reference" => 6,
         "e2e_route" => 5,
         "test_support_import" => 5,
         "test_symbol_reference" => 4,
@@ -4054,6 +4818,12 @@ mod tests {
             strength,
             reason: format!("{evidence} reason"),
         }
+    }
+
+    #[test]
+    fn symbol_value_scanner_keyword_probe_handles_unicode_prefix() {
+        assert!(!previous_word_is("навигации", "return"));
+        assert!(previous_word_is("навигации return", "return"));
     }
 
     #[test]
