@@ -3088,7 +3088,7 @@ fn anchors_validate_reports_summary_and_actionable_warnings() {
     );
     assert_schema("schemas/anchor-validation.schema.json", &validation);
     assert_eq!(validation["kind"], "anchor_validation");
-    assert_eq!(validation["schema_version"], "3");
+    assert_eq!(validation["schema_version"], "4");
     assert_eq!(validation["ok"], true);
     assert_eq!(validation["summary"]["forbidden_boundaries"], 1);
     assert_eq!(validation["summary"]["concepts"], 0);
@@ -3116,6 +3116,19 @@ fn anchors_validate_reports_summary_and_actionable_warnings() {
                     .unwrap_or_default()
                     .contains("`from` matches")),
         "anchor validation should explain how boundary patterns resolved: {validation:#}"
+    );
+    assert!(
+        validation["details"]
+            .as_array()
+            .expect("details")
+            .iter()
+            .any(|detail| detail["kind"] == "forbidden_boundary"
+                && detail["next"]
+                    .as_array()
+                    .expect("next")
+                    .iter()
+                    .any(|command| command == "codemap boundaries")),
+        "boundary details should point to the structural boundary map command: {validation:#}"
     );
 }
 
@@ -3388,8 +3401,13 @@ domain:
     assert!(
         details.iter().any(|detail| detail["kind"] == "config"
             && detail["id"] == ".ctx.yml"
-            && detail["status"] == "ok"),
-        "valid loaded config should keep ok detail even when another config is rejected: {validation:#}"
+            && detail["status"] == "ok"
+            && detail["next"]
+                .as_array()
+                .expect("next")
+                .iter()
+                .all(|command| command == "codemap anchors validate")),
+        "valid loaded config should keep ok detail but avoid map commands while validation is not ok: {validation:#}"
     );
     assert!(
         details.iter().any(|detail| detail["kind"] == "config"
@@ -3397,6 +3415,57 @@ domain:
             && detail["status"] == "problem"),
         "rejected nested config should carry the problem detail: {validation:#}"
     );
+}
+
+#[test]
+fn anchors_validate_problem_details_keep_next_diagnostic_only() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join(".ctx.yml"),
+        r#"version: 1
+domain:
+  id: app
+  path: src
+boundaries:
+  forbidden:
+    - from: src/**
+      to: tests/**
+verification:
+  default:
+    - ""
+"#,
+    );
+    write(&repo.path().join("src/app.ts"), "export const app = 1;\n");
+    write(
+        &repo.path().join("tests/app.test.ts"),
+        "test('app', () => {});\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let validation = run_json(
+        repo.path(),
+        cache.path(),
+        &["anchors", "validate", "--format", "json"],
+    );
+    assert_schema("schemas/anchor-validation.schema.json", &validation);
+    assert_eq!(validation["ok"], false);
+    let details = validation["details"].as_array().expect("details");
+    for kind in ["domain", "forbidden_boundary", "verification_default"] {
+        assert!(
+            details.iter().any(|detail| detail["kind"] == kind
+                && detail["next"]
+                    .as_array()
+                    .expect("next")
+                    .iter()
+                    .all(|command| command == "codemap anchors validate")),
+            "when anchor validation is not ok, {kind} detail must not point at fail-closed map commands: {validation:#}"
+        );
+    }
 }
 
 #[test]
@@ -3419,6 +3488,12 @@ concepts:
       - src/app.ts
     invariants:
       - deterministic
+  app.features:
+    role: feature_surface
+    files:
+      - src/**/*.ts
+    invariants:
+      - mapped_by_files
 boundaries:
   forbidden:
     - from: src/**
@@ -3454,7 +3529,12 @@ verification:
             && detail["message"]
                 .as_str()
                 .unwrap_or_default()
-                .contains("path `src` exists")),
+                .contains("path `src` exists")
+            && detail["next"]
+                .as_array()
+                .expect("next")
+                .iter()
+                .any(|command| command == "codemap ls src")),
         "domain detail should explain resolved path: {validation:#}"
     );
     assert!(
@@ -3464,15 +3544,40 @@ verification:
             && detail["message"]
                 .as_str()
                 .unwrap_or_default()
-                .contains("exact files resolved: 1")),
+                .contains("exact files resolved: 1")
+            && detail["next"]
+                .as_array()
+                .expect("next")
+                .iter()
+                .any(|command| command == "codemap cone src/app.ts --depth 1")),
         "concept detail should explain file and invariant resolution: {validation:#}"
+    );
+    assert!(
+        details.iter().any(|detail| detail["kind"] == "concept"
+            && detail["id"] == "app.features"
+            && detail["status"] == "ok"
+            && detail["message"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("glob matches: 1")
+            && detail["next"]
+                .as_array()
+                .expect("next")
+                .iter()
+                .any(|command| command == "codemap files --path src")),
+        "glob concept details should point to bounded files listing, not a non-anchor glob ls: {validation:#}"
     );
     assert!(
         details
             .iter()
             .any(|detail| detail["kind"] == "verification_default"
                 && detail["status"] == "ok"
-                && detail["message"] == "pnpm test"),
+                && detail["message"] == "pnpm test"
+                && detail["next"]
+                    .as_array()
+                    .expect("next")
+                    .iter()
+                    .any(|command| command == "codemap proof --changed")),
         "verification defaults should be visible in details: {validation:#}"
     );
 }

@@ -911,6 +911,7 @@ struct AnchorValidationDetail {
     id: String,
     status: String,
     message: String,
+    next: Vec<String>,
 }
 
 fn validate_anchors(project: &crate::model::Project) -> AnchorValidation {
@@ -921,11 +922,12 @@ fn validate_anchors(project: &crate::model::Project) -> AnchorValidation {
         .collect::<Vec<_>>();
     problems.extend(semantic_anchor_problems(project));
     let warnings = semantic_anchor_warnings(project);
-    let details = semantic_anchor_details(project);
+    let ok = problems.is_empty();
+    let details = semantic_anchor_details(project, ok);
     AnchorValidation {
         kind: "anchor_validation",
-        schema_version: "3",
-        ok: problems.is_empty(),
+        schema_version: "4",
+        ok,
         config: project.config_path.clone(),
         summary: AnchorValidationSummary {
             domains: project.anchors.domain.iter().count() + project.anchors.domains.len(),
@@ -1050,7 +1052,10 @@ fn semantic_anchor_warnings(project: &crate::model::Project) -> Vec<String> {
     warnings
 }
 
-fn semantic_anchor_details(project: &crate::model::Project) -> Vec<AnchorValidationDetail> {
+fn semantic_anchor_details(
+    project: &crate::model::Project,
+    can_run_map_commands: bool,
+) -> Vec<AnchorValidationDetail> {
     let mut details = Vec::new();
     for error in &project.config_errors {
         details.push(AnchorValidationDetail {
@@ -1058,6 +1063,7 @@ fn semantic_anchor_details(project: &crate::model::Project) -> Vec<AnchorValidat
             id: error.path.clone(),
             status: "problem".to_string(),
             message: format!("semantic anchor config rejected: {}", error.error),
+            next: vec!["codemap anchors validate".to_string()],
         });
     }
     if project.config_path.is_none() {
@@ -1069,6 +1075,7 @@ fn semantic_anchor_details(project: &crate::model::Project) -> Vec<AnchorValidat
                 message:
                     "no .ctx.yml loaded; structural maps use repo files, manifests, imports, and tests"
                         .to_string(),
+                next: vec!["codemap ls .".to_string()],
             });
         }
         return details;
@@ -1079,18 +1086,25 @@ fn semantic_anchor_details(project: &crate::model::Project) -> Vec<AnchorValidat
             id: config.clone(),
             status: "ok".to_string(),
             message: format!("loaded semantic anchor config `{config}`"),
+            next: validation_next(can_run_map_commands, vec!["codemap ls .".to_string()]),
         });
     }
     if let Some(domain) = &project.anchors.domain {
         let id = domain.id.as_deref().unwrap_or("repo");
         let path = domain.path.as_deref().unwrap_or(".");
-        details.push(domain_anchor_detail(project, id, path));
+        details.push(domain_anchor_detail(
+            project,
+            id,
+            path,
+            can_run_map_commands,
+        ));
     }
     for (id, domain) in &project.anchors.domains {
         details.push(domain_anchor_detail(
             project,
             id,
             domain.path.as_deref().unwrap_or("."),
+            can_run_map_commands,
         ));
     }
     for (id, concept) in &project.anchors.concepts {
@@ -1132,6 +1146,7 @@ fn semantic_anchor_details(project: &crate::model::Project) -> Vec<AnchorValidat
                 glob_matches,
                 concept.invariants.len()
             ),
+            next: concept_anchor_next_commands(project, concept, can_run_map_commands),
         });
     }
     for (idx, edge) in project.anchors.boundaries.forbidden.iter().enumerate() {
@@ -1164,6 +1179,13 @@ fn semantic_anchor_details(project: &crate::model::Project) -> Vec<AnchorValidat
                 edge.recovery.len(),
                 edge.status.as_deref().unwrap_or("forbidden")
             ),
+            next: validation_next(
+                can_run_map_commands,
+                vec![
+                    "codemap boundaries".to_string(),
+                    "codemap graph --lens boundaries --format mermaid".to_string(),
+                ],
+            ),
         });
     }
     for (index, command) in project.anchors.verification.default.iter().enumerate() {
@@ -1177,6 +1199,10 @@ fn semantic_anchor_details(project: &crate::model::Project) -> Vec<AnchorValidat
             }
             .to_string(),
             message: command.clone(),
+            next: validation_next(
+                can_run_map_commands,
+                vec!["codemap proof --changed".to_string()],
+            ),
         });
     }
     details
@@ -1186,6 +1212,7 @@ fn domain_anchor_detail(
     project: &crate::model::Project,
     id: &str,
     path: &str,
+    can_run_map_commands: bool,
 ) -> AnchorValidationDetail {
     let rel = repo::normalize_rel_path(path);
     let exists = rel == "." || project.root.join(&rel).is_dir();
@@ -1197,6 +1224,55 @@ fn domain_anchor_detail(
             "path `{rel}` {}",
             if exists { "exists" } else { "is missing" }
         ),
+        next: if exists && can_run_map_commands {
+            validation_next(
+                true,
+                vec![
+                    format!("codemap ls {}", shell_quote_arg(&rel)),
+                    format!("codemap cone {} --depth 1", shell_quote_arg(&rel)),
+                ],
+            )
+        } else {
+            vec!["codemap anchors validate".to_string()]
+        },
+    }
+}
+
+fn concept_anchor_next_commands(
+    project: &crate::model::Project,
+    concept: &crate::model::AnchorConcept,
+    can_run_map_commands: bool,
+) -> Vec<String> {
+    if !can_run_map_commands {
+        return vec!["codemap anchors validate".to_string()];
+    }
+    let mut next = Vec::new();
+    for file in &concept.files {
+        let rel = map::resolve_anchor_path(project, file);
+        if is_glob_like(file) {
+            if anchor_pattern_matches_project(project, file)
+                && let Some(prefix) = glob_static_prefix(&rel)
+            {
+                next.push(format!("codemap files --path {}", shell_quote_arg(&prefix)));
+            }
+        } else if project.files.contains_key(&rel) {
+            next.push(format!("codemap cone {} --depth 1", shell_quote_arg(&rel)));
+        }
+        if next.len() >= 3 {
+            break;
+        }
+    }
+    if next.is_empty() {
+        next.push("codemap anchors validate".to_string());
+    }
+    dedupe_strings(next)
+}
+
+fn validation_next(can_run_map_commands: bool, commands: Vec<String>) -> Vec<String> {
+    if can_run_map_commands {
+        commands
+    } else {
+        vec!["codemap anchors validate".to_string()]
     }
 }
 
@@ -1214,6 +1290,21 @@ fn validate_anchor_domain_path(
 
 fn is_glob_like(value: &str) -> bool {
     value.contains('*') || value.contains('?') || value.contains('[') || value.contains('{')
+}
+
+fn glob_static_prefix(pattern: &str) -> Option<String> {
+    let wildcard = pattern.find(['*', '?', '[', '{']).unwrap_or(pattern.len());
+    let prefix = &pattern[..wildcard];
+    let prefix = prefix
+        .rsplit_once('/')
+        .map(|(head, _)| head)
+        .unwrap_or(prefix)
+        .trim_end_matches('/');
+    if prefix.is_empty() {
+        Some(".".to_string())
+    } else {
+        Some(prefix.to_string())
+    }
 }
 
 fn anchor_pattern_matches_project(project: &crate::model::Project, raw: &str) -> bool {
@@ -1271,6 +1362,28 @@ fn anchor_pattern_match_count(project: &crate::model::Project, raw: &str) -> usi
     targets.len()
 }
 
+fn dedupe_strings(values: Vec<String>) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    let mut out = Vec::new();
+    for value in values {
+        if !value.is_empty() && seen.insert(value.clone()) {
+            out.push(value);
+        }
+    }
+    out
+}
+
+fn shell_quote_arg(value: &str) -> String {
+    if value
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '/' | '.' | '-' | '_'))
+    {
+        value.to_string()
+    } else {
+        format!("'{}'", value.replace('\'', "'\\''"))
+    }
+}
+
 fn anchors_markdown(report: &AnchorValidation) {
     println!("# Anchor Validation\n");
     println!(
@@ -1321,12 +1434,17 @@ fn anchors_markdown(report: &AnchorValidation) {
                     detail.id.clone(),
                     detail.status.clone(),
                     detail.message.clone(),
+                    if detail.next.is_empty() {
+                        "none".to_string()
+                    } else {
+                        detail.next.join("<br>")
+                    },
                 ]
             })
             .collect();
         println!(
             "{}",
-            render::table(&["Kind", "ID", "Status", "Message"], rows)
+            render::table(&["Kind", "ID", "Status", "Message", "Next"], rows)
         );
     }
 }

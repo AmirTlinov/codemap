@@ -16,7 +16,7 @@
   ],
   "properties": {
     "kind": { "const": "anchor_validation" },
-    "schema_version": { "const": "3" },
+    "schema_version": { "const": "4" },
     "ok": { "type": "boolean" },
     "config": {
       "anyOf": [{ "type": "string" }, { "type": "null" }]
@@ -54,7 +54,7 @@
     "detail": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "id", "status", "message"],
+      "required": ["kind", "id", "status", "message", "next"],
       "properties": {
         "kind": { "type": "string" },
         "id": { "type": "string" },
@@ -62,7 +62,11 @@
           "type": "string",
           "enum": ["ok", "warning", "problem", "info"]
         },
-        "message": { "type": "string" }
+        "message": { "type": "string" },
+        "next": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
       }
     }
   }
