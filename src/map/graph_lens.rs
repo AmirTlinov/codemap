@@ -2,7 +2,10 @@ use std::collections::BTreeSet;
 
 use crate::model::{Domain, GraphEdge, GraphLens, Project};
 
-use super::{boundary_findings, impact_report, impacted_domains, is_support_artifact_path, unique};
+use super::{
+    boundary_findings, impact_report, impacted_domains, is_support_artifact_path, proof_report,
+    unique,
+};
 
 pub fn graph_lens(
     project: &Project,
@@ -18,7 +21,7 @@ pub fn graph_lens(
     let (nodes, edges) = match lens_key.as_str() {
         "boundary" | "boundaries" => boundary_graph(project, graph_changed, limit),
         "impact" => impact_graph(project, graph_changed.unwrap_or(&[]), limit),
-        "proof" => proof_graph(project, graph_changed, limit),
+        "proof" => proof_graph(project, path, changed, limit),
         _ => causal_graph(project, path, limit),
     };
     let domain = graph_output_domain(project, path, &nodes);
@@ -152,12 +155,17 @@ fn impact_graph(
 
 fn proof_graph(
     project: &Project,
+    path: Option<&str>,
     changed: Option<&[String]>,
     limit: usize,
 ) -> (Vec<String>, Vec<GraphEdge>) {
-    let Some(changed) = changed else {
+    if changed.is_none() {
+        if let Some(path) = path {
+            return proof_graph_for_path(project, path, limit);
+        }
         return (Vec::new(), Vec::new());
-    };
+    }
+    let changed = changed.unwrap_or(&[]);
     if changed.is_empty() {
         return (Vec::new(), Vec::new());
     }
@@ -185,6 +193,35 @@ fn proof_graph(
             if node_set.contains(&edge.from) && node_set.contains(&edge.to) {
                 push_graph_edge(&mut edges, &mut seen, edge.from, edge.to, "tests");
             }
+        }
+    }
+    (nodes, edges)
+}
+
+fn proof_graph_for_path(
+    project: &Project,
+    path: &str,
+    limit: usize,
+) -> (Vec<String>, Vec<GraphEdge>) {
+    let target = crate::repo::normalize_rel_path(path);
+    let report = proof_report(project, Some(target.clone()), Vec::new(), 1, limit);
+    let nodes = unique(
+        std::iter::once(target.clone())
+            .chain(report.proofs.iter().filter_map(|proof| proof.path.clone()))
+            .collect(),
+    )
+    .into_iter()
+    .take(limit)
+    .collect::<Vec<_>>();
+    let mut edges = structural_edges_for_nodes(project, &nodes);
+    let mut seen = graph_edge_set(&edges);
+    let node_set = nodes.iter().cloned().collect::<BTreeSet<_>>();
+    for proof in report.proofs {
+        if let Some(path) = proof.path
+            && node_set.contains(&path)
+            && node_set.contains(&target)
+        {
+            push_graph_edge(&mut edges, &mut seen, path, target.clone(), "tests");
         }
     }
     (nodes, edges)

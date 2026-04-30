@@ -4810,6 +4810,70 @@ fn graph_causal_root_hides_support_packages_until_scoped() {
 }
 
 #[test]
+fn graph_proof_lens_uses_explicit_path_scope() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("packages/app/src/open-panel.ts"),
+        "export function openPanel() {\n  return 'open';\n}\n",
+    );
+    write(
+        &repo.path().join("packages/app/tests/open-panel.test.ts"),
+        "import { openPanel } from '../src/open-panel';\n\ntest('opens the panel', () => {\n  expect(openPanel()).toBe('open');\n});\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "proof graph fixture"]);
+
+    let root_graph = run_json(
+        repo.path(),
+        cache.path(),
+        &["graph", "--lens", "proof", "--format", "json"],
+    );
+    assert_schema("schemas/graph.schema.json", &root_graph);
+    assert!(
+        root_graph["nodes"]
+            .as_array()
+            .expect("root nodes")
+            .is_empty(),
+        "root proof graph should not expand into the whole test galaxy without an anchor: {root_graph:#}"
+    );
+
+    let scoped_graph = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "graph",
+            "--path",
+            "packages/app/src/open-panel.ts",
+            "--lens",
+            "proof",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/graph.schema.json", &scoped_graph);
+    assert!(
+        scoped_graph["nodes"]
+            .as_array()
+            .expect("scoped nodes")
+            .iter()
+            .any(|node| node == "packages/app/tests/open-panel.test.ts"),
+        "explicit path proof lens should show bounded proof nodes for that scope: {scoped_graph:#}"
+    );
+    assert!(
+        scoped_graph["edges"]
+            .as_array()
+            .expect("scoped edges")
+            .iter()
+            .any(|edge| {
+                edge["from"] == "packages/app/tests/open-panel.test.ts"
+                    && edge["to"] == "packages/app/src/open-panel.ts"
+                    && edge["type"] == "tests"
+            }),
+        "explicit path proof lens should render proof edges, not an empty graph: {scoped_graph:#}"
+    );
+}
+
+#[test]
 fn schema_manifest_has_no_removed_router_contracts_and_schema_command_is_side_effect_free() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let manifest_text =
