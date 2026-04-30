@@ -4832,6 +4832,85 @@ fn symbol_anchor_cone_follows_named_reexport_barrel_aliases() {
 }
 
 #[test]
+fn symbol_anchor_cone_follows_transitive_reexport_barrel_chains() {
+    let (repo, cache) = fixture();
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/selection-core.ts"),
+        "export function pickFocusForSelection(selection: Set<string>, orderedIds: string[]): string | null {\n  return orderedIds.find((id) => selection.has(id)) ?? null;\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/selection-mid-barrel.ts"),
+        "export * from './selection-core';\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/selection-index.ts"),
+        "export * from './selection-mid-barrel';\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/transitive-star-consumer.ts"),
+        "import { pickFocusForSelection } from './selection-index';\n\nexport const selectedFocus = pickFocusForSelection(new Set(['a']), ['a']);\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/selection-alias-mid.ts"),
+        "export { pickFocusForSelection as publicPickFocus } from './selection-core';\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/selection-alias-index.ts"),
+        "export { publicPickFocus } from './selection-alias-mid';\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/transitive-alias-consumer.ts"),
+        "import { publicPickFocus } from './selection-alias-index';\n\nexport const selectedFocus = publicPickFocus(new Set(['a']), ['a']);\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(
+        repo.path(),
+        &["commit", "-qm", "symbol transitive barrel fixture"],
+    );
+
+    let cone = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "cone",
+            "packages/app/src/features/studio/canvas/selection-core.ts#pickFocusForSelection",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/cone.schema.json", &cone);
+    for consumer in [
+        "packages/app/src/features/studio/canvas/transitive-star-consumer.ts",
+        "packages/app/src/features/studio/canvas/transitive-alias-consumer.ts",
+    ] {
+        assert!(
+            cone["incoming"]
+                .as_array()
+                .expect("incoming")
+                .iter()
+                .any(|edge| {
+                    edge["from"] == consumer && edge["evidence"] == "reexported_symbol_reference"
+                }),
+            "symbol xref should follow bounded transitive re-export chains for {consumer}: {cone:#}"
+        );
+    }
+}
+
+#[test]
 fn symbol_anchor_cone_follows_target_local_export_lists() {
     let (repo, cache) = fixture();
     write(
@@ -5006,6 +5085,48 @@ fn symbol_anchor_cone_rejects_inexact_type_only_and_shadowed_barrel_reexports() 
     write(
         &repo
             .path()
+            .join("packages/app/src/features/studio/canvas/transitive-duplicate-left.ts"),
+        "export * from './selection-core';\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/transitive-duplicate-right.ts"),
+        "export * from './other-core';\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/transitive-duplicate-index.ts"),
+        "export * from './transitive-duplicate-left';\nexport * from './transitive-duplicate-right';\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/transitive-local-override-mid.ts"),
+        "export * from './selection-core';\n\nexport function pickFocusForSelection() {\n  return 'local-mid';\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/transitive-local-override-index.ts"),
+        "export * from './transitive-local-override-mid';\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/cycle-left.ts"),
+        "export * from './cycle-right';\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/cycle-right.ts"),
+        "export * from './cycle-left';\n",
+    );
+    write(
+        &repo
+            .path()
             .join("packages/app/src/features/studio/canvas/local-barrel.ts"),
         "export * from './selection-core';\n\nexport function pickFocusForSelection() {\n  return 'local';\n}\n",
     );
@@ -5032,6 +5153,18 @@ fn symbol_anchor_cone_rejects_inexact_type_only_and_shadowed_barrel_reexports() 
             .path()
             .join("packages/app/src/features/studio/canvas/default-list-star-barrel.ts"),
         "export * from './default-list-core';\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/default-transitive-mid.ts"),
+        "export * from './default-core';\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/default-transitive-index.ts"),
+        "export * from './default-transitive-mid';\n",
     );
     write(
         &repo
@@ -5108,6 +5241,24 @@ fn symbol_anchor_cone_rejects_inexact_type_only_and_shadowed_barrel_reexports() 
     write(
         &repo
             .path()
+            .join("packages/app/src/features/studio/canvas/transitive-duplicate-consumer.ts"),
+        "import { pickFocusForSelection } from './transitive-duplicate-index';\n\nexport const selectedFocus = pickFocusForSelection();\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/transitive-local-override-consumer.ts"),
+        "import { pickFocusForSelection } from './transitive-local-override-index';\n\nexport const selectedFocus = pickFocusForSelection();\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/cycle-consumer.ts"),
+        "import { pickFocusForSelection } from './cycle-left';\n\nexport const selectedFocus = pickFocusForSelection();\n",
+    );
+    write(
+        &repo
+            .path()
             .join("packages/app/src/features/studio/canvas/local-consumer.ts"),
         "import { pickFocusForSelection } from './local-barrel';\n\nexport const selectedFocus = pickFocusForSelection();\n",
     );
@@ -5134,6 +5285,12 @@ fn symbol_anchor_cone_rejects_inexact_type_only_and_shadowed_barrel_reexports() 
             .path()
             .join("packages/app/src/features/studio/canvas/default-list-star-consumer.ts"),
         "import { default as usePickFocus } from './default-list-star-barrel';\n\nexport const selectedFocus = usePickFocus();\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/default-transitive-star-consumer.ts"),
+        "import { PickFocus } from './default-transitive-index';\n\nexport const selectedFocus = PickFocus();\n",
     );
     write(
         &repo
@@ -5213,6 +5370,9 @@ fn symbol_anchor_cone_rejects_inexact_type_only_and_shadowed_barrel_reexports() 
         "packages/app/src/features/studio/canvas/same-file-override-consumer.ts",
         "packages/app/src/features/studio/canvas/commented-reexport-consumer.ts",
         "packages/app/src/features/studio/canvas/duplicate-star-consumer.ts",
+        "packages/app/src/features/studio/canvas/transitive-duplicate-consumer.ts",
+        "packages/app/src/features/studio/canvas/transitive-local-override-consumer.ts",
+        "packages/app/src/features/studio/canvas/cycle-consumer.ts",
         "packages/app/src/features/studio/canvas/local-consumer.ts",
         "packages/app/src/features/studio/canvas/multiline-local-consumer.ts",
         "packages/app/src/features/studio/canvas/commented-local-consumer.ts",
@@ -5278,6 +5438,15 @@ fn symbol_anchor_cone_rejects_inexact_type_only_and_shadowed_barrel_reexports() 
             .all(|edge| edge["from"]
                 != "packages/app/src/features/studio/canvas/default-star-consumer.ts"),
         "export-star must not expose default export symbol names as named public exports: {default_cone:#}"
+    );
+    assert!(
+        default_cone["incoming"]
+            .as_array()
+            .expect("incoming")
+            .iter()
+            .all(|edge| edge["from"]
+                != "packages/app/src/features/studio/canvas/default-transitive-star-consumer.ts"),
+        "transitive export-star must not expose default export symbol names as named public exports: {default_cone:#}"
     );
     assert!(
         default_cone["incoming"]
