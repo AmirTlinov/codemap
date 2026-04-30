@@ -1,216 +1,141 @@
-# ctx
+# codemap
 
-`ctx` is an external context-kernel CLI for AI coding agents.
+`codemap` is a structural code-map CLI for AI coding agents.
 
-It does not store context in projects, generate repo maps, require `AGENTS.md`, run project scripts without `--run`, or use an LLM as source of truth. It reads the project as data, keeps a lightweight index in the user cache, and returns structural answers:
+It is not a task router, ranking engine, search replacement, embedding index, or generated architecture document. It reads a repository as data and returns a bounded map at the level you ask for:
 
 - what is here;
-- what references it;
-- what it references;
-- what can break;
-- what proves the slice;
-- where an explicit anchor may be needed.
+- which code imports or references it;
+- which tests prove it;
+- which package/domain boundaries it crosses;
+- what changed and what can break.
 
-## Product Contract
+The goal is to let an agent choose the exact code lines to read without vacuuming the whole repository with broad `rg`/`grep` passes.
 
-`ctx` is installed once in `PATH` and works in any project:
+## Contract
 
-```bash
-ctx ls domains/replay/src/replay-timeline.ts
-ctx cone domains/replay/src/replay-timeline.ts --depth 1
-ctx impact --changed --structural
-ctx proof --changed
-ctx find "replay seek frame"
+```txt
+codemap = ls + xref + cone + impact + proof for code
 ```
 
 Default behavior:
 
 ```txt
-no project writes
+no repository writes
 no required init
 no required AGENTS.md
-no generated artifacts in git
+no generated repo maps
 no project script execution without --run
 no network
+no LLM or embeddings in the hard path
 ```
 
-Generated cache belongs outside the repo:
+Cache lives outside target repositories:
 
 ```txt
-macOS:   ~/Library/Caches/agent-context/
-Linux:   ~/.cache/agent-context/
-Windows: %LOCALAPPDATA%/agent-context/
+macOS:   ~/Library/Caches/codemap/
+Linux:   ~/.cache/codemap/
+Windows: %LOCALAPPDATA%/codemap/
 ```
 
-Use `CTX_CACHE_DIR=/path` to override and `CTX_NO_CACHE=1` to disable cache writes.
-`ctx status --format json` reports the observed external cache state (`cold`, `warm`, `stale`, or `disabled`) plus expected cache artifacts and whether their fingerprints match the current project scan. `status` and `doctor` observe cache without warming it first.
+Use `CODEMAP_CACHE_DIR=/path` to override and `CODEMAP_NO_CACHE=1` to disable cache writes.
 
-## Primary V2 Flow
+## Core Flow
 
-The structural v2 flow is:
+At the repository root:
 
 ```bash
-ctx find "auth token refresh"
-ctx ls src/route.rs
-ctx cone src/route.rs --depth 1
-ctx impact --changed --structural
-ctx proof --changed
+codemap ls .
 ```
 
-## Current Commands
+This returns a bounded top-level map: domains, packages, scripts, test surfaces, and cross-scope edges. It does not print the whole project galaxy.
+
+At a concrete scope or file:
 
 ```bash
-ctx doctor
-ctx status
-ctx files
-ctx schema manifest
-ctx schema status
-ctx schema files
-ctx schema find
-ctx schema ls
-ctx schema cone
-ctx schema proof
-ctx schema capsule
-ctx schema anchors
-ctx locate --task "fix auth token refresh"
-ctx start --task "fix broken save" --path src
-ctx impact --changed --structural
-ctx impact --staged --structural
-ctx impact --since main --structural
-ctx impact --files /abs/path/to/file.ts --structural
-ctx impact --changed                 # legacy compatibility report
-ctx proof src/route.rs
-ctx proof --changed
-ctx proof --changed --run
-ctx verify --changed
-ctx verify --changed --depth 2
-ctx verify --changed --run
-ctx explain src/lib.rs
-ctx widen --reason "read-first set did not contain the cause"
-ctx graph --lens causal --format mermaid
-ctx boundaries
-ctx init --print
-ctx init --write-minimal
-ctx init --agents
-ctx bootstrap --global-instruction
-ctx anchors validate
+codemap ls packages/replay
+codemap ls packages/replay/src/session.ts
+codemap cone packages/replay/src/session.ts --depth 1
 ```
-
-Markdown is the default agent-facing format. JSON is available with `--format json`.
-Mermaid output is intentionally limited to `ctx graph`.
-Stable JSON schemas live under `schemas/` for agent-facing route outputs, status/files reports, and `.ctx.yml` semantic anchors.
-Legacy route outputs use `schema_version: "1"`. Structural v2 outputs use `schema_version: "2"`.
-Installed binaries can print the bundled schema manifest with `ctx schema manifest` and bundled schemas with `ctx schema <kind>`, including `status`, `files`, `find`, `ls`, `cone`, `proof`, `capsule`, `impact`, `verify`, `anchors`, `locate`, `explain`, `widen`, `graph`, and `boundaries`.
-Schema evolution rules are documented in `docs/SCHEMA_POLICY.md` and guarded by `tests/schema_policy.rs`.
-
-## Agent Integration
-
-Default global instruction:
-
-```md
-For coding tasks, if `ctx` is available in PATH, begin with:
-
-`ctx find "<user task>"`
-
-Then inspect the exact anchor with:
-
-`ctx ls <path>`
-`ctx cone <path> --depth 1`
 
 After edits:
 
-`ctx impact --changed --structural`
-`ctx proof --changed`
-
-Do not manually scan the repository before using `ctx` unless the structural cone is empty or the change crosses a public/package/schema boundary.
+```bash
+codemap impact --changed
+codemap proof --changed
 ```
 
-`ctx start`, `ctx locate`, legacy `ctx impact`, `ctx explain`, `ctx verify`, and `ctx widen` remain v1 compatibility surfaces. Their JSON schemas stay stable; their default Markdown now points agents toward structural `find`, `ls`, `cone`, `impact --structural`, and `proof` flows where possible.
+`proof` prints a plan by default. It runs commands only with explicit `--run`.
+
+## Commands
+
+```bash
+codemap doctor
+codemap status
+codemap files [--path <scope>]
+codemap ls <file-or-dir>
+codemap cone <file-or-dir> [--depth 1]
+codemap impact --changed
+codemap impact --staged
+codemap impact --since main
+codemap impact --files path/a.ts,path/b.ts
+codemap proof <file-or-dir>
+codemap proof --changed
+codemap proof --changed --run
+codemap graph --lens causal --format mermaid
+codemap boundaries
+codemap anchors validate
+codemap schema manifest
+codemap schema <kind>
+codemap bootstrap --global-instruction
+codemap init --print
+codemap init --write-minimal
+codemap init --agents
+```
+
+Markdown is the default agent-facing format. Use `--format json` for strict integrations. Mermaid output is limited to `codemap graph`.
+
+## Agent Integration
+
+One-time global instruction:
+
+```md
+For coding tasks, if `codemap` is available in PATH, begin with a bounded structural map:
+
+`codemap ls .`
+`codemap ls <scope-or-file>`
+`codemap cone <scope-or-file> --depth 1`
+
+After edits:
+
+`codemap impact --changed`
+`codemap proof --changed`
+
+Read code lines after choosing anchors from the map. Use `codemap cone <anchor> --depth 2` only when structural edges, public/package/schema boundaries, or proof surfaces require it.
+```
 
 Optional project bootloader:
 
 ```bash
-ctx init --agents
+codemap init --agents
 ```
 
-This writes a tiny `AGENTS.md` that tells agents to call `ctx`. It is not a project map, not generated architecture documentation, and not a Mermaid graph. Nested `AGENTS.md` files are treated as relevant local instructions, not as project-root markers.
-
-## Install
-
-Release archives contain one `ctx` binary plus `README.md` and `LICENSE`.
-
-```bash
-if command -v sha256sum >/dev/null 2>&1; then
-  sha256sum -c ctx-v*.tar.gz.sha256
-else
-  shasum -a 256 -c ctx-v*.tar.gz.sha256
-fi
-tar -xzf ctx-v*.tar.gz
-mkdir -p ~/.local/bin
-install ctx-v*/ctx ~/.local/bin/ctx
-~/.local/bin/ctx doctor
-```
-
-From a source checkout, build the same archive with:
-
-```bash
-./scripts/package-release.sh
-```
-
-The release script writes `dist/ctx-v<version>-<target>.tar.gz` and a `.sha256` sidecar.
-Pushing a version tag from `main`, for example `v0.2.0`, publishes Linux x64 and macOS arm64 archives, a packed npm wrapper tarball, and a generated Homebrew formula to GitHub Releases after asset verification.
-
-The npm wrapper is a thin installer around those same release archives. Published releases include a packed npm tarball, so the wrapper can be installed from GitHub Releases even before the package is published to the npm registry:
-
-```bash
-gh release download v0.2.0 --repo AmirTlinov/ctx --pattern 'agent-context-cli-0.2.0.tgz'
-GH_TOKEN="$(gh auth token)" npm install -g ./agent-context-cli-0.2.0.tgz
-ctx doctor
-```
-
-After the package is published to the npm registry, the command becomes:
-
-```bash
-npm install -g agent-context-cli
-```
-
-The wrapper downloads and verifies the matching archive during install. It does not make Node a project dependency for repositories where `ctx` is used.
-For private GitHub releases, install with `GH_TOKEN`, `GITHUB_TOKEN`, or `CTX_NPM_GITHUB_TOKEN` available so the wrapper can download assets through the GitHub API.
-
-The release workflow also publishes a generated Homebrew formula asset with checksums derived from the release archives. Use it when the release assets are publicly downloadable, or when `CTX_HOMEBREW_REPO_URL` points at a public mirror before formula generation:
-
-```bash
-brew install --formula https://github.com/AmirTlinov/ctx/releases/download/v0.2.0/ctx.rb
-```
-
-For private or restricted GitHub releases, use the native archive install above or the npm wrapper with `GH_TOKEN` instead; Homebrew's plain release URLs are not an authenticated install path.
-
-To update a local Homebrew tap checkout from a published formula asset:
-
-```bash
-scripts/update-homebrew-tap.sh --tap-dir ../homebrew-tap --tag v0.2.0 --commit
-```
-
-The tap updater modifies only the requested formula path and never pushes.
+This writes a tiny `AGENTS.md` that tells agents to call `codemap`. It is not a project map, not architecture documentation, and not a Mermaid graph.
 
 ## Optional `.ctx.yml`
 
-Zero-config works from files, manifests, tests, imports, scripts, and git diff. Use `.ctx.yml` only for semantic facts code cannot reliably reveal. A config can live at the repo root or inside a domain directory; nested config paths are treated as domain-local and normalized to repo-relative paths:
-
-`ctx init --write-minimal --path domains/replay` writes a valid skeletal config only. It does not invent placeholder concepts or boundaries.
-
-If a `.ctx.yml` exists but cannot be parsed or contains invalid semantic anchors, routing commands fail closed. Use `ctx anchors validate` to see the exact problem.
+Zero-config works from files, manifests, imports, tests, scripts, and git diff. Use `.ctx.yml` only for semantic facts code cannot reliably reveal: explicit domains, concepts, forbidden boundaries, and verification defaults.
 
 ```yaml
 version: 1
 
 domain:
   id: replay
-  purpose: deterministic replay truth and replay-derived DTOs
+  purpose: deterministic replay state and replay-derived DTOs
 
 concepts:
   replay.timeline:
-    role: timeline_anchor
+    role: state_model
     files:
       - src/replay-timeline.ts
     invariants:
@@ -227,30 +152,18 @@ boundaries:
         - update renderer adapter
         - update contract tests
 
-task_routes:
-  playback_session:
-    match:
-      - frame
-      - seek
-      - cursor
-      - playback
-    read_first:
-      - src/replay-session.ts
-      - src/replay-timeline.ts
-      - tests/replay-session.test.ts
-    verify:
-      - pnpm test domains/replay -- session
+verification:
+  default:
+    - pnpm test domains/replay
 ```
 
-`task_routes.read_first` and legacy concept roles remain supported for v1 compatibility. Structural v2 commands do not infer source-of-truth ownership and do not use `read_first` as their primary output.
+Unknown `.ctx.yml` fields are rejected. Invalid anchors fail closed for map commands, while `codemap anchors validate` remains available for diagnosis.
 
 ## Development
 
 ```bash
 cargo fmt --check
 cargo test
-cargo run --bin ctx -- doctor
-./scripts/release-check.sh
+cargo clippy --all-targets -- -D warnings
+cargo run --bin codemap -- doctor
 ```
-
-CI runs the release check on Linux and macOS. Version tags publish Linux x64 and macOS arm64 archives, the npm wrapper tarball, and a generated Homebrew formula after confirming the tag matches the crate version and belongs to `main`.

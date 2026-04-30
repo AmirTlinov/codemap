@@ -1,13 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/AmirTlinov/ctx/schemas/graph.schema.json",
-  "title": "ctx graph lens",
+  "$id": "https://github.com/AmirTlinov/codemap/schemas/graph.schema.json",
+  "title": "codemap graph lens",
   "type": "object",
   "additionalProperties": false,
   "required": ["kind", "schema_version", "domain", "lens", "nodes", "edges"],
   "properties": {
     "kind": { "const": "graph_lens" },
-    "schema_version": { "const": "1" },
+    "schema_version": { "const": "2" },
     "domain": { "$ref": "#/$defs/domain_ref" },
     "lens": { "type": "string" },
     "nodes": {

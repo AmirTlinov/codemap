@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AmirTlinov/codemap/schemas/anchor-validation.schema.json",
+  "title": "codemap anchor validation report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "schema_version",
+    "ok",
+    "config",
+    "summary",
+    "problems",
+    "warnings",
+    "details"
+  ],
+  "properties": {
+    "kind": { "const": "anchor_validation" },
+    "schema_version": { "const": "4" },
+    "ok": { "type": "boolean" },
+    "config": {
+      "anyOf": [{ "type": "string" }, { "type": "null" }]
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "domains",
+        "concepts",
+        "forbidden_boundaries",
+        "verification_defaults"
+      ],
+      "properties": {
+        "domains": { "type": "integer", "minimum": 0 },
+        "concepts": { "type": "integer", "minimum": 0 },
+        "forbidden_boundaries": { "type": "integer", "minimum": 0 },
+        "verification_defaults": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "problems": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "details": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/detail" }
+    }
+  },
+  "$defs": {
+    "detail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "status", "message", "next"],
+      "properties": {
+        "kind": { "type": "string" },
+        "id": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["ok", "warning", "problem", "info"]
+        },
+        "message": { "type": "string" },
+        "next": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

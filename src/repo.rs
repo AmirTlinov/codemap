@@ -12,8 +12,8 @@ use regex::Regex;
 
 use crate::cache;
 use crate::model::{
-    AnchorDomain, ConfigLoadError, CtxConfig, Domain, FileInfo, PackageDependency, PackageInfo,
-    Project, ScriptInfo, SymbolInfo,
+    AnchorDomain, ConfigLoadError, CtxConfig, Domain, FileInfo, ImportBindingsBySpec,
+    PackageDependency, PackageInfo, Project, ScriptInfo, SymbolInfo,
 };
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -31,6 +31,7 @@ const ROOT_MARKERS: &[&str] = &[
     "go.work",
     "pyproject.toml",
     "requirements.txt",
+    "Package.swift",
     "Makefile",
     "justfile",
 ];
@@ -125,6 +126,7 @@ pub fn load_project_with_cache(
     let packages = detect_packages(&root, &files);
     let ts_path_aliases = detect_ts_path_aliases(&root, &files);
     resolve_imports(&root, &mut files, &packages, &ts_path_aliases);
+    enrich_accessible_surfaces_from_component_contracts(&root, &mut files);
     let reverse_imports = build_reverse_imports(&files);
     let package_edges = detect_package_edges(&root, &files, &packages);
     let scripts = detect_scripts(&root);
@@ -385,13 +387,6 @@ fn normalize_ctx_config(config: &mut CtxConfig, base: &str) {
         rule.from = prefix_config_path(base, &rule.from);
         rule.to = prefix_config_path(base, &rule.to);
     }
-    for route in config.task_routes.values_mut() {
-        route.read_first = route
-            .read_first
-            .iter()
-            .map(|file| prefix_config_path(base, file))
-            .collect();
-    }
 }
 
 fn prefix_config_path(base: &str, value: &str) -> String {
@@ -452,7 +447,6 @@ fn merge_ctx_config(merged: &mut CtxConfig, mut config: CtxConfig, base: &str) {
         .boundaries
         .forbidden
         .extend(config.boundaries.forbidden);
-    merged.task_routes.extend(config.task_routes);
     merged
         .verification
         .default
@@ -488,10 +482,18 @@ fn scan_files(root: &Path) -> Result<BTreeMap<String, FileInfo>> {
             language,
             roles: BTreeSet::new(),
             imports: BTreeSet::new(),
+            import_bindings: BTreeMap::new(),
             resolved_imports: BTreeSet::new(),
+            resolved_import_bindings: BTreeMap::new(),
             exports: BTreeSet::new(),
             symbols: Vec::new(),
             tokens: path_tokens(&rel),
+            references: BTreeSet::new(),
+            jsx_tags: BTreeSet::new(),
+            local_bindings: BTreeSet::new(),
+            surface_tokens: BTreeSet::new(),
+            surface_phrases: BTreeSet::new(),
+            visited_route_paths: BTreeSet::new(),
         };
         classify_roles(&mut info);
         extract_imports_exports(root, &mut info);
@@ -617,6 +619,12 @@ fn classify_roles(info: &mut FileInfo) {
     }
     if is_test_path(&rel) {
         info.roles.insert("test".to_string());
+        if is_e2e_test_path(&rel) {
+            info.roles.insert("e2e_test".to_string());
+        }
+        if is_test_support_path(&rel) || name == "__init__.py" || name == "conftest.py" {
+            info.roles.insert("test_support".to_string());
+        }
     }
     if matches!(
         name.as_str(),
@@ -635,6 +643,7 @@ fn classify_roles(info: &mut FileInfo) {
             | "cargo.toml"
             | "go.mod"
             | "pyproject.toml"
+            | "package.swift"
     ) {
         info.roles.insert("public_boundary".to_string());
     }
@@ -653,7 +662,7 @@ fn classify_roles(info: &mut FileInfo) {
             "repository",
             "aggregate",
         ],
-        "source_of_truth",
+        "state_model",
     );
     add_role_if(
         &mut info.roles,
@@ -701,14 +710,6 @@ fn classify_roles(info: &mut FileInfo) {
     add_role_if(
         &mut info.roles,
         &rel,
-        &[
-            "route", "router", "locate", "impact", "verify", "widen", "capsule",
-        ],
-        "routing",
-    );
-    add_role_if(
-        &mut info.roles,
-        &rel,
         &["root", "inventory", "files", "discover"],
         "repo_discovery",
     );
@@ -728,7 +729,7 @@ fn classify_roles(info: &mut FileInfo) {
     }
     if info.roles.contains("test") {
         for role in [
-            "source_of_truth",
+            "state_model",
             "runtime_state",
             "public_boundary",
             "adapter",
@@ -736,7 +737,6 @@ fn classify_roles(info: &mut FileInfo) {
             "parser",
             "renderer_ui",
             "persistence",
-            "routing",
             "repo_discovery",
             "cache",
             "cli_surface",
@@ -813,6 +813,25 @@ fn is_test_path(rel: &str) -> bool {
             .unwrap_or(false)
 }
 
+fn is_e2e_test_path(rel: &str) -> bool {
+    let rel = rel.to_ascii_lowercase();
+    rel.contains("/e2e/")
+        || rel.contains("/e2e-")
+        || rel.contains(".e2e.")
+        || rel.contains("/playwright/")
+        || rel.contains("/cypress/")
+}
+
+fn is_test_support_path(rel: &str) -> bool {
+    let rel = rel.to_ascii_lowercase();
+    rel.contains("/support/")
+        || rel.contains("/helpers/")
+        || rel.contains("/fixtures/")
+        || rel.contains("/mocks/")
+        || rel.contains("/setup")
+        || rel.contains(".setup.")
+}
+
 fn extract_imports_exports(root: &Path, info: &mut FileInfo) {
     let path = root.join(&info.rel);
     let Ok(text) = fs::read_to_string(path) else {
@@ -822,15 +841,18 @@ fn extract_imports_exports(root: &Path, info: &mut FileInfo) {
     if !is_source_ext(&info.ext) {
         return;
     }
+    let surfaces = extract_surfaces(&text, &info.ext);
+    info.surface_tokens = surfaces.tokens;
+    info.surface_phrases = surfaces.phrases;
+    info.visited_route_paths = surfaces.visited_routes;
     info.symbols = extract_symbols(&text, &info.ext);
+    info.references = extract_identifier_references(&text, &info.ext);
+    info.jsx_tags = extract_jsx_tags(&text, &info.ext);
+    info.local_bindings = extract_local_bindings(&text, &info.ext);
     match info.ext.as_str() {
         "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte" => {
-            let import_re = js_import_re();
-            for cap in import_re.captures_iter(&text) {
-                if let Some(m) = cap.get(1) {
-                    info.imports.insert(m.as_str().trim().to_string());
-                }
-            }
+            info.imports.extend(extract_js_import_specs(&text));
+            info.import_bindings = extract_js_import_bindings(&text);
             let export_re = js_export_re();
             for cap in export_re.captures_iter(&text) {
                 if let Some(m) = cap.get(1) {
@@ -869,7 +891,21 @@ fn extract_imports_exports(root: &Path, info: &mut FileInfo) {
         "go" => {
             info.imports.extend(extract_go_imports(&text));
         }
+        "swift" => {
+            let import_re = swift_import_re();
+            let import_text = code_without_comments_or_strings(&text, &info.ext);
+            for cap in import_re.captures_iter(&import_text) {
+                if let Some(m) = cap.get(1) {
+                    info.imports.insert(m.as_str().trim().to_string());
+                }
+            }
+        }
         _ => {}
+    }
+    for symbol in &info.symbols {
+        if symbol.exported {
+            info.exports.insert(symbol.name.clone());
+        }
     }
 }
 
@@ -887,6 +923,10 @@ struct SymbolStart {
 }
 
 fn extract_symbols(text: &str, ext: &str) -> Vec<SymbolInfo> {
+    if ext == "swift" {
+        let cleaned = code_without_comments_or_strings(text, ext);
+        return symbols_with_ranges(extract_swift_symbols(&cleaned), &cleaned, ext);
+    }
     let starts = match ext {
         "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte" => extract_js_symbols(text),
         "rs" => extract_rust_symbols(text),
@@ -895,6 +935,3697 @@ fn extract_symbols(text: &str, ext: &str) -> Vec<SymbolInfo> {
         _ => Vec::new(),
     };
     symbols_with_ranges(starts, text, ext)
+}
+
+fn extract_identifier_references(text: &str, ext: &str) -> BTreeSet<String> {
+    if !is_source_ext(ext) {
+        return BTreeSet::new();
+    }
+    let cleaned = code_without_comments_or_strings(text, ext);
+    identifier_re()
+        .find_iter(&cleaned)
+        .filter(|m| !identifier_is_selector_tail(&cleaned, m.start()))
+        .map(|m| m.as_str())
+        .filter(|name| !language_keyword(name))
+        .map(str::to_string)
+        .collect()
+}
+
+fn extract_jsx_tags(text: &str, ext: &str) -> BTreeSet<String> {
+    if !matches!(ext, "tsx" | "jsx" | "vue" | "svelte") {
+        return BTreeSet::new();
+    }
+    let cleaned = code_without_comments_or_strings(text, ext);
+    let mut out = BTreeSet::new();
+    let mut type_brace_depth: Option<usize> = None;
+    for line in cleaned.lines() {
+        let trimmed = line.trim_start();
+        if let Some(depth) = type_brace_depth.as_mut() {
+            *depth = js_type_brace_depth_after_line(*depth, line);
+            if js_type_context_line_is_complete(trimmed, *depth) {
+                type_brace_depth = None;
+            }
+            continue;
+        }
+        if js_type_context_line_starts(trimmed) {
+            let depth = js_type_brace_depth_after_line(0, line);
+            if !js_type_context_line_is_complete(trimmed, depth) {
+                type_brace_depth = Some(depth);
+            }
+            continue;
+        }
+        let line = js_line_without_regex_literals(line);
+        out.extend(
+            jsx_tag_re()
+                .captures_iter(&line)
+                .filter(|cap| {
+                    cap.get(0)
+                        .zip(cap.get(1))
+                        .map(|(tag, name)| jsx_tag_context_is_value(&line, tag.start(), name.end()))
+                        .unwrap_or(false)
+                })
+                .filter_map(|cap| cap.get(1))
+                .map(|m| m.as_str().to_string()),
+        );
+    }
+    out
+}
+
+fn jsx_tag_context_is_value(text: &str, tag_start: usize, name_end: usize) -> bool {
+    let before = tag_start
+        .checked_sub(1)
+        .and_then(|index| text.as_bytes().get(index))
+        .copied();
+    if before
+        .map(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'$' | b'.'))
+        .unwrap_or(false)
+    {
+        return false;
+    }
+    let after = text[name_end..]
+        .bytes()
+        .find(|byte| !byte.is_ascii_whitespace());
+    if matches!(after, Some(b'|' | b'&' | b',' | b'=')) {
+        return false;
+    }
+    let after = text[name_end..].trim_start();
+    !(after.starts_with("extends ")
+        || after.starts_with("extends\t")
+        || after.starts_with("extends\n")
+        || after.starts_with(">()")
+        || after.starts_with("> ()"))
+}
+
+fn js_type_context_line_starts(trimmed: &str) -> bool {
+    trimmed.starts_with("type ")
+        || trimmed.starts_with("export type ")
+        || trimmed.starts_with("interface ")
+        || trimmed.starts_with("export interface ")
+}
+
+fn js_type_context_line_is_complete(trimmed: &str, brace_depth: usize) -> bool {
+    brace_depth == 0 && (trimmed.contains(';') || trimmed.ends_with('}') || trimmed.ends_with("};"))
+}
+
+fn js_type_brace_depth_after_line(mut depth: usize, code: &str) -> usize {
+    for byte in code.bytes() {
+        match byte {
+            b'{' => depth = depth.saturating_add(1),
+            b'}' => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+    }
+    depth
+}
+
+fn js_line_without_regex_literals(line: &str) -> String {
+    let bytes = line.as_bytes();
+    let mut out = String::new();
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'/'
+            && js_regex_literal_can_start(&out)
+            && let Some(end) = js_regex_literal_end(bytes, index)
+        {
+            index = end;
+            continue;
+        }
+        out.push(bytes[index] as char);
+        index += 1;
+    }
+    out
+}
+
+fn js_regex_literal_can_start(prefix: &str) -> bool {
+    [
+        "return", "await", "throw", "yield", "case", "delete", "void", "typeof", "else",
+    ]
+    .iter()
+    .any(|word| previous_word_is(prefix, word))
+        || prefix.trim_end().ends_with("=>")
+        || previous_nonspace_byte(prefix)
+            .map(|byte| {
+                matches!(
+                    byte,
+                    b'(' | b')'
+                        | b'='
+                        | b':'
+                        | b'['
+                        | b'{'
+                        | b','
+                        | b'!'
+                        | b'?'
+                        | b';'
+                        | b'|'
+                        | b'&'
+                )
+            })
+            .unwrap_or(true)
+}
+
+fn previous_word_is(before: &str, word: &str) -> bool {
+    let bytes = before.as_bytes();
+    let mut end = bytes.len();
+    while end > 0 && bytes[end - 1].is_ascii_whitespace() {
+        end -= 1;
+    }
+    if end == 0 {
+        return false;
+    }
+    let mut start = end;
+    while start > 0 && is_identifier_byte(bytes[start - 1]) {
+        start -= 1;
+    }
+    std::str::from_utf8(&bytes[start..end]) == Ok(word)
+}
+
+fn is_identifier_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'$')
+}
+
+fn previous_nonspace_byte(before: &str) -> Option<u8> {
+    before
+        .bytes()
+        .rev()
+        .find(|byte| !byte.is_ascii_whitespace())
+}
+
+fn js_regex_literal_end(bytes: &[u8], start: usize) -> Option<usize> {
+    if bytes.get(start) != Some(&b'/') || matches!(bytes.get(start + 1), Some(b'/' | b'*') | None) {
+        return None;
+    }
+    let mut index = start + 1;
+    let mut in_class = false;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'\\' => {
+                index = index.saturating_add(2);
+                continue;
+            }
+            b'[' => in_class = true,
+            b']' => in_class = false,
+            b'/' if !in_class => {
+                index += 1;
+                while bytes
+                    .get(index)
+                    .map(|byte| byte.is_ascii_alphabetic())
+                    .unwrap_or(false)
+                {
+                    index += 1;
+                }
+                return Some(index);
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    None
+}
+
+pub(crate) fn extract_local_bindings(text: &str, ext: &str) -> BTreeSet<String> {
+    if !matches!(
+        ext,
+        "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte"
+    ) {
+        return BTreeSet::new();
+    }
+    let cleaned = code_without_comments_or_strings(text, ext);
+    let mut out = BTreeSet::new();
+    collect_js_balanced_param_bindings(&cleaned, &mut out);
+    for cap in js_function_params_re().captures_iter(&cleaned) {
+        if let Some(params) = cap.name("params") {
+            collect_js_param_bindings(params.as_str(), &mut out);
+        }
+    }
+    for cap in js_arrow_params_re().captures_iter(&cleaned) {
+        if let Some(params) = cap.name("params") {
+            collect_js_param_bindings(params.as_str(), &mut out);
+        }
+    }
+    for cap in js_method_params_re().captures_iter(&cleaned) {
+        if cap
+            .name("name")
+            .map(|name| language_keyword(name.as_str()))
+            .unwrap_or(true)
+        {
+            continue;
+        }
+        if let Some(params) = cap.name("params") {
+            collect_js_param_bindings(params.as_str(), &mut out);
+        }
+    }
+    for cap in js_single_arrow_param_re().captures_iter(&cleaned) {
+        if let Some(param) = cap.name("param") {
+            let name = param.as_str();
+            if !language_keyword(name) {
+                out.insert(name.to_string());
+            }
+        }
+    }
+    for cap in js_for_binding_re().captures_iter(&cleaned) {
+        if let Some(binding) = cap.name("binding") {
+            collect_js_param_bindings(binding.as_str(), &mut out);
+        }
+    }
+    for cap in js_catch_param_re().captures_iter(&cleaned) {
+        if let Some(param) = cap.name("param") {
+            collect_js_param_bindings(param.as_str(), &mut out);
+        }
+    }
+    for pattern in js_destructuring_binding_patterns(&cleaned) {
+        collect_js_param_bindings(pattern, &mut out);
+    }
+    out
+}
+
+fn collect_js_balanced_param_bindings(text: &str, out: &mut BTreeSet<String>) {
+    for start in js_keyword_positions(text, "function") {
+        let mut index = skip_ascii_whitespace(text, start + "function".len());
+        if text
+            .as_bytes()
+            .get(index)
+            .map(|byte| byte.is_ascii_alphabetic() || matches!(byte, b'_' | b'$'))
+            .unwrap_or(false)
+        {
+            while text
+                .as_bytes()
+                .get(index)
+                .map(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'$'))
+                .unwrap_or(false)
+            {
+                index += 1;
+            }
+            index = skip_ascii_whitespace(text, index);
+        }
+        if text.as_bytes().get(index) == Some(&b'(')
+            && let Some(end) = js_balanced_pattern_end(text, index)
+        {
+            collect_js_param_bindings(&text[index + 1..end], out);
+        }
+    }
+
+    let bytes = text.as_bytes();
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] != b'(' {
+            index += 1;
+            continue;
+        }
+        let Some(end) = js_balanced_pattern_end(text, index) else {
+            index += 1;
+            continue;
+        };
+        if js_param_list_context(text, index, end) {
+            collect_js_param_bindings(&text[index + 1..end], out);
+        }
+        index = end.saturating_add(1);
+    }
+}
+
+fn js_param_list_context(text: &str, open: usize, close: usize) -> bool {
+    let before_open = text[..open].trim_end();
+    let after_close = text[close + 1..].trim_start();
+    if before_open.ends_with("catch") {
+        return true;
+    }
+    if js_tail_starts_arrow(after_close) {
+        return true;
+    }
+    if js_tail_starts_block(after_close) {
+        let name_before_params = before_open
+            .rsplit(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '_' || ch == '$'))
+            .find(|part| !part.is_empty())
+            .unwrap_or_default();
+        return !matches!(
+            name_before_params,
+            "if" | "for" | "while" | "switch" | "catch" | "with" | "function"
+        );
+    }
+    false
+}
+
+fn js_tail_starts_arrow(tail: &str) -> bool {
+    if tail.starts_with("=>") {
+        return true;
+    }
+    if !tail.starts_with(':') {
+        return false;
+    }
+    let before_arrow = tail.split("=>").next().unwrap_or(tail);
+    tail.contains("=>") && !before_arrow.contains(['{', ';'])
+}
+
+fn js_tail_starts_block(tail: &str) -> bool {
+    if tail.starts_with('{') {
+        return true;
+    }
+    if !tail.starts_with(':') {
+        return false;
+    }
+    let before_block = tail.split('{').next().unwrap_or(tail);
+    tail.contains('{') && !before_block.contains([';', '='])
+}
+
+fn js_destructuring_binding_patterns(text: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    for keyword in ["const", "let", "var"] {
+        for start in js_keyword_positions(text, keyword) {
+            let pattern_start = skip_ascii_whitespace(text, start + keyword.len());
+            let Some(open) = text.as_bytes().get(pattern_start).copied() else {
+                continue;
+            };
+            if !matches!(open, b'{' | b'[') {
+                continue;
+            }
+            let Some(pattern_end) = js_balanced_pattern_end(text, pattern_start) else {
+                continue;
+            };
+            let after = skip_ascii_whitespace(text, pattern_end + 1);
+            if text.as_bytes().get(after) == Some(&b'=') {
+                out.push(&text[pattern_start..=pattern_end]);
+            }
+        }
+    }
+    out
+}
+
+fn js_balanced_pattern_end(text: &str, start: usize) -> Option<usize> {
+    let bytes = text.as_bytes();
+    let mut stack = vec![match bytes.get(start).copied()? {
+        b'{' => b'}',
+        b'[' => b']',
+        b'(' => b')',
+        _ => return None,
+    }];
+    let mut index = start + 1;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'{' => stack.push(b'}'),
+            b'[' => stack.push(b']'),
+            b'(' => stack.push(b')'),
+            b'}' | b']' | b')' => {
+                if stack.pop() != Some(bytes[index]) {
+                    return None;
+                }
+                if stack.is_empty() {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    None
+}
+
+fn collect_js_param_bindings(params: &str, out: &mut BTreeSet<String>) {
+    for ident in identifier_re().find_iter(params).map(|m| m.as_str()) {
+        if !language_keyword(ident) {
+            out.insert(ident.to_string());
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct JsStaticImport {
+    spec: String,
+    clause: Option<String>,
+    is_type: bool,
+}
+
+fn extract_js_import_specs(text: &str) -> BTreeSet<String> {
+    let mut out = BTreeSet::new();
+    for import in extract_js_static_imports(text) {
+        out.insert(import.spec);
+    }
+    out.extend(extract_js_export_from_specs(text));
+    out.extend(extract_js_call_import_specs(text));
+    out
+}
+
+fn extract_js_import_bindings(text: &str) -> ImportBindingsBySpec {
+    let mut out = BTreeMap::new();
+    for import in extract_js_static_imports(text) {
+        if import.is_type {
+            continue;
+        }
+        let Some(clause) = import.clause.as_deref() else {
+            continue;
+        };
+        let bindings = parse_js_import_clause_bindings(clause);
+        if !bindings.is_empty() {
+            out.entry(import.spec)
+                .or_insert_with(BTreeMap::new)
+                .extend(bindings);
+        }
+    }
+    for (spec, bindings) in extract_js_reexport_bindings(text) {
+        out.entry(spec)
+            .or_insert_with(BTreeMap::new)
+            .extend(bindings);
+    }
+    out
+}
+
+fn extract_js_reexport_bindings(text: &str) -> ImportBindingsBySpec {
+    let mut out = BTreeMap::new();
+    for start in js_keyword_positions(text, "export") {
+        let statement = js_statement_slice(text, start);
+        let statement_without_comments = strip_js_comments_from_text(statement);
+        let Some(cap) = js_reexport_statement_re().captures(&statement_without_comments) else {
+            continue;
+        };
+        if cap.name("type").is_some() {
+            continue;
+        }
+        let Some(spec) = cap.name("spec").map(|m| m.as_str().trim().to_string()) else {
+            continue;
+        };
+        let mut bindings = BTreeMap::new();
+        if cap.name("star").is_some() {
+            bindings.insert("export:*".to_string(), "*".to_string());
+        } else if let Some(named) = cap.name("named") {
+            let clause = format!("{{{}}}", named.as_str());
+            let mut named_bindings = BTreeMap::new();
+            collect_js_named_import_bindings(&clause, &mut named_bindings);
+            for (exported, imported) in named_bindings {
+                bindings.insert(format!("export:{exported}"), imported);
+            }
+        }
+        if !bindings.is_empty() {
+            out.entry(spec)
+                .or_insert_with(BTreeMap::new)
+                .extend(bindings);
+        }
+    }
+    out
+}
+
+fn extract_js_static_imports(text: &str) -> Vec<JsStaticImport> {
+    js_keyword_positions(text, "import")
+        .into_iter()
+        .filter_map(|start| {
+            let after = skip_ascii_whitespace(text, start + "import".len());
+            let next = text.as_bytes().get(after).copied();
+            if matches!(next, Some(b'.' | b'(')) {
+                return None;
+            }
+            parse_js_static_import_statement(js_statement_slice(text, start))
+        })
+        .collect()
+}
+
+fn parse_js_static_import_statement(statement: &str) -> Option<JsStaticImport> {
+    let cap = js_static_import_statement_re().captures(statement)?;
+    let spec = cap.name("spec")?.as_str().trim().to_string();
+    let clause = cap.name("clause").map(|m| m.as_str().trim().to_string());
+    Some(JsStaticImport {
+        spec,
+        clause,
+        is_type: cap.name("type").is_some(),
+    })
+}
+
+fn extract_js_export_from_specs(text: &str) -> BTreeSet<String> {
+    js_keyword_positions(text, "export")
+        .into_iter()
+        .filter_map(|start| {
+            js_export_from_re()
+                .captures(js_statement_slice(text, start))
+                .and_then(|cap| cap.name("spec").map(|m| m.as_str().trim().to_string()))
+        })
+        .collect()
+}
+
+fn extract_js_call_import_specs(text: &str) -> BTreeSet<String> {
+    let mut out = BTreeSet::new();
+    for start in js_keyword_positions(text, "import") {
+        let after = skip_ascii_whitespace(text, start + "import".len());
+        if text.as_bytes().get(after) == Some(&b'(')
+            && let Some(spec) = parse_js_call_string_arg(text, after)
+        {
+            out.insert(spec);
+        }
+    }
+    for start in js_keyword_positions(text, "require") {
+        let after = skip_ascii_whitespace(text, start + "require".len());
+        if text.as_bytes().get(after) == Some(&b'(')
+            && let Some(spec) = parse_js_call_string_arg(text, after)
+        {
+            out.insert(spec);
+        }
+    }
+    out
+}
+
+fn parse_js_call_string_arg(text: &str, open_paren: usize) -> Option<String> {
+    let quote = skip_ascii_whitespace(text, open_paren + 1);
+    let quote_byte = *text.as_bytes().get(quote)?;
+    if !matches!(quote_byte, b'\'' | b'"') {
+        return None;
+    }
+    read_js_quoted_string(text, quote)
+}
+
+fn read_js_quoted_string(text: &str, quote: usize) -> Option<String> {
+    let bytes = text.as_bytes();
+    let quote_byte = *bytes.get(quote)?;
+    if !matches!(quote_byte, b'\'' | b'"') {
+        return None;
+    }
+    let mut index = quote + 1;
+    let mut out = String::new();
+    while index < bytes.len() {
+        let byte = bytes[index];
+        if byte == b'\\' {
+            index = index.saturating_add(2);
+            continue;
+        }
+        if byte == quote_byte {
+            return Some(out);
+        }
+        out.push(byte as char);
+        index += 1;
+    }
+    None
+}
+
+fn js_statement_slice(text: &str, start: usize) -> &str {
+    let bytes = text.as_bytes();
+    let mut index = start;
+    let mut state = JsScanState::Code;
+    while index < bytes.len() {
+        match state {
+            JsScanState::Code => {
+                if bytes[index] == b';' {
+                    return &text[start..=index];
+                }
+                if bytes[index] == b'/' && bytes.get(index + 1) == Some(&b'/') {
+                    state = JsScanState::LineComment;
+                    index += 2;
+                    continue;
+                }
+                if bytes[index] == b'/' && bytes.get(index + 1) == Some(&b'*') {
+                    state = JsScanState::BlockComment;
+                    index += 2;
+                    continue;
+                }
+                if bytes[index] == b'/'
+                    && js_regex_literal_can_start(
+                        std::string::String::from_utf8_lossy(&bytes[start..index]).as_ref(),
+                    )
+                    && let Some(end) = js_regex_literal_end(bytes, index)
+                {
+                    index = end;
+                    continue;
+                }
+                if matches!(bytes[index], b'\'' | b'"') {
+                    state = JsScanState::Quoted(bytes[index]);
+                } else if bytes[index] == b'`' {
+                    state = JsScanState::Template;
+                }
+            }
+            JsScanState::LineComment => {
+                if bytes[index] == b'\n' {
+                    state = JsScanState::Code;
+                }
+            }
+            JsScanState::BlockComment => {
+                if bytes[index] == b'*' && bytes.get(index + 1) == Some(&b'/') {
+                    state = JsScanState::Code;
+                    index += 2;
+                    continue;
+                }
+            }
+            JsScanState::Quoted(quote) => {
+                if bytes[index] == b'\\' {
+                    index = index.saturating_add(2);
+                    continue;
+                }
+                if bytes[index] == quote {
+                    state = JsScanState::Code;
+                }
+            }
+            JsScanState::Template => {
+                if bytes[index] == b'\\' {
+                    index = index.saturating_add(2);
+                    continue;
+                }
+                if bytes[index] == b'`' {
+                    state = JsScanState::Code;
+                }
+            }
+        }
+        index += 1;
+    }
+    &text[start..]
+}
+
+#[derive(Clone, Copy)]
+enum JsScanState {
+    Code,
+    LineComment,
+    BlockComment,
+    Quoted(u8),
+    Template,
+}
+
+fn js_keyword_positions(text: &str, keyword: &str) -> Vec<usize> {
+    let bytes = text.as_bytes();
+    let keyword_bytes = keyword.as_bytes();
+    let mut out = Vec::new();
+    let mut index = 0;
+    let mut state = JsScanState::Code;
+    while index < bytes.len() {
+        match state {
+            JsScanState::Code => {
+                if bytes[index] == b'/' && bytes.get(index + 1) == Some(&b'/') {
+                    state = JsScanState::LineComment;
+                    index += 2;
+                    continue;
+                }
+                if bytes[index] == b'/' && bytes.get(index + 1) == Some(&b'*') {
+                    state = JsScanState::BlockComment;
+                    index += 2;
+                    continue;
+                }
+                if bytes[index] == b'/'
+                    && js_regex_literal_can_start(
+                        std::string::String::from_utf8_lossy(&bytes[..index]).as_ref(),
+                    )
+                    && let Some(end) = js_regex_literal_end(bytes, index)
+                {
+                    index = end;
+                    continue;
+                }
+                if matches!(bytes[index], b'\'' | b'"') {
+                    state = JsScanState::Quoted(bytes[index]);
+                } else if bytes[index] == b'`' {
+                    state = JsScanState::Template;
+                } else if bytes[index..].starts_with(keyword_bytes)
+                    && js_keyword_boundary(bytes, index, keyword_bytes.len())
+                {
+                    out.push(index);
+                    index += keyword_bytes.len();
+                    continue;
+                }
+            }
+            JsScanState::LineComment => {
+                if bytes[index] == b'\n' {
+                    state = JsScanState::Code;
+                }
+            }
+            JsScanState::BlockComment => {
+                if bytes[index] == b'*' && bytes.get(index + 1) == Some(&b'/') {
+                    state = JsScanState::Code;
+                    index += 2;
+                    continue;
+                }
+            }
+            JsScanState::Quoted(quote) => {
+                if bytes[index] == b'\\' {
+                    index = index.saturating_add(2);
+                    continue;
+                }
+                if bytes[index] == quote {
+                    state = JsScanState::Code;
+                }
+            }
+            JsScanState::Template => {
+                if bytes[index] == b'\\' {
+                    index = index.saturating_add(2);
+                    continue;
+                }
+                if bytes[index] == b'`' {
+                    state = JsScanState::Code;
+                }
+            }
+        }
+        index += 1;
+    }
+    out
+}
+
+fn js_keyword_boundary(bytes: &[u8], start: usize, len: usize) -> bool {
+    let before = start
+        .checked_sub(1)
+        .and_then(|index| bytes.get(index))
+        .copied();
+    let after = bytes.get(start + len).copied();
+    !before.map(is_js_identifier_byte).unwrap_or(false)
+        && !after.map(is_js_identifier_byte).unwrap_or(false)
+}
+
+fn is_js_identifier_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'$')
+}
+
+fn skip_ascii_whitespace(text: &str, mut index: usize) -> usize {
+    let bytes = text.as_bytes();
+    while bytes
+        .get(index)
+        .map(|byte| byte.is_ascii_whitespace())
+        .unwrap_or(false)
+    {
+        index += 1;
+    }
+    index
+}
+
+fn parse_js_import_clause_bindings(clause: &str) -> BTreeMap<String, String> {
+    let mut out = BTreeMap::new();
+    let clause = clause.trim();
+    if clause.is_empty() || clause.starts_with('{') {
+        collect_js_named_import_bindings(clause, &mut out);
+        return out;
+    }
+    if let Some(namespace) = clause.strip_prefix("* as ") {
+        if let Some(name) = first_identifier(namespace) {
+            out.insert(name, "*".to_string());
+        }
+        return out;
+    }
+    if let Some((default, rest)) = clause.split_once(',') {
+        if let Some(name) = first_identifier(default) {
+            out.insert(name, "default".to_string());
+        }
+        collect_js_named_import_bindings(rest, &mut out);
+    } else if let Some(name) = first_identifier(clause) {
+        out.insert(name, "default".to_string());
+    }
+    out
+}
+
+fn collect_js_named_import_bindings(clause: &str, out: &mut BTreeMap<String, String>) {
+    let Some(start) = clause.find('{') else {
+        return;
+    };
+    let Some(end) = clause.rfind('}') else {
+        return;
+    };
+    let inner = strip_js_comments_from_text(&clause[start + 1..end]);
+    for part in inner.split(',') {
+        let part = part.trim();
+        if part.is_empty() || part.starts_with("type ") {
+            continue;
+        }
+        let (imported, local) = part
+            .split_once(" as ")
+            .map(|(imported, alias)| (imported.trim(), alias.trim()))
+            .unwrap_or((part, part));
+        let Some(imported_name) = first_identifier(imported) else {
+            continue;
+        };
+        if let Some(local_name) = first_identifier(local) {
+            out.insert(local_name, imported_name);
+        }
+    }
+}
+
+fn strip_js_comments_from_text(text: &str) -> String {
+    let mut out = String::new();
+    let mut in_block_comment = false;
+    for line in text.lines() {
+        out.push_str(&strip_js_comments_from_line(line, &mut in_block_comment));
+        out.push('\n');
+    }
+    out
+}
+
+fn first_identifier(value: &str) -> Option<String> {
+    identifier_re()
+        .find(value.trim())
+        .map(|m| m.as_str().to_string())
+}
+
+fn identifier_is_selector_tail(text: &str, start: usize) -> bool {
+    text[..start]
+        .chars()
+        .rev()
+        .find(|ch| !ch.is_whitespace())
+        .map(|ch| ch == '.')
+        .unwrap_or(false)
+}
+
+fn code_without_comments_or_strings(text: &str, ext: &str) -> String {
+    let mut out = String::new();
+    let mut code_state = CodeStripState::default();
+    for raw_line in text.lines() {
+        let comment_stripped = match ext {
+            "py" => strip_python_comment_from_line(raw_line),
+            "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte" | "rs" | "go"
+            | "swift" => strip_c_like_code_line_for_identifier_refs(raw_line, &mut code_state),
+            _ => raw_line.to_string(),
+        };
+        if ext == "py" {
+            out.push_str(&strip_string_literals_from_line(&comment_stripped));
+        } else {
+            out.push_str(&comment_stripped);
+        }
+        out.push('\n');
+    }
+    out
+}
+
+#[derive(Debug, Default)]
+struct CodeStripState {
+    in_block_comment: bool,
+    quote: Option<char>,
+    escaped: bool,
+}
+
+fn strip_c_like_code_line_for_identifier_refs(line: &str, state: &mut CodeStripState) -> String {
+    let chars: Vec<char> = line.chars().collect();
+    let mut out = String::new();
+    let mut index = 0;
+    while index < chars.len() {
+        let ch = chars[index];
+        let next = chars.get(index + 1).copied();
+        if state.in_block_comment {
+            if ch == '*' && next == Some('/') {
+                state.in_block_comment = false;
+                index += 2;
+            } else {
+                index += 1;
+            }
+            out.push(' ');
+            continue;
+        }
+        if let Some(active_quote) = state.quote {
+            if state.escaped {
+                state.escaped = false;
+            } else if ch == '\\' && active_quote != '`' {
+                state.escaped = true;
+            } else if ch == active_quote {
+                state.quote = None;
+            }
+            out.push(' ');
+            index += 1;
+            continue;
+        }
+        if ch == '/' && next == Some('/') {
+            break;
+        }
+        if ch == '/' && next == Some('*') {
+            state.in_block_comment = true;
+            out.push(' ');
+            out.push(' ');
+            index += 2;
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            state.quote = Some(ch);
+            state.escaped = false;
+            out.push(' ');
+            index += 1;
+            continue;
+        }
+        out.push(ch);
+        index += 1;
+    }
+    out
+}
+
+fn strip_python_comment_from_line(line: &str) -> String {
+    let mut out = String::new();
+    let mut quote = None;
+    let mut escaped = false;
+    for ch in line.chars() {
+        if let Some(active_quote) = quote {
+            out.push(ch);
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if ch == '#' {
+            break;
+        }
+        if matches!(ch, '"' | '\'') {
+            quote = Some(ch);
+            escaped = false;
+        }
+        out.push(ch);
+    }
+    out
+}
+
+fn strip_string_literals_from_line(line: &str) -> String {
+    let mut out = String::new();
+    let mut quote = None;
+    let mut escaped = false;
+    for ch in line.chars() {
+        if let Some(active_quote) = quote {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == active_quote {
+                quote = None;
+            }
+            out.push(' ');
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            out.push(' ');
+            continue;
+        }
+        out.push(ch);
+    }
+    out
+}
+
+fn language_keyword(name: &str) -> bool {
+    matches!(
+        name,
+        "as" | "async"
+            | "await"
+            | "break"
+            | "case"
+            | "catch"
+            | "class"
+            | "const"
+            | "continue"
+            | "crate"
+            | "def"
+            | "defer"
+            | "else"
+            | "enum"
+            | "export"
+            | "extends"
+            | "false"
+            | "fn"
+            | "for"
+            | "from"
+            | "func"
+            | "function"
+            | "if"
+            | "impl"
+            | "import"
+            | "in"
+            | "internal"
+            | "interface"
+            | "let"
+            | "match"
+            | "mod"
+            | "mut"
+            | "nil"
+            | "none"
+            | "null"
+            | "package"
+            | "private"
+            | "protocol"
+            | "pub"
+            | "public"
+            | "return"
+            | "self"
+            | "static"
+            | "struct"
+            | "super"
+            | "switch"
+            | "this"
+            | "trait"
+            | "true"
+            | "type"
+            | "undefined"
+            | "use"
+            | "var"
+            | "where"
+            | "while"
+    )
+}
+
+#[derive(Debug, Default)]
+struct SurfaceExtraction {
+    tokens: BTreeSet<String>,
+    phrases: BTreeSet<String>,
+    visited_routes: BTreeSet<String>,
+}
+
+fn extract_surfaces(text: &str, ext: &str) -> SurfaceExtraction {
+    if !matches!(
+        ext,
+        "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte"
+    ) {
+        return SurfaceExtraction::default();
+    }
+    let mut surfaces = SurfaceExtraction::default();
+    let mut in_block_comment = false;
+    let mut jsx_visible_text_context = 0usize;
+    let mut js_brace_depth = 0usize;
+    let mut playwright_page_scope_depth: Option<usize> = None;
+    let mut playwright_page_shadowed = false;
+    let mut playwright_nested_body_depth: Option<usize> = None;
+    let mut playwright_nested_expression_arrow = false;
+    let mut playwright_pending_nested_body = false;
+    let mut disabled_playwright_scope_depth: Option<usize> = None;
+    let mut pending_disabled_playwright_describe = false;
+    let mut playwright_control_flow_depth: Option<usize> = None;
+    let mut playwright_pending_control_flow = false;
+    let mut playwright_page_scope_terminated = false;
+    let playwright_test_bindings = playwright_test_bindings(text);
+    let mut shadowed_playwright_test_bindings = BTreeSet::new();
+    let mut pending_playwright_role_names = BTreeMap::new();
+    for raw_line in text.lines() {
+        let line = strip_js_comments_from_line(raw_line, &mut in_block_comment);
+        for binding in &playwright_test_bindings {
+            if line_declares_local_identifier(&line, binding) {
+                shadowed_playwright_test_bindings.insert(binding.clone());
+            }
+        }
+        let active_playwright_test_bindings = playwright_test_bindings
+            .difference(&shadowed_playwright_test_bindings)
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        if disabled_playwright_scope_depth.is_none()
+            && line_declares_disabled_playwright_describe(&line, &active_playwright_test_bindings)
+        {
+            pending_disabled_playwright_describe = true;
+        }
+        if pending_disabled_playwright_describe
+            && line_starts_playwright_describe_callback_body(&line)
+        {
+            disabled_playwright_scope_depth = Some(js_brace_depth + 1);
+            pending_disabled_playwright_describe = false;
+        }
+        let disabled_playwright_context =
+            disabled_playwright_scope_depth.is_some() || pending_disabled_playwright_describe;
+        let mut pending_control_flow_set_this_line = false;
+        let entered_playwright_page_scope = !disabled_playwright_context
+            && line_declares_playwright_page_fixture(&line, &active_playwright_test_bindings);
+        if entered_playwright_page_scope {
+            playwright_page_scope_depth = Some(js_brace_depth + 1);
+            playwright_page_shadowed = false;
+            playwright_nested_body_depth = None;
+            playwright_nested_expression_arrow = false;
+            playwright_pending_nested_body = false;
+            playwright_control_flow_depth = None;
+            playwright_pending_control_flow = false;
+            playwright_page_scope_terminated = false;
+            pending_playwright_role_names.clear();
+        }
+        if !entered_playwright_page_scope
+            && playwright_page_scope_depth.is_some()
+            && playwright_pending_control_flow
+            && line_opens_pending_control_flow_body(&line)
+        {
+            playwright_control_flow_depth = Some(js_brace_depth + 1);
+            playwright_pending_control_flow = false;
+            pending_playwright_role_names.clear();
+        }
+        if !entered_playwright_page_scope
+            && playwright_page_scope_depth.is_some()
+            && playwright_pending_nested_body
+            && line_opens_pending_nested_body(&line)
+        {
+            playwright_nested_body_depth = Some(js_brace_depth + 1);
+            playwright_pending_nested_body = false;
+            pending_playwright_role_names.clear();
+        }
+        if !entered_playwright_page_scope
+            && playwright_page_scope_depth.is_some()
+            && playwright_nested_body_depth.is_none()
+            && !playwright_nested_expression_arrow
+            && !playwright_pending_nested_body
+            && line_has_arrow_callback(&line)
+        {
+            if line_starts_arrow_callback_body(&line) {
+                playwright_nested_body_depth = Some(js_brace_depth + 1);
+            } else {
+                playwright_nested_expression_arrow = true;
+            }
+            pending_playwright_role_names.clear();
+        }
+        if !entered_playwright_page_scope
+            && playwright_page_scope_depth.is_some()
+            && playwright_nested_body_depth.is_none()
+            && !playwright_nested_expression_arrow
+            && !playwright_pending_nested_body
+            && line_starts_nested_playwright_body(&line)
+        {
+            playwright_nested_body_depth = Some(js_brace_depth + 1);
+            pending_playwright_role_names.clear();
+        }
+        if !entered_playwright_page_scope
+            && playwright_page_scope_depth.is_some()
+            && playwright_nested_body_depth.is_none()
+            && !playwright_nested_expression_arrow
+            && !playwright_pending_nested_body
+            && line_declares_pending_nested_body(&line)
+        {
+            playwright_pending_nested_body = true;
+            pending_playwright_role_names.clear();
+        }
+        if !entered_playwright_page_scope
+            && playwright_page_scope_depth.is_some()
+            && line_declares_local_page_binding(&line)
+        {
+            playwright_page_shadowed = true;
+            pending_playwright_role_names.clear();
+        }
+        if !entered_playwright_page_scope
+            && playwright_page_scope_depth.is_some()
+            && playwright_nested_body_depth.is_none()
+            && !playwright_nested_expression_arrow
+            && !playwright_pending_nested_body
+            && line_starts_unparsed_playwright_control_flow(&line)
+        {
+            if line_opens_control_flow_body(&line) {
+                playwright_control_flow_depth = Some(js_brace_depth + 1);
+                playwright_pending_control_flow = false;
+            } else {
+                playwright_pending_control_flow = true;
+                pending_control_flow_set_this_line = true;
+            }
+            pending_playwright_role_names.clear();
+        }
+        if !entered_playwright_page_scope
+            && !disabled_playwright_context
+            && playwright_page_scope_depth.is_some()
+            && !playwright_page_shadowed
+            && playwright_nested_body_depth.is_none()
+            && !playwright_nested_expression_arrow
+            && !playwright_pending_nested_body
+            && playwright_control_flow_depth.is_none()
+            && !playwright_pending_control_flow
+            && !playwright_page_scope_terminated
+            && !line_has_playwright_scope_terminator_before_role_name_call(
+                &line,
+                &active_playwright_test_bindings,
+            )
+        {
+            add_playwright_role_name_surfaces(
+                &mut surfaces,
+                &mut pending_playwright_role_names,
+                &line,
+            );
+        }
+        let has_surface_context = line_has_surface_context(&line);
+        if (jsx_visible_text_context > 0 || line_has_jsx_surface_container(&line))
+            && let Some(text) = static_jsx_visible_text(&line)
+        {
+            surfaces
+                .phrases
+                .extend(surface_literal_phrases(&text, true));
+        }
+        if line_has_jsx_surface_container(&line) {
+            jsx_visible_text_context = 4;
+        } else {
+            jsx_visible_text_context = jsx_visible_text_context.saturating_sub(1);
+        }
+        if has_surface_context {
+            let plain_label_context = line_accepts_plain_label_surface(&line);
+            for quoted in quoted_strings(&line) {
+                if quoted_prefix_has_object_key(&quoted.prefix, "name")
+                    && line.to_ascii_lowercase().contains("getbyrole")
+                {
+                    continue;
+                }
+                if quoted_value_is_module_specifier_context(&quoted.prefix) {
+                    continue;
+                }
+                let value = quoted.value;
+                if quoted_prefix_is_page_goto_argument(&quoted.prefix)
+                    && let Some(route) = normalize_route_path(&value)
+                {
+                    surfaces.visited_routes.insert(route);
+                }
+                let structural_literal = surface_literal_is_structural(&value)
+                    || (plain_label_context && surface_label_literal_is_structural(&value));
+                if !structural_literal {
+                    continue;
+                }
+                surfaces.tokens.extend(surface_literal_terms(&value));
+                surfaces
+                    .phrases
+                    .extend(surface_literal_phrases(&value, plain_label_context));
+            }
+        }
+        if !entered_playwright_page_scope
+            && !disabled_playwright_context
+            && playwright_page_scope_depth.is_some()
+            && playwright_nested_body_depth.is_none()
+            && !playwright_nested_expression_arrow
+            && !playwright_pending_nested_body
+            && line_terminates_playwright_page_scope(&line, &active_playwright_test_bindings)
+        {
+            playwright_page_scope_terminated = true;
+            pending_playwright_role_names.clear();
+        }
+        js_brace_depth = apply_js_brace_delta(js_brace_depth, &line);
+        if disabled_playwright_scope_depth
+            .map(|scope_depth| js_brace_depth < scope_depth)
+            .unwrap_or(false)
+        {
+            disabled_playwright_scope_depth = None;
+            pending_disabled_playwright_describe = false;
+        }
+        if playwright_page_scope_depth
+            .map(|scope_depth| js_brace_depth < scope_depth)
+            .unwrap_or(false)
+        {
+            playwright_page_scope_depth = None;
+            playwright_page_shadowed = false;
+            playwright_nested_body_depth = None;
+            playwright_nested_expression_arrow = false;
+            playwright_pending_nested_body = false;
+            playwright_page_scope_terminated = false;
+            pending_playwright_role_names.clear();
+        }
+        if playwright_nested_body_depth
+            .map(|scope_depth| js_brace_depth < scope_depth)
+            .unwrap_or(false)
+        {
+            playwright_nested_body_depth = None;
+        }
+        if playwright_control_flow_depth
+            .map(|scope_depth| js_brace_depth < scope_depth)
+            .unwrap_or(false)
+        {
+            playwright_control_flow_depth = None;
+        }
+        if playwright_pending_control_flow && !pending_control_flow_set_this_line {
+            playwright_pending_control_flow = false;
+        }
+        if playwright_nested_expression_arrow && line_ends_js_statement(&line) {
+            playwright_nested_expression_arrow = false;
+        }
+    }
+    merge_surface_extraction(
+        &mut surfaces,
+        accessible_name_surfaces_from_native_labelled_ids(text),
+    );
+    surfaces
+}
+
+fn merge_surface_extraction(target: &mut SurfaceExtraction, source: SurfaceExtraction) {
+    target.tokens.extend(source.tokens);
+    target.phrases.extend(source.phrases);
+    target.visited_routes.extend(source.visited_routes);
+}
+
+fn playwright_test_bindings(text: &str) -> BTreeSet<String> {
+    let mut out = BTreeSet::new();
+    for import in extract_js_static_imports(text) {
+        if import.is_type || import.spec != "@playwright/test" {
+            continue;
+        }
+        let Some(clause) = import.clause.as_deref() else {
+            continue;
+        };
+        for (local, imported) in parse_js_import_clause_bindings(clause) {
+            if imported == "test" {
+                out.insert(local);
+            }
+        }
+    }
+    out
+}
+
+fn line_declares_playwright_page_fixture(
+    line: &str,
+    playwright_test_bindings: &BTreeSet<String>,
+) -> bool {
+    if playwright_test_bindings.is_empty() || !line.contains("=>") {
+        return false;
+    }
+    let before_arrow = line.split("=>").next().unwrap_or(line);
+    if !line_has_playwright_test_call(before_arrow, playwright_test_bindings) {
+        return false;
+    }
+    let Some((start, end)) = js_last_balanced_object_span(before_arrow) else {
+        return false;
+    };
+    js_split_top_level_commas(&before_arrow[start + 1..end])
+        .iter()
+        .any(|part| js_destructure_part_is_direct_shorthand_prop(part, "page"))
+}
+
+fn line_declares_disabled_playwright_describe(
+    line: &str,
+    playwright_test_bindings: &BTreeSet<String>,
+) -> bool {
+    playwright_test_bindings.iter().any(|binding| {
+        line_has_playwright_test_method_call(line, binding, &["describe.skip", "describe.fixme"])
+    })
+}
+
+fn line_starts_playwright_describe_callback_body(line: &str) -> bool {
+    line_starts_arrow_callback_body(line) || line_starts_function_callback_body(line)
+}
+
+fn line_starts_nested_playwright_body(line: &str) -> bool {
+    line_starts_function_callback_body(line) || line_starts_method_callback_body(line)
+}
+
+fn line_has_arrow_callback(line: &str) -> bool {
+    let mut search_start = 0usize;
+    while let Some(relative) = line[search_start..].find("=>") {
+        let arrow = search_start + relative;
+        if !js_byte_is_inside_string_or_regex_literal(line, arrow) {
+            return true;
+        }
+        search_start = arrow + 2;
+    }
+    false
+}
+
+fn line_starts_arrow_callback_body(line: &str) -> bool {
+    let mut search_start = 0usize;
+    while let Some(relative) = line[search_start..].find("=>") {
+        let arrow = search_start + relative;
+        if js_byte_is_inside_string_or_regex_literal(line, arrow) {
+            search_start = arrow + 2;
+            continue;
+        }
+        let cursor = skip_js_whitespace(line, arrow + 2);
+        if line[cursor..].starts_with('{') {
+            return true;
+        }
+        search_start = arrow + 2;
+    }
+    false
+}
+
+fn line_ends_js_statement(line: &str) -> bool {
+    line.trim_end().ends_with(';')
+}
+
+fn line_starts_method_callback_body(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    let Some(open) = trimmed.find('(') else {
+        return false;
+    };
+    if js_byte_is_inside_string_or_regex_literal(trimmed, open) {
+        return false;
+    }
+    let before_open = trimmed[..open].trim_end();
+    if before_open.contains(['.', '=']) {
+        return false;
+    }
+    let Some(name) = before_open
+        .rsplit(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '_' || ch == '$'))
+        .find(|part| !part.is_empty())
+    else {
+        return false;
+    };
+    if matches!(
+        name,
+        "if" | "for" | "while" | "switch" | "catch" | "function" | "test" | "expect" | "page"
+    ) {
+        return false;
+    }
+    let Some(close) = js_balanced_call_end(trimmed, open) else {
+        return false;
+    };
+    let cursor = skip_js_whitespace(trimmed, close);
+    trimmed[cursor..].starts_with('{')
+}
+
+fn line_declares_pending_nested_body(line: &str) -> bool {
+    line_declares_pending_function_body(line) || line_declares_pending_method_body(line)
+}
+
+fn line_opens_pending_nested_body(line: &str) -> bool {
+    line.trim_start().starts_with('{')
+}
+
+fn line_opens_pending_control_flow_body(line: &str) -> bool {
+    line.trim_start().starts_with('{')
+}
+
+fn line_opens_control_flow_body(line: &str) -> bool {
+    line.char_indices()
+        .any(|(byte, ch)| ch == '{' && !js_byte_is_inside_string_or_regex_literal(line, byte))
+}
+
+fn line_starts_unparsed_playwright_control_flow(line: &str) -> bool {
+    let mut trimmed = line.trim_start();
+    while let Some(rest) = trimmed.strip_prefix('}') {
+        trimmed = rest.trim_start();
+    }
+    for keyword in [
+        "if", "else", "for", "while", "switch", "try", "catch", "finally", "do",
+    ] {
+        if let Some(rest) = trimmed.strip_prefix(keyword)
+            && rest
+                .chars()
+                .next()
+                .map(|ch| ch.is_whitespace() || matches!(ch, '(' | '{'))
+                .unwrap_or(true)
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn line_has_playwright_scope_terminator_before_role_name_call(
+    line: &str,
+    playwright_test_bindings: &BTreeSet<String>,
+) -> bool {
+    let Some(call_start) = line.find("getByRole") else {
+        return false;
+    };
+    let prefix = &line[..call_start];
+    if line_declares_runtime_playwright_skip(prefix, playwright_test_bindings) {
+        return true;
+    }
+    let Some(last_semicolon) = prefix.rfind(';') else {
+        return false;
+    };
+    prefix[..last_semicolon]
+        .split(';')
+        .any(js_segment_is_scope_terminator)
+}
+
+fn line_terminates_playwright_page_scope(
+    line: &str,
+    playwright_test_bindings: &BTreeSet<String>,
+) -> bool {
+    line_declares_runtime_playwright_skip(line, playwright_test_bindings)
+        || line.split(';').any(js_segment_is_scope_terminator)
+}
+
+fn line_declares_runtime_playwright_skip(
+    line: &str,
+    playwright_test_bindings: &BTreeSet<String>,
+) -> bool {
+    playwright_test_bindings.iter().any(|binding| {
+        line_has_playwright_test_method_call(line, binding, &["skip", "fixme"])
+            && !line_has_playwright_test_method_call(
+                line,
+                binding,
+                &["describe.skip", "describe.fixme"],
+            )
+    })
+}
+
+fn js_segment_is_scope_terminator(segment: &str) -> bool {
+    let trimmed = segment.trim_start();
+    js_segment_starts_with_keyword(trimmed, "return")
+        || js_segment_starts_with_keyword(trimmed, "throw")
+}
+
+fn js_segment_starts_with_keyword(segment: &str, keyword: &str) -> bool {
+    segment
+        .strip_prefix(keyword)
+        .map(|rest| {
+            rest.chars()
+                .next()
+                .map(|ch| ch.is_whitespace() || ch == ';')
+                .unwrap_or(true)
+        })
+        .unwrap_or(false)
+}
+
+fn line_declares_pending_function_body(line: &str) -> bool {
+    for start in js_keyword_positions(line, "function") {
+        let Some(open) = line[start..].find('(').map(|relative| start + relative) else {
+            continue;
+        };
+        if js_byte_is_inside_string_or_regex_literal(line, open) {
+            continue;
+        }
+        let Some(close) = js_balanced_call_end(line, open) else {
+            continue;
+        };
+        let cursor = skip_js_whitespace(line, close);
+        if !line[cursor..].starts_with('{') && !line[cursor..].contains(';') {
+            return true;
+        }
+    }
+    false
+}
+
+fn line_declares_pending_method_body(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    let Some(open) = trimmed.find('(') else {
+        return false;
+    };
+    if js_byte_is_inside_string_or_regex_literal(trimmed, open) {
+        return false;
+    }
+    let before_open = trimmed[..open].trim_end();
+    if before_open.contains(['.', '=']) {
+        return false;
+    }
+    let Some(name) = before_open
+        .rsplit(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '_' || ch == '$'))
+        .find(|part| !part.is_empty())
+    else {
+        return false;
+    };
+    if matches!(
+        name,
+        "if" | "for" | "while" | "switch" | "catch" | "function" | "test" | "expect" | "page"
+    ) {
+        return false;
+    }
+    let Some(close) = js_balanced_call_end(trimmed, open) else {
+        return false;
+    };
+    let cursor = skip_js_whitespace(trimmed, close);
+    !trimmed[cursor..].starts_with('{') && !trimmed[cursor..].contains(';')
+}
+
+fn line_starts_function_callback_body(line: &str) -> bool {
+    for start in js_keyword_positions(line, "function") {
+        let Some(open) = line[start..].find('(').map(|relative| start + relative) else {
+            continue;
+        };
+        if js_byte_is_inside_string_or_regex_literal(line, open) {
+            continue;
+        }
+        let Some(close) = js_balanced_call_end(line, open) else {
+            continue;
+        };
+        let cursor = skip_js_whitespace(line, close);
+        if line[cursor..].starts_with('{') {
+            return true;
+        }
+    }
+    false
+}
+
+fn line_declares_local_page_binding(line: &str) -> bool {
+    line_declares_local_identifier(line, "page")
+        || line_declares_arrow_param_identifier(line, "page")
+}
+
+fn line_declares_local_identifier(line: &str, ident: &str) -> bool {
+    let trimmed = line.trim_start();
+    if trimmed.starts_with("import ") || trimmed.starts_with("import{") {
+        return false;
+    }
+    ["const", "let", "var", "function", "class"]
+        .iter()
+        .any(|keyword| line_declares_identifier_after_keyword(line, keyword, ident))
+}
+
+fn line_declares_identifier_after_keyword(line: &str, keyword: &str, ident: &str) -> bool {
+    for start in js_keyword_positions(line, keyword) {
+        let mut cursor = skip_js_whitespace(line, start + keyword.len());
+        if line[cursor..].starts_with('{')
+            && let Some(end) = js_balanced_pattern_end(line, cursor)
+        {
+            return js_split_top_level_commas(&line[cursor + 1..end])
+                .iter()
+                .any(|part| js_destructure_part_is_direct_shorthand_prop(part, ident));
+        }
+        if line[cursor..].starts_with(ident)
+            && js_identifier_boundary_after(line, cursor + ident.len())
+        {
+            return true;
+        }
+        if matches!(keyword, "function")
+            && let Some(name) = first_identifier(&line[cursor..])
+            && name != ident
+        {
+            cursor += name.len();
+            cursor = skip_js_whitespace(line, cursor);
+            if line[cursor..].starts_with('(')
+                && let Some(end) = js_balanced_call_end(line, cursor)
+            {
+                return js_param_list_contains_direct_identifier(&line[cursor + 1..end - 1], ident);
+            }
+        }
+    }
+    false
+}
+
+fn line_declares_arrow_param_identifier(line: &str, ident: &str) -> bool {
+    let mut search_start = 0usize;
+    while let Some(relative) = line[search_start..].find("=>") {
+        let arrow = search_start + relative;
+        if js_byte_is_inside_string_or_regex_literal(line, arrow) {
+            search_start = arrow + 2;
+            continue;
+        }
+        if arrow_params_contain_identifier(&line[..arrow], ident) {
+            return true;
+        }
+        search_start = arrow + 2;
+    }
+    false
+}
+
+fn arrow_params_contain_identifier(before_arrow: &str, ident: &str) -> bool {
+    let trimmed = before_arrow.trim_end();
+    if let Some(close) = trimmed.rfind(')')
+        && close + 1 == trimmed.len()
+    {
+        let Some(open) = matching_open_paren(trimmed, close) else {
+            return false;
+        };
+        return js_param_list_contains_direct_identifier(&trimmed[open + 1..close], ident);
+    }
+    trimmed
+        .rsplit(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '_' || ch == '$'))
+        .find(|part| !part.is_empty())
+        .map(|part| part == ident)
+        .unwrap_or(false)
+}
+
+fn js_param_list_contains_direct_identifier(params: &str, ident: &str) -> bool {
+    js_split_top_level_commas(params).iter().any(|part| {
+        let trimmed = part.trim();
+        trimmed == ident
+            || (trimmed.starts_with('{')
+                && trimmed.ends_with('}')
+                && js_split_top_level_commas(&trimmed[1..trimmed.len().saturating_sub(1)])
+                    .iter()
+                    .any(|part| js_destructure_part_is_direct_shorthand_prop(part, ident)))
+    })
+}
+
+fn matching_open_paren(text: &str, close: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    for (byte, ch) in text[..=close].char_indices().rev() {
+        if let Some(active_quote) = quote {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            continue;
+        }
+        match ch {
+            ')' => depth += 1,
+            '(' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return Some(byte);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn js_last_balanced_object_span(value: &str) -> Option<(usize, usize)> {
+    let mut cursor = 0usize;
+    let mut last = None;
+    while cursor < value.len() {
+        let Some((start, end)) = js_first_balanced_object_span(&value[cursor..]) else {
+            break;
+        };
+        last = Some((cursor + start, cursor + end));
+        cursor += end + 1;
+    }
+    last
+}
+
+fn line_has_playwright_test_call(line: &str, playwright_test_bindings: &BTreeSet<String>) -> bool {
+    playwright_test_bindings
+        .iter()
+        .any(|binding| line_has_playwright_test_binding_call(line, binding))
+}
+
+fn line_has_playwright_test_binding_call(line: &str, binding: &str) -> bool {
+    if line_has_playwright_test_method_call(line, binding, &["only"]) {
+        return true;
+    }
+    line_has_playwright_test_direct_call(line, binding)
+}
+
+fn line_has_playwright_test_direct_call(line: &str, binding: &str) -> bool {
+    let mut search_start = 0usize;
+    while let Some(relative) = line[search_start..].find(binding) {
+        let start = search_start + relative;
+        let end = start + binding.len();
+        if js_byte_is_inside_string_or_regex_literal(line, start)
+            || !js_identifier_boundary_before(line, start)
+            || !js_identifier_boundary_after(line, end)
+        {
+            search_start = end;
+            continue;
+        }
+        let cursor = skip_js_whitespace(line, end);
+        if line[cursor..].starts_with('(') {
+            return true;
+        }
+        search_start = end;
+    }
+    false
+}
+
+fn line_has_playwright_test_method_call(line: &str, binding: &str, methods: &[&str]) -> bool {
+    let mut search_start = 0usize;
+    while let Some(relative) = line[search_start..].find(binding) {
+        let start = search_start + relative;
+        let end = start + binding.len();
+        if js_byte_is_inside_string_or_regex_literal(line, start)
+            || !js_identifier_boundary_before(line, start)
+            || !js_identifier_boundary_after(line, end)
+        {
+            search_start = end;
+            continue;
+        }
+        for method_path in methods {
+            let mut cursor = skip_js_whitespace(line, end);
+            let mut matched = true;
+            for segment in method_path.split('.') {
+                if !line[cursor..].starts_with('.') {
+                    matched = false;
+                    break;
+                }
+                cursor = skip_js_whitespace(line, cursor + 1);
+                if !line[cursor..].starts_with(segment)
+                    || !js_identifier_boundary_after(line, cursor + segment.len())
+                {
+                    matched = false;
+                    break;
+                }
+                cursor = skip_js_whitespace(line, cursor + segment.len());
+            }
+            if matched && line[cursor..].starts_with('(') {
+                return true;
+            }
+        }
+        search_start = end;
+    }
+    false
+}
+
+fn apply_js_brace_delta(mut depth: usize, line: &str) -> usize {
+    for (byte, ch) in line.char_indices() {
+        if js_byte_is_inside_string_or_regex_literal(line, byte) {
+            continue;
+        }
+        match ch {
+            '{' => depth += 1,
+            '}' => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+    }
+    depth
+}
+
+fn add_playwright_role_name_surfaces(
+    surfaces: &mut SurfaceExtraction,
+    pending: &mut BTreeMap<String, (String, String)>,
+    line: &str,
+) {
+    let negative_assertion = line_has_negative_playwright_assertion(line);
+    let reassigned_pending = pending
+        .keys()
+        .filter(|local| line_reassigns_pending_locator(line, local))
+        .cloned()
+        .collect::<Vec<_>>();
+    for local in reassigned_pending {
+        pending.remove(&local);
+    }
+    let mut resolved_pending = Vec::new();
+    for (local, (role, name)) in pending.iter() {
+        if line_has_expect_for_identifier(line, local) {
+            if !negative_assertion {
+                add_accessible_role_name_surface(surfaces, role, name);
+            }
+            resolved_pending.push(local.clone());
+        }
+    }
+    for local in resolved_pending {
+        pending.remove(&local);
+    }
+    if negative_assertion {
+        return;
+    }
+    let role_names = playwright_role_name_calls(line);
+    if role_names.is_empty() {
+        return;
+    }
+    if let Some(local) = playwright_role_name_assignment(line) {
+        if let Some((role, name)) = role_names.into_iter().next() {
+            pending.insert(local, (role, name));
+        }
+        return;
+    }
+    let mut proven_role_names = BTreeSet::new();
+    proven_role_names.extend(playwright_role_name_expect_calls(line));
+    proven_role_names.extend(playwright_role_name_action_calls(line));
+    for (role, name) in proven_role_names {
+        add_accessible_role_name_surface(surfaces, &role, &name);
+    }
+}
+
+fn playwright_role_name_calls(line: &str) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    for call in js_call_spans_with_end(line, "getByRole") {
+        if let Some(role_name) = playwright_role_name_from_call(&call.source) {
+            out.push(role_name);
+        }
+    }
+    out
+}
+
+fn playwright_role_name_expect_calls(line: &str) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    for call in js_call_spans_with_end(line, "getByRole") {
+        if !call_is_inside_playwright_expect(line, call.start) {
+            continue;
+        }
+        if let Some(role_name) = playwright_role_name_from_call(&call.source) {
+            out.push(role_name);
+        }
+    }
+    out
+}
+
+fn playwright_role_name_action_calls(line: &str) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    for call in js_call_spans_with_end(line, "getByRole") {
+        if !line_has_await_or_return_before(line, call.start) {
+            continue;
+        }
+        if !line_tail_has_locator_action(line, call.end) {
+            continue;
+        }
+        if let Some(role_name) = playwright_role_name_from_call(&call.source) {
+            out.push(role_name);
+        }
+    }
+    out
+}
+
+fn playwright_role_name_from_call(call: &str) -> Option<(String, String)> {
+    let args = js_top_level_arguments(call);
+    let role = args
+        .first()
+        .and_then(|arg| js_string_literal_value(arg))
+        .and_then(|role| normalize_accessible_role(&role))?;
+    let options = args.get(1)?;
+    let name = js_plain_object_single_string_property_value(options, "name")?;
+    Some((role, name))
+}
+
+fn line_tail_has_locator_action(line: &str, mut cursor: usize) -> bool {
+    cursor = skip_js_whitespace(line, cursor);
+    const ACTIONS: &[&str] = &[
+        "click",
+        "dblclick",
+        "tap",
+        "hover",
+        "fill",
+        "press",
+        "check",
+        "uncheck",
+        "selectOption",
+        "setInputFiles",
+        "dragTo",
+        "focus",
+        "blur",
+    ];
+    for action in ACTIONS {
+        let mut probe = cursor;
+        if !line[probe..].starts_with('.') {
+            continue;
+        }
+        probe = skip_js_whitespace(line, probe + 1);
+        if !line[probe..].starts_with(action)
+            || !js_identifier_boundary_after(line, probe + action.len())
+        {
+            continue;
+        }
+        probe = skip_js_whitespace(line, probe + action.len());
+        if line[probe..].starts_with('(') {
+            return true;
+        }
+    }
+    false
+}
+
+fn call_is_inside_playwright_expect(line: &str, call_start: usize) -> bool {
+    let mut search_start = 0usize;
+    while let Some(relative) = line[search_start..call_start].find("expect") {
+        let expect_start = search_start + relative;
+        let expect_end = expect_start + "expect".len();
+        search_start = expect_end;
+        if js_byte_is_inside_string_or_regex_literal(line, expect_start)
+            || !js_identifier_boundary_before(line, expect_start)
+            || !js_identifier_boundary_after(line, expect_end)
+            || !line_has_await_or_return_before(line, expect_start)
+        {
+            continue;
+        }
+        let mut cursor = skip_js_whitespace(line, expect_end);
+        if line[cursor..].starts_with(".soft") {
+            cursor = skip_js_whitespace(line, cursor + ".soft".len());
+        }
+        if !line[cursor..].starts_with('(') {
+            continue;
+        }
+        let Some(expect_close) = js_balanced_call_end(line, cursor) else {
+            continue;
+        };
+        if call_start > cursor
+            && call_start < expect_close
+            && line_tail_has_positive_expect_matcher(line, expect_close)
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn playwright_role_name_assignment(line: &str) -> Option<String> {
+    let call_start = line.find("getByRole")?;
+    let before_call = &line[..call_start];
+    let eq = before_call.rfind('=')?;
+    simple_local_assignment_lhs(&before_call[..eq])
+}
+
+fn line_reassigns_pending_locator(line: &str, ident: &str) -> bool {
+    if line.contains("getByRole") {
+        return false;
+    }
+    let Some(eq) = first_js_assignment_operator(line) else {
+        return false;
+    };
+    simple_local_assignment_lhs(&line[..eq])
+        .map(|local| local == ident)
+        .unwrap_or(false)
+}
+
+fn first_js_assignment_operator(line: &str) -> Option<usize> {
+    let mut index = 0usize;
+    while let Some(relative) = line[index..].find('=') {
+        let byte = index + relative;
+        index = byte + 1;
+        if js_byte_is_inside_string_or_regex_literal(line, byte) {
+            continue;
+        }
+        let before = line[..byte].chars().next_back();
+        let after = line[byte + 1..].chars().next();
+        if matches!(
+            before,
+            Some('=' | '!' | '<' | '>' | '+' | '-' | '*' | '/' | '%')
+        ) || matches!(after, Some('=' | '>'))
+        {
+            continue;
+        }
+        return Some(byte);
+    }
+    None
+}
+
+fn simple_local_assignment_lhs(left: &str) -> Option<String> {
+    let trimmed = left.trim();
+    for keyword in ["const", "let", "var"] {
+        if let Some(rest) = trimmed.strip_prefix(keyword)
+            && rest
+                .chars()
+                .next()
+                .map(|ch| ch.is_whitespace())
+                .unwrap_or(false)
+        {
+            return simple_identifier_lhs(rest.trim());
+        }
+    }
+    simple_identifier_lhs(trimmed)
+}
+
+fn simple_identifier_lhs(value: &str) -> Option<String> {
+    let ident = first_identifier(value)?;
+    (ident == value.trim()).then_some(ident)
+}
+
+fn line_has_expect_for_identifier(line: &str, ident: &str) -> bool {
+    let mut search_start = 0usize;
+    while let Some(relative) = line[search_start..].find("expect") {
+        let expect_start = search_start + relative;
+        let expect_end = expect_start + "expect".len();
+        search_start = expect_end;
+        if js_byte_is_inside_string_or_regex_literal(line, expect_start)
+            || !js_identifier_boundary_before(line, expect_start)
+            || !js_identifier_boundary_after(line, expect_end)
+            || !line_has_await_or_return_before(line, expect_start)
+        {
+            continue;
+        }
+        let mut cursor = skip_js_whitespace(line, expect_end);
+        if line[cursor..].starts_with(".soft") {
+            cursor = skip_js_whitespace(line, cursor + ".soft".len());
+        }
+        if !line[cursor..].starts_with('(') {
+            continue;
+        }
+        let Some(expect_close) = js_balanced_call_end(line, cursor) else {
+            continue;
+        };
+        let args = js_split_top_level_commas(&line[cursor + 1..expect_close - 1]);
+        if args.first().map(|arg| arg.trim() == ident).unwrap_or(false)
+            && line_tail_has_positive_expect_matcher(line, expect_close)
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn line_tail_has_positive_expect_matcher(line: &str, mut cursor: usize) -> bool {
+    cursor = skip_js_whitespace(line, cursor);
+    if !line[cursor..].starts_with('.') {
+        return false;
+    }
+    cursor = skip_js_whitespace(line, cursor + 1);
+    if line[cursor..].starts_with("not") && js_identifier_boundary_after(line, cursor + "not".len())
+    {
+        return false;
+    }
+    const MATCHERS: &[&str] = &[
+        "toBeVisible",
+        "toBeEnabled",
+        "toBeDisabled",
+        "toBeChecked",
+        "toBeFocused",
+        "toBeInViewport",
+        "toHaveText",
+        "toContainText",
+        "toHaveAttribute",
+        "toHaveCount",
+        "toHaveValue",
+        "toHaveURL",
+        "toHaveTitle",
+        "toHaveClass",
+        "toHaveCSS",
+    ];
+    MATCHERS.iter().any(|matcher| {
+        line[cursor..].starts_with(matcher)
+            && js_identifier_boundary_after(line, cursor + matcher.len())
+            && line[skip_js_whitespace(line, cursor + matcher.len())..].starts_with('(')
+    })
+}
+
+fn line_has_await_or_return_before(line: &str, byte: usize) -> bool {
+    let start = current_js_statement_start(line, byte);
+    let prefix = line[start..byte].trim_start();
+    js_statement_prefix_starts_with_keyword(prefix, "await")
+        || js_statement_prefix_starts_with_keyword(prefix, "return")
+}
+
+fn current_js_statement_start(line: &str, byte: usize) -> usize {
+    let mut start = 0usize;
+    let mut index = 0usize;
+    while index < byte {
+        let Some(ch) = line[index..].chars().next() else {
+            break;
+        };
+        let next = index + ch.len_utf8();
+        if matches!(ch, ';' | ',' | '{' | '}')
+            && !js_byte_is_inside_string_or_regex_literal(line, index)
+        {
+            start = next;
+        }
+        index = next;
+    }
+    start
+}
+
+fn js_statement_prefix_starts_with_keyword(prefix: &str, keyword: &str) -> bool {
+    prefix
+        .strip_prefix(keyword)
+        .map(|rest| {
+            rest.chars()
+                .next()
+                .map(|ch| ch.is_whitespace())
+                .unwrap_or(false)
+                && !js_prefix_has_top_level_runtime_split(rest)
+        })
+        .unwrap_or(false)
+}
+
+fn js_prefix_has_top_level_runtime_split(text: &str) -> bool {
+    let chars: Vec<(usize, char)> = text.char_indices().collect();
+    let mut index = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < chars.len() {
+        let (byte, ch) = chars[index];
+        if let Some(active_quote) = quote {
+            index += 1;
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            index += 1;
+            continue;
+        }
+        if text[byte..].starts_with("&&")
+            || text[byte..].starts_with("||")
+            || text[byte..].starts_with("??")
+            || matches!(ch, '?' | ':')
+        {
+            return true;
+        }
+        index += 1;
+    }
+    false
+}
+
+fn line_has_negative_playwright_assertion(line: &str) -> bool {
+    let compact = line
+        .chars()
+        .filter(|ch| !ch.is_whitespace())
+        .collect::<String>()
+        .to_ascii_lowercase();
+    compact.contains(".not.")
+        || compact.contains("tohavecount(0")
+        || compact.contains("tobehidden(")
+}
+
+struct JsCallSpan {
+    source: String,
+    start: usize,
+    end: usize,
+}
+
+fn js_call_spans_with_end(text: &str, callee: &str) -> Vec<JsCallSpan> {
+    let mut spans = Vec::new();
+    let mut search_start = 0usize;
+    while let Some(relative) = text[search_start..].find(callee) {
+        let callee_start = search_start + relative;
+        let callee_end = callee_start + callee.len();
+        if js_byte_is_inside_string_or_regex_literal(text, callee_start) {
+            search_start = callee_end;
+            continue;
+        }
+        if !js_callee_has_playwright_receiver(text, callee_start) {
+            search_start = callee_end;
+            continue;
+        }
+        if text[..callee_start]
+            .chars()
+            .next_back()
+            .map(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '$')
+            .unwrap_or(false)
+            || text[callee_end..]
+                .chars()
+                .next()
+                .map(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '$')
+                .unwrap_or(false)
+        {
+            search_start = callee_end;
+            continue;
+        }
+        let mut cursor = callee_end;
+        while cursor < text.len() {
+            let Some(ch) = text[cursor..].chars().next() else {
+                break;
+            };
+            if ch.is_whitespace() {
+                cursor += ch.len_utf8();
+            } else {
+                break;
+            }
+        }
+        if !text[cursor..].starts_with('(') {
+            search_start = callee_end;
+            continue;
+        }
+        let Some(end) = js_balanced_call_end(text, cursor) else {
+            search_start = callee_end;
+            continue;
+        };
+        spans.push(JsCallSpan {
+            source: text[callee_start..end].to_string(),
+            start: callee_start,
+            end,
+        });
+        search_start = end;
+    }
+    spans
+}
+
+fn js_callee_has_playwright_receiver(text: &str, callee_start: usize) -> bool {
+    let before = text[..callee_start].trim_end();
+    let Some(receiver) = before.strip_suffix('.') else {
+        return false;
+    };
+    let receiver = receiver.trim_end();
+    js_receiver_ends_with_standalone_page(receiver)
+        || js_receiver_contains_page_method_call(receiver, "locator")
+        || js_receiver_contains_page_method_call(receiver, "frameLocator")
+}
+
+fn js_receiver_ends_with_standalone_page(receiver: &str) -> bool {
+    let Some(start) = receiver.rfind("page") else {
+        return false;
+    };
+    start + "page".len() == receiver.len()
+        && js_identifier_boundary_before(receiver, start)
+        && receiver[..start]
+            .chars()
+            .next_back()
+            .map(|ch| ch != '.')
+            .unwrap_or(true)
+}
+
+fn js_receiver_contains_page_method_call(receiver: &str, method: &str) -> bool {
+    let needle = format!("page.{method}");
+    let mut search_start = 0usize;
+    while let Some(relative) = receiver[search_start..].find(&needle) {
+        let page_start = search_start + relative;
+        if js_identifier_boundary_before(receiver, page_start)
+            && receiver[..page_start]
+                .chars()
+                .next_back()
+                .map(|ch| ch != '.')
+                .unwrap_or(true)
+        {
+            let method_end = page_start + needle.len();
+            let cursor = skip_js_whitespace(receiver, method_end);
+            if receiver[cursor..].starts_with('(')
+                && let Some(call_end) = js_balanced_call_end(receiver, cursor)
+                && skip_js_whitespace(receiver, call_end) == receiver.len()
+            {
+                return true;
+            }
+        }
+        search_start = page_start + needle.len();
+    }
+    false
+}
+
+fn js_byte_is_inside_string_or_regex_literal(text: &str, byte: usize) -> bool {
+    let bytes = text.as_bytes();
+    let mut index = 0usize;
+    let mut prefix = String::new();
+    let mut quote: Option<u8> = None;
+    let mut escaped = false;
+    while index < bytes.len() && index < byte {
+        let byte_value = bytes[index];
+        if let Some(active_quote) = quote {
+            index += 1;
+            if escaped {
+                prefix.push(' ');
+                escaped = false;
+                continue;
+            }
+            if byte_value == b'\\' {
+                escaped = true;
+                prefix.push(' ');
+                continue;
+            }
+            if byte_value == active_quote {
+                quote = None;
+            }
+            prefix.push(' ');
+            continue;
+        }
+        if matches!(byte_value, b'"' | b'\'' | b'`') {
+            quote = Some(byte_value);
+            escaped = false;
+            prefix.push(' ');
+            index += 1;
+            continue;
+        }
+        if byte_value == b'/'
+            && js_regex_literal_can_start(&prefix)
+            && let Some(end) = js_regex_literal_end(bytes, index)
+        {
+            if byte < end {
+                return true;
+            }
+            prefix.push(' ');
+            index = end;
+            continue;
+        }
+        prefix.push(byte_value as char);
+        index += 1;
+    }
+    quote.is_some()
+}
+
+fn js_balanced_call_end(text: &str, open_paren: usize) -> Option<usize> {
+    let chars: Vec<(usize, char)> = text.char_indices().collect();
+    let mut index = chars.iter().position(|(byte, _)| *byte == open_paren)?;
+    let mut paren_depth = 0usize;
+    let mut brace_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < chars.len() {
+        let (byte, ch) = chars[index];
+        index += 1;
+        if let Some(active_quote) = quote {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            continue;
+        }
+        match ch {
+            '(' => paren_depth += 1,
+            ')' => {
+                paren_depth = paren_depth.saturating_sub(1);
+                if paren_depth == 0 && brace_depth == 0 && bracket_depth == 0 {
+                    return Some(byte + ch.len_utf8());
+                }
+            }
+            '{' => brace_depth += 1,
+            '}' => brace_depth = brace_depth.saturating_sub(1),
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.saturating_sub(1),
+            _ => {}
+        }
+    }
+    None
+}
+
+fn js_top_level_arguments(call: &str) -> Vec<String> {
+    let Some(open) = call.find('(') else {
+        return Vec::new();
+    };
+    let Some(close) = js_balanced_call_end(call, open) else {
+        return Vec::new();
+    };
+    if close <= open + 1 {
+        return Vec::new();
+    }
+    js_split_top_level_commas(&call[open + 1..close - 1])
+}
+
+fn js_split_top_level_commas(value: &str) -> Vec<String> {
+    let chars: Vec<(usize, char)> = value.char_indices().collect();
+    let mut args = Vec::new();
+    let mut start = 0usize;
+    let mut index = 0usize;
+    let mut paren_depth = 0usize;
+    let mut brace_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < chars.len() {
+        let (byte, ch) = chars[index];
+        index += 1;
+        if let Some(active_quote) = quote {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            continue;
+        }
+        match ch {
+            '(' => paren_depth += 1,
+            ')' => paren_depth = paren_depth.saturating_sub(1),
+            '{' => brace_depth += 1,
+            '}' => brace_depth = brace_depth.saturating_sub(1),
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.saturating_sub(1),
+            ',' if paren_depth == 0 && brace_depth == 0 && bracket_depth == 0 => {
+                args.push(value[start..byte].trim().to_string());
+                start = byte + ch.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    let tail = value[start..].trim();
+    if !tail.is_empty() {
+        args.push(tail.to_string());
+    }
+    args
+}
+
+fn js_string_literal_value(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    let mut chars = trimmed.char_indices();
+    let (_, quote) = chars.next()?;
+    if !matches!(quote, '"' | '\'' | '`') {
+        return None;
+    }
+    let mut out = String::new();
+    let mut escaped = false;
+    let mut end_byte = None;
+    for (byte, ch) in chars {
+        if escaped {
+            out.push(ch);
+            escaped = false;
+            continue;
+        }
+        if ch == '\\' {
+            escaped = true;
+            continue;
+        }
+        if ch == quote {
+            end_byte = Some(byte + ch.len_utf8());
+            break;
+        }
+        out.push(ch);
+    }
+    end_byte.and_then(|end| trimmed[end..].trim().is_empty().then_some(out))
+}
+
+fn js_top_level_object_string_property_values(object: &str, key: &str) -> Vec<String> {
+    let chars: Vec<(usize, char)> = object.char_indices().collect();
+    let mut values = Vec::new();
+    let mut index = 0usize;
+    let mut object_depth = 0usize;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < chars.len() {
+        let (byte, ch) = chars[index];
+        if let Some(active_quote) = quote {
+            index += 1;
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            index += 1;
+            continue;
+        }
+        match ch {
+            '{' => {
+                object_depth += 1;
+                index += 1;
+            }
+            '}' => {
+                object_depth = object_depth.saturating_sub(1);
+                index += 1;
+            }
+            '(' => {
+                paren_depth += 1;
+                index += 1;
+            }
+            ')' => {
+                paren_depth = paren_depth.saturating_sub(1);
+                index += 1;
+            }
+            '[' => {
+                bracket_depth += 1;
+                index += 1;
+            }
+            ']' => {
+                bracket_depth = bracket_depth.saturating_sub(1);
+                index += 1;
+            }
+            _ => {
+                if object_depth == 1
+                    && paren_depth == 0
+                    && bracket_depth == 0
+                    && object[byte..].starts_with(key)
+                    && js_identifier_boundary_before(object, byte)
+                    && js_identifier_boundary_after(object, byte + key.len())
+                    && let Some((value, next_index)) =
+                        js_string_value_after_object_key(&chars, index, key.len())
+                {
+                    values.push(value);
+                    index = next_index;
+                    continue;
+                }
+                index += 1;
+            }
+        }
+    }
+    values
+}
+
+fn js_plain_object_single_string_property_value(object: &str, key: &str) -> Option<String> {
+    let trimmed = object.trim();
+    if !trimmed.starts_with('{') || !trimmed.ends_with('}') {
+        return None;
+    }
+    if js_top_level_object_has_spread(trimmed) {
+        return None;
+    }
+    let values = js_top_level_object_string_property_values(trimmed, key);
+    match values.as_slice() {
+        [only] => Some(only.clone()),
+        _ => None,
+    }
+}
+
+fn js_top_level_object_has_spread(object: &str) -> bool {
+    let chars: Vec<(usize, char)> = object.char_indices().collect();
+    let mut index = 0usize;
+    let mut object_depth = 0usize;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < chars.len() {
+        let (byte, ch) = chars[index];
+        if let Some(active_quote) = quote {
+            index += 1;
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            index += 1;
+            continue;
+        }
+        if object_depth == 1
+            && paren_depth == 0
+            && bracket_depth == 0
+            && object[byte..].starts_with("...")
+        {
+            return true;
+        }
+        match ch {
+            '{' => object_depth += 1,
+            '}' => object_depth = object_depth.saturating_sub(1),
+            '(' => paren_depth += 1,
+            ')' => paren_depth = paren_depth.saturating_sub(1),
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.saturating_sub(1),
+            _ => {}
+        }
+        index += 1;
+    }
+    false
+}
+
+fn js_string_value_after_object_key(
+    chars: &[(usize, char)],
+    key_index: usize,
+    key_len: usize,
+) -> Option<(String, usize)> {
+    let mut index = key_index + key_len;
+    while index < chars.len() && chars[index].1.is_whitespace() {
+        index += 1;
+    }
+    if chars.get(index).map(|(_, ch)| *ch) != Some(':') {
+        return None;
+    }
+    index += 1;
+    while index < chars.len() && chars[index].1.is_whitespace() {
+        index += 1;
+    }
+    let (_, quote) = *chars.get(index)?;
+    if !matches!(quote, '"' | '\'' | '`') {
+        return None;
+    }
+    let mut value = String::new();
+    let mut escaped = false;
+    index += 1;
+    while index < chars.len() {
+        let (_, ch) = chars[index];
+        index += 1;
+        if escaped {
+            value.push(ch);
+            escaped = false;
+            continue;
+        }
+        if ch == '\\' {
+            escaped = true;
+            continue;
+        }
+        if ch == quote {
+            return Some((value, index));
+        }
+        value.push(ch);
+    }
+    None
+}
+
+fn js_identifier_boundary_before(text: &str, byte: usize) -> bool {
+    text[..byte]
+        .chars()
+        .next_back()
+        .map(|ch| !(ch.is_ascii_alphanumeric() || ch == '_' || ch == '$'))
+        .unwrap_or(true)
+}
+
+fn js_identifier_boundary_after(text: &str, byte: usize) -> bool {
+    text[byte..]
+        .chars()
+        .next()
+        .map(|ch| !(ch.is_ascii_alphanumeric() || ch == '_' || ch == '$'))
+        .unwrap_or(true)
+}
+
+fn quoted_prefix_has_object_key(prefix: &str, key: &str) -> bool {
+    let lower = prefix.to_ascii_lowercase();
+    let Some(before_colon) = lower.trim_end().strip_suffix(':') else {
+        return false;
+    };
+    trailing_js_property_name(before_colon)
+        .map(|name| name == key)
+        .unwrap_or(false)
+}
+
+fn trailing_js_property_name(value: &str) -> Option<String> {
+    value
+        .trim_end()
+        .rsplit(|ch: char| !(ch.is_ascii_alphanumeric() || matches!(ch, '_' | '$' | '-')))
+        .find(|part| !part.is_empty())
+        .map(str::to_ascii_lowercase)
+}
+
+fn accessible_name_surfaces_from_native_labelled_ids(text: &str) -> SurfaceExtraction {
+    let stripped = strip_js_comments_from_text(text);
+    let mut surfaces = SurfaceExtraction::default();
+    for opening in jsx_opening_tag_spans(&stripped) {
+        let Some(role) = jsx_accessible_role_for_opening(&opening.tag, &opening.source) else {
+            continue;
+        };
+        let Some(id) = jsx_single_static_attr_value(&opening.source, "aria-labelledby") else {
+            continue;
+        };
+        let mut roles = BTreeSet::new();
+        roles.insert(role);
+        add_accessible_name_surface_from_label_in_opening_scope(
+            &mut surfaces,
+            &stripped,
+            &opening,
+            &id,
+            &roles,
+        );
+    }
+    surfaces
+}
+
+fn jsx_accessible_role_for_opening(tag: &str, opening: &str) -> Option<String> {
+    if tag != tag.to_ascii_lowercase() {
+        return None;
+    }
+    let mut role_attrs = 0usize;
+    let mut roles = Vec::new();
+    for quoted in quoted_strings(opening) {
+        if quoted_prefix_has_jsx_attr(&quoted.prefix, "role") {
+            role_attrs += 1;
+            if let Some(role) = normalize_accessible_role(&quoted.value) {
+                roles.push(role);
+            }
+        }
+    }
+    if role_attrs > 0 {
+        return match roles.as_slice() {
+            [role] if role_attrs == 1 => Some(role.clone()),
+            _ => None,
+        };
+    }
+    normalize_accessible_role(tag)
+}
+
+fn normalize_accessible_role(value: &str) -> Option<String> {
+    let role = value.trim().to_ascii_lowercase();
+    match role.as_str() {
+        "alertdialog" => Some("alertdialog".to_string()),
+        "dialog" => Some("dialog".to_string()),
+        _ => None,
+    }
+}
+
+fn quoted_prefix_has_jsx_attr(prefix: &str, attr: &str) -> bool {
+    trailing_jsx_attr_name(prefix)
+        .map(|name| name.eq_ignore_ascii_case(attr))
+        .unwrap_or(false)
+}
+
+fn quoted_prefix_has_exact_jsx_attr(prefix: &str, attr: &str) -> bool {
+    trailing_jsx_attr_name(prefix)
+        .map(|name| name == attr)
+        .unwrap_or(false)
+}
+
+fn trailing_jsx_attr_name(prefix: &str) -> Option<String> {
+    let before_eq = prefix.trim_end().strip_suffix('=')?.trim_end();
+    before_eq
+        .rsplit(|ch: char| !(ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | ':' | '$')))
+        .find(|part| !part.is_empty())
+        .map(str::to_string)
+}
+
+#[derive(Debug, Clone)]
+struct JsxOpeningTagSpan {
+    tag: String,
+    raw_tag: String,
+    source: String,
+    start: usize,
+    opening_end: usize,
+    self_closing: bool,
+}
+
+fn jsx_opening_tag_spans(text: &str) -> Vec<JsxOpeningTagSpan> {
+    let chars: Vec<(usize, char)> = text.char_indices().collect();
+    let mut spans = Vec::new();
+    let mut index = 0usize;
+    let mut outer_quote = None;
+    let mut outer_escaped = false;
+    while index < chars.len() {
+        let (start_byte, ch) = chars[index];
+        if let Some(active_quote) = outer_quote {
+            index += 1;
+            if outer_escaped {
+                outer_escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                outer_escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                outer_quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            outer_quote = Some(ch);
+            outer_escaped = false;
+            index += 1;
+            continue;
+        }
+        if ch != '<' {
+            index += 1;
+            continue;
+        }
+        index += 1;
+        while index < chars.len() && chars[index].1.is_whitespace() {
+            index += 1;
+        }
+        if matches!(
+            chars.get(index).map(|(_, ch)| *ch),
+            None | Some('/' | '!' | '?' | '>')
+        ) {
+            continue;
+        }
+        let tag_start_index = index;
+        while index < chars.len() {
+            let (_, ch) = chars[index];
+            if ch.is_ascii_alphanumeric() || matches!(ch, '_' | '$' | '-' | '.') {
+                index += 1;
+            } else {
+                break;
+            }
+        }
+        if index == tag_start_index {
+            continue;
+        }
+        let tag_start_byte = chars[tag_start_index].0;
+        let tag_end_byte = chars[index - 1].0 + chars[index - 1].1.len_utf8();
+        let raw_tag = &text[tag_start_byte..tag_end_byte];
+        let tag = raw_tag.rsplit('.').next().unwrap_or(raw_tag).to_string();
+        let raw_tag = raw_tag.to_string();
+
+        let mut scan = index;
+        let mut quote = None;
+        let mut escaped = false;
+        let mut brace_depth = 0usize;
+        while scan < chars.len() {
+            let (byte, ch) = chars[scan];
+            scan += 1;
+            if let Some(active_quote) = quote {
+                if escaped {
+                    escaped = false;
+                    continue;
+                }
+                if ch == '\\' {
+                    escaped = true;
+                    continue;
+                }
+                if ch == active_quote {
+                    quote = None;
+                }
+                continue;
+            }
+            if matches!(ch, '"' | '\'' | '`') {
+                quote = Some(ch);
+                escaped = false;
+                continue;
+            }
+            if ch == '{' {
+                brace_depth += 1;
+                continue;
+            }
+            if ch == '}' {
+                brace_depth = brace_depth.saturating_sub(1);
+                continue;
+            }
+            if ch == '>' && brace_depth == 0 {
+                let opening_end = byte + ch.len_utf8();
+                let source = text[start_byte..opening_end].to_string();
+                let self_closing = source.trim_end_matches('>').trim_end().ends_with('/');
+                spans.push(JsxOpeningTagSpan {
+                    tag,
+                    raw_tag,
+                    source,
+                    start: start_byte,
+                    opening_end,
+                    self_closing,
+                });
+                index = scan;
+                break;
+            }
+        }
+    }
+    spans
+}
+
+fn find_jsx_closing_tag_start(text: &str, tag: &str, start: usize) -> Option<usize> {
+    let tag_lower = tag.to_ascii_lowercase();
+    let mut index = start.min(text.len());
+    while index < text.len() {
+        let rel = text[index..].find("</")?;
+        let close_start = index + rel;
+        let mut cursor = close_start + 2;
+        while cursor < text.len() {
+            let ch = text[cursor..].chars().next()?;
+            if ch.is_whitespace() {
+                cursor += ch.len_utf8();
+            } else {
+                break;
+            }
+        }
+        let name_start = cursor;
+        while cursor < text.len() {
+            let ch = text[cursor..].chars().next()?;
+            if ch.is_ascii_alphanumeric() || matches!(ch, '_' | '$' | '-' | '.') {
+                cursor += ch.len_utf8();
+            } else {
+                break;
+            }
+        }
+        let raw_name = &text[name_start..cursor];
+        let name = raw_name.rsplit('.').next().unwrap_or(raw_name);
+        let next = text[cursor..].chars().next();
+        if name.eq_ignore_ascii_case(&tag_lower)
+            && next
+                .map(|ch| ch.is_whitespace() || ch == '>')
+                .unwrap_or(false)
+        {
+            return Some(close_start);
+        }
+        index = close_start + 2;
+    }
+    None
+}
+
+fn jsx_single_static_attr_value(opening: &str, attr: &str) -> Option<String> {
+    jsx_single_static_attr_value_by(opening, attr, quoted_prefix_has_jsx_attr)
+}
+
+fn jsx_single_exact_static_attr_value(opening: &str, attr: &str) -> Option<String> {
+    jsx_single_static_attr_value_by(opening, attr, quoted_prefix_has_exact_jsx_attr)
+}
+
+fn jsx_single_static_attr_value_by(
+    opening: &str,
+    attr: &str,
+    attr_matches: fn(&str, &str) -> bool,
+) -> Option<String> {
+    if jsx_opening_has_spread_attr(opening) {
+        return None;
+    }
+    let mut attr_occurrences = 0usize;
+    let mut values = Vec::new();
+    for quoted in quoted_strings(opening) {
+        if attr_matches(&quoted.prefix, attr) {
+            attr_occurrences += 1;
+            let ids = quoted
+                .value
+                .split_whitespace()
+                .map(str::trim)
+                .filter(|id| id_is_static_accessible_reference(id))
+                .collect::<Vec<_>>();
+            if ids.len() == 1 {
+                values.push(ids[0].to_string());
+            }
+        }
+    }
+    match (attr_occurrences, values.as_slice()) {
+        (1, [only]) => Some(only.clone()),
+        _ => None,
+    }
+}
+
+fn jsx_opening_has_spread_attr(opening: &str) -> bool {
+    let chars: Vec<(usize, char)> = opening.char_indices().collect();
+    let mut index = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    let mut brace_depth = 0usize;
+    while index < chars.len() {
+        let (byte, ch) = chars[index];
+        if let Some(active_quote) = quote {
+            index += 1;
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            index += 1;
+            continue;
+        }
+        if brace_depth > 0 {
+            match ch {
+                '{' => brace_depth += 1,
+                '}' => brace_depth = brace_depth.saturating_sub(1),
+                _ => {}
+            }
+            index += 1;
+            continue;
+        }
+        if ch == '{' {
+            let cursor = skip_js_whitespace(opening, byte + ch.len_utf8());
+            if opening[cursor..].starts_with("...") {
+                return true;
+            }
+            brace_depth = 1;
+            index += 1;
+            continue;
+        }
+        index += 1;
+    }
+    false
+}
+
+fn add_accessible_name_surface_from_label_in_opening_scope(
+    surfaces: &mut SurfaceExtraction,
+    text: &str,
+    opening: &JsxOpeningTagSpan,
+    id: &str,
+    roles: &BTreeSet<String>,
+) {
+    if opening.self_closing {
+        return;
+    }
+    let Some(close_start) = find_jsx_closing_tag_start(text, &opening.tag, opening.opening_end)
+    else {
+        return;
+    };
+    if close_start < opening.opening_end {
+        return;
+    }
+    let body = &text[opening.opening_end..close_start];
+    let mut matching_label_count = 0usize;
+    let mut matching_labels = Vec::new();
+    for candidate in jsx_opening_tag_spans(body) {
+        if jsx_single_static_attr_value(&candidate.source, "id").as_deref() != Some(id) {
+            continue;
+        }
+        matching_label_count += 1;
+        if jsx_byte_is_inside_expression(body, candidate.start) {
+            continue;
+        }
+        if jsx_byte_is_inside_custom_component_boundary(body, candidate.start) {
+            continue;
+        }
+        if candidate.self_closing {
+            continue;
+        }
+        if let Some(text) = jsx_element_visible_text(body, &candidate) {
+            matching_labels.push(text);
+        }
+    }
+    if matching_label_count == 1
+        && let [text] = matching_labels.as_slice()
+    {
+        add_accessible_name_parts_surface(surfaces, roles, std::slice::from_ref(text));
+    }
+}
+
+fn jsx_byte_is_inside_custom_component_boundary(text: &str, byte: usize) -> bool {
+    jsx_opening_tag_spans(text).into_iter().any(|opening| {
+        opening.start < byte
+            && !opening.self_closing
+            && is_uppercase_symbol(&opening.tag)
+            && find_jsx_closing_tag_start(text, &opening.tag, opening.opening_end)
+                .map(|close_start| close_start > byte)
+                .unwrap_or(false)
+    })
+}
+
+fn jsx_byte_is_inside_expression(text: &str, byte: usize) -> bool {
+    let mut index = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    let mut brace_depth = 0usize;
+    while index < text.len() && index < byte {
+        let Some(ch) = text[index..].chars().next() else {
+            break;
+        };
+        if let Some(active_quote) = quote {
+            index += ch.len_utf8();
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            index += ch.len_utf8();
+            continue;
+        }
+        match ch {
+            '{' => brace_depth += 1,
+            '}' => brace_depth = brace_depth.saturating_sub(1),
+            _ => {}
+        }
+        index += ch.len_utf8();
+    }
+    brace_depth > 0
+}
+
+fn jsx_element_visible_text(text: &str, opening: &JsxOpeningTagSpan) -> Option<String> {
+    let close_start = find_jsx_closing_tag_start(text, &opening.tag, opening.opening_end)?;
+    if close_start < opening.opening_end {
+        return None;
+    }
+    static_jsx_visible_text(&text[opening.opening_end..close_start])
+}
+
+fn add_accessible_name_parts_surface(
+    surfaces: &mut SurfaceExtraction,
+    roles: &BTreeSet<String>,
+    parts: &[String],
+) {
+    let text = parts
+        .iter()
+        .map(|part| part.trim())
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    if !text.is_empty() {
+        add_accessible_role_name_surfaces(surfaces, roles, &text);
+    }
+}
+
+fn id_is_static_accessible_reference(value: &str) -> bool {
+    let trimmed = value.trim();
+    !trimmed.is_empty()
+        && trimmed.len() <= 80
+        && trimmed
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-'))
+}
+
+fn add_accessible_role_name_surfaces(
+    surfaces: &mut SurfaceExtraction,
+    roles: &BTreeSet<String>,
+    name: &str,
+) {
+    surfaces.tokens.extend(surface_literal_terms(name));
+    surfaces.phrases.extend(surface_literal_phrases(name, true));
+    for role in roles {
+        add_accessible_role_name_surface(surfaces, role, name);
+    }
+}
+
+fn add_accessible_role_name_surface(surfaces: &mut SurfaceExtraction, role: &str, name: &str) {
+    if !surface_label_literal_is_structural(name) {
+        return;
+    }
+    let Some(name_phrase) = normalize_surface_phrase(name) else {
+        return;
+    };
+    let terms = surface_phrase_terms(&name_phrase);
+    if terms.is_empty() {
+        return;
+    }
+    surfaces.tokens.extend(terms);
+    surfaces
+        .phrases
+        .insert(format!("a11y-role-{role}-name-{name_phrase}"));
+}
+
+fn quoted_prefix_is_page_goto_argument(prefix: &str) -> bool {
+    let lower = prefix.to_ascii_lowercase();
+    let Some(index) = lower.rfind("page.goto") else {
+        return false;
+    };
+    if lower[..index]
+        .chars()
+        .next_back()
+        .map(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '$')
+        .unwrap_or(false)
+    {
+        return false;
+    }
+    let tail = lower[index + "page.goto".len()..].trim_start();
+    let Some(argument_prefix) = tail.strip_prefix('(') else {
+        return false;
+    };
+    !argument_prefix.contains(')') && argument_prefix.trim().is_empty()
+}
+
+fn normalize_route_path(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    if !trimmed.starts_with('/') || trimmed.starts_with("//") || trimmed.contains("${") {
+        return None;
+    }
+    let path = trimmed
+        .split(['?', '#'])
+        .next()
+        .unwrap_or_default()
+        .trim_end_matches('/');
+    let path = if path.is_empty() { "/" } else { path };
+    if path
+        .chars()
+        .any(|ch| ch.is_whitespace() || matches!(ch, '"' | '\'' | '`'))
+    {
+        return None;
+    }
+    Some(path.to_string())
+}
+
+fn line_has_surface_context(line: &str) -> bool {
+    let lower = line.to_ascii_lowercase();
+    [
+        "classname",
+        "class=",
+        "contentclassname",
+        "data-testid",
+        "data-test",
+        "aria-",
+        "locator(",
+        "getbytestid",
+        "getbyrole",
+        "getbylabel",
+        "getbytext",
+        "queryselector",
+        "tocontaintext",
+        "tohavetext",
+        "getattribute(",
+        "setattribute(",
+        "page.goto",
+        "tohaveurl",
+        "href=",
+        "mode=",
+    ]
+    .iter()
+    .any(|marker| lower.contains(marker))
+}
+
+fn strip_js_comments_from_line(line: &str, in_block_comment: &mut bool) -> String {
+    let chars: Vec<(usize, char)> = line.char_indices().collect();
+    let mut out = String::new();
+    let mut index = 0;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < chars.len() {
+        let (byte, ch) = chars[index];
+        let next = chars.get(index + 1).map(|(_, next)| *next);
+        if *in_block_comment {
+            if ch == '*' && next == Some('/') {
+                *in_block_comment = false;
+                index += 2;
+            } else {
+                index += 1;
+            }
+            continue;
+        }
+        if let Some(active_quote) = quote {
+            out.push(ch);
+            index += 1;
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if ch == '/'
+            && js_regex_literal_can_start(&out)
+            && let Some(end) = js_regex_literal_end(line.as_bytes(), byte)
+        {
+            out.push_str(&line[byte..end]);
+            while chars
+                .get(index)
+                .map(|(next_byte, _)| *next_byte < end)
+                .unwrap_or(false)
+            {
+                index += 1;
+            }
+            continue;
+        }
+        if ch == '/' && next == Some('/') {
+            break;
+        }
+        if ch == '/' && next == Some('*') {
+            *in_block_comment = true;
+            index += 2;
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+        }
+        out.push(ch);
+        index += 1;
+    }
+    out
+}
+
+fn line_accepts_plain_label_surface(line: &str) -> bool {
+    let lower = line.to_ascii_lowercase();
+    [
+        "aria-label",
+        "getbylabel",
+        "getbyrole",
+        "getbytext",
+        "tocontaintext",
+        "tohavetext",
+    ]
+    .iter()
+    .any(|marker| lower.contains(marker))
+}
+
+fn line_has_jsx_surface_container(line: &str) -> bool {
+    let lower = line.to_ascii_lowercase();
+    line.contains('<')
+        && [
+            "classname",
+            "class=",
+            "data-testid",
+            "data-test",
+            "aria-",
+            "role=",
+        ]
+        .iter()
+        .any(|marker| lower.contains(marker))
+}
+
+fn static_jsx_visible_text(line: &str) -> Option<String> {
+    let mut out = String::new();
+    let mut in_tag = false;
+    let mut brace_depth = 0usize;
+    for ch in line.chars() {
+        if in_tag {
+            if ch == '>' {
+                in_tag = false;
+                out.push(' ');
+            }
+            continue;
+        }
+        if brace_depth > 0 {
+            if ch == '{' {
+                brace_depth += 1;
+            } else if ch == '}' {
+                brace_depth = brace_depth.saturating_sub(1);
+                if brace_depth == 0 {
+                    out.push(' ');
+                }
+            }
+            continue;
+        }
+        if ch == '<' {
+            in_tag = true;
+            out.push(' ');
+            continue;
+        }
+        if ch == '{' {
+            brace_depth = 1;
+            out.push(' ');
+            continue;
+        }
+        out.push(ch);
+    }
+    let text = out.split_whitespace().collect::<Vec<_>>().join(" ");
+    if text.len() < 3
+        || text.len() > 180
+        || !text.chars().any(|ch| ch.is_alphabetic())
+        || text.contains('=')
+    {
+        return None;
+    }
+    Some(text)
+}
+
+fn quoted_value_is_module_specifier_context(prefix: &str) -> bool {
+    let lower = strip_trailing_js_comments(&prefix.to_ascii_lowercase());
+    let trimmed = lower.trim_end();
+    if token_ends_with(trimmed, "from") || token_ends_with(trimmed, "import") {
+        return true;
+    }
+    if let Some(before_call) = trimmed.strip_suffix('(') {
+        let before_call = before_call.trim_end();
+        return token_ends_with(before_call, "import") || token_ends_with(before_call, "require");
+    }
+    token_ends_with(trimmed, "require")
+}
+
+fn strip_trailing_js_comments(value: &str) -> String {
+    let mut out = value.trim_end().to_string();
+    loop {
+        let trimmed = out.trim_end();
+        if !trimmed.ends_with("*/") {
+            return trimmed.to_string();
+        }
+        let Some(start) = trimmed.rfind("/*") else {
+            return trimmed.to_string();
+        };
+        out.truncate(start);
+    }
+}
+
+fn token_ends_with(value: &str, token: &str) -> bool {
+    let Some(before) = value.strip_suffix(token) else {
+        return false;
+    };
+    before
+        .chars()
+        .next_back()
+        .map(|ch| !(ch.is_ascii_alphanumeric() || ch == '_' || ch == '$'))
+        .unwrap_or(true)
+}
+
+#[derive(Debug)]
+struct QuotedString {
+    value: String,
+    prefix: String,
+}
+
+fn quoted_strings(text: &str) -> Vec<QuotedString> {
+    let mut values = Vec::new();
+    let chars: Vec<(usize, char)> = text.char_indices().collect();
+    let mut index = 0;
+    let mut in_block_comment = false;
+    while index < chars.len() {
+        let (start, ch) = chars[index];
+        let next = chars.get(index + 1).map(|(_, next)| *next);
+        if in_block_comment {
+            if ch == '*' && next == Some('/') {
+                in_block_comment = false;
+                index += 2;
+            } else {
+                index += 1;
+            }
+            continue;
+        }
+        if ch == '/' && next == Some('/') {
+            break;
+        }
+        if ch == '/' && next == Some('*') {
+            in_block_comment = true;
+            index += 2;
+            continue;
+        }
+        if !matches!(ch, '"' | '\'' | '`') {
+            index += 1;
+            continue;
+        }
+        let quote = ch;
+        let mut value = String::new();
+        let mut escaped = false;
+        index += 1;
+        while index < chars.len() {
+            let (_, inner) = chars[index];
+            index += 1;
+            if escaped {
+                value.push(inner);
+                escaped = false;
+                continue;
+            }
+            if inner == '\\' {
+                escaped = true;
+                continue;
+            }
+            if inner == quote {
+                break;
+            }
+            value.push(inner);
+        }
+        values.push(QuotedString {
+            value,
+            prefix: text[..start].to_string(),
+        });
+    }
+    values
+}
+
+fn surface_literal_is_structural(value: &str) -> bool {
+    let trimmed = value.trim();
+    if trimmed.len() < 3 || trimmed.len() > 160 {
+        return false;
+    }
+    if surface_literal_is_module_specifier(trimmed) {
+        return false;
+    }
+    trimmed.starts_with('.')
+        || trimmed.starts_with('#')
+        || trimmed.starts_with('/')
+        || trimmed.contains("data-testid")
+        || trimmed.contains("data-test")
+        || trimmed.contains("aria-")
+        || trimmed.contains('-')
+        || trimmed.contains('_')
+}
+
+fn surface_literal_is_module_specifier(value: &str) -> bool {
+    let trimmed = value.trim();
+    trimmed.starts_with("./")
+        || trimmed.starts_with("../")
+        || trimmed.starts_with("@/")
+        || (trimmed.starts_with('@') && trimmed.contains('/'))
+        || (trimmed.contains('/')
+            && !trimmed.starts_with('/')
+            && !trimmed.starts_with('.')
+            && !trimmed.starts_with('#')
+            && !trimmed.contains(char::is_whitespace))
+}
+
+fn surface_label_literal_is_structural(value: &str) -> bool {
+    let trimmed = value.trim();
+    if trimmed.len() < 3 || trimmed.len() > 100 {
+        return false;
+    }
+    if surface_literal_is_module_specifier(trimmed) {
+        return false;
+    }
+    let terms = surface_phrase_terms(&normalize_surface_phrase(trimmed).unwrap_or_default());
+    !terms.is_empty()
+        && terms
+            .iter()
+            .all(|term| term.chars().all(|ch| ch.is_alphanumeric()))
+}
+
+fn surface_literal_phrases(value: &str, preserve_whole: bool) -> BTreeSet<String> {
+    let route_surface = value.trim().starts_with('/');
+    if preserve_whole
+        && let Some(phrase) = normalize_surface_phrase(value)
+        && (surface_phrase_is_specific(&phrase)
+            || (route_surface && surface_phrase_terms(&phrase).len() >= 2))
+    {
+        return BTreeSet::from([phrase]);
+    }
+    value
+        .split(|ch: char| ch.is_whitespace() || matches!(ch, '>' | '+' | '~' | ',' | '[' | ']'))
+        .filter_map(normalize_surface_phrase)
+        .filter(|phrase| {
+            surface_phrase_is_specific(phrase)
+                || (route_surface && surface_phrase_terms(phrase).len() >= 2)
+        })
+        .collect()
+}
+
+fn normalize_surface_phrase(value: &str) -> Option<String> {
+    let mut trimmed = value
+        .trim()
+        .trim_matches(|ch: char| {
+            matches!(
+                ch,
+                '.' | '#' | '"' | '\'' | '`' | '(' | ')' | '{' | '}' | ';'
+            )
+        })
+        .replace("__", "-")
+        .replace(['.', '#', '/', '_', ':', '(', ')'], "-");
+    trimmed = trimmed.split_whitespace().collect::<Vec<_>>().join("-");
+    while trimmed.contains("--") {
+        trimmed = trimmed.replace("--", "-");
+    }
+    let trimmed = trimmed.trim_matches('-').to_lowercase();
+    if trimmed.is_empty()
+        || trimmed.contains("${")
+        || trimmed.starts_with("http")
+        || trimmed.starts_with("mailto")
+    {
+        return None;
+    }
+    Some(trimmed)
+}
+
+fn surface_phrase_is_specific(phrase: &str) -> bool {
+    let terms = surface_phrase_terms(phrase);
+    terms.len() >= 2
+        && terms
+            .iter()
+            .any(|term| !matches!(term.as_str(), "frame" | "title" | "canvas" | "node"))
+}
+
+fn surface_phrase_terms(phrase: &str) -> BTreeSet<String> {
+    surface_terms(&phrase.replace(['.', '#', '/', '-', '_', ':'], " "))
+        .into_iter()
+        .filter(|term| term.len() >= 3)
+        .filter(|term| {
+            !matches!(
+                term.as_str(),
+                "the"
+                    | "and"
+                    | "for"
+                    | "with"
+                    | "from"
+                    | "true"
+                    | "false"
+                    | "null"
+                    | "undefined"
+                    | "data"
+                    | "test"
+                    | "testid"
+                    | "aria"
+                    | "label"
+                    | "role"
+                    | "root"
+                    | "blueprint"
+                    | "nodrag"
+                    | "nopan"
+            )
+        })
+        .collect()
+}
+
+fn surface_literal_terms(value: &str) -> BTreeSet<String> {
+    surface_terms(&value.replace(['.', '#', '/', '-', '_', ':'], " "))
+        .into_iter()
+        .filter(|term| term.len() >= 3)
+        .filter(|term| {
+            !matches!(
+                term.as_str(),
+                "the"
+                    | "and"
+                    | "for"
+                    | "with"
+                    | "from"
+                    | "true"
+                    | "false"
+                    | "null"
+                    | "undefined"
+                    | "data"
+                    | "test"
+                    | "testid"
+                    | "aria"
+                    | "label"
+                    | "role"
+                    | "button"
+                    | "link"
+                    | "input"
+                    | "text"
+                    | "page"
+                    | "root"
+                    | "blueprint"
+            )
+        })
+        .collect()
+}
+
+fn surface_terms(value: &str) -> BTreeSet<String> {
+    value
+        .split(|ch: char| !(ch.is_alphanumeric() || ch == '_'))
+        .map(str::to_lowercase)
+        .filter(|term| term.len() >= 2)
+        .collect()
 }
 
 fn symbols_with_ranges(mut starts: Vec<SymbolStart>, text: &str, ext: &str) -> Vec<SymbolInfo> {
@@ -929,11 +4660,71 @@ fn symbols_with_ranges(mut starts: Vec<SymbolStart>, text: &str, ext: &str) -> V
 fn symbol_end(text: &str, ext: &str, line_start: usize, fallback_end: usize) -> usize {
     match ext {
         "py" => python_symbol_end(text, line_start, fallback_end),
-        "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte" | "rs" | "go" => {
+        "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte" => {
+            javascript_symbol_end(text, line_start, fallback_end).unwrap_or(line_start)
+        }
+        "rs" | "go" | "swift" => {
             brace_symbol_end(text, line_start, fallback_end).unwrap_or(line_start)
         }
         _ => fallback_end,
     }
+}
+
+fn javascript_symbol_end(text: &str, line_start: usize, scan_end: usize) -> Option<usize> {
+    let lines: Vec<&str> = text.lines().collect();
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut body_depth: Option<isize> = None;
+    for (idx, line) in lines
+        .iter()
+        .enumerate()
+        .skip(line_start.saturating_sub(1))
+        .take(scan_end.saturating_sub(line_start).saturating_add(1))
+    {
+        for (byte_idx, ch) in line.char_indices() {
+            if let Some(depth) = body_depth.as_mut() {
+                match ch {
+                    '{' => *depth += 1,
+                    '}' => {
+                        *depth -= 1;
+                        if *depth <= 0 {
+                            return Some(idx + 1);
+                        }
+                    }
+                    _ => {}
+                }
+                continue;
+            }
+            match ch {
+                '(' => paren_depth = paren_depth.saturating_add(1),
+                ')' => paren_depth = paren_depth.saturating_sub(1),
+                '[' => bracket_depth = bracket_depth.saturating_add(1),
+                ']' => bracket_depth = bracket_depth.saturating_sub(1),
+                '{' if paren_depth == 0
+                    && bracket_depth == 0
+                    && javascript_body_open_context(line, byte_idx) =>
+                {
+                    body_depth = Some(1);
+                }
+                _ => {}
+            }
+        }
+        if body_depth.is_none() && paren_depth == 0 && bracket_depth == 0 {
+            let trimmed = line.trim_end();
+            if trimmed.ends_with(';')
+                || trimmed.ends_with("=> null")
+                || trimmed.ends_with("=> undefined")
+            {
+                return Some(idx + 1);
+            }
+        }
+    }
+    body_depth.map(|_| scan_end)
+}
+
+fn javascript_body_open_context(line: &str, byte_idx: usize) -> bool {
+    let before = &line[..byte_idx];
+    !matches!(previous_nonspace_byte(before), Some(b':' | b'?'))
 }
 
 fn brace_symbol_end(text: &str, line_start: usize, scan_end: usize) -> Option<usize> {
@@ -1001,8 +4792,12 @@ fn leading_spaces(line: &str) -> usize {
 
 fn extract_js_symbols(text: &str) -> Vec<SymbolStart> {
     let mut symbols = Vec::new();
+    let mut import_export_block_depth = 0usize;
     for (idx, line) in text.lines().enumerate() {
         if is_noise_line(line, "//") {
+            continue;
+        }
+        if js_import_export_block_line(line, &mut import_export_block_depth) {
             continue;
         }
         let line_start = idx + 1;
@@ -1038,6 +4833,21 @@ fn extract_js_symbols(text: &str) -> Vec<SymbolStart> {
         }
     }
     symbols
+}
+
+fn js_import_export_block_line(line: &str, depth: &mut usize) -> bool {
+    let trimmed = line.trim_start();
+    let starts_block = trimmed.starts_with("import {")
+        || trimmed.starts_with("import type {")
+        || trimmed.starts_with("export {")
+        || trimmed.starts_with("export type {");
+    if !starts_block && *depth == 0 {
+        return false;
+    }
+    let opens = trimmed.matches('{').count();
+    let closes = trimmed.matches('}').count();
+    *depth = depth.saturating_add(opens).saturating_sub(closes);
+    true
 }
 
 fn js_symbol_kind(raw_kind: &str, name: &str, exported: bool) -> String {
@@ -1176,6 +4986,70 @@ fn extract_go_symbols(text: &str) -> Vec<SymbolStart> {
     symbols
 }
 
+fn extract_swift_symbols(text: &str) -> Vec<SymbolStart> {
+    let mut symbols = Vec::new();
+    for (idx, line) in text.lines().enumerate() {
+        if is_noise_line(line, "//") {
+            continue;
+        }
+        let line_start = idx + 1;
+        if let Some(cap) = swift_type_symbol_re().captures(line) {
+            let Some(name) = cap.name("name").map(|m| m.as_str().to_string()) else {
+                continue;
+            };
+            let raw_kind = cap.name("kind").map(|m| m.as_str()).unwrap_or("symbol");
+            let modifiers = cap.name("mods").map(|m| m.as_str()).unwrap_or_default();
+            symbols.push(SymbolStart {
+                name,
+                kind: raw_kind.to_string(),
+                exported: swift_modifiers_are_exported(modifiers),
+                line_start,
+                indent: leading_spaces(line),
+            });
+            continue;
+        }
+        if let Some(cap) = swift_func_symbol_re().captures(line) {
+            let Some(name) = cap.name("name").map(|m| m.as_str().to_string()) else {
+                continue;
+            };
+            let modifiers = cap.name("mods").map(|m| m.as_str()).unwrap_or_default();
+            symbols.push(SymbolStart {
+                name,
+                kind: "function".to_string(),
+                exported: swift_modifiers_are_exported(modifiers),
+                line_start,
+                indent: leading_spaces(line),
+            });
+            continue;
+        }
+        if let Some(cap) = swift_property_symbol_re().captures(line) {
+            let Some(name) = cap.name("name").map(|m| m.as_str().to_string()) else {
+                continue;
+            };
+            let raw_kind = cap.name("kind").map(|m| m.as_str()).unwrap_or("var");
+            let modifiers = cap.name("mods").map(|m| m.as_str()).unwrap_or_default();
+            symbols.push(SymbolStart {
+                name,
+                kind: if raw_kind == "let" {
+                    "constant".to_string()
+                } else {
+                    "property".to_string()
+                },
+                exported: swift_modifiers_are_exported(modifiers),
+                line_start,
+                indent: leading_spaces(line),
+            });
+        }
+    }
+    symbols
+}
+
+fn swift_modifiers_are_exported(modifiers: &str) -> bool {
+    modifiers
+        .split_whitespace()
+        .any(|modifier| matches!(modifier, "public" | "open" | "package"))
+}
+
 fn is_noise_line(line: &str, comment_prefix: &str) -> bool {
     let trimmed = line.trim_start();
     trimmed.starts_with(comment_prefix) || trimmed.starts_with('*')
@@ -1198,6 +5072,13 @@ fn is_uppercase_symbol(name: &str) -> bool {
         .unwrap_or(false)
 }
 
+struct ImportResolutionSeed {
+    rel: String,
+    ext: String,
+    imports: Vec<String>,
+    import_bindings: ImportBindingsBySpec,
+}
+
 fn resolve_imports(
     root: &Path,
     files: &mut BTreeMap<String, FileInfo>,
@@ -1205,29 +5086,912 @@ fn resolve_imports(
     ts_path_aliases: &[TsPathAlias],
 ) {
     let paths: BTreeSet<String> = files.keys().cloned().collect();
-    let snapshot: Vec<(String, String, Vec<String>)> = files
+    let snapshot: Vec<ImportResolutionSeed> = files
         .values()
-        .map(|f| {
-            (
-                f.rel.clone(),
-                f.ext.clone(),
-                f.imports.iter().cloned().collect(),
-            )
+        .map(|f| ImportResolutionSeed {
+            rel: f.rel.clone(),
+            ext: f.ext.clone(),
+            imports: f.imports.iter().cloned().collect(),
+            import_bindings: f.import_bindings.clone(),
         })
         .collect();
-    for (rel, ext, imports) in snapshot {
+    for seed in snapshot {
         let mut resolved = BTreeSet::new();
-        for spec in imports {
-            if let Some(target) =
-                resolve_import(root, &rel, &ext, &spec, &paths, packages, ts_path_aliases)
-            {
+        let mut resolved_bindings = BTreeMap::new();
+        for spec in seed.imports {
+            if let Some(target) = resolve_import(
+                root,
+                &seed.rel,
+                &seed.ext,
+                &spec,
+                &paths,
+                packages,
+                ts_path_aliases,
+            ) {
+                if let Some(bindings) = seed.import_bindings.get(&spec) {
+                    resolved_bindings
+                        .entry(target.clone())
+                        .or_insert_with(BTreeMap::new)
+                        .extend(
+                            bindings
+                                .iter()
+                                .map(|(local, imported)| (local.clone(), imported.clone())),
+                        );
+                }
                 resolved.insert(target);
             }
         }
-        if let Some(info) = files.get_mut(&rel) {
+        if let Some(info) = files.get_mut(&seed.rel) {
             info.resolved_imports = resolved;
+            info.resolved_import_bindings = resolved_bindings;
         }
     }
+}
+
+fn enrich_accessible_surfaces_from_component_contracts(
+    root: &Path,
+    files: &mut BTreeMap<String, FileInfo>,
+) {
+    let rels = files.keys().cloned().collect::<Vec<_>>();
+    for rel in rels {
+        let component_roles = {
+            let Some(info) = files.get(&rel) else {
+                continue;
+            };
+            if !matches!(
+                info.ext.as_str(),
+                "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte"
+            ) {
+                continue;
+            }
+            imported_accessible_component_roles(root, files, info)
+        };
+        if component_roles.is_empty() {
+            continue;
+        }
+        let Ok(text) = fs::read_to_string(root.join(&rel)) else {
+            continue;
+        };
+        let extra = accessible_name_surfaces_from_component_labelled_ids(&text, &component_roles);
+        if extra.tokens.is_empty() && extra.phrases.is_empty() && extra.visited_routes.is_empty() {
+            continue;
+        }
+        if let Some(info) = files.get_mut(&rel) {
+            info.surface_tokens.extend(extra.tokens);
+            info.surface_phrases.extend(extra.phrases);
+        }
+    }
+}
+
+fn imported_accessible_component_roles(
+    root: &Path,
+    files: &BTreeMap<String, FileInfo>,
+    info: &FileInfo,
+) -> BTreeMap<String, String> {
+    let mut out = BTreeMap::new();
+    for (target, bindings) in &info.resolved_import_bindings {
+        for (local, imported) in bindings {
+            if local.starts_with("export:") || !is_uppercase_symbol(local) {
+                continue;
+            }
+            if file_declares_local_value(info, local) {
+                continue;
+            }
+            let mut seen = BTreeSet::new();
+            if component_export_resolves_to_dialog_labelledby_contract(
+                root, files, target, imported, 0, &mut seen,
+            ) {
+                out.insert(local.clone(), "dialog".to_string());
+            }
+        }
+    }
+    out
+}
+
+fn file_declares_local_value(info: &FileInfo, name: &str) -> bool {
+    info.local_bindings.contains(name) || info.symbols.iter().any(|symbol| symbol.name == name)
+}
+
+fn component_export_resolves_to_dialog_labelledby_contract(
+    root: &Path,
+    files: &BTreeMap<String, FileInfo>,
+    file_rel: &str,
+    export_name: &str,
+    depth: usize,
+    seen: &mut BTreeSet<(String, String)>,
+) -> bool {
+    if depth > 8 || !seen.insert((file_rel.to_string(), export_name.to_string())) {
+        return false;
+    }
+    let Some(info) = files.get(file_rel) else {
+        return false;
+    };
+    if file_exports_dialog_labelledby_contract(root, info, export_name) {
+        return true;
+    }
+    let mut explicit = Vec::new();
+    let mut stars = Vec::new();
+    for (target, bindings) in &info.resolved_import_bindings {
+        for (exported, imported) in bindings {
+            let Some(exported_name) = exported.strip_prefix("export:") else {
+                continue;
+            };
+            if exported_name == export_name {
+                explicit.push((target.as_str(), imported.as_str()));
+            } else if exported_name == "*" {
+                stars.push(target.as_str());
+            }
+        }
+    }
+    if explicit.len() == 1 {
+        let (target, imported) = explicit[0];
+        return component_export_resolves_to_dialog_labelledby_contract(
+            root,
+            files,
+            target,
+            imported,
+            depth + 1,
+            seen,
+        );
+    }
+    if explicit.len() > 1 {
+        return false;
+    }
+    if stars.len() == 1 {
+        return component_export_resolves_to_dialog_labelledby_contract(
+            root,
+            files,
+            stars[0],
+            export_name,
+            depth + 1,
+            seen,
+        );
+    }
+    false
+}
+
+fn file_exports_dialog_labelledby_contract(
+    root: &Path,
+    info: &FileInfo,
+    export_name: &str,
+) -> bool {
+    let Ok(text) = fs::read_to_string(root.join(&info.rel)) else {
+        return false;
+    };
+    info.symbols
+        .iter()
+        .filter(|symbol| symbol.exported && symbol.name == export_name)
+        .any(|symbol| {
+            let body = symbol_body_text(&text, symbol);
+            component_body_has_dialog_labelledby_contract(&body)
+        })
+}
+
+fn symbol_body_text(text: &str, symbol: &SymbolInfo) -> String {
+    text.lines()
+        .enumerate()
+        .filter_map(|(idx, line)| {
+            let line_no = idx + 1;
+            (line_no >= symbol.line_start && line_no <= symbol.line_end).then_some(line)
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn component_body_has_dialog_labelledby_contract(body: &str) -> bool {
+    let Some(signature) = component_signature(body) else {
+        return false;
+    };
+    if !params_destructure_direct_shorthand_prop(&signature.params, "labelledBy")
+        || !params_destructure_direct_shorthand_prop(&signature.params, "children")
+        || component_body_shadows_labelledby(body)
+        || component_body_has_unparsed_control_flow(body)
+    {
+        return false;
+    }
+    let mut found_dialog_labelledby = false;
+    for render_text in component_direct_render_texts(body, &signature) {
+        if component_render_text_is_empty_ui(&render_text) {
+            continue;
+        }
+        if js_text_contains_unparsed_render_control_flow(&render_text) {
+            return false;
+        }
+        if js_text_contains_call_with_jsx_argument(&render_text) {
+            return false;
+        }
+        let stripped = strip_js_comments_from_text(&render_text);
+        if jsx_render_contains_custom_component_boundary(&stripped) {
+            return false;
+        }
+        let mut found_in_render = false;
+        for opening in jsx_opening_tag_spans(&stripped) {
+            if !jsx_opening_has_dialog_labelledby_attrs(&opening) {
+                continue;
+            }
+            found_in_render = true;
+            found_dialog_labelledby = true;
+            if !jsx_element_body_has_exact_expression(&stripped, &opening, "children") {
+                return false;
+            }
+        }
+        if !found_in_render {
+            return false;
+        }
+    }
+    found_dialog_labelledby
+}
+
+fn jsx_render_contains_custom_component_boundary(render_text: &str) -> bool {
+    jsx_opening_tag_spans(render_text)
+        .iter()
+        .any(|opening| is_uppercase_symbol(&opening.tag))
+}
+
+fn component_render_text_is_empty_ui(render_text: &str) -> bool {
+    let trimmed = render_text
+        .trim()
+        .trim_start_matches('(')
+        .trim_end_matches(')')
+        .trim()
+        .trim_end_matches(';')
+        .trim();
+    matches!(trimmed, "null" | "false" | "undefined")
+}
+
+fn component_body_has_unparsed_control_flow(body: &str) -> bool {
+    let stripped = strip_js_comments_from_text(body);
+    let chars: Vec<(usize, char)> = stripped.char_indices().collect();
+    let mut index = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < chars.len() {
+        let (byte, ch) = chars[index];
+        if let Some(active_quote) = quote {
+            index += 1;
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            index += 1;
+            continue;
+        }
+        if js_keyword_at(&stripped, byte, "if")
+            && js_control_keyword_has_braced_body(&stripped, byte, "if")
+        {
+            return true;
+        }
+        for keyword in ["switch", "try", "for", "while", "do"] {
+            if js_keyword_at(&stripped, byte, keyword) {
+                return true;
+            }
+        }
+        index += 1;
+    }
+    false
+}
+
+fn js_keyword_at(text: &str, byte: usize, keyword: &str) -> bool {
+    text[byte..].starts_with(keyword)
+        && js_identifier_boundary_before(text, byte)
+        && js_identifier_boundary_after(text, byte + keyword.len())
+}
+
+fn js_control_keyword_has_braced_body(text: &str, byte: usize, keyword: &str) -> bool {
+    let mut cursor = skip_js_whitespace(text, byte + keyword.len());
+    if !text[cursor..].starts_with('(') {
+        return false;
+    }
+    let Some(after_condition) = js_balanced_call_end(text, cursor) else {
+        return false;
+    };
+    cursor = skip_js_whitespace(text, after_condition);
+    text[cursor..].starts_with('{')
+}
+
+fn js_text_contains_unparsed_render_control_flow(text: &str) -> bool {
+    let chars: Vec<(usize, char)> = text.char_indices().collect();
+    let mut index = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < chars.len() {
+        let (byte, ch) = chars[index];
+        index += 1;
+        if let Some(active_quote) = quote {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            continue;
+        }
+        if ch == '?' {
+            return true;
+        }
+        if (ch == '&' && text[byte + ch.len_utf8()..].starts_with('&'))
+            || (ch == '|' && text[byte + ch.len_utf8()..].starts_with('|'))
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn js_text_contains_call_with_jsx_argument(text: &str) -> bool {
+    let chars: Vec<(usize, char)> = text.char_indices().collect();
+    let mut index = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < chars.len() {
+        let (byte, ch) = chars[index];
+        if let Some(active_quote) = quote {
+            index += 1;
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            index += 1;
+            continue;
+        }
+        if !(ch.is_ascii_alphabetic() || matches!(ch, '_' | '$')) {
+            index += 1;
+            continue;
+        }
+        let ident_start = byte;
+        index += 1;
+        while index < chars.len() {
+            let (_, next) = chars[index];
+            if next.is_ascii_alphanumeric() || matches!(next, '_' | '$' | '.') {
+                index += 1;
+            } else {
+                break;
+            }
+        }
+        let ident_end = chars
+            .get(index)
+            .map(|(next_byte, _)| *next_byte)
+            .unwrap_or(text.len());
+        let ident = &text[ident_start..ident_end];
+        if matches!(ident, "if" | "for" | "while" | "switch" | "return") {
+            continue;
+        }
+        let cursor = skip_js_whitespace(text, ident_end);
+        if text[cursor..].starts_with('(')
+            && let Some(call_end) = js_balanced_call_end(text, cursor)
+        {
+            let args = &text[cursor + 1..call_end.saturating_sub(1)];
+            if !jsx_opening_tag_spans(args).is_empty() {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+#[derive(Debug)]
+struct ComponentSignature {
+    params: String,
+    block_open: Option<usize>,
+    expression_start: Option<usize>,
+}
+
+fn component_signature(body: &str) -> Option<ComponentSignature> {
+    let function_match = js_function_params_re().captures(body).and_then(|captures| {
+        let full = captures.get(0)?;
+        if !component_function_prefix_is_direct_declaration(&body[..full.start()]) {
+            return None;
+        }
+        let params = captures.name("params")?.as_str().to_string();
+        Some((full.start(), full.end(), params))
+    });
+    let arrow_match = js_arrow_params_re().captures(body).and_then(|captures| {
+        let full = captures.get(0)?;
+        if !component_arrow_prefix_is_direct_initializer(&body[..full.start()]) {
+            return None;
+        }
+        let params = captures.name("params")?.as_str().to_string();
+        Some((full.start(), full.end(), params))
+    });
+    let use_arrow = match (function_match.as_ref(), arrow_match.as_ref()) {
+        (Some((function_start, _, _)), Some((arrow_start, _, _))) => arrow_start < function_start,
+        (None, Some(_)) => true,
+        _ => false,
+    };
+    if use_arrow {
+        let (_, end, params) = arrow_match?;
+        let cursor = skip_js_whitespace(body, end);
+        if body[cursor..].starts_with('{') {
+            Some(ComponentSignature {
+                params,
+                block_open: Some(cursor),
+                expression_start: None,
+            })
+        } else {
+            Some(ComponentSignature {
+                params,
+                block_open: None,
+                expression_start: Some(cursor),
+            })
+        }
+    } else {
+        let (_, end, params) = function_match?;
+        let cursor = skip_js_whitespace(body, end);
+        let block_open = body[cursor..].find('{').map(|offset| cursor + offset)?;
+        Some(ComponentSignature {
+            params,
+            block_open: Some(block_open),
+            expression_start: None,
+        })
+    }
+}
+
+fn component_function_prefix_is_direct_declaration(prefix: &str) -> bool {
+    prefix
+        .split_whitespace()
+        .all(|token| matches!(token, "export" | "default" | "async"))
+}
+
+fn component_arrow_prefix_is_direct_initializer(prefix: &str) -> bool {
+    prefix.trim_end().ends_with('=')
+}
+
+fn skip_js_whitespace(text: &str, mut cursor: usize) -> usize {
+    while cursor < text.len() {
+        let Some(ch) = text[cursor..].chars().next() else {
+            break;
+        };
+        if ch.is_whitespace() {
+            cursor += ch.len_utf8();
+        } else {
+            break;
+        }
+    }
+    cursor
+}
+
+fn component_direct_render_texts(body: &str, signature: &ComponentSignature) -> Vec<String> {
+    if let Some(start) = signature.expression_start {
+        return vec![body[start..].trim().trim_end_matches(';').to_string()];
+    }
+    signature
+        .block_open
+        .map(|block_open| top_level_return_expressions(body, block_open))
+        .unwrap_or_default()
+}
+
+fn top_level_return_expressions(text: &str, block_open: usize) -> Vec<String> {
+    let chars: Vec<(usize, char)> = text.char_indices().collect();
+    let Some(mut index) = chars.iter().position(|(byte, _)| *byte == block_open) else {
+        return Vec::new();
+    };
+    index += 1;
+    let mut expressions = Vec::new();
+    let mut brace_depth = 1usize;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < chars.len() {
+        let (byte, ch) = chars[index];
+        if let Some(active_quote) = quote {
+            index += 1;
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            index += 1;
+            continue;
+        }
+        if brace_depth == 1 && text[byte..].starts_with("return") {
+            let before_ok = js_identifier_boundary_before(text, byte);
+            let after = byte + "return".len();
+            let after_ok = js_identifier_boundary_after(text, after);
+            if before_ok && after_ok {
+                if let Some(expression) = extract_return_expression(text, after) {
+                    expressions.push(expression);
+                }
+                index += "return".len();
+                continue;
+            }
+        }
+        match ch {
+            '{' => brace_depth += 1,
+            '}' => {
+                brace_depth = brace_depth.saturating_sub(1);
+                if brace_depth == 0 {
+                    break;
+                }
+            }
+            '(' => paren_depth += 1,
+            ')' => paren_depth = paren_depth.saturating_sub(1),
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.saturating_sub(1),
+            _ => {}
+        }
+        index += 1;
+    }
+    let _ = (paren_depth, bracket_depth);
+    expressions
+}
+
+fn extract_return_expression(text: &str, start: usize) -> Option<String> {
+    let chars: Vec<(usize, char)> = text[start..].char_indices().collect();
+    let mut index = 0usize;
+    let mut brace_depth = 1usize;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < chars.len() {
+        let (relative_byte, ch) = chars[index];
+        if let Some(active_quote) = quote {
+            index += 1;
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            index += 1;
+            continue;
+        }
+        match ch {
+            '{' => brace_depth += 1,
+            '}' => {
+                brace_depth = brace_depth.saturating_sub(1);
+                if brace_depth == 0 {
+                    return Some(text[start..start + relative_byte].trim().to_string());
+                }
+            }
+            '(' => paren_depth += 1,
+            ')' => paren_depth = paren_depth.saturating_sub(1),
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.saturating_sub(1),
+            ';' if brace_depth == 1 && paren_depth == 0 && bracket_depth == 0 => {
+                return Some(text[start..start + relative_byte].trim().to_string());
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    let expression = text[start..].trim();
+    (!expression.is_empty()).then_some(expression.to_string())
+}
+
+fn params_destructure_direct_shorthand_prop(params: &str, prop: &str) -> bool {
+    let Some((start, end)) = js_first_balanced_object_span(params) else {
+        return false;
+    };
+    js_split_top_level_commas(&params[start + 1..end])
+        .into_iter()
+        .any(|part| js_destructure_part_is_direct_shorthand_prop(&part, prop))
+}
+
+fn js_first_balanced_object_span(value: &str) -> Option<(usize, usize)> {
+    let chars: Vec<(usize, char)> = value.char_indices().collect();
+    let start_index = chars.iter().position(|(_, ch)| *ch == '{')?;
+    let start_byte = chars[start_index].0;
+    let mut index = start_index;
+    let mut brace_depth = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < chars.len() {
+        let (byte, ch) = chars[index];
+        index += 1;
+        if let Some(active_quote) = quote {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            continue;
+        }
+        match ch {
+            '{' => brace_depth += 1,
+            '}' => {
+                brace_depth = brace_depth.saturating_sub(1);
+                if brace_depth == 0 {
+                    return Some((start_byte, byte));
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn js_destructure_part_is_direct_shorthand_prop(part: &str, prop: &str) -> bool {
+    let trimmed = part.trim();
+    let Some(rest) = trimmed.strip_prefix(prop) else {
+        return false;
+    };
+    if !js_identifier_boundary_after(trimmed, prop.len()) {
+        return false;
+    }
+    let rest = rest.trim_start();
+    rest.is_empty() || rest.starts_with('=')
+}
+
+fn component_body_shadows_labelledby(body: &str) -> bool {
+    js_labelledby_local_binding_re().is_match(body)
+}
+
+fn jsx_opening_has_dialog_labelledby_attrs(opening: &JsxOpeningTagSpan) -> bool {
+    !jsx_opening_has_spread_attr(&opening.source)
+        && jsx_accessible_role_for_opening(&opening.tag, &opening.source).as_deref()
+            == Some("dialog")
+        && jsx_opening_has_exact_expression_attr(&opening.source, "aria-labelledby", "labelledBy")
+}
+
+fn jsx_opening_has_exact_expression_attr(opening: &str, attr: &str, expr: &str) -> bool {
+    let chars: Vec<(usize, char)> = opening.char_indices().collect();
+    let mut index = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    let mut brace_depth = 0usize;
+    let mut attr_count = 0usize;
+    let mut exact_matches = 0usize;
+    while index < chars.len() {
+        let (byte, ch) = chars[index];
+        if let Some(active_quote) = quote {
+            index += 1;
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            index += 1;
+            continue;
+        }
+        if brace_depth > 0 {
+            if ch == '{' {
+                brace_depth += 1;
+            } else if ch == '}' {
+                brace_depth = brace_depth.saturating_sub(1);
+            }
+            index += 1;
+            continue;
+        }
+        if ch == '{' {
+            brace_depth = 1;
+            index += 1;
+            continue;
+        }
+        if opening[byte..].starts_with(attr)
+            && jsx_attr_boundary_before(opening, byte)
+            && jsx_attr_boundary_after(opening, byte + attr.len())
+        {
+            attr_count += 1;
+            if jsx_attr_expression_value_matches(opening, byte + attr.len(), expr) {
+                exact_matches += 1;
+            }
+        }
+        index += 1;
+    }
+    attr_count == 1 && exact_matches == 1
+}
+
+fn jsx_attr_expression_value_matches(opening: &str, mut cursor: usize, expr: &str) -> bool {
+    cursor = skip_js_whitespace(opening, cursor);
+    if !opening[cursor..].starts_with('=') {
+        return false;
+    }
+    cursor += 1;
+    cursor = skip_js_whitespace(opening, cursor);
+    if !opening[cursor..].starts_with('{') {
+        return false;
+    }
+    cursor += 1;
+    cursor = skip_js_whitespace(opening, cursor);
+    if !opening[cursor..].starts_with(expr) {
+        return false;
+    }
+    cursor += expr.len();
+    if !js_identifier_boundary_after(opening, cursor) {
+        return false;
+    }
+    cursor = skip_js_whitespace(opening, cursor);
+    opening[cursor..].starts_with('}')
+}
+
+fn jsx_attr_boundary_before(text: &str, byte: usize) -> bool {
+    text[..byte]
+        .chars()
+        .next_back()
+        .map(|ch| !(ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | ':' | '$')))
+        .unwrap_or(true)
+}
+
+fn jsx_attr_boundary_after(text: &str, byte: usize) -> bool {
+    text[byte..]
+        .chars()
+        .next()
+        .map(|ch| !(ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | ':' | '$')))
+        .unwrap_or(true)
+}
+
+fn jsx_element_body_has_exact_expression(
+    render_text: &str,
+    opening: &JsxOpeningTagSpan,
+    expr: &str,
+) -> bool {
+    if opening.self_closing {
+        return false;
+    }
+    let Some(close_start) =
+        find_jsx_closing_tag_start(render_text, &opening.tag, opening.opening_end)
+    else {
+        return false;
+    };
+    close_start >= opening.opening_end
+        && jsx_body_has_exact_expression(&render_text[opening.opening_end..close_start], expr)
+}
+
+fn jsx_body_has_exact_expression(body: &str, expr: &str) -> bool {
+    let chars: Vec<(usize, char)> = body.char_indices().collect();
+    let mut index = 0usize;
+    let mut in_tag = false;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < chars.len() {
+        let (byte, ch) = chars[index];
+        if let Some(active_quote) = quote {
+            index += 1;
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if in_tag {
+            if matches!(ch, '"' | '\'' | '`') {
+                quote = Some(ch);
+                escaped = false;
+            } else if ch == '>' {
+                in_tag = false;
+            }
+            index += 1;
+            continue;
+        }
+        if ch == '<' {
+            in_tag = true;
+            index += 1;
+            continue;
+        }
+        if ch == '{' && jsx_expression_at(body, byte + ch.len_utf8(), expr) {
+            return true;
+        }
+        index += 1;
+    }
+    false
+}
+
+fn jsx_expression_at(body: &str, mut cursor: usize, expr: &str) -> bool {
+    cursor = skip_js_whitespace(body, cursor);
+    if !body[cursor..].starts_with(expr) {
+        return false;
+    }
+    cursor += expr.len();
+    if !js_identifier_boundary_after(body, cursor) {
+        return false;
+    }
+    cursor = skip_js_whitespace(body, cursor);
+    body[cursor..].starts_with('}')
+}
+
+fn accessible_name_surfaces_from_component_labelled_ids(
+    text: &str,
+    component_roles: &BTreeMap<String, String>,
+) -> SurfaceExtraction {
+    let stripped = strip_js_comments_from_text(text);
+    let mut surfaces = SurfaceExtraction::default();
+    for opening in jsx_opening_tag_spans(&stripped) {
+        if opening.raw_tag != opening.tag {
+            continue;
+        }
+        let Some(role) = component_roles.get(&opening.tag) else {
+            continue;
+        };
+        let Some(id) = jsx_single_exact_static_attr_value(&opening.source, "labelledBy") else {
+            continue;
+        };
+        let mut roles = BTreeSet::new();
+        roles.insert(role.clone());
+        add_accessible_name_surface_from_label_in_opening_scope(
+            &mut surfaces,
+            &stripped,
+            &opening,
+            &id,
+            &roles,
+        );
+    }
+    surfaces
 }
 
 fn resolve_import(
@@ -1508,7 +6272,7 @@ fn read_ts_path_aliases(root: &Path, rel: &str) -> Vec<TsPathAlias> {
     let Ok(text) = fs::read_to_string(root.join(rel)) else {
         return Vec::new();
     };
-    let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {
+    let Ok(value) = parse_tsconfig_json(&text) else {
         return Vec::new();
     };
     let Some(options) = value
@@ -1545,6 +6309,127 @@ fn read_ts_path_aliases(root: &Path, rel: &str) -> Vec<TsPathAlias> {
         }
     }
     aliases
+}
+
+fn parse_tsconfig_json(text: &str) -> std::result::Result<serde_json::Value, serde_json::Error> {
+    serde_json::from_str(text).or_else(|strict_error| {
+        let Some(json) = strip_jsonc_comments_and_trailing_commas(text) else {
+            return Err(strict_error);
+        };
+        serde_json::from_str(&json)
+    })
+}
+
+fn strip_jsonc_comments_and_trailing_commas(text: &str) -> Option<String> {
+    Some(strip_json_trailing_commas(&strip_jsonc_comments(text)?))
+}
+
+fn strip_jsonc_comments(text: &str) -> Option<String> {
+    let chars = text.chars().collect::<Vec<_>>();
+    let mut out = String::with_capacity(text.len());
+    let mut i = 0;
+    let mut in_string = false;
+    let mut escape = false;
+
+    while i < chars.len() {
+        let ch = chars[i];
+        if in_string {
+            out.push(ch);
+            if escape {
+                escape = false;
+            } else if ch == '\\' {
+                escape = true;
+            } else if ch == '"' {
+                in_string = false;
+            }
+            i += 1;
+            continue;
+        }
+
+        if ch == '"' {
+            in_string = true;
+            out.push(ch);
+            i += 1;
+            continue;
+        }
+
+        if ch == '/' && chars.get(i + 1) == Some(&'/') {
+            i += 2;
+            while i < chars.len() && chars[i] != '\n' {
+                i += 1;
+            }
+            if i < chars.len() {
+                out.push('\n');
+                i += 1;
+            }
+            continue;
+        }
+
+        if ch == '/' && chars.get(i + 1) == Some(&'*') {
+            i += 2;
+            let mut closed = false;
+            while i + 1 < chars.len() {
+                if chars[i] == '\n' {
+                    out.push('\n');
+                }
+                if chars[i] == '*' && chars[i + 1] == '/' {
+                    i += 2;
+                    closed = true;
+                    break;
+                }
+                i += 1;
+            }
+            if !closed {
+                return None;
+            }
+            continue;
+        }
+
+        out.push(ch);
+        i += 1;
+    }
+
+    Some(out)
+}
+
+fn strip_json_trailing_commas(text: &str) -> String {
+    let mut out = Vec::with_capacity(text.len());
+    let mut in_string = false;
+    let mut escape = false;
+
+    for ch in text.chars() {
+        if in_string {
+            out.push(ch);
+            if escape {
+                escape = false;
+            } else if ch == '\\' {
+                escape = true;
+            } else if ch == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+
+        if ch == '"' {
+            in_string = true;
+            out.push(ch);
+            continue;
+        }
+
+        if matches!(ch, '}' | ']') {
+            let mut index = out.len();
+            while index > 0 && out[index - 1].is_whitespace() {
+                index -= 1;
+            }
+            if index > 0 && out[index - 1] == ',' {
+                out.remove(index - 1);
+            }
+        }
+
+        out.push(ch);
+    }
+
+    out.into_iter().collect()
 }
 
 fn ts_alias_applies_to_importer(alias: &TsPathAlias, from: &str) -> bool {
@@ -1780,6 +6665,11 @@ fn detect_packages(root: &Path, files: &BTreeMap<String, FileInfo>) -> Vec<Packa
                     packages.push(package);
                 }
             }
+            Some("Package.swift") => {
+                if let Some(package) = read_swift_package(root, rel) {
+                    packages.push(package);
+                }
+            }
             _ => {}
         }
     }
@@ -1838,6 +6728,18 @@ fn read_python_package(root: &Path, rel: &str) -> Option<PackageInfo> {
     })
 }
 
+fn read_swift_package(root: &Path, rel: &str) -> Option<PackageInfo> {
+    let text = fs::read_to_string(root.join(rel)).ok()?;
+    let path = manifest_dir(rel);
+    let name = swift_package_name(&text).unwrap_or_else(|| package_name_from_path(&path));
+    Some(PackageInfo {
+        name,
+        path,
+        manifest: rel.to_string(),
+        ecosystem: "swift".to_string(),
+    })
+}
+
 fn detect_package_edges(
     root: &Path,
     files: &BTreeMap<String, FileInfo>,
@@ -1872,6 +6774,9 @@ fn detect_package_edges(
             }
             "python" => {
                 edges.extend(python_package_edges(root, package, &by_path));
+            }
+            "swift" => {
+                edges.extend(swift_package_edges(root, package, &by_path));
             }
             _ => {}
         }
@@ -2366,6 +7271,37 @@ fn python_package_edges(
     edges
 }
 
+fn swift_package_edges(
+    root: &Path,
+    package: &PackageInfo,
+    by_path: &BTreeMap<String, &PackageInfo>,
+) -> Vec<PackageDependency> {
+    let Ok(text) = fs::read_to_string(root.join(&package.manifest)) else {
+        return Vec::new();
+    };
+    let base = Path::new(&package.manifest)
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let mut edges = Vec::new();
+    for path in swift_package_path_dependencies(&text) {
+        if let Some(target_path) = resolve_repo_relative_path(base, &path)
+            && let Some(target) = by_path.get(&target_path)
+        {
+            edges.push(PackageDependency {
+                from: package.path.clone(),
+                from_manifest: package.manifest.clone(),
+                to: target.path.clone(),
+                to_manifest: Some(target.manifest.clone()),
+                workspace_manifest: None,
+                dependency: package_name_from_path(&target.path),
+                source: "Package.swift local path dependency".to_string(),
+            });
+        }
+    }
+    edges
+}
+
 fn manifest_dir(rel: &str) -> String {
     Path::new(rel)
         .parent()
@@ -2701,6 +7637,24 @@ fn pyproject_path_dependencies(text: &str) -> Vec<(String, String)> {
     unique_pairs(deps)
 }
 
+fn swift_package_name(text: &str) -> Option<String> {
+    swift_package_name_re()
+        .captures(text)?
+        .get(1)
+        .map(|m| m.as_str().to_string())
+        .filter(|name| !name.is_empty())
+}
+
+fn swift_package_path_dependencies(text: &str) -> Vec<String> {
+    let mut deps = swift_package_path_dependency_re()
+        .captures_iter(text)
+        .filter_map(|cap| cap.get(1).map(|m| m.as_str().to_string()))
+        .collect::<Vec<_>>();
+    deps.sort();
+    deps.dedup();
+    deps
+}
+
 fn unquote(value: &str) -> Option<String> {
     let trimmed = value.trim().trim_end_matches(',');
     trimmed
@@ -2729,6 +7683,8 @@ fn detect_package_manager(root: &Path) -> String {
         "go"
     } else if root.join("pyproject.toml").exists() || root.join("requirements.txt").exists() {
         "python"
+    } else if root.join("Package.swift").exists() {
+        "swift"
     } else {
         "unknown"
     }
@@ -2790,6 +7746,13 @@ fn detect_scripts(root: &Path) -> Vec<ScriptInfo> {
             name: "test".to_string(),
             command: "pytest".to_string(),
             reason: "Python project files detected".to_string(),
+        });
+    }
+    if root.join("Package.swift").exists() {
+        scripts.push(ScriptInfo {
+            name: "test".to_string(),
+            command: "swift test".to_string(),
+            reason: "Package.swift detected".to_string(),
         });
     }
     if root.join("Makefile").exists() {
@@ -3221,11 +8184,99 @@ pub fn is_source_ext(ext: &str) -> bool {
     SOURCE_EXTS.iter().any(|x| x == &ext)
 }
 
-fn js_import_re() -> &'static Regex {
+fn identifier_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r#"[A-Za-z_$][A-Za-z0-9_$]*"#).expect("valid identifier regex"))
+}
+
+fn jsx_tag_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
-        Regex::new(r#"(?:import\s+(?:[^'"]+?\s+from\s+)?|export\s+[^'"]*?from\s+|require\s*\(|import\s*\()\s*['"]([^'"]+)['"]"#)
-            .expect("valid js import regex")
+        Regex::new(r#"<\s*/?\s*([A-Z][A-Za-z0-9_$]*)\b"#).expect("valid jsx tag regex")
+    })
+}
+
+fn js_function_params_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"(?s)\bfunction(?:\s+[A-Za-z_$][A-Za-z0-9_$]*)?\s*\((?P<params>[^)]*)\)"#)
+            .expect("valid js function params regex")
+    })
+}
+
+fn js_arrow_params_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"(?s)\((?P<params>[^)]*)\)\s*(?::\s*[^=]+?)?=>"#)
+            .expect("valid js arrow params regex")
+    })
+}
+
+fn js_labelledby_local_binding_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"(?s)\b(?:const|let|var)\s+(?:labelledBy\b|\{[^}]*\blabelledBy\b)|\bfunction\s+labelledBy\b|\bclass\s+labelledBy\b"#)
+            .expect("valid js labelledBy local binding regex")
+    })
+}
+
+fn js_method_params_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(
+            r#"(?s)\b(?P<name>[A-Za-z_$][A-Za-z0-9_$]*)\s*\((?P<params>[^)]*)\)\s*(?::\s*[^={]+?)?\{"#,
+        )
+        .expect("valid js method params regex")
+    })
+}
+
+fn js_single_arrow_param_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"(?m)(?:^|[=(:,]\s*)(?P<param>[A-Za-z_$][A-Za-z0-9_$]*)\s*=>"#)
+            .expect("valid js single arrow param regex")
+    })
+}
+
+fn js_for_binding_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"(?s)\bfor\s*(?:await\s*)?\(\s*(?:const|let|var)\s+(?P<binding>[^;)]*?)\s+(?:of|in)\b"#)
+            .expect("valid js for binding regex")
+    })
+}
+
+fn js_catch_param_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"(?s)\bcatch\s*\(\s*(?P<param>[^)]*?)\s*\)"#)
+            .expect("valid js catch param regex")
+    })
+}
+
+fn js_static_import_statement_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(
+            r#"(?s)^\s*import\s+(?P<type>type\s+)?(?:(?P<clause>.+?)\s+from\s*)?['"](?P<spec>[^'"]+)['"]"#,
+        )
+        .expect("valid js static import statement regex")
+    })
+}
+
+fn js_reexport_statement_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"(?s)^\s*export\s+(?P<type>type\s+)?(?:(?P<star>\*)|\{(?P<named>.*?)\})\s+from\s*['"](?P<spec>[^'"]+)['"]"#)
+            .expect("valid js re-export statement regex")
+    })
+}
+
+fn js_export_from_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"(?s)^\s*export\s+.+?\s+from\s*['"](?P<spec>[^'"]+)['"]"#)
+            .expect("valid js export-from regex")
     })
 }
 
@@ -3258,6 +8309,51 @@ fn py_import_re() -> &'static Regex {
     RE.get_or_init(|| {
         Regex::new(r#"(?m)^\s*(?:from\s+([A-Za-z0-9_\.]+)\s+import|import\s+([A-Za-z0-9_\.]+))"#)
             .expect("valid python import regex")
+    })
+}
+
+fn swift_package_name_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r#"name:\s*"([^"]+)""#).expect("valid swift package name regex"))
+}
+
+fn swift_package_path_dependency_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"\.package\s*\(\s*path:\s*"([^"]+)""#)
+            .expect("valid swift package path dependency regex")
+    })
+}
+
+fn swift_import_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"(?m)^\s*(?:@\w+(?:\([^)]*\))?\s+)?import\s+(?:(?:class|struct|enum|protocol|func|var|typealias)\s+)?([A-Za-z_][A-Za-z0-9_]*)"#)
+            .expect("valid swift import regex")
+    })
+}
+
+fn swift_type_symbol_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"^\s*(?:@\w+(?:\([^)]*\))?\s+)*(?P<mods>(?:(?:public|open|package|internal|fileprivate|private|final|static|class|indirect)\s+)*)?(?P<kind>class|struct|enum|protocol|actor)\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)"#)
+            .expect("valid swift type symbol regex")
+    })
+}
+
+fn swift_func_symbol_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"^\s*(?:@\w+(?:\([^)]*\))?\s+)*(?P<mods>(?:(?:public|open|package|internal|fileprivate|private|static|class|mutating|nonmutating|override|final)\s+)*)?func\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*\("#)
+            .expect("valid swift function symbol regex")
+    })
+}
+
+fn swift_property_symbol_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"^\s*(?:@\w+(?:\([^)]*\))?\s+)*(?P<mods>(?:(?:public|open|package|internal|fileprivate|private|static|class|weak|unowned|lazy|override|final)\s+)*)?(?P<kind>let|var)\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\b"#)
+            .expect("valid swift property symbol regex")
     })
 }
 
@@ -3481,6 +8577,191 @@ edition = "2024"
     }
 
     #[test]
+    fn javascript_import_specs_ignore_import_text_inside_strings() {
+        let text = r#"const docs = "import { ShellHint } from './shell-hint';";
+const tmpl = `require('./shadow')`;
+const importPattern = /import { RegexHint } from '.\/regex-hint'/;
+const exportPattern = /export { RegexOther } from '.\/regex-other'/;
+import { Real as LocalReal } from './real';
+export { Other } from './other';
+export { /* Real is only a comment */ Other as PublicOther } from './commented';
+export { CommentedGap as PublicGap } /* valid comment gap */ from './comment-gap';
+export {
+  Dialog,
+  type ToastData,
+} from './primitives'
+const lazy = import('./lazy');
+const required = require('./required');
+"#;
+
+        let specs = extract_js_import_specs(text);
+
+        assert!(specs.contains("./real"));
+        assert!(specs.contains("./other"));
+        assert!(specs.contains("./commented"));
+        assert!(specs.contains("./comment-gap"));
+        assert!(specs.contains("./primitives"));
+        assert!(specs.contains("./lazy"));
+        assert!(specs.contains("./required"));
+        assert!(!specs.contains("./shell-hint"));
+        assert!(!specs.contains("./shadow"));
+        assert!(!specs.contains("./regex-hint"));
+        assert!(!specs.contains("./regex-other"));
+
+        let bindings = extract_js_import_bindings(text);
+        assert_eq!(
+            bindings
+                .get("./real")
+                .and_then(|map| map.get("LocalReal"))
+                .map(String::as_str),
+            Some("Real")
+        );
+        assert_eq!(
+            bindings
+                .get("./commented")
+                .and_then(|map| map.get("export:PublicOther"))
+                .map(String::as_str),
+            Some("Other")
+        );
+        assert_eq!(
+            bindings
+                .get("./comment-gap")
+                .and_then(|map| map.get("export:PublicGap"))
+                .map(String::as_str),
+            Some("CommentedGap")
+        );
+        assert_eq!(
+            bindings
+                .get("./primitives")
+                .and_then(|map| map.get("export:Dialog"))
+                .map(String::as_str),
+            Some("Dialog")
+        );
+        assert!(!bindings.contains_key("./shell-hint"));
+        assert!(!bindings.contains_key("./regex-hint"));
+        assert!(!bindings.contains_key("./regex-other"));
+    }
+
+    #[test]
+    fn javascript_local_bindings_capture_function_and_destructured_params() {
+        let text = r#"import { ShellHint } from './shell-hint';
+
+export function ShellParamShadowView({ ShellHint }: Props) {
+  return <ShellHint />;
+}
+
+const Arrow = ({ CanvasShellHint }: Props) => <CanvasShellHint />;
+const Single = ShellAction => <ShellAction />;
+export default function({ DefaultShellHint }: Props) {
+  return <DefaultShellHint />;
+}
+export function FunctionTypedParam(
+  makeHint: (id: string) => string,
+  LaterShellHint: (id: string) => string
+) {
+  return LaterShellHint('x');
+}
+const ArrowTypedParam = (
+  makeHint: (id: string) => string,
+  LaterArrowHint: (id: string) => string
+) => LaterArrowHint('x');
+const methods = {
+  render({ MethodShellHint }: Props) {
+    return <MethodShellHint />;
+  },
+};
+function Destructure(props) {
+  const { LocalHint } = props;
+  let {
+    MultilineHint,
+  } = props;
+  const { hint: AliasHint = FallbackHint } = props;
+  const [ArrayHint = FallbackArrayHint] = props.items;
+  return <LocalHint />;
+}
+function LoopAndCatch() {
+  for (const LoopHint of hints) {
+    return <LoopHint />;
+  }
+  for await (const AwaitLoopHint of hints) {
+    return <AwaitLoopHint />;
+  }
+  try {
+    run();
+  } catch (CatchHint) {
+    return <CatchHint />;
+  }
+}
+"#;
+
+        let bindings = extract_local_bindings(text, "tsx");
+
+        assert!(bindings.contains("ShellHint"));
+        assert!(bindings.contains("CanvasShellHint"));
+        assert!(bindings.contains("ShellAction"));
+        assert!(bindings.contains("DefaultShellHint"));
+        assert!(bindings.contains("LaterShellHint"));
+        assert!(bindings.contains("LaterArrowHint"));
+        assert!(bindings.contains("MethodShellHint"));
+        assert!(bindings.contains("LocalHint"));
+        assert!(bindings.contains("MultilineHint"));
+        assert!(bindings.contains("AliasHint"));
+        assert!(bindings.contains("ArrayHint"));
+        assert!(bindings.contains("LoopHint"));
+        assert!(bindings.contains("AwaitLoopHint"));
+        assert!(bindings.contains("CatchHint"));
+    }
+
+    #[test]
+    fn javascript_jsx_tags_ignore_type_generic_arguments() {
+        let generic_only = r#"import { GroupCard } from './card';
+
+const value = identity<GroupCard | null>(null);
+type Factory = <GroupCard>() => void;
+const make = <GroupCard extends object>() => null;
+"#;
+        assert!(!extract_jsx_tags(generic_only, "tsx").contains("GroupCard"));
+
+        let text = r#"import { GroupCard } from './card';
+
+export function View() {
+  return <GroupCard title="real" />;
+}
+"#;
+
+        let tags = extract_jsx_tags(text, "tsx");
+
+        assert!(tags.contains("GroupCard"));
+        assert_eq!(tags.len(), 1);
+    }
+
+    #[test]
+    fn javascript_symbol_ranges_skip_multiline_destructured_params() {
+        let source = r#"export function PanelView({
+  Header,
+  Body,
+}: Props) {
+  return (
+    <section>
+      <Header />
+      <Body />
+    </section>
+  );
+}
+"#;
+
+        let symbols = extract_symbols(source, "tsx");
+
+        assert_symbol(&symbols, "PanelView", "component", true, 1, 11);
+    }
+
+    #[test]
+    fn javascript_regex_keyword_probe_handles_unicode_prefix() {
+        assert!(!previous_word_is("навигации", "return"));
+        assert!(previous_word_is("навигации return", "return"));
+    }
+
+    #[test]
     fn cargo_workspace_edges_use_workspace_dependency_tables() {
         let repo = tempfile::TempDir::new().expect("temp repo");
         write_test_file(
@@ -3661,6 +8942,440 @@ export function renderFeed() {
     }
 
     #[test]
+    fn javascript_local_export_list_does_not_hide_following_symbols() {
+        let text = r#"const Foo = 1;
+export { Foo };
+
+export type {
+  ReplayDto,
+};
+
+export function laterSymbol() {
+  return Foo;
+}
+"#;
+
+        let symbols = extract_symbols(text, "ts");
+
+        assert_symbol(&symbols, "Foo", "const", false, 1, 1);
+        assert_symbol(&symbols, "laterSymbol", "function", true, 8, 10);
+        assert!(
+            symbols.iter().all(|symbol| symbol.name != "ReplayDto"),
+            "export-list members are not declarations"
+        );
+    }
+
+    #[test]
+    fn javascript_surface_tokens_capture_ui_selectors_without_plain_text_noise() {
+        let text = r#"export function Button() {
+  return <button data-testid="submit-order-button" aria-label="Submit order">Submit order</button>;
+}
+
+test("flow", async ({ page }) => {
+  await test.step("submit-order-button string in prose is not evidence", async () => {});
+  await page.goto("/orders/new");
+  await expect(page.locator(".submit-order-button")).toBeVisible();
+});
+"#;
+
+        let surfaces = extract_surfaces(text, "tsx");
+        let tokens = &surfaces.tokens;
+
+        assert!(tokens.contains("submit"));
+        assert!(tokens.contains("order"));
+        assert!(tokens.contains("orders"));
+        assert!(surfaces.phrases.contains("submit-order-button"));
+        assert!(surfaces.phrases.contains("orders-new"));
+        assert!(!tokens.contains("button"));
+        assert!(!tokens.contains("flow"));
+        assert!(!tokens.contains("prose"));
+    }
+
+    #[test]
+    fn javascript_surface_phrases_skip_import_paths_and_broad_mode_literals() {
+        let text = r#"import { useFrameTitleDrag } from './use-frame-title-drag';
+
+export function Title() {
+  return <div className="blueprint-frame-node__title-input nodrag" data-mode="frame-title" />;
+}
+"#;
+
+        let surfaces = extract_surfaces(text, "tsx");
+
+        assert!(
+            surfaces
+                .phrases
+                .contains("blueprint-frame-node-title-input")
+        );
+        assert!(!surfaces.phrases.contains("use-frame-title-drag"));
+        assert!(!surfaces.phrases.contains("frame-title"));
+    }
+
+    #[test]
+    fn javascript_surface_phrases_capture_labels_and_routes_only_in_ui_context() {
+        let text = r#"test("Open settings panel is prose, not a surface", () => {});
+
+export function SettingsLink() {
+  return <a href="/orders/new" aria-label="Open settings panel">Orders</a>;
+}
+
+export function CartButton() {
+  return <button aria-label="Remove from cart">Remove</button>;
+}
+
+export function ImportButton() {
+  return <button aria-label="Import (CSV)">Import</button>;
+}
+
+test("flow", async ({ page }) => {
+  await page.goto("/orders/new");
+  await expect(page.getByLabel("Open settings panel")).toBeVisible();
+  await expect(page.getByLabel("Remove from cart")).toBeVisible();
+  await expect(page.getByLabel("Import (CSV)")).toBeVisible();
+});
+"#;
+
+        let surfaces = extract_surfaces(text, "tsx");
+
+        assert!(surfaces.phrases.contains("open-settings-panel"));
+        assert!(surfaces.phrases.contains("remove-from-cart"));
+        assert!(surfaces.phrases.contains("import-csv"));
+        assert!(surfaces.phrases.contains("orders-new"));
+        assert!(surfaces.tokens.contains("settings"));
+        assert!(surfaces.tokens.contains("orders"));
+        assert!(!surfaces.tokens.contains("prose"));
+    }
+
+    #[test]
+    fn javascript_surface_phrases_capture_bounded_jsx_visible_text() {
+        let source = r#"export function ShellHint() {
+  return (
+    <div className="blueprint-canvas__hint" aria-live="polite">
+      Дважды кликни по канвасу или нажми <kbd className="kbd">F</kbd> — появится новый кадр
+    </div>
+  );
+}
+"#;
+        let test = r#"test("this prose is not a surface", async ({ page }) => {
+  await expect(page.getByText("Дважды кликни по канвасу или нажми")).toBeVisible();
+});
+"#;
+        let prose = r#"export function Plain() {
+  return <p>Дважды кликни по канвасу или нажми</p>;
+}
+"#;
+
+        let source_surfaces = extract_surfaces(source, "tsx");
+        let test_surfaces = extract_surfaces(test, "tsx");
+        let prose_surfaces = extract_surfaces(prose, "tsx");
+
+        assert!(
+            source_surfaces
+                .phrases
+                .contains("дважды-кликни-по-канвасу-или-нажми-f-—-появится-новый-кадр")
+        );
+        assert!(
+            test_surfaces
+                .phrases
+                .contains("дважды-кликни-по-канвасу-или-нажми")
+        );
+        assert!(
+            prose_surfaces.phrases.is_empty(),
+            "visible text without a UI surface container should fail closed: {prose_surfaces:#?}"
+        );
+    }
+
+    #[test]
+    fn javascript_surface_phrases_capture_accessible_labelledby_dialog_names() {
+        let source = r#"export function ExportDialog() {
+  return (
+    <div role="dialog" aria-labelledby="export-title">
+      <h2 id="export-title" style={{ fontSize: 18 }}>
+        Экспорт
+      </h2>
+      <p>
+        This explanatory copy is visible but is not the dialog accessible name.
+      </p>
+    </div>
+  );
+}
+"#;
+        let overcapture = r#"export function BrokenDialogName() {
+  return (
+    <div role="dialog" aria-labelledby="export-title">
+      <h2 id="export-title"></h2>
+      <p>Export files are generated locally</p>
+    </div>
+  );
+}
+"#;
+        let test = r#"import { expect, test } from '@playwright/test';
+
+test("export dialog opens", async ({ page }) => {
+  await expect(page.getByRole('dialog', { name: 'Экспорт' })).toBeVisible();
+});
+"#;
+
+        let source_surfaces = extract_surfaces(source, "tsx");
+        let overcapture_surfaces = extract_surfaces(overcapture, "tsx");
+        let test_surfaces = extract_surfaces(test, "tsx");
+
+        assert!(
+            source_surfaces
+                .phrases
+                .contains("a11y-role-dialog-name-экспорт")
+        );
+        assert!(
+            test_surfaces
+                .phrases
+                .contains("a11y-role-dialog-name-экспорт")
+        );
+        assert!(source_surfaces.tokens.contains("экспорт"));
+        assert!(
+            source_surfaces
+                .phrases
+                .iter()
+                .all(|phrase| !phrase.contains("explanatory-copy")),
+            "only the labelled heading should become the dialog-name surface: {source_surfaces:#?}"
+        );
+        assert!(
+            overcapture_surfaces
+                .phrases
+                .iter()
+                .all(|phrase| !phrase.contains("a11y-role-dialog-name-export-files")),
+            "text after the labelled element must not become the dialog-name surface: {overcapture_surfaces:#?}"
+        );
+    }
+
+    #[test]
+    fn javascript_accessible_surfaces_resolve_dialog_contract_through_barrels() {
+        let repo = tempfile::TempDir::new().expect("repo tempdir");
+        std::fs::write(
+            repo.path().join("package.json"),
+            r#"{"name":"barrel-accessible-surface-fixture","private":true}"#,
+        )
+        .expect("write package");
+        std::fs::create_dir_all(repo.path().join("src/features/studio"))
+            .expect("create feature dir");
+        std::fs::create_dir_all(repo.path().join("src/design")).expect("create design dir");
+        std::fs::write(
+            repo.path().join("src/features/studio/export-dialog.tsx"),
+            r#"import { Dialog } from '../../design';
+
+export function ExportDialog({ open, onClose }) {
+  if (!open) return null;
+  return (
+    <Dialog open={open} onClose={onClose} labelledBy="export-title">
+      <h2 id="export-title">Export</h2>
+    </Dialog>
+  );
+}
+"#,
+        )
+        .expect("write anchor");
+        std::fs::write(
+            repo.path().join("src/design/index.ts"),
+            r#"export {
+  Dialog,
+  type ToastData,
+} from './primitives'
+"#,
+        )
+        .expect("write index");
+        std::fs::write(
+            repo.path().join("src/design/primitives.ts"),
+            r#"export {
+  Dialog,
+  type ToastData,
+} from './primitives-overlays'
+"#,
+        )
+        .expect("write primitives");
+        std::fs::write(
+            repo.path().join("src/design/primitives-overlays.tsx"),
+            r#"export type ToastData = { id: string };
+
+export function Dialog({ open, onClose, labelledBy, children }) {
+  if (!open) return null;
+  return <div role="dialog" aria-modal="true" aria-labelledby={labelledBy} onClick={onClose}>{children}</div>;
+}
+"#,
+        )
+        .expect("write overlays");
+
+        let project = load_project_with_cache(
+            RootSelection::Exact(repo.path().to_path_buf()),
+            CacheWriteMode::ReadOnly,
+        )
+        .expect("load project");
+        let anchor = project
+            .files
+            .get("src/features/studio/export-dialog.tsx")
+            .expect("anchor file");
+        assert!(
+            anchor
+                .surface_phrases
+                .contains("a11y-role-dialog-name-export"),
+            "dialog accessible surface should resolve through multiline barrels: {:#?}",
+            anchor.surface_phrases
+        );
+    }
+
+    #[test]
+    fn javascript_surface_phrases_ignore_getbyrole_inside_non_calls() {
+        let real = r#"import { expect, test } from '@playwright/test';
+
+test("export dialog opens", async ({ page }) => {
+  await expect(page.getByRole('dialog', { name: 'Export' })).toBeVisible();
+});
+"#;
+        let locator_chain = r#"import { expect, test } from '@playwright/test';
+
+test("export dialog opens", async ({ page }) => {
+  await expect(page.locator('#root').getByRole('dialog', { name: 'Export' })).toBeVisible();
+});
+"#;
+        let assigned_locator = r#"import { expect, test } from '@playwright/test';
+
+test('export dialog opens', async ({ page, browserName }) => {
+  const exportDialog = page.getByRole('dialog', { name: 'Экспорт' })
+  await expect(exportDialog).toBeVisible()
+});
+"#;
+        let assigned_locator_after_goto = r#"import { expect, test } from '@playwright/test';
+
+test('command palette opens export dialog', async ({ page }) => {
+  await page.goto('/studio');
+  const exportDialog = page.getByRole('dialog', { name: 'Export' });
+  await expect(exportDialog).toBeVisible();
+});
+"#;
+        let locator_action = r#"import { test } from '@playwright/test';
+
+test('command palette uses export dialog', async ({ page }) => {
+  await page.goto('/studio');
+  await page.getByRole('dialog', { name: 'Export' }).click();
+});
+"#;
+        let bare_lazy_playwright_locator = r#"import { test } from '@playwright/test';
+
+test('only creates lazy locator', async ({ page }) => {
+  await page.goto('/studio');
+  page.getByRole('dialog', { name: 'Export' });
+});
+"#;
+        let double_quoted = r#"const docs = "await expect(page.getByRole('dialog', { name: 'Export' })).toBeVisible()";"#;
+        let single_quoted = r#"const docs = 'await expect(page.getByRole("dialog", { name: "Export" })).toBeVisible()';"#;
+        let template = r#"const docs = `await expect(page.getByRole('dialog', { name: 'Export' })).toBeVisible()`;"#;
+        let regex = r#"const docs = /page\.getByRole\('dialog', { name: 'Export' }\)/;"#;
+        let bare_helper = r#"function getByRole(role, options) { return options; }
+const locator = getByRole('dialog', { name: 'Export' });
+"#;
+        let member_helper = r#"const helper = { getByRole(role, options) { return options; } };
+const locator = helper.getByRole('dialog', { name: 'Export' });
+"#;
+
+        assert!(
+            extract_surfaces(real, "tsx")
+                .phrases
+                .contains("a11y-role-dialog-name-export")
+        );
+        assert!(
+            extract_surfaces(locator_chain, "tsx")
+                .phrases
+                .contains("a11y-role-dialog-name-export")
+        );
+        assert!(
+            extract_surfaces(assigned_locator, "tsx")
+                .phrases
+                .contains("a11y-role-dialog-name-экспорт")
+        );
+        assert!(
+            extract_surfaces(assigned_locator_after_goto, "tsx")
+                .phrases
+                .contains("a11y-role-dialog-name-export")
+        );
+        assert!(
+            extract_surfaces(locator_action, "tsx")
+                .phrases
+                .contains("a11y-role-dialog-name-export")
+        );
+        for text in [
+            double_quoted,
+            single_quoted,
+            template,
+            regex,
+            bare_helper,
+            member_helper,
+            bare_lazy_playwright_locator,
+        ] {
+            let surfaces = extract_surfaces(text, "tsx");
+            assert!(
+                !surfaces.phrases.contains("a11y-role-dialog-name-export"),
+                "getByRole outside a real call must not become proof surface: {surfaces:#?}"
+            );
+        }
+    }
+
+    #[test]
+    fn javascript_surface_phrases_reject_getbyrole_opaque_name_overrides() {
+        let spread = r#"test("dialog", async ({ page }) => {
+  const metadata = { name: 'Import' };
+  await expect(page.getByRole('dialog', { name: 'Export', ...metadata })).toBeVisible();
+});
+"#;
+        let duplicate = r#"test("dialog", async ({ page }) => {
+  await expect(page.getByRole('dialog', { name: 'Export', name: 'Import' })).toBeVisible();
+});
+"#;
+        for text in [spread, duplicate] {
+            let surfaces = extract_surfaces(text, "tsx");
+            assert!(
+                !surfaces.phrases.contains("a11y-role-dialog-name-export"),
+                "opaque Playwright name overrides must fail closed: {surfaces:#?}"
+            );
+        }
+    }
+
+    #[test]
+    fn javascript_surface_phrases_ignore_ui_looking_module_specifiers() {
+        let text = r#"import widget from '@app/aria-label-open-settings-panel';
+export { widget as openSettingsPanel } from '@app/route-orders-new';
+const lazy = import ('@app/data-testid-submit-order-button');
+const required = require ('@app/class-name-submit-order-button');
+const bareLazy = import ('aria-label-open-settings-panel');
+const bareRequired = require ('data-testid-submit-order-button');
+const commentedLazy = import(/* webpackChunkName: "settings" */ 'aria-label-open-settings-panel');
+import {
+  multi,
+} from '@app/aria-label-open-settings-panel';
+const bareSubpath = require ('@scope/data-testid-submit-order-button');
+"#;
+
+        let surfaces = extract_surfaces(text, "tsx");
+
+        assert!(surfaces.phrases.is_empty(), "{surfaces:#?}");
+        assert!(surfaces.tokens.is_empty(), "{surfaces:#?}");
+    }
+
+    #[test]
+    fn javascript_surface_phrases_ignore_multiline_comments() {
+        let text = r#"/*
+  <button aria-label="Open settings panel" data-testid="submit-order-button">Settings</button>
+  await page.goto("/orders/new");
+*/
+export function CommentOnly() {
+  return <div />;
+}
+"#;
+
+        let surfaces = extract_surfaces(text, "tsx");
+
+        assert!(surfaces.phrases.is_empty(), "{surfaces:#?}");
+        assert!(surfaces.tokens.is_empty(), "{surfaces:#?}");
+    }
+
+    #[test]
     fn rust_symbols_keep_visibility_and_ranges() {
         let text = r#"use crate::timeline::frame_at;
 
@@ -3732,6 +9447,63 @@ func (s Session) tick() {}
     }
 
     #[test]
+    fn swift_symbols_keep_modifiers_imports_and_ranges() {
+        let text = r#"import Foundation
+import SwiftUI
+
+@MainActor
+public final class ReplayViewModel: ObservableObject {
+    @Published public var selectedID: String?
+
+    public struct NavigationFrame {
+        let label: String
+    }
+
+    public var title: String {
+        "Replay"
+    }
+
+    private let frames: [NavigationFrame] = []
+
+    public func seekFrame(_ index: Int) -> NavigationFrame? {
+        frames.indices.contains(index) ? frames[index] : nil
+    }
+}
+
+private enum ReplayMode {
+    case paused
+}
+"#;
+
+        let symbols = extract_symbols(text, "swift");
+
+        assert_symbol(&symbols, "ReplayViewModel", "class", true, 5, 21);
+        assert_symbol(&symbols, "selectedID", "property", true, 6, 6);
+        assert_symbol(&symbols, "NavigationFrame", "struct", true, 8, 10);
+        assert_symbol(&symbols, "title", "property", true, 12, 14);
+        assert_symbol(&symbols, "frames", "constant", false, 16, 16);
+        assert_symbol(&symbols, "seekFrame", "function", true, 18, 20);
+        assert_symbol(&symbols, "ReplayMode", "enum", false, 23, 25);
+
+        let imports = swift_import_re()
+            .captures_iter(text)
+            .filter_map(|cap| cap.get(1).map(|m| m.as_str().to_string()))
+            .collect::<Vec<_>>();
+        assert_eq!(imports, vec!["Foundation", "SwiftUI"]);
+
+        let qualified_imports = swift_import_re()
+            .captures_iter(
+                "@testable import SwiftFixture\n@_spi(Internal) import Core\nimport struct Foundation.UUID\n",
+            )
+            .filter_map(|cap| cap.get(1).map(|m| m.as_str().to_string()))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            qualified_imports,
+            vec!["SwiftFixture", "Core", "Foundation"]
+        );
+    }
+
+    #[test]
     fn fixture_projects_populate_symbols_for_primary_languages() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures");
         let cases = [
@@ -3751,6 +9523,11 @@ func (s Session) tick() {}
                 "seek",
             ),
             ("go-workspace", "services/replay/session/session.go", "Seek"),
+            (
+                "swift-package",
+                "Sources/SwiftFixture/ViewModel.swift",
+                "ReplayViewModel",
+            ),
         ];
 
         for (fixture, rel, symbol) in cases {

@@ -17,12 +17,12 @@ const CACHE_ARTIFACTS: &[&str] = &[
 ];
 
 pub fn cache_base_dir() -> PathBuf {
-    if let Ok(dir) = env::var("CTX_CACHE_DIR") {
+    if let Ok(dir) = env::var("CODEMAP_CACHE_DIR") {
         return PathBuf::from(dir);
     }
     dirs::cache_dir()
         .unwrap_or_else(env::temp_dir)
-        .join("agent-context")
+        .join("codemap")
 }
 
 pub fn project_cache_dir(root: &Path, remote: Option<&str>, version: &str) -> PathBuf {
@@ -30,7 +30,7 @@ pub fn project_cache_dir(root: &Path, remote: Option<&str>, version: &str) -> Pa
 }
 
 pub fn cache_enabled() -> bool {
-    env::var_os("CTX_NO_CACHE").is_none()
+    env::var_os("CODEMAP_NO_CACHE").is_none()
 }
 
 pub fn expected_artifacts() -> &'static [&'static str] {
@@ -187,7 +187,40 @@ fn write_inventory(project: &Project, version: &str) -> Result<()> {
                 size: file.size,
                 line_count: file.line_count,
                 roles: file.roles.iter().cloned().collect(),
+                import_bindings: file
+                    .import_bindings
+                    .iter()
+                    .map(|(spec, bindings)| CachedImportBindings {
+                        spec: spec.clone(),
+                        bindings: bindings
+                            .iter()
+                            .map(|(local, imported)| CachedImportBinding {
+                                local: local.clone(),
+                                imported: imported.clone(),
+                            })
+                            .collect(),
+                    })
+                    .collect(),
+                resolved_import_bindings: file
+                    .resolved_import_bindings
+                    .iter()
+                    .map(|(target, bindings)| CachedImportBindings {
+                        spec: target.clone(),
+                        bindings: bindings
+                            .iter()
+                            .map(|(local, imported)| CachedImportBinding {
+                                local: local.clone(),
+                                imported: imported.clone(),
+                            })
+                            .collect(),
+                    })
+                    .collect(),
                 symbols: file.symbols.clone(),
+                jsx_tags: file.jsx_tags.iter().cloned().collect(),
+                local_bindings: file.local_bindings.iter().cloned().collect(),
+                surface_tokens: file.surface_tokens.iter().cloned().collect(),
+                surface_phrases: file.surface_phrases.iter().cloned().collect(),
+                visited_route_paths: file.visited_route_paths.iter().cloned().collect(),
             })
             .collect(),
         packages: project.packages.clone(),
@@ -285,7 +318,26 @@ struct CachedFile {
     size: u64,
     line_count: usize,
     roles: Vec<String>,
+    import_bindings: Vec<CachedImportBindings>,
+    resolved_import_bindings: Vec<CachedImportBindings>,
     symbols: Vec<crate::model::SymbolInfo>,
+    jsx_tags: Vec<String>,
+    local_bindings: Vec<String>,
+    surface_tokens: Vec<String>,
+    surface_phrases: Vec<String>,
+    visited_route_paths: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct CachedImportBindings {
+    spec: String,
+    bindings: Vec<CachedImportBinding>,
+}
+
+#[derive(Serialize)]
+struct CachedImportBinding {
+    local: String,
+    imported: String,
 }
 
 #[derive(Serialize)]
