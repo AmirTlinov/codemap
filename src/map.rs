@@ -396,7 +396,7 @@ fn ls_directory_report(
     let mut edges = directory_edges(project, rel, include_hidden);
     let edge_count = edges.len();
     if !include_hidden {
-        edges.truncate(limit);
+        edges = balanced_edge_prefix_by_source(&edges, limit);
     }
     if edge_count > edges.len() {
         hidden.push(HiddenGroup {
@@ -975,6 +975,50 @@ fn sort_edges(edges: &mut Vec<StructuralEdge>) {
     edges.dedup_by(|a, b| {
         a.from == b.from && a.to == b.to && a.edge_type == b.edge_type && a.evidence == b.evidence
     });
+}
+
+fn balanced_edge_prefix_by_source(edges: &[StructuralEdge], limit: usize) -> Vec<StructuralEdge> {
+    if edges.len() <= limit {
+        return edges.to_vec();
+    }
+
+    let mut buckets: BTreeMap<String, VecDeque<StructuralEdge>> = BTreeMap::new();
+    for edge in edges {
+        buckets
+            .entry(edge.from.clone())
+            .or_default()
+            .push_back(edge.clone());
+    }
+
+    let mut balanced = Vec::with_capacity(limit);
+    while balanced.len() < limit && !buckets.is_empty() {
+        let keys = buckets.keys().cloned().collect::<Vec<_>>();
+        let mut progressed = false;
+
+        for key in keys {
+            if balanced.len() == limit {
+                break;
+            }
+
+            let mut empty = false;
+            if let Some(bucket) = buckets.get_mut(&key) {
+                if let Some(edge) = bucket.pop_front() {
+                    balanced.push(edge);
+                    progressed = true;
+                }
+                empty = bucket.is_empty();
+            }
+            if empty {
+                buckets.remove(&key);
+            }
+        }
+
+        if !progressed {
+            break;
+        }
+    }
+
+    balanced
 }
 
 fn limit_edge_section(

@@ -1689,6 +1689,88 @@ fn flat_huge_directory_ls_stays_bounded_without_expanding_the_galaxy() {
 }
 
 #[test]
+fn root_ls_balances_directory_edges_across_structural_sources() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{
+  "name": "balanced-root-fixture",
+  "private": true
+}
+"#,
+    );
+    for index in 0..30 {
+        write(
+            &repo
+                .path()
+                .join(format!("packages/noisy-{index:02}/src/index.ts")),
+            &format!("export const noisy{index:02} = {index};\n"),
+        );
+        write(
+            &repo
+                .path()
+                .join(format!("apps/control-center/src/use-{index:02}.ts")),
+            &format!(
+                "import {{ noisy{index:02} }} from '../../../packages/noisy-{index:02}/src/index';\nexport const use{index:02} = noisy{index:02};\n"
+            ),
+        );
+    }
+    write(
+        &repo.path().join("packages/shared/src/index.ts"),
+        "export const shared = true;\n",
+    );
+    write(
+        &repo.path().join("services/api/src/use-shared.ts"),
+        "import { shared } from '../../../packages/shared/src/index';\nexport const apiUsesShared = shared;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let json = run_json(
+        repo.path(),
+        cache.path(),
+        &["ls", ".", "--limit", "8", "--format", "json"],
+    );
+    assert_schema("schemas/ls.schema.json", &json);
+    let edges = json["edges"].as_array().expect("edges");
+    assert_eq!(edges.len(), 8);
+
+    let froms = edges
+        .iter()
+        .map(|edge| edge["from"].as_str().expect("edge from"))
+        .collect::<Vec<_>>();
+    assert!(
+        froms.contains(&"apps/control-center/"),
+        "noisy source should still be represented: {json:#}"
+    );
+    assert!(
+        froms.contains(&"services/api/"),
+        "bounded root map should preserve a second structural source instead of letting one source consume the edge budget: {json:#}"
+    );
+    assert!(
+        froms
+            .iter()
+            .filter(|from| **from == "apps/control-center/")
+            .count()
+            < edges.len(),
+        "default root edge budget must not be monopolized by one noisy source: {json:#}"
+    );
+    assert!(
+        json["hidden"]
+            .as_array()
+            .expect("hidden")
+            .iter()
+            .any(|hidden| hidden["reason"] == "directory edges hidden by limit"),
+        "hidden edge count should still make the bounded cut explicit: {json:#}"
+    );
+    assert_eq!(json.get("read_first"), None);
+}
+
+#[test]
 fn anchors_validate_reports_summary_and_actionable_warnings() {
     let (repo, cache) = fixture();
     let validation = run_json(
