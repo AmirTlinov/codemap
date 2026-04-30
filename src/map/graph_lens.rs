@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use crate::model::{Domain, GraphEdge, GraphLens, Project};
 
-use super::{boundary_findings, impact_report, impacted_domains, unique};
+use super::{boundary_findings, impact_report, impacted_domains, is_support_artifact_path, unique};
 
 pub fn graph_lens(
     project: &Project,
@@ -106,6 +106,10 @@ fn causal_graph(
             project
                 .packages
                 .iter()
+                .filter(|package| {
+                    !is_support_artifact_path(&package.path)
+                        && !is_support_artifact_path(&package.manifest)
+                })
                 .map(|package| package.manifest.clone())
                 .chain(project.domains.iter().map(|domain| domain.path.clone())),
             limit,

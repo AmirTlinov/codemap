@@ -1530,6 +1530,52 @@ boundaries:
 }
 
 #[test]
+fn graph_causal_root_hides_support_packages_until_scoped() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("fixtures/example/package.json"),
+        r#"{"name":"fixture-package","scripts":{"test":"vitest run"}}"#,
+    );
+    write(
+        &repo.path().join("fixtures/example/src/index.ts"),
+        "export const fixture = true;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture support package"]);
+
+    let root_graph = run_json(
+        repo.path(),
+        cache.path(),
+        &["graph", "--lens", "causal", "--format", "json"],
+    );
+    assert_schema("schemas/graph.schema.json", &root_graph);
+    assert!(
+        root_graph["nodes"]
+            .as_array()
+            .expect("root graph nodes")
+            .iter()
+            .all(|node| !node.as_str().unwrap_or_default().starts_with("fixtures/")),
+        "root graph should not be dominated by fixture/example package internals: {root_graph:#}"
+    );
+
+    let fixture_graph = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "graph", "--path", "fixtures", "--lens", "causal", "--format", "json",
+        ],
+    );
+    assert!(
+        fixture_graph["nodes"]
+            .as_array()
+            .expect("fixture graph nodes")
+            .iter()
+            .any(|node| node == "fixtures/example/package.json"),
+        "explicit fixture graph scope should still reveal fixture package nodes: {fixture_graph:#}"
+    );
+}
+
+#[test]
 fn schema_manifest_has_no_removed_router_contracts_and_schema_command_is_side_effect_free() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let manifest_text =
