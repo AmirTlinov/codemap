@@ -86,7 +86,11 @@ boundaries:
     );
     write(
         &repo.path().join("packages/replay/src/index.ts"),
-        "export { seek } from './session';\nexport type { FrameDto } from './types';\n",
+        "export { publicOnly } from './public-only';\nexport { seek } from './session';\nexport type { FrameDto } from './types';\n",
+    );
+    write(
+        &repo.path().join("packages/replay/src/public-only.ts"),
+        "export function publicOnly() {\n  return true;\n}\n",
     );
     write(
         &repo.path().join("packages/replay/src/types.ts"),
@@ -107,6 +111,10 @@ boundaries:
     write(
         &repo.path().join("packages/replay/tests/session.test.ts"),
         "import { seek } from '../src/session';\n\ntest('seek maps frame', () => {\n  expect(seek(2).frame).toBe(2);\n});\n",
+    );
+    write(
+        &repo.path().join("packages/replay/tests/public-api.test.ts"),
+        "import { publicOnly } from '../src/index';\n\ntest('public api exposes publicOnly', () => {\n  expect(publicOnly()).toBe(true);\n});\n",
     );
     write(
         &repo.path().join("packages/replay/tests/e2e/seek.e2e.ts"),
@@ -452,6 +460,43 @@ fn file_ls_and_cone_show_symbols_edges_proof_and_boundary() {
             .any(|edge| edge["from"] == "packages/app/src/badInternal.ts"
                 && edge["to"] == "packages/replay/src/internal.ts"
                 && edge["strength"] == "hard")
+    );
+}
+
+#[test]
+fn cone_shows_proof_edges_through_direct_consumers() {
+    let (repo, cache) = fixture();
+    let cone = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "cone",
+            "packages/replay/src/public-only.ts",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/cone.schema.json", &cone);
+    assert!(
+        cone["incoming"]
+            .as_array()
+            .expect("incoming")
+            .iter()
+            .any(|edge| edge["from"] == "packages/replay/src/index.ts"
+                && edge["to"] == "packages/replay/src/public-only.ts"),
+        "direct public consumer should be visible before proof via consumer is trusted: {cone:#}"
+    );
+    assert!(
+        cone["proof"]
+            .as_array()
+            .expect("proof")
+            .iter()
+            .any(
+                |edge| edge["from"] == "packages/replay/tests/public-api.test.ts"
+                    && edge["to"] == "packages/replay/src/public-only.ts"
+                    && edge["evidence"] == "test_import_via_direct_consumer"
+            ),
+        "cone should show proof reachable through the direct consumer, not only proof for direct imports: {cone:#}"
     );
 }
 

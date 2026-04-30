@@ -129,7 +129,7 @@ pub fn cone_report(
     let depths = cone_depths(project, &seed_files, depth);
     let mut outgoing = cone_outgoing_edges(project, &depths, depth);
     let mut incoming = cone_incoming_edges(project, &seed_files);
-    let mut proof = cone_proof_edges(project, &seed_files);
+    let mut proof = cone_proof_edges_with_direct_consumers(project, &seed_files);
     let mut contracts = cone_contract_edges(project, &outgoing);
     let mut boundary = cone_boundary_edges(project, &rel, &depths);
     sort_edges(&mut outgoing);
@@ -807,6 +807,28 @@ fn cone_proof_edges(project: &Project, seeds: &[String]) -> Vec<StructuralEdge> 
                 evidence,
                 strength,
             });
+        }
+    }
+    edges
+}
+
+fn cone_proof_edges_with_direct_consumers(
+    project: &Project,
+    seeds: &[String],
+) -> Vec<StructuralEdge> {
+    let mut edges = cone_proof_edges(project, seeds);
+    for seed in seeds {
+        for consumer in direct_consumer_edges(project, seed).into_iter().take(4) {
+            for (test, evidence, strength) in strict_test_edges_for_file(project, &consumer.from, 4)
+            {
+                edges.push(StructuralEdge {
+                    from: test,
+                    to: seed.clone(),
+                    edge_type: "tests".to_string(),
+                    evidence: format!("{evidence}_via_direct_consumer"),
+                    strength,
+                });
+            }
         }
     }
     edges
@@ -1822,6 +1844,12 @@ fn proof_surfaces_for_anchor(
 }
 
 fn proof_reason_for_evidence(evidence: &str, scope: &str) -> String {
+    if let Some(base) = evidence.strip_suffix("_via_direct_consumer") {
+        return format!(
+            "{} via direct consumer",
+            proof_reason_for_evidence(base, scope)
+        );
+    }
     match evidence {
         "test_import" => format!("test imports {scope}"),
         "test_name" => format!("test name matches {scope}"),
@@ -2153,6 +2181,9 @@ fn proof_surface_precedence(value: &ProofSurface) -> (EvidenceStrength, usize) {
 }
 
 fn proof_evidence_precedence(evidence: &str) -> usize {
+    let evidence = evidence
+        .strip_suffix("_via_direct_consumer")
+        .unwrap_or(evidence);
     match evidence {
         "test_import" => 6,
         "test_support_import" => 5,
