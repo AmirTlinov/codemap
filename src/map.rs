@@ -3723,6 +3723,7 @@ fn e2e_path_surface_allowed(project: &Project, rel: &str) -> bool {
                 && file.surface_phrases.is_empty()
                 && file.jsx_tags.is_empty()
                 && file.resolved_imports.is_empty()
+                && direct_consumer_edges(project, rel).is_empty()
                 && !file.has_role("test")
                 && !file.has_role("test_support")
         })
@@ -3734,7 +3735,7 @@ fn e2e_path_surface_match(
     core_shared_count: usize,
     core_path_shared_count: usize,
 ) -> bool {
-    core_path_shared_count >= 2 && core_shared_count >= 2 && shared_count >= 2
+    core_path_shared_count >= 3 && core_shared_count >= 2 && shared_count >= 2
 }
 
 fn e2e_test_visits_route(rel: &str, test: &FileInfo) -> bool {
