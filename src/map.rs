@@ -723,6 +723,11 @@ fn structural_neighbors(project: &Project, rel: &str) -> Vec<String> {
     if let Some(importers) = project.reverse_imports.get(rel) {
         neighbors.extend(importers.iter().cloned());
     }
+    neighbors.extend(
+        same_package_symbol_reference_consumers(project, rel)
+            .into_iter()
+            .map(|edge| edge.from),
+    );
     unique(neighbors)
         .into_iter()
         .filter(|neighbor| project.files.contains_key(neighbor))
@@ -780,6 +785,11 @@ fn cone_incoming_edges(project: &Project, seeds: &[String]) -> Vec<StructuralEdg
                         strength: EvidenceStrength::High,
                     });
                 }
+            }
+        }
+        for edge in same_package_symbol_reference_consumers(project, seed) {
+            if !seed_set.contains(&edge.from) {
+                edges.push(edge);
             }
         }
     }
@@ -1147,6 +1157,15 @@ fn strict_test_edges_for_file(
             ));
             continue;
         }
+        if test_references_anchor_symbol(project, rel, file) {
+            scored.push((
+                74usize,
+                file.rel.clone(),
+                "test_symbol_reference".to_string(),
+                EvidenceStrength::High,
+            ));
+            continue;
+        }
         if allow_name_match && test_name_matches_source_stem(&file.rel, &lower_stem) {
             scored.push((
                 70usize,
@@ -1283,6 +1302,50 @@ fn test_imports_support_consuming_anchor(project: &Project, rel: &str, test: &Fi
         frontier = next;
     }
     false
+}
+
+fn test_references_anchor_symbol(project: &Project, rel: &str, test: &FileInfo) -> bool {
+    let Some(anchor) = project.files.get(rel) else {
+        return false;
+    };
+    if anchor_symbol_reference_names(anchor).is_empty() {
+        return false;
+    }
+    let source_domain = scoped_domain_path_for_rel(project, rel, domain_by_rel(project, rel));
+    let test_domain = scoped_domain_path_for_rel(project, &test.rel, domain_by_rel(project, rel));
+    if source_domain.is_some() && source_domain != test_domain {
+        return false;
+    }
+    let source_package = package_for_rel(project, rel).map(|package| package.path.clone());
+    let test_package = package_for_rel(project, &test.rel).map(|package| package.path.clone());
+    if source_package.is_some() && source_package != test_package {
+        return false;
+    }
+    if !same_symbol_reference_scope(anchor, test) {
+        return false;
+    }
+    anchor_symbol_reference_names(anchor)
+        .iter()
+        .any(|name| test.references.contains(name))
+}
+
+fn anchor_symbol_reference_names(anchor: &FileInfo) -> BTreeSet<String> {
+    anchor
+        .symbols
+        .iter()
+        .filter(|symbol| symbol.kind != "method")
+        .filter(|symbol| symbol.exported || structural_anchor_symbol_kind(&symbol.kind))
+        .map(|symbol| symbol.name.clone())
+        .filter(|name| meaningful_symbol_reference_name(name))
+        .collect()
+}
+
+fn meaningful_symbol_reference_name(name: &str) -> bool {
+    if name == "default" || name.len() < 4 {
+        return false;
+    }
+    let terms = semantic_name_terms(name);
+    !terms.is_empty()
 }
 
 fn shared_surface_phrases(project: &Project, rel: &str, test: &FileInfo) -> BTreeSet<String> {
@@ -1763,6 +1826,7 @@ fn proof_reason_for_evidence(evidence: &str, scope: &str) -> String {
         "test_import" => format!("test imports {scope}"),
         "test_name" => format!("test name matches {scope}"),
         "test_support_import" => format!("test imports support code that imports {scope}"),
+        "test_symbol_reference" => format!("test references an anchor symbol from {scope}"),
         "test_surface_phrase" => format!("test uses same UI/test surface as {scope}"),
         "e2e_surface_phrase" => format!("e2e uses same UI/test surface as {scope}"),
         "test_surface_tokens" => format!("test path/symbols match {scope} surface"),
@@ -2092,7 +2156,8 @@ fn proof_evidence_precedence(evidence: &str) -> usize {
     match evidence {
         "test_import" => 6,
         "test_support_import" => 5,
-        "test_name" => 4,
+        "test_symbol_reference" => 4,
+        "test_name" => 3,
         "e2e_surface_phrase" => 3,
         "test_surface_phrase" => 2,
         "test_surface_tokens" => 1,
@@ -2210,7 +2275,7 @@ fn limit_impact_edges(
 }
 
 fn direct_consumer_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {
-    project
+    let mut edges = project
         .reverse_imports
         .get(rel)
         .into_iter()
@@ -2229,7 +2294,43 @@ fn direct_consumer_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {
             evidence: "reverse_import".to_string(),
             strength: EvidenceStrength::High,
         })
+        .collect::<Vec<_>>();
+    edges.extend(same_package_symbol_reference_consumers(project, rel));
+    sort_edges(&mut edges);
+    edges
+}
+
+fn same_package_symbol_reference_consumers(project: &Project, rel: &str) -> Vec<StructuralEdge> {
+    let Some(anchor) = project.files.get(rel) else {
+        return Vec::new();
+    };
+    let names = anchor_symbol_reference_names(anchor);
+    if names.is_empty() {
+        return Vec::new();
+    }
+    project
+        .files
+        .values()
+        .filter(|file| file.rel != rel)
+        .filter(|file| !file.has_role("test") && !file.has_role("test_support"))
+        .filter(|file| !file.resolved_imports.contains(rel))
+        .filter(|file| same_symbol_reference_scope(anchor, file))
+        .filter(|file| names.iter().any(|name| file.references.contains(name)))
+        .map(|file| StructuralEdge {
+            from: file.rel.clone(),
+            to: rel.to_string(),
+            edge_type: "direct_consumer".to_string(),
+            evidence: "same_package_symbol_reference".to_string(),
+            strength: EvidenceStrength::High,
+        })
         .collect()
+}
+
+fn same_symbol_reference_scope(anchor: &FileInfo, file: &FileInfo) -> bool {
+    if anchor.ext == "go" && file.ext == "go" {
+        return Path::new(&anchor.rel).parent() == Path::new(&file.rel).parent();
+    }
+    false
 }
 
 fn cross_boundary_consumer_edges(
