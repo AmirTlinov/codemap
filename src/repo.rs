@@ -12,8 +12,8 @@ use regex::Regex;
 
 use crate::cache;
 use crate::model::{
-    AnchorDomain, ConfigLoadError, CtxConfig, Domain, FileInfo, PackageDependency, PackageInfo,
-    Project, ScriptInfo, SymbolInfo,
+    AnchorDomain, ConfigLoadError, CtxConfig, Domain, FileInfo, ImportBindingsBySpec,
+    PackageDependency, PackageInfo, Project, ScriptInfo, SymbolInfo,
 };
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -481,11 +481,15 @@ fn scan_files(root: &Path) -> Result<BTreeMap<String, FileInfo>> {
             language,
             roles: BTreeSet::new(),
             imports: BTreeSet::new(),
+            import_bindings: BTreeMap::new(),
             resolved_imports: BTreeSet::new(),
+            resolved_import_bindings: BTreeMap::new(),
             exports: BTreeSet::new(),
             symbols: Vec::new(),
             tokens: path_tokens(&rel),
             references: BTreeSet::new(),
+            jsx_tags: BTreeSet::new(),
+            local_bindings: BTreeSet::new(),
             surface_tokens: BTreeSet::new(),
             surface_phrases: BTreeSet::new(),
             visited_route_paths: BTreeSet::new(),
@@ -849,14 +853,12 @@ fn extract_imports_exports(root: &Path, info: &mut FileInfo) {
     info.visited_route_paths = surfaces.visited_routes;
     info.symbols = extract_symbols(&text, &info.ext);
     info.references = extract_identifier_references(&text, &info.ext);
+    info.jsx_tags = extract_jsx_tags(&text, &info.ext);
+    info.local_bindings = extract_local_bindings(&text, &info.ext);
     match info.ext.as_str() {
         "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte" => {
-            let import_re = js_import_re();
-            for cap in import_re.captures_iter(&text) {
-                if let Some(m) = cap.get(1) {
-                    info.imports.insert(m.as_str().trim().to_string());
-                }
-            }
+            info.imports.extend(extract_js_import_specs(&text));
+            info.import_bindings = extract_js_import_bindings(&text);
             let export_re = js_export_re();
             for cap in export_re.captures_iter(&text) {
                 if let Some(m) = cap.get(1) {
@@ -953,6 +955,467 @@ fn extract_identifier_references(text: &str, ext: &str) -> BTreeSet<String> {
         .filter(|name| !language_keyword(name))
         .map(str::to_string)
         .collect()
+}
+
+fn extract_jsx_tags(text: &str, ext: &str) -> BTreeSet<String> {
+    if !matches!(ext, "tsx" | "jsx" | "vue" | "svelte") {
+        return BTreeSet::new();
+    }
+    let cleaned = code_without_comments_or_strings(text, ext);
+    jsx_tag_re()
+        .captures_iter(&cleaned)
+        .filter_map(|cap| cap.get(1))
+        .map(|m| m.as_str().to_string())
+        .collect()
+}
+
+fn extract_local_bindings(text: &str, ext: &str) -> BTreeSet<String> {
+    if !matches!(
+        ext,
+        "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte"
+    ) {
+        return BTreeSet::new();
+    }
+    let cleaned = code_without_comments_or_strings(text, ext);
+    let mut out = BTreeSet::new();
+    for cap in js_function_params_re().captures_iter(&cleaned) {
+        if let Some(params) = cap.name("params") {
+            collect_js_param_bindings(params.as_str(), &mut out);
+        }
+    }
+    for cap in js_arrow_params_re().captures_iter(&cleaned) {
+        if let Some(params) = cap.name("params") {
+            collect_js_param_bindings(params.as_str(), &mut out);
+        }
+    }
+    for cap in js_method_params_re().captures_iter(&cleaned) {
+        if cap
+            .name("name")
+            .map(|name| language_keyword(name.as_str()))
+            .unwrap_or(true)
+        {
+            continue;
+        }
+        if let Some(params) = cap.name("params") {
+            collect_js_param_bindings(params.as_str(), &mut out);
+        }
+    }
+    for cap in js_single_arrow_param_re().captures_iter(&cleaned) {
+        if let Some(param) = cap.name("param") {
+            let name = param.as_str();
+            if !language_keyword(name) {
+                out.insert(name.to_string());
+            }
+        }
+    }
+    for pattern in js_destructuring_binding_patterns(&cleaned) {
+        collect_js_param_bindings(pattern, &mut out);
+    }
+    out
+}
+
+fn js_destructuring_binding_patterns(text: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    for keyword in ["const", "let", "var"] {
+        for start in js_keyword_positions(text, keyword) {
+            let pattern_start = skip_ascii_whitespace(text, start + keyword.len());
+            let Some(open) = text.as_bytes().get(pattern_start).copied() else {
+                continue;
+            };
+            if !matches!(open, b'{' | b'[') {
+                continue;
+            }
+            let Some(pattern_end) = js_balanced_pattern_end(text, pattern_start) else {
+                continue;
+            };
+            let after = skip_ascii_whitespace(text, pattern_end + 1);
+            if text.as_bytes().get(after) == Some(&b'=') {
+                out.push(&text[pattern_start..=pattern_end]);
+            }
+        }
+    }
+    out
+}
+
+fn js_balanced_pattern_end(text: &str, start: usize) -> Option<usize> {
+    let bytes = text.as_bytes();
+    let mut stack = vec![match bytes.get(start).copied()? {
+        b'{' => b'}',
+        b'[' => b']',
+        b'(' => b')',
+        _ => return None,
+    }];
+    let mut index = start + 1;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'{' => stack.push(b'}'),
+            b'[' => stack.push(b']'),
+            b'(' => stack.push(b')'),
+            b'}' | b']' | b')' => {
+                if stack.pop() != Some(bytes[index]) {
+                    return None;
+                }
+                if stack.is_empty() {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    None
+}
+
+fn collect_js_param_bindings(params: &str, out: &mut BTreeSet<String>) {
+    for ident in identifier_re().find_iter(params).map(|m| m.as_str()) {
+        if !language_keyword(ident) {
+            out.insert(ident.to_string());
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct JsStaticImport {
+    spec: String,
+    clause: Option<String>,
+    is_type: bool,
+}
+
+fn extract_js_import_specs(text: &str) -> BTreeSet<String> {
+    let mut out = BTreeSet::new();
+    for import in extract_js_static_imports(text) {
+        out.insert(import.spec);
+    }
+    out.extend(extract_js_export_from_specs(text));
+    out.extend(extract_js_call_import_specs(text));
+    out
+}
+
+fn extract_js_import_bindings(text: &str) -> ImportBindingsBySpec {
+    let mut out = BTreeMap::new();
+    for import in extract_js_static_imports(text) {
+        if import.is_type {
+            continue;
+        }
+        let Some(clause) = import.clause.as_deref() else {
+            continue;
+        };
+        let bindings = parse_js_import_clause_bindings(clause);
+        if !bindings.is_empty() {
+            out.entry(import.spec)
+                .or_insert_with(BTreeMap::new)
+                .extend(bindings);
+        }
+    }
+    out
+}
+
+fn extract_js_static_imports(text: &str) -> Vec<JsStaticImport> {
+    js_keyword_positions(text, "import")
+        .into_iter()
+        .filter_map(|start| {
+            let after = skip_ascii_whitespace(text, start + "import".len());
+            let next = text.as_bytes().get(after).copied();
+            if matches!(next, Some(b'.' | b'(')) {
+                return None;
+            }
+            parse_js_static_import_statement(js_statement_slice(text, start))
+        })
+        .collect()
+}
+
+fn parse_js_static_import_statement(statement: &str) -> Option<JsStaticImport> {
+    let cap = js_static_import_statement_re().captures(statement)?;
+    let spec = cap.name("spec")?.as_str().trim().to_string();
+    let clause = cap.name("clause").map(|m| m.as_str().trim().to_string());
+    Some(JsStaticImport {
+        spec,
+        clause,
+        is_type: cap.name("type").is_some(),
+    })
+}
+
+fn extract_js_export_from_specs(text: &str) -> BTreeSet<String> {
+    js_keyword_positions(text, "export")
+        .into_iter()
+        .filter_map(|start| {
+            js_export_from_re()
+                .captures(js_statement_slice(text, start))
+                .and_then(|cap| cap.name("spec").map(|m| m.as_str().trim().to_string()))
+        })
+        .collect()
+}
+
+fn extract_js_call_import_specs(text: &str) -> BTreeSet<String> {
+    let mut out = BTreeSet::new();
+    for start in js_keyword_positions(text, "import") {
+        let after = skip_ascii_whitespace(text, start + "import".len());
+        if text.as_bytes().get(after) == Some(&b'(')
+            && let Some(spec) = parse_js_call_string_arg(text, after)
+        {
+            out.insert(spec);
+        }
+    }
+    for start in js_keyword_positions(text, "require") {
+        let after = skip_ascii_whitespace(text, start + "require".len());
+        if text.as_bytes().get(after) == Some(&b'(')
+            && let Some(spec) = parse_js_call_string_arg(text, after)
+        {
+            out.insert(spec);
+        }
+    }
+    out
+}
+
+fn parse_js_call_string_arg(text: &str, open_paren: usize) -> Option<String> {
+    let quote = skip_ascii_whitespace(text, open_paren + 1);
+    let quote_byte = *text.as_bytes().get(quote)?;
+    if !matches!(quote_byte, b'\'' | b'"') {
+        return None;
+    }
+    read_js_quoted_string(text, quote)
+}
+
+fn read_js_quoted_string(text: &str, quote: usize) -> Option<String> {
+    let bytes = text.as_bytes();
+    let quote_byte = *bytes.get(quote)?;
+    if !matches!(quote_byte, b'\'' | b'"') {
+        return None;
+    }
+    let mut index = quote + 1;
+    let mut out = String::new();
+    while index < bytes.len() {
+        let byte = bytes[index];
+        if byte == b'\\' {
+            index = index.saturating_add(2);
+            continue;
+        }
+        if byte == quote_byte {
+            return Some(out);
+        }
+        out.push(byte as char);
+        index += 1;
+    }
+    None
+}
+
+fn js_statement_slice(text: &str, start: usize) -> &str {
+    let bytes = text.as_bytes();
+    let mut index = start;
+    let mut state = JsScanState::Code;
+    while index < bytes.len() {
+        match state {
+            JsScanState::Code => {
+                if bytes[index] == b';' {
+                    return &text[start..=index];
+                }
+                if bytes[index] == b'/' && bytes.get(index + 1) == Some(&b'/') {
+                    state = JsScanState::LineComment;
+                    index += 2;
+                    continue;
+                }
+                if bytes[index] == b'/' && bytes.get(index + 1) == Some(&b'*') {
+                    state = JsScanState::BlockComment;
+                    index += 2;
+                    continue;
+                }
+                if matches!(bytes[index], b'\'' | b'"') {
+                    state = JsScanState::Quoted(bytes[index]);
+                } else if bytes[index] == b'`' {
+                    state = JsScanState::Template;
+                }
+            }
+            JsScanState::LineComment => {
+                if bytes[index] == b'\n' {
+                    state = JsScanState::Code;
+                }
+            }
+            JsScanState::BlockComment => {
+                if bytes[index] == b'*' && bytes.get(index + 1) == Some(&b'/') {
+                    state = JsScanState::Code;
+                    index += 2;
+                    continue;
+                }
+            }
+            JsScanState::Quoted(quote) => {
+                if bytes[index] == b'\\' {
+                    index = index.saturating_add(2);
+                    continue;
+                }
+                if bytes[index] == quote {
+                    state = JsScanState::Code;
+                }
+            }
+            JsScanState::Template => {
+                if bytes[index] == b'\\' {
+                    index = index.saturating_add(2);
+                    continue;
+                }
+                if bytes[index] == b'`' {
+                    state = JsScanState::Code;
+                }
+            }
+        }
+        index += 1;
+    }
+    &text[start..]
+}
+
+#[derive(Clone, Copy)]
+enum JsScanState {
+    Code,
+    LineComment,
+    BlockComment,
+    Quoted(u8),
+    Template,
+}
+
+fn js_keyword_positions(text: &str, keyword: &str) -> Vec<usize> {
+    let bytes = text.as_bytes();
+    let keyword_bytes = keyword.as_bytes();
+    let mut out = Vec::new();
+    let mut index = 0;
+    let mut state = JsScanState::Code;
+    while index < bytes.len() {
+        match state {
+            JsScanState::Code => {
+                if bytes[index] == b'/' && bytes.get(index + 1) == Some(&b'/') {
+                    state = JsScanState::LineComment;
+                    index += 2;
+                    continue;
+                }
+                if bytes[index] == b'/' && bytes.get(index + 1) == Some(&b'*') {
+                    state = JsScanState::BlockComment;
+                    index += 2;
+                    continue;
+                }
+                if matches!(bytes[index], b'\'' | b'"') {
+                    state = JsScanState::Quoted(bytes[index]);
+                } else if bytes[index] == b'`' {
+                    state = JsScanState::Template;
+                } else if bytes[index..].starts_with(keyword_bytes)
+                    && js_keyword_boundary(bytes, index, keyword_bytes.len())
+                {
+                    out.push(index);
+                    index += keyword_bytes.len();
+                    continue;
+                }
+            }
+            JsScanState::LineComment => {
+                if bytes[index] == b'\n' {
+                    state = JsScanState::Code;
+                }
+            }
+            JsScanState::BlockComment => {
+                if bytes[index] == b'*' && bytes.get(index + 1) == Some(&b'/') {
+                    state = JsScanState::Code;
+                    index += 2;
+                    continue;
+                }
+            }
+            JsScanState::Quoted(quote) => {
+                if bytes[index] == b'\\' {
+                    index = index.saturating_add(2);
+                    continue;
+                }
+                if bytes[index] == quote {
+                    state = JsScanState::Code;
+                }
+            }
+            JsScanState::Template => {
+                if bytes[index] == b'\\' {
+                    index = index.saturating_add(2);
+                    continue;
+                }
+                if bytes[index] == b'`' {
+                    state = JsScanState::Code;
+                }
+            }
+        }
+        index += 1;
+    }
+    out
+}
+
+fn js_keyword_boundary(bytes: &[u8], start: usize, len: usize) -> bool {
+    let before = start
+        .checked_sub(1)
+        .and_then(|index| bytes.get(index))
+        .copied();
+    let after = bytes.get(start + len).copied();
+    !before.map(is_js_identifier_byte).unwrap_or(false)
+        && !after.map(is_js_identifier_byte).unwrap_or(false)
+}
+
+fn is_js_identifier_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'$')
+}
+
+fn skip_ascii_whitespace(text: &str, mut index: usize) -> usize {
+    let bytes = text.as_bytes();
+    while bytes
+        .get(index)
+        .map(|byte| byte.is_ascii_whitespace())
+        .unwrap_or(false)
+    {
+        index += 1;
+    }
+    index
+}
+
+fn parse_js_import_clause_bindings(clause: &str) -> BTreeMap<String, String> {
+    let mut out = BTreeMap::new();
+    let clause = clause.trim();
+    if clause.is_empty() || clause.starts_with('{') {
+        collect_js_named_import_bindings(clause, &mut out);
+        return out;
+    }
+    if let Some(namespace) = clause.strip_prefix("* as ") {
+        if let Some(name) = first_identifier(namespace) {
+            out.insert(name, "*".to_string());
+        }
+        return out;
+    }
+    if let Some((default, rest)) = clause.split_once(',') {
+        if let Some(name) = first_identifier(default) {
+            out.insert(name, "default".to_string());
+        }
+        collect_js_named_import_bindings(rest, &mut out);
+    } else if let Some(name) = first_identifier(clause) {
+        out.insert(name, "default".to_string());
+    }
+    out
+}
+
+fn collect_js_named_import_bindings(clause: &str, out: &mut BTreeMap<String, String>) {
+    let Some(start) = clause.find('{') else {
+        return;
+    };
+    let Some(end) = clause.rfind('}') else {
+        return;
+    };
+    for part in clause[start + 1..end].split(',') {
+        let part = part.trim();
+        if part.is_empty() || part.starts_with("type ") {
+            continue;
+        }
+        let (imported, local) = part
+            .split_once(" as ")
+            .map(|(imported, alias)| (imported.trim(), alias.trim()))
+            .unwrap_or((part, part));
+        let Some(imported_name) = first_identifier(imported) else {
+            continue;
+        };
+        if let Some(local_name) = first_identifier(local) {
+            out.insert(local_name, imported_name);
+        }
+    }
+}
+
+fn first_identifier(value: &str) -> Option<String> {
+    identifier_re()
+        .find(value.trim())
+        .map(|m| m.as_str().to_string())
 }
 
 fn identifier_is_selector_tail(text: &str, start: usize) -> bool {
@@ -2075,6 +2538,13 @@ fn is_uppercase_symbol(name: &str) -> bool {
         .unwrap_or(false)
 }
 
+struct ImportResolutionSeed {
+    rel: String,
+    ext: String,
+    imports: Vec<String>,
+    import_bindings: ImportBindingsBySpec,
+}
+
 fn resolve_imports(
     root: &Path,
     files: &mut BTreeMap<String, FileInfo>,
@@ -2082,27 +2552,44 @@ fn resolve_imports(
     ts_path_aliases: &[TsPathAlias],
 ) {
     let paths: BTreeSet<String> = files.keys().cloned().collect();
-    let snapshot: Vec<(String, String, Vec<String>)> = files
+    let snapshot: Vec<ImportResolutionSeed> = files
         .values()
-        .map(|f| {
-            (
-                f.rel.clone(),
-                f.ext.clone(),
-                f.imports.iter().cloned().collect(),
-            )
+        .map(|f| ImportResolutionSeed {
+            rel: f.rel.clone(),
+            ext: f.ext.clone(),
+            imports: f.imports.iter().cloned().collect(),
+            import_bindings: f.import_bindings.clone(),
         })
         .collect();
-    for (rel, ext, imports) in snapshot {
+    for seed in snapshot {
         let mut resolved = BTreeSet::new();
-        for spec in imports {
-            if let Some(target) =
-                resolve_import(root, &rel, &ext, &spec, &paths, packages, ts_path_aliases)
-            {
+        let mut resolved_bindings = BTreeMap::new();
+        for spec in seed.imports {
+            if let Some(target) = resolve_import(
+                root,
+                &seed.rel,
+                &seed.ext,
+                &spec,
+                &paths,
+                packages,
+                ts_path_aliases,
+            ) {
+                if let Some(bindings) = seed.import_bindings.get(&spec) {
+                    resolved_bindings
+                        .entry(target.clone())
+                        .or_insert_with(BTreeMap::new)
+                        .extend(
+                            bindings
+                                .iter()
+                                .map(|(local, imported)| (local.clone(), imported.clone())),
+                        );
+                }
                 resolved.insert(target);
             }
         }
-        if let Some(info) = files.get_mut(&rel) {
+        if let Some(info) = files.get_mut(&seed.rel) {
             info.resolved_imports = resolved;
+            info.resolved_import_bindings = resolved_bindings;
         }
     }
 }
@@ -4297,17 +4784,68 @@ pub fn is_source_ext(ext: &str) -> bool {
     SOURCE_EXTS.iter().any(|x| x == &ext)
 }
 
-fn js_import_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(r#"(?:import\s+(?:[^'"]+?\s+from\s+)?|export\s+[^'"]*?from\s+|require\s*\(|import\s*\()\s*['"]([^'"]+)['"]"#)
-            .expect("valid js import regex")
-    })
-}
-
 fn identifier_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| Regex::new(r#"[A-Za-z_$][A-Za-z0-9_$]*"#).expect("valid identifier regex"))
+}
+
+fn jsx_tag_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"<\s*/?\s*([A-Z][A-Za-z0-9_$]*)\b"#).expect("valid jsx tag regex")
+    })
+}
+
+fn js_function_params_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"(?s)\bfunction(?:\s+[A-Za-z_$][A-Za-z0-9_$]*)?\s*\((?P<params>[^)]*)\)"#)
+            .expect("valid js function params regex")
+    })
+}
+
+fn js_arrow_params_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"(?s)\((?P<params>[^)]*)\)\s*(?::\s*[^=]+?)?=>"#)
+            .expect("valid js arrow params regex")
+    })
+}
+
+fn js_method_params_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(
+            r#"(?s)\b(?P<name>[A-Za-z_$][A-Za-z0-9_$]*)\s*\((?P<params>[^)]*)\)\s*(?::\s*[^={]+?)?\{"#,
+        )
+        .expect("valid js method params regex")
+    })
+}
+
+fn js_single_arrow_param_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"(?m)(?:^|[=(:,]\s*)(?P<param>[A-Za-z_$][A-Za-z0-9_$]*)\s*=>"#)
+            .expect("valid js single arrow param regex")
+    })
+}
+
+fn js_static_import_statement_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(
+            r#"(?s)^\s*import\s+(?P<type>type\s+)?(?:(?P<clause>.+?)\s+from\s*)?['"](?P<spec>[^'"]+)['"]"#,
+        )
+        .expect("valid js static import statement regex")
+    })
+}
+
+fn js_export_from_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"(?s)^\s*export\s+.+?\s+from\s*['"](?P<spec>[^'"]+)['"]"#)
+            .expect("valid js export-from regex")
+    })
 }
 
 fn js_export_re() -> &'static Regex {
@@ -4604,6 +5142,78 @@ edition = "2024"
         assert!(!js_dependency_spec_is_local_protocol("workspace:"));
         assert!(!js_dependency_spec_is_local_protocol("workspace:*"));
         assert!(!js_dependency_spec_is_local_protocol("workspace:^1.2.3"));
+    }
+
+    #[test]
+    fn javascript_import_specs_ignore_import_text_inside_strings() {
+        let text = r#"const docs = "import { ShellHint } from './shell-hint';";
+const tmpl = `require('./shadow')`;
+import { Real as LocalReal } from './real';
+export { Other } from './other';
+const lazy = import('./lazy');
+const required = require('./required');
+"#;
+
+        let specs = extract_js_import_specs(text);
+
+        assert!(specs.contains("./real"));
+        assert!(specs.contains("./other"));
+        assert!(specs.contains("./lazy"));
+        assert!(specs.contains("./required"));
+        assert!(!specs.contains("./shell-hint"));
+        assert!(!specs.contains("./shadow"));
+
+        let bindings = extract_js_import_bindings(text);
+        assert_eq!(
+            bindings
+                .get("./real")
+                .and_then(|map| map.get("LocalReal"))
+                .map(String::as_str),
+            Some("Real")
+        );
+        assert!(!bindings.contains_key("./shell-hint"));
+    }
+
+    #[test]
+    fn javascript_local_bindings_capture_function_and_destructured_params() {
+        let text = r#"import { ShellHint } from './shell-hint';
+
+export function ShellParamShadowView({ ShellHint }: Props) {
+  return <ShellHint />;
+}
+
+const Arrow = ({ CanvasShellHint }: Props) => <CanvasShellHint />;
+const Single = ShellAction => <ShellAction />;
+export default function({ DefaultShellHint }: Props) {
+  return <DefaultShellHint />;
+}
+const methods = {
+  render({ MethodShellHint }: Props) {
+    return <MethodShellHint />;
+  },
+};
+function Destructure(props) {
+  const { LocalHint } = props;
+  let {
+    MultilineHint,
+  } = props;
+  const { hint: AliasHint = FallbackHint } = props;
+  const [ArrayHint = FallbackArrayHint] = props.items;
+  return <LocalHint />;
+}
+"#;
+
+        let bindings = extract_local_bindings(text, "tsx");
+
+        assert!(bindings.contains("ShellHint"));
+        assert!(bindings.contains("CanvasShellHint"));
+        assert!(bindings.contains("ShellAction"));
+        assert!(bindings.contains("DefaultShellHint"));
+        assert!(bindings.contains("MethodShellHint"));
+        assert!(bindings.contains("LocalHint"));
+        assert!(bindings.contains("MultilineHint"));
+        assert!(bindings.contains("AliasHint"));
+        assert!(bindings.contains("ArrayHint"));
     }
 
     #[test]

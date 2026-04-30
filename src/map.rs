@@ -818,6 +818,9 @@ fn cone_proof_edges_with_direct_consumers(
 ) -> Vec<StructuralEdge> {
     let mut edges = cone_proof_edges(project, seeds);
     for seed in seeds {
+        if !edges.iter().any(|edge| edge.to == *seed) {
+            edges.extend(proof_edges_via_direct_dependencies(project, seed, 4));
+        }
         for consumer in direct_consumer_edges(project, seed).into_iter().take(4) {
             for (test, evidence, strength) in strict_test_edges_for_file(project, &consumer.from, 4)
             {
@@ -838,6 +841,107 @@ fn cone_proof_edges_with_direct_consumers(
         }
     }
     dedupe_proof_edges_by_endpoint(edges)
+}
+
+fn proof_edges_via_direct_dependencies(
+    project: &Project,
+    seed: &str,
+    limit: usize,
+) -> Vec<StructuralEdge> {
+    if limit == 0 {
+        return Vec::new();
+    }
+    let Some(anchor) = project.files.get(seed) else {
+        return Vec::new();
+    };
+    if !anchor_can_use_dependency_proof(anchor) {
+        return Vec::new();
+    }
+    let mut edges = Vec::new();
+    for dependency in direct_dependency_edges(project, seed)
+        .into_iter()
+        .take(limit)
+    {
+        let Some(dep_file) = project.files.get(&dependency.to) else {
+            continue;
+        };
+        if !dependency_can_prove_anchor(project, anchor, dep_file) {
+            continue;
+        }
+        for (test, evidence, strength) in strict_test_edges_for_file(project, &dependency.to, limit)
+            .into_iter()
+            .filter(|(_, evidence, _)| dependency_proof_can_transfer(evidence))
+        {
+            edges.push(StructuralEdge {
+                from: test,
+                to: seed.to_string(),
+                edge_type: "tests".to_string(),
+                evidence: format!("{evidence}_via_direct_dependency"),
+                strength,
+            });
+        }
+    }
+    edges
+}
+
+fn dependency_proof_can_transfer(evidence: &str) -> bool {
+    evidence == "e2e_surface_phrase"
+}
+
+fn anchor_can_use_dependency_proof(anchor: &FileInfo) -> bool {
+    anchor.has_role("renderer_ui")
+        || matches!(anchor.ext.as_str(), "tsx" | "jsx" | "vue" | "svelte")
+}
+
+fn dependency_can_prove_anchor(
+    project: &Project,
+    anchor: &FileInfo,
+    dependency: &FileInfo,
+) -> bool {
+    if dependency.has_role("test") || dependency.has_role("test_support") {
+        return false;
+    }
+    if package_for_rel(project, &anchor.rel).map(|package| package.path.clone())
+        != package_for_rel(project, &dependency.rel).map(|package| package.path.clone())
+    {
+        return false;
+    }
+    if Path::new(&anchor.rel).parent() != Path::new(&dependency.rel).parent() {
+        return false;
+    }
+    if !anchor_renders_dependency(anchor, dependency) {
+        return false;
+    }
+    dependency.has_role("renderer_ui")
+        || !dependency.surface_phrases.is_empty()
+        || dependency
+            .symbols
+            .iter()
+            .any(|symbol| symbol.kind == "component")
+}
+
+fn anchor_renders_dependency(anchor: &FileInfo, dependency: &FileInfo) -> bool {
+    if anchor.jsx_tags.is_empty() {
+        return false;
+    }
+    let Some(bindings) = anchor.resolved_import_bindings.get(&dependency.rel) else {
+        return false;
+    };
+    let exported_components = dependency
+        .symbols
+        .iter()
+        .filter(|symbol| symbol.exported && symbol.kind == "component")
+        .map(|symbol| &symbol.name)
+        .collect::<BTreeSet<_>>();
+    bindings.iter().any(|(local, imported)| {
+        anchor.jsx_tags.contains(local)
+            && !anchor_declares_symbol(anchor, local)
+            && exported_components.contains(imported)
+    })
+}
+
+fn anchor_declares_symbol(anchor: &FileInfo, name: &str) -> bool {
+    anchor.symbols.iter().any(|symbol| symbol.name == name) || anchor.local_bindings.contains(name)
 }
 
 fn test_mentions_anchor(project: &Project, rel: &str, test: &FileInfo) -> bool {
@@ -2009,6 +2113,17 @@ fn proof_surfaces_for_anchor(
             strength,
         });
     }
+    if out.is_empty() {
+        for edge in proof_edges_via_direct_dependencies(project, anchor, limit) {
+            out.push(ProofSurface {
+                command: proof_command_for_test(project, &edge.from),
+                path: Some(edge.from),
+                reason: proof_reason_for_evidence(&edge.evidence, "anchor"),
+                evidence: edge.evidence,
+                strength: edge.strength,
+            });
+        }
+    }
     if depth <= 1 && !out.is_empty() {
         return out;
     }
@@ -2056,6 +2171,12 @@ fn proof_reason_for_evidence(evidence: &str, scope: &str) -> String {
     if let Some(base) = evidence.strip_suffix("_via_direct_consumer") {
         return format!(
             "{} via direct consumer",
+            proof_reason_for_evidence(base, scope)
+        );
+    }
+    if let Some(base) = evidence.strip_suffix("_via_direct_dependency") {
+        return format!(
+            "{} via direct dependency",
             proof_reason_for_evidence(base, scope)
         );
     }
@@ -2393,6 +2514,7 @@ fn proof_surface_precedence(value: &ProofSurface) -> (EvidenceStrength, usize) {
 fn proof_evidence_precedence(evidence: &str) -> usize {
     let evidence = evidence
         .strip_suffix("_via_direct_consumer")
+        .or_else(|| evidence.strip_suffix("_via_direct_dependency"))
         .unwrap_or(evidence);
     match evidence {
         "test_import" => 6,
@@ -2538,6 +2660,26 @@ fn direct_consumer_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {
         })
         .collect::<Vec<_>>();
     edges.extend(same_package_symbol_reference_consumers(project, rel));
+    sort_edges(&mut edges);
+    edges
+}
+
+fn direct_dependency_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {
+    let Some(file) = project.files.get(rel) else {
+        return Vec::new();
+    };
+    let mut edges = file
+        .resolved_imports
+        .iter()
+        .filter(|dependency| project.files.contains_key(*dependency))
+        .map(|dependency| StructuralEdge {
+            from: rel.to_string(),
+            to: dependency.clone(),
+            edge_type: "direct_dependency".to_string(),
+            evidence: "resolved_import".to_string(),
+            strength: EvidenceStrength::High,
+        })
+        .collect::<Vec<_>>();
     sort_edges(&mut edges);
     edges
 }

@@ -3,6 +3,9 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+pub type ImportBindingMap = BTreeMap<String, String>;
+pub type ImportBindingsBySpec = BTreeMap<String, ImportBindingMap>;
+
 #[derive(Debug, Clone, Serialize)]
 pub struct Project {
     pub root: PathBuf,
@@ -40,11 +43,15 @@ pub struct FileInfo {
     pub language: String,
     pub roles: BTreeSet<String>,
     pub imports: BTreeSet<String>,
+    pub import_bindings: ImportBindingsBySpec,
     pub resolved_imports: BTreeSet<String>,
+    pub resolved_import_bindings: ImportBindingsBySpec,
     pub exports: BTreeSet<String>,
     pub symbols: Vec<SymbolInfo>,
     pub tokens: BTreeSet<String>,
     pub references: BTreeSet<String>,
+    pub jsx_tags: BTreeSet<String>,
+    pub local_bindings: BTreeSet<String>,
     pub surface_tokens: BTreeSet<String>,
     pub surface_phrases: BTreeSet<String>,
     pub visited_route_paths: BTreeSet<String>,

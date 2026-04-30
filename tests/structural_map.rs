@@ -159,6 +159,120 @@ boundaries:
     write(
         &repo
             .path()
+            .join("packages/app/src/features/studio/canvas/shell-view.tsx"),
+        "import { ShellHint } from './shell-hint';\n\nexport function ShellView() {\n  return <ShellHint />;\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/shell-aliased-view.tsx"),
+        "import { ShellHint as CanvasShellHint } from './shell-hint';\n\nexport function ShellAliasedView() {\n  return <CanvasShellHint />;\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/shell-helper.ts"),
+        "import { ShellHint } from './shell-hint';\n\nexport const shellHintComponent = ShellHint;\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/shell-import-only-view.tsx"),
+        "import { ShellHint } from './shell-hint';\n\nexport function ShellImportOnlyView() {\n  const Hint = ShellHint;\n  return <div className=\"import-only-view\">{Hint.name}</div>;\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/shell-type-only-view.tsx"),
+        "import type { ShellHint } from './shell-hint';\n\nexport function ShellTypeOnlyView(_props: { hint?: typeof ShellHint }) {\n  return <div className=\"type-only-view\" />;\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/other-shell-hint.tsx"),
+        "export function ShellHint() {\n  return <div className=\"other-shell-hint\" />;\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/shell-mismatch-view.tsx"),
+        "import { ShellHint as WrongShellHint } from './shell-hint';\nimport { ShellHint } from './other-shell-hint';\n\nexport function ShellMismatchView() {\n  void WrongShellHint;\n  return <ShellHint />;\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/shell-string-shadow-view.tsx"),
+        "const docs = \"import { ShellHint } from './shell-hint';\";\n\nfunction ShellHint() {\n  return <div>Local unrelated shell hint</div>;\n}\n\nexport function ShellStringShadowView() {\n  void docs;\n  return <ShellHint />;\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/shell-local-shadow-view.tsx"),
+        "import { ShellHint } from './shell-hint';\n\nexport function ShellLocalShadowView() {\n  function ShellHint() {\n    return <div>Local unrelated shell hint</div>;\n  }\n  return <ShellHint />;\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/shell-param-shadow-view.tsx"),
+        "import { ShellHint } from './shell-hint';\n\ntype Props = { ShellHint: () => JSX.Element };\n\nexport function ShellParamShadowView({ ShellHint }: Props) {\n  return <ShellHint />;\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/shell-default-function-shadow-view.tsx"),
+        "import { ShellHint } from './shell-hint';\n\ntype Props = { ShellHint: () => JSX.Element };\n\nexport default function({ ShellHint }: Props) {\n  return <ShellHint />;\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/shell-method-shadow-view.tsx"),
+        "import { ShellHint } from './shell-hint';\n\ntype Props = { ShellHint: () => JSX.Element };\n\nexport const ShellMethodShadowView = {\n  render({ ShellHint }: Props) {\n    return <ShellHint />;\n  },\n};\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/shell-destructure-shadow-view.tsx"),
+        "import { ShellHint } from './shell-hint';\n\ntype Props = { ShellHint: () => JSX.Element };\n\nexport function ShellDestructureShadowView(props: Props) {\n  const { ShellHint } = props;\n  return <ShellHint />;\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/shell-default-shadow-view.tsx"),
+        "import { ShellHint } from './shell-hint';\n\ntype Props = { ShellHint?: () => JSX.Element };\n\nexport function ShellDefaultShadowView(props: Props) {\n  const { ShellHint = () => <div>Local fallback</div> } = props;\n  return <ShellHint />;\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/shell-multiline-shadow-view.tsx"),
+        "import { ShellHint } from './shell-hint';\n\ntype Props = { ShellHint: () => JSX.Element };\n\nexport function ShellMultilineShadowView(props: Props) {\n  const {\n    ShellHint,\n  } = props;\n  return <ShellHint />;\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/shell-alias-default-shadow-view.tsx"),
+        "import { ShellHint } from './shell-hint';\n\ntype Props = { hint?: () => JSX.Element };\n\nexport function ShellAliasDefaultShadowView(props: Props) {\n  const { hint: ShellHint = () => <div>Local fallback</div> } = props;\n  return <ShellHint />;\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/shell-array-shadow-view.tsx"),
+        "import { ShellHint } from './shell-hint';\n\ntype Props = { hints: Array<() => JSX.Element> };\n\nexport function ShellArrayShadowView(props: Props) {\n  const [ShellHint = () => <div>Local fallback</div>] = props.hints;\n  return <ShellHint />;\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/unit-only-hint.tsx"),
+        "export function UnitOnlyHint() {\n  return <div className=\"unit-only-hint\">Unit-only hint</div>;\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/unit-only-wrapper.tsx"),
+        "import { UnitOnlyHint } from './unit-only-hint';\n\nexport function UnitOnlyWrapper() {\n  return <UnitOnlyHint />;\n}\n",
+    );
+    write(
+        &repo
+            .path()
             .join("packages/app/src/features/studio/settings-button.tsx"),
         "export function SettingsButton() {\n  return <button aria-label=\"Open settings panel\">Settings</button>;\n}\n",
     );
@@ -237,6 +351,12 @@ boundaries:
             .path()
             .join("packages/app/tests/canvas-text-document.test.ts"),
         "test('frame title text document stores inline mode', () => {\n  expect('frame-title').toContain('title');\n});\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/tests/unit-only-hint.test.tsx"),
+        "import { UnitOnlyHint } from '../src/features/studio/canvas/unit-only-hint';\n\ntest('dependency unit test imports only the hint', () => {\n  expect(UnitOnlyHint).toBeDefined();\n});\n",
     );
     write(
         &repo
@@ -776,6 +896,332 @@ fn proof_visible_text_partial_match_respects_phrase_boundaries() {
     assert!(
         !proof["fallback"].as_array().expect("fallback").is_empty(),
         "without a structural proof, codemap should keep the broad fallback visible: {proof:#}"
+    );
+}
+
+#[test]
+fn proof_follows_direct_ui_dependency_for_thin_composition_files() {
+    let (repo, cache) = fixture();
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "packages/app/src/features/studio/canvas/shell-view.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    let proofs = proof["proofs"].as_array().expect("proof surfaces");
+    assert!(
+        proofs.iter().any(|surface| surface["path"]
+            == "packages/app/tests/e2e/canvas-shell-hint.spec.ts"
+            && surface["evidence"] == "e2e_surface_phrase_via_direct_dependency"
+            && surface["reason"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("direct dependency")),
+        "thin TSX composition should inherit proof from directly rendered UI dependency: {proof:#}"
+    );
+    assert!(
+        proof["fallback"].as_array().expect("fallback").is_empty(),
+        "direct dependency proof should hide broad fallback: {proof:#}"
+    );
+
+    let cone = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "cone",
+            "packages/app/src/features/studio/canvas/shell-view.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/cone.schema.json", &cone);
+    assert!(
+        cone["proof"]
+            .as_array()
+            .expect("proof edges")
+            .iter()
+            .any(
+                |edge| edge["from"] == "packages/app/tests/e2e/canvas-shell-hint.spec.ts"
+                    && edge["evidence"] == "e2e_surface_phrase_via_direct_dependency"
+            ),
+        "cone should expose dependency-derived proof as an edge: {cone:#}"
+    );
+}
+
+#[test]
+fn proof_follows_direct_ui_dependency_when_rendered_component_is_aliased() {
+    let (repo, cache) = fixture();
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "packages/app/src/features/studio/canvas/shell-aliased-view.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    let proofs = proof["proofs"].as_array().expect("proof surfaces");
+    assert!(
+        proofs.iter().any(|surface| surface["path"]
+            == "packages/app/tests/e2e/canvas-shell-hint.spec.ts"
+            && surface["evidence"] == "e2e_surface_phrase_via_direct_dependency"),
+        "aliased rendered import should still inherit proof from the exact dependency export: {proof:#}"
+    );
+    assert!(
+        proof["fallback"].as_array().expect("fallback").is_empty(),
+        "aliased direct dependency proof should hide broad fallback: {proof:#}"
+    );
+}
+
+#[test]
+fn proof_does_not_transfer_dependency_unit_tests_to_thin_composition_files() {
+    let (repo, cache) = fixture();
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "packages/app/src/features/studio/canvas/unit-only-wrapper.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        proof["proofs"]
+            .as_array()
+            .expect("proof surfaces")
+            .iter()
+            .all(|surface| !surface["evidence"]
+                .as_str()
+                .unwrap_or_default()
+                .ends_with("_via_direct_dependency")),
+        "dependency unit tests must not become proof for a thin composition wrapper: {proof:#}"
+    );
+    assert!(
+        !proof["fallback"].as_array().expect("fallback").is_empty(),
+        "without transferable e2e/UI-surface proof, broad fallback must stay visible: {proof:#}"
+    );
+}
+
+#[test]
+fn proof_does_not_treat_string_literal_import_as_rendered_dependency_binding() {
+    let (repo, cache) = fixture();
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "packages/app/src/features/studio/canvas/shell-string-shadow-view.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        proof["proofs"]
+            .as_array()
+            .expect("proof surfaces")
+            .iter()
+            .all(|surface| !surface["evidence"]
+                .as_str()
+                .unwrap_or_default()
+                .ends_with("_via_direct_dependency")),
+        "import text inside a string literal must not bind the local JSX tag to a dependency: {proof:#}"
+    );
+    assert!(
+        !proof["fallback"].as_array().expect("fallback").is_empty(),
+        "without a real import binding, broad fallback must stay visible: {proof:#}"
+    );
+}
+
+#[test]
+fn proof_does_not_transfer_dependency_when_local_symbol_shadows_import_binding() {
+    let (repo, cache) = fixture();
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "packages/app/src/features/studio/canvas/shell-local-shadow-view.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        proof["proofs"]
+            .as_array()
+            .expect("proof surfaces")
+            .iter()
+            .all(|surface| !surface["evidence"]
+                .as_str()
+                .unwrap_or_default()
+                .ends_with("_via_direct_dependency")),
+        "a local symbol shadowing the imported JSX binding must fail closed: {proof:#}"
+    );
+    assert!(
+        !proof["fallback"].as_array().expect("fallback").is_empty(),
+        "without scope-accurate dependency rendering proof, broad fallback must stay visible: {proof:#}"
+    );
+}
+
+#[test]
+fn proof_does_not_transfer_dependency_when_param_shadows_import_binding() {
+    let (repo, cache) = fixture();
+    for path in [
+        "packages/app/src/features/studio/canvas/shell-param-shadow-view.tsx",
+        "packages/app/src/features/studio/canvas/shell-default-function-shadow-view.tsx",
+        "packages/app/src/features/studio/canvas/shell-method-shadow-view.tsx",
+    ] {
+        let proof = run_json(
+            repo.path(),
+            cache.path(),
+            &["proof", path, "--format", "json"],
+        );
+        assert_schema("schemas/proof.schema.json", &proof);
+        assert!(
+            proof["proofs"]
+                .as_array()
+                .expect("proof surfaces")
+                .iter()
+                .all(|surface| !surface["evidence"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .ends_with("_via_direct_dependency")),
+            "a parameter/destructured prop shadowing the imported JSX binding must fail closed for {path}: {proof:#}"
+        );
+        assert!(
+            !proof["fallback"].as_array().expect("fallback").is_empty(),
+            "without scope-accurate dependency rendering proof, broad fallback must stay visible for {path}: {proof:#}"
+        );
+    }
+}
+
+#[test]
+fn proof_does_not_transfer_dependency_when_destructuring_shadows_import_binding() {
+    let (repo, cache) = fixture();
+    for path in [
+        "packages/app/src/features/studio/canvas/shell-destructure-shadow-view.tsx",
+        "packages/app/src/features/studio/canvas/shell-default-shadow-view.tsx",
+        "packages/app/src/features/studio/canvas/shell-multiline-shadow-view.tsx",
+        "packages/app/src/features/studio/canvas/shell-alias-default-shadow-view.tsx",
+        "packages/app/src/features/studio/canvas/shell-array-shadow-view.tsx",
+    ] {
+        let proof = run_json(
+            repo.path(),
+            cache.path(),
+            &["proof", path, "--format", "json"],
+        );
+        assert_schema("schemas/proof.schema.json", &proof);
+        assert!(
+            proof["proofs"]
+                .as_array()
+                .expect("proof surfaces")
+                .iter()
+                .all(|surface| !surface["evidence"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .ends_with("_via_direct_dependency")),
+            "a destructured local binding shadowing the imported JSX binding must fail closed for {path}: {proof:#}"
+        );
+        assert!(
+            !proof["fallback"].as_array().expect("fallback").is_empty(),
+            "without scope-accurate dependency rendering proof, broad fallback must stay visible for {path}: {proof:#}"
+        );
+    }
+}
+
+#[test]
+fn proof_does_not_follow_direct_ui_dependency_from_non_ui_helpers() {
+    let (repo, cache) = fixture();
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "packages/app/src/features/studio/canvas/shell-helper.ts",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        proof["proofs"]
+            .as_array()
+            .expect("proof surfaces")
+            .iter()
+            .all(|surface| surface["path"] != "packages/app/tests/e2e/canvas-shell-hint.spec.ts"),
+        "non-UI helpers should not inherit e2e proof merely by importing a component: {proof:#}"
+    );
+    assert!(
+        !proof["fallback"].as_array().expect("fallback").is_empty(),
+        "without UI composition proof, broad fallback should remain visible: {proof:#}"
+    );
+}
+
+#[test]
+fn proof_does_not_follow_direct_ui_dependency_without_jsx_render() {
+    let (repo, cache) = fixture();
+    for target in [
+        "packages/app/src/features/studio/canvas/shell-import-only-view.tsx",
+        "packages/app/src/features/studio/canvas/shell-type-only-view.tsx",
+    ] {
+        let proof = run_json(
+            repo.path(),
+            cache.path(),
+            &["proof", target, "--format", "json"],
+        );
+        assert_schema("schemas/proof.schema.json", &proof);
+        assert!(
+            proof["proofs"]
+                .as_array()
+                .expect("proof surfaces")
+                .iter()
+                .all(
+                    |surface| surface["path"] != "packages/app/tests/e2e/canvas-shell-hint.spec.ts"
+                ),
+            "TSX anchors should not inherit e2e proof unless they render the dependency as JSX: {target}\n{proof:#}"
+        );
+        assert!(
+            !proof["fallback"].as_array().expect("fallback").is_empty(),
+            "fallback should stay visible without rendered dependency proof: {target}\n{proof:#}"
+        );
+    }
+}
+
+#[test]
+fn proof_direct_ui_dependency_requires_jsx_binding_from_same_dependency() {
+    let (repo, cache) = fixture();
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "packages/app/src/features/studio/canvas/shell-mismatch-view.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        proof["proofs"]
+            .as_array()
+            .expect("proof surfaces")
+            .iter()
+            .all(|surface| surface["path"] != "packages/app/tests/e2e/canvas-shell-hint.spec.ts"),
+        "rendering `ShellHint` from another dependency must not inherit proof from the aliased dependency that merely exports the same name: {proof:#}"
+    );
+    assert!(
+        !proof["fallback"].as_array().expect("fallback").is_empty(),
+        "fallback should remain visible when no rendered dependency has structural proof: {proof:#}"
     );
 }
 
