@@ -1687,8 +1687,11 @@ fn direct_child_name(scope: &str, path: &str) -> Option<String> {
 }
 
 fn directory_role_surface(project: &Project, dir: &str) -> Option<String> {
+    if let Some(role) = directory_container_role_surface(project, dir) {
+        return Some(role);
+    }
     let prefix = dir.trim_end_matches('/');
-    let files = files_under_directory(project, prefix);
+    let files = direct_files_under_directory(project, prefix);
     if files.is_empty() {
         return None;
     }
@@ -1708,6 +1711,67 @@ fn directory_role_surface(project: &Project, dir: &str) -> Option<String> {
         }
     }
     None
+}
+
+fn directory_container_role_surface(project: &Project, dir: &str) -> Option<String> {
+    let normalized = repo::normalize_rel_path(dir.trim_end_matches('/'));
+    let name = Path::new(&normalized)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(normalized.as_str())
+        .to_ascii_lowercase();
+    let test_container = path_is_test_container(&normalized);
+    if matches!(name.as_str(), "e2e" | "e2e-tests" | "playwright") {
+        return Some("e2e_test".to_string());
+    }
+    if matches!(
+        name.as_str(),
+        "support" | "supports" | "helpers" | "page-objects" | "page_objects"
+    ) && test_container
+    {
+        return Some("test_support".to_string());
+    }
+    if matches!(
+        name.as_str(),
+        "test" | "tests" | "__tests__" | "spec" | "specs"
+    ) {
+        let files = files_under_directory(project, &normalized);
+        if files.iter().any(|file| file.has_role("e2e_test")) {
+            return Some("e2e_test".to_string());
+        }
+        return Some("test".to_string());
+    }
+    if matches!(
+        name.as_str(),
+        "fixture" | "fixtures" | "example" | "examples" | "sample" | "samples"
+    ) {
+        return Some("fixture".to_string());
+    }
+    if matches!(
+        name.as_str(),
+        "schema" | "schemas" | "contract" | "contracts" | "migration" | "migrations"
+    ) {
+        return Some("schema_contract".to_string());
+    }
+    if matches!(name.as_str(), "doc" | "docs" | "documentation") {
+        return Some("docs".to_string());
+    }
+    if matches!(
+        name.as_str(),
+        ".github" | "workflows" | ".circleci" | ".buildkite"
+    ) {
+        return Some("build_ci".to_string());
+    }
+    None
+}
+
+fn path_is_test_container(path: &str) -> bool {
+    path.split('/').any(|part| {
+        matches!(
+            part,
+            "test" | "tests" | "__tests__" | "e2e" | "spec" | "specs"
+        )
+    })
 }
 
 fn file_summary(

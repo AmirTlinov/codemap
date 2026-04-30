@@ -3706,6 +3706,76 @@ fn flat_huge_directory_ls_stays_bounded_without_expanding_the_galaxy() {
 }
 
 #[test]
+fn root_ls_does_not_bubble_nested_fixture_roles_to_workspace_containers() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("Cargo.toml"),
+        r#"[workspace]
+members = ["crates/core"]
+resolver = "2"
+"#,
+    );
+    write(
+        &repo.path().join("crates/core/Cargo.toml"),
+        r#"[package]
+name = "core"
+version = "0.1.0"
+edition = "2021"
+"#,
+    );
+    write(
+        &repo.path().join("crates/core/src/lib.rs"),
+        "pub fn core() {}\n",
+    );
+    write(
+        &repo.path().join("crates/core/tests/fixtures/sample.json"),
+        "{}\n",
+    );
+    write(
+        &repo.path().join("py/service/app.py"),
+        "def app():\n    return True\n",
+    );
+    write(&repo.path().join("py/service/fixtures/sample.json"), "{}\n");
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "nested fixture containers"]);
+
+    let json = run_json(repo.path(), cache.path(), &["ls", ".", "--format", "json"]);
+    assert_schema("schemas/ls.schema.json", &json);
+    let surfaces = json["directory"].as_array().expect("directory surfaces");
+    assert!(
+        surfaces.iter().all(|surface| {
+            !matches!(
+                surface["kind"].as_str().unwrap_or_default(),
+                "fixture" | "test_support" | "e2e_test"
+            ) || !surface["examples"]
+                .as_array()
+                .expect("examples")
+                .iter()
+                .any(|example| example == "crates/" || example == "py/")
+        }),
+        "top-level workspace containers must not inherit nested fixture roles: {json:#}"
+    );
+    assert!(
+        surfaces.iter().any(|surface| surface["kind"] == "dir"
+            && surface["examples"]
+                .as_array()
+                .expect("examples")
+                .iter()
+                .any(|example| example == "crates/")
+            && surface["examples"]
+                .as_array()
+                .expect("examples")
+                .iter()
+                .any(|example| example == "py/")),
+        "workspace containers should remain ordinary current-level dirs: {json:#}"
+    );
+}
+
+#[test]
 fn root_ls_balances_directory_edges_across_structural_sources() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");
