@@ -951,6 +951,30 @@ fn proof_follows_direct_ui_dependency_for_thin_composition_files() {
             ),
         "cone should expose dependency-derived proof as an edge: {cone:#}"
     );
+
+    let impact = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "impact",
+            "--files",
+            "packages/app/src/features/studio/canvas/shell-view.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/impact.schema.json", &impact);
+    assert!(
+        impact["clusters"][0]["proof"]
+            .as_array()
+            .expect("impact proof edges")
+            .iter()
+            .any(
+                |edge| edge["from"] == "packages/app/tests/e2e/canvas-shell-hint.spec.ts"
+                    && edge["evidence"] == "e2e_surface_phrase_via_direct_dependency"
+            ),
+        "impact should reuse dependency-derived structural proof instead of returning an empty proof cluster: {impact:#}"
+    );
 }
 
 #[test]

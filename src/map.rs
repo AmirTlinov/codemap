@@ -3850,7 +3850,7 @@ fn impact_cluster(
         cross_boundary_consumer_edges(project, rel, &direct_consumers, depth);
     let mut contract_risks = contract_risk_edges(project, rel, &direct_consumers);
     let proof_seeds = proof_seeds_for_impact(rel, &direct_consumers);
-    let mut proof = cone_proof_edges(project, &proof_seeds);
+    let mut proof = cone_proof_edges_with_direct_consumers(project, &proof_seeds);
     sort_edges(&mut direct_consumers);
     sort_edges(&mut cross_boundary_consumers);
     sort_edges(&mut contract_risks);
