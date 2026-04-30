@@ -141,6 +141,9 @@ pub fn cone_report(
     {
         return report;
     }
+    if directory_has_files(project, &rel) {
+        return cone_directory_report(project, &rel, depth, include_hidden, limit);
+    }
     let (anchor, seed_files, mut unknowns, mut hidden) =
         cone_anchor(project, &rel, include_hidden, limit);
     let depths = cone_depths(project, &seed_files, depth);
@@ -516,6 +519,15 @@ fn ls_directory_report(
 }
 
 fn directory_edges(project: &Project, rel: &str, include_hidden: bool) -> Vec<StructuralEdge> {
+    directory_edges_at_depth(project, rel, include_hidden, 1)
+}
+
+fn directory_edges_at_depth(
+    project: &Project,
+    rel: &str,
+    include_hidden: bool,
+    endpoint_depth: usize,
+) -> Vec<StructuralEdge> {
     let mut grouped: BTreeMap<(String, String, String, String, EvidenceStrength), usize> =
         BTreeMap::new();
     let scope_is_support = is_support_artifact_path(rel);
@@ -527,8 +539,8 @@ fn directory_edges(project: &Project, rel: &str, include_hidden: bool) -> Vec<St
             {
                 continue;
             }
-            let from = directory_edge_endpoint(rel, &file.rel);
-            let to = directory_edge_endpoint(rel, target);
+            let from = directory_edge_endpoint_at_depth(rel, &file.rel, endpoint_depth);
+            let to = directory_edge_endpoint_at_depth(rel, target, endpoint_depth);
             if from != to {
                 add_directory_edge(
                     &mut grouped,
@@ -551,8 +563,8 @@ fn directory_edges(project: &Project, rel: &str, include_hidden: bool) -> Vec<St
                 {
                     continue;
                 }
-                let from = directory_edge_endpoint(rel, importer);
-                let to = directory_edge_endpoint(rel, &file.rel);
+                let from = directory_edge_endpoint_at_depth(rel, importer, endpoint_depth);
+                let to = directory_edge_endpoint_at_depth(rel, &file.rel, endpoint_depth);
                 if from != to {
                     add_directory_edge(
                         &mut grouped,
@@ -587,10 +599,11 @@ fn directory_edges(project: &Project, rel: &str, include_hidden: bool) -> Vec<St
         if from_in || to_in {
             add_directory_edge(
                 &mut grouped,
-                directory_edge_endpoint(rel, &edge.from_manifest),
-                directory_edge_endpoint(
+                directory_edge_endpoint_at_depth(rel, &edge.from_manifest, endpoint_depth),
+                directory_edge_endpoint_at_depth(
                     rel,
                     &edge.to_manifest.clone().unwrap_or_else(|| edge.to.clone()),
+                    endpoint_depth,
                 ),
                 if from_in && to_in {
                     "package_internal"
@@ -646,42 +659,286 @@ fn add_directory_edge(
         .or_insert(0) += 1;
 }
 
-fn directory_edge_endpoint(scope: &str, path: &str) -> String {
+fn directory_edge_endpoint_at_depth(scope: &str, path: &str, depth: usize) -> String {
     let scope = repo::normalize_rel_path(scope);
     let path = repo::normalize_rel_path(path);
+    let depth = depth.max(1);
     if scope == "." {
-        return top_level_endpoint(&path);
+        return top_level_endpoint_at_depth(&path, depth);
     }
     if let Some(rest) = path.strip_prefix(&format!("{}/", scope.trim_end_matches('/'))) {
-        if let Some((dir, _)) = rest.split_once('/') {
-            return format!("{}/{dir}/", scope.trim_end_matches('/'));
+        let mut parts = rest.split('/').collect::<Vec<_>>();
+        if parts.len() <= 1 {
+            return format!("{}/", scope.trim_end_matches('/'));
         }
-        return format!("{}/", scope.trim_end_matches('/'));
+        parts.pop();
+        let dirs = parts.into_iter().take(depth).collect::<Vec<_>>();
+        if dirs.is_empty() {
+            format!("{}/", scope.trim_end_matches('/'))
+        } else {
+            format!("{}/{}/", scope.trim_end_matches('/'), dirs.join("/"))
+        }
+    } else {
+        top_level_endpoint_at_depth(&path, depth)
     }
-    top_level_endpoint(&path)
 }
 
-fn top_level_endpoint(path: &str) -> String {
+fn top_level_endpoint_at_depth(path: &str, depth: usize) -> String {
     let mut parts = path.split('/');
-    if let (Some(first), Some(second)) = (parts.next(), parts.next())
+    let depth = depth.max(1);
+    let segments = path.split('/').collect::<Vec<_>>();
+    if segments.len() <= 1 {
+        return path.to_string();
+    }
+    if let (Some(first), Some(_second)) = (parts.next(), parts.next())
         && matches!(
             first,
             "apps" | "packages" | "services" | "domains" | "crates" | "modules"
         )
     {
-        return format!("{first}/{second}/");
+        let take = (2 + depth.saturating_sub(1)).min(segments.len().saturating_sub(1));
+        return format!("{}/", segments[..take].join("/"));
     }
-    if let Some((dir, _)) = path.split_once('/') {
-        format!("{dir}/")
-    } else {
-        path.to_string()
-    }
+    let take = depth.min(segments.len().saturating_sub(1));
+    format!("{}/", segments[..take].join("/"))
 }
 
 fn path_under_scope(path: &str, scope: &str) -> bool {
     let path = repo::normalize_rel_path(path);
     let scope = repo::normalize_rel_path(scope);
     scope == "." || path == scope || path.starts_with(&format!("{}/", scope.trim_end_matches('/')))
+}
+
+fn cone_directory_report(
+    project: &Project,
+    rel: &str,
+    depth: usize,
+    include_hidden: bool,
+    limit: usize,
+) -> ConeReport {
+    let depth = depth.max(1);
+    let anchor = directory_file_summary(project, rel);
+    let mut outgoing = Vec::new();
+    let mut incoming = Vec::new();
+    for edge in directory_edges_at_depth(project, rel, include_hidden, depth) {
+        match edge.edge_type.as_str() {
+            "incoming_import" | "package_incoming" => incoming.push(edge),
+            _ => outgoing.push(edge),
+        }
+    }
+    let mut proof = directory_proof_edges_at_depth(project, rel, include_hidden, depth);
+    let mut contracts = directory_contract_edges_at_depth(project, rel, include_hidden, depth);
+    let mut boundary = directory_boundary_edges_at_depth(project, rel, depth);
+    let mut hidden = Vec::new();
+    sort_edges(&mut outgoing);
+    sort_edges(&mut incoming);
+    sort_edges(&mut proof);
+    sort_edges(&mut boundary);
+    limit_edge_section(
+        &mut outgoing,
+        &mut hidden,
+        include_hidden,
+        limit,
+        "directory outgoing edges hidden by limit",
+        &format!(
+            "codemap cone {} --depth {depth} --include-hidden",
+            shell_quote(rel)
+        ),
+    );
+    limit_edge_section(
+        &mut incoming,
+        &mut hidden,
+        include_hidden,
+        limit,
+        "directory incoming edges hidden by limit",
+        &format!(
+            "codemap cone {} --depth {depth} --include-hidden",
+            shell_quote(rel)
+        ),
+    );
+    limit_edge_section(
+        &mut proof,
+        &mut hidden,
+        include_hidden,
+        limit,
+        "directory proof edges hidden by limit",
+        &format!(
+            "codemap cone {} --depth {depth} --include-hidden",
+            shell_quote(rel)
+        ),
+    );
+    limit_edge_section(
+        &mut contracts,
+        &mut hidden,
+        include_hidden,
+        limit,
+        "directory contract edges hidden by limit",
+        &format!(
+            "codemap cone {} --depth {depth} --include-hidden",
+            shell_quote(rel)
+        ),
+    );
+    limit_edge_section(
+        &mut boundary,
+        &mut hidden,
+        include_hidden,
+        limit,
+        "directory boundary edges hidden by limit",
+        &format!(
+            "codemap cone {} --depth {depth} --include-hidden",
+            shell_quote(rel)
+        ),
+    );
+
+    ConeReport {
+        kind: "cone_report",
+        schema_version: "2",
+        anchor,
+        depth,
+        outgoing,
+        incoming,
+        proof,
+        contracts,
+        boundary,
+        hidden,
+        unknowns: vec![
+            "directory cone is aggregated at this level; use a deeper anchor for file-level edges"
+                .to_string(),
+        ],
+        expand: vec![
+            format!("codemap cone {} --depth {}", shell_quote(rel), depth + 1),
+            format!("codemap ls {} --include-hidden", shell_quote(rel)),
+        ],
+    }
+}
+
+fn directory_file_summary(project: &Project, rel: &str) -> FileSummary {
+    FileSummary {
+        path: rel.to_string(),
+        kind: "directory".to_string(),
+        package: package_name_for_file(project, rel),
+        language: "mixed".to_string(),
+        lines: 0,
+        roles: Vec::new(),
+        symbols: Vec::new(),
+        exports: Vec::new(),
+        imports: Vec::new(),
+        imported_by_count: 0,
+    }
+}
+
+fn directory_seed_file_paths(project: &Project, rel: &str, include_hidden: bool) -> Vec<String> {
+    let mut files = files_under_directory(project, rel)
+        .into_iter()
+        .filter(|file| !file.has_role("generated") && (include_hidden || !is_generic_noise(file)))
+        .map(|file| file.rel.clone())
+        .collect::<Vec<_>>();
+    files.sort();
+    files
+}
+
+fn directory_proof_edges_at_depth(
+    project: &Project,
+    rel: &str,
+    include_hidden: bool,
+    endpoint_depth: usize,
+) -> Vec<StructuralEdge> {
+    let seeds = directory_seed_file_paths(project, rel, include_hidden);
+    dedupe_proof_edges_by_endpoint(aggregate_edges_at_directory_depth(
+        cone_proof_edges_with_direct_consumers(project, &seeds),
+        rel,
+        endpoint_depth,
+    ))
+}
+
+fn directory_contract_edges_at_depth(
+    project: &Project,
+    rel: &str,
+    include_hidden: bool,
+    endpoint_depth: usize,
+) -> Vec<StructuralEdge> {
+    let edges = directory_seed_file_paths(project, rel, include_hidden)
+        .into_iter()
+        .filter_map(|source| project.files.get(&source))
+        .flat_map(|file| {
+            file.resolved_imports.iter().filter_map(move |target| {
+                let target_file = project.files.get(target)?;
+                let evidence = contract_evidence(target_file)?;
+                Some(StructuralEdge {
+                    from: file.rel.clone(),
+                    to: target.clone(),
+                    edge_type: "contract".to_string(),
+                    evidence,
+                    strength: EvidenceStrength::High,
+                })
+            })
+        })
+        .collect::<Vec<_>>();
+    aggregate_edges_at_directory_depth(edges, rel, endpoint_depth)
+}
+
+fn directory_boundary_edges_at_depth(
+    project: &Project,
+    rel: &str,
+    endpoint_depth: usize,
+) -> Vec<StructuralEdge> {
+    let prefix = (rel != ".").then(|| format!("{}/", rel.trim_end_matches('/')));
+    let edges = boundary_findings(project, None)
+        .into_iter()
+        .filter(|finding| {
+            prefix
+                .as_ref()
+                .map(|prefix| finding.from.starts_with(prefix) || finding.to.starts_with(prefix))
+                .unwrap_or(true)
+        })
+        .map(|finding| StructuralEdge {
+            from: finding.from,
+            to: finding.to,
+            edge_type: "boundary".to_string(),
+            evidence: finding.provenance,
+            strength: if finding.strength == "hard" {
+                EvidenceStrength::Hard
+            } else {
+                EvidenceStrength::High
+            },
+        })
+        .collect::<Vec<_>>();
+    aggregate_edges_at_directory_depth(edges, rel, endpoint_depth)
+}
+
+fn aggregate_edges_at_directory_depth(
+    edges: Vec<StructuralEdge>,
+    rel: &str,
+    endpoint_depth: usize,
+) -> Vec<StructuralEdge> {
+    let mut grouped: BTreeMap<(String, String, String, String, EvidenceStrength), usize> =
+        BTreeMap::new();
+    for edge in edges {
+        add_directory_edge(
+            &mut grouped,
+            directory_edge_endpoint_at_depth(rel, &edge.from, endpoint_depth),
+            directory_edge_endpoint_at_depth(rel, &edge.to, endpoint_depth),
+            &edge.edge_type,
+            &edge.evidence,
+            edge.strength,
+        );
+    }
+    grouped
+        .into_iter()
+        .map(
+            |((from, to, edge_type, evidence, strength), count)| StructuralEdge {
+                from,
+                to,
+                edge_type,
+                evidence: if count > 1 {
+                    format!("{evidence}:{count}")
+                } else {
+                    evidence
+                },
+                strength,
+            },
+        )
+        .collect()
 }
 
 fn cone_symbol_report(
@@ -3545,6 +3802,10 @@ fn proof_surface_precedence(value: &ProofSurface) -> (EvidenceStrength, usize) {
 }
 
 fn proof_evidence_precedence(evidence: &str) -> usize {
+    let evidence = evidence
+        .split_once(':')
+        .map(|(prefix, _)| prefix)
+        .unwrap_or(evidence);
     let evidence = evidence
         .strip_suffix("_via_direct_consumer")
         .or_else(|| evidence.strip_suffix("_via_direct_dependency"))
