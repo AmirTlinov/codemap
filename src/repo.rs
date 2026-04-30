@@ -1178,9 +1178,23 @@ fn extract_surfaces(text: &str, ext: &str) -> SurfaceExtraction {
     }
     let mut surfaces = SurfaceExtraction::default();
     let mut in_block_comment = false;
+    let mut jsx_visible_text_context = 0usize;
     for raw_line in text.lines() {
         let line = strip_js_comments_from_line(raw_line, &mut in_block_comment);
-        if !line_has_surface_context(&line) {
+        let has_surface_context = line_has_surface_context(&line);
+        if (jsx_visible_text_context > 0 || line_has_jsx_surface_container(&line))
+            && let Some(text) = static_jsx_visible_text(&line)
+        {
+            surfaces
+                .phrases
+                .extend(surface_literal_phrases(&text, true));
+        }
+        if line_has_jsx_surface_container(&line) {
+            jsx_visible_text_context = 4;
+        } else {
+            jsx_visible_text_context = jsx_visible_text_context.saturating_sub(1);
+        }
+        if !has_surface_context {
             continue;
         }
         let plain_label_context = line_accepts_plain_label_surface(&line);
@@ -1263,6 +1277,8 @@ fn line_has_surface_context(line: &str) -> bool {
         "getbylabel",
         "getbytext",
         "queryselector",
+        "tocontaintext",
+        "tohavetext",
         "getattribute(",
         "setattribute(",
         "page.goto",
@@ -1328,9 +1344,77 @@ fn strip_js_comments_from_line(line: &str, in_block_comment: &mut bool) -> Strin
 
 fn line_accepts_plain_label_surface(line: &str) -> bool {
     let lower = line.to_ascii_lowercase();
-    ["aria-label", "getbylabel", "getbyrole", "getbytext"]
+    [
+        "aria-label",
+        "getbylabel",
+        "getbyrole",
+        "getbytext",
+        "tocontaintext",
+        "tohavetext",
+    ]
+    .iter()
+    .any(|marker| lower.contains(marker))
+}
+
+fn line_has_jsx_surface_container(line: &str) -> bool {
+    let lower = line.to_ascii_lowercase();
+    line.contains('<')
+        && [
+            "classname",
+            "class=",
+            "data-testid",
+            "data-test",
+            "aria-",
+            "role=",
+        ]
         .iter()
         .any(|marker| lower.contains(marker))
+}
+
+fn static_jsx_visible_text(line: &str) -> Option<String> {
+    let mut out = String::new();
+    let mut in_tag = false;
+    let mut brace_depth = 0usize;
+    for ch in line.chars() {
+        if in_tag {
+            if ch == '>' {
+                in_tag = false;
+                out.push(' ');
+            }
+            continue;
+        }
+        if brace_depth > 0 {
+            if ch == '{' {
+                brace_depth += 1;
+            } else if ch == '}' {
+                brace_depth = brace_depth.saturating_sub(1);
+                if brace_depth == 0 {
+                    out.push(' ');
+                }
+            }
+            continue;
+        }
+        if ch == '<' {
+            in_tag = true;
+            out.push(' ');
+            continue;
+        }
+        if ch == '{' {
+            brace_depth = 1;
+            out.push(' ');
+            continue;
+        }
+        out.push(ch);
+    }
+    let text = out.split_whitespace().collect::<Vec<_>>().join(" ");
+    if text.len() < 3
+        || text.len() > 180
+        || !text.chars().any(|ch| ch.is_alphabetic())
+        || text.contains('=')
+    {
+        return None;
+    }
+    Some(text)
 }
 
 fn quoted_value_is_module_specifier_context(prefix: &str) -> bool {
@@ -1478,7 +1562,7 @@ fn surface_label_literal_is_structural(value: &str) -> bool {
     !terms.is_empty()
         && terms
             .iter()
-            .all(|term| term.chars().all(|ch| ch.is_ascii_alphanumeric()))
+            .all(|term| term.chars().all(|ch| ch.is_alphanumeric()))
 }
 
 fn surface_literal_phrases(value: &str, preserve_whole: bool) -> BTreeSet<String> {
@@ -1515,7 +1599,7 @@ fn normalize_surface_phrase(value: &str) -> Option<String> {
     while trimmed.contains("--") {
         trimmed = trimmed.replace("--", "-");
     }
-    let trimmed = trimmed.trim_matches('-').to_ascii_lowercase();
+    let trimmed = trimmed.trim_matches('-').to_lowercase();
     if trimmed.is_empty()
         || trimmed.contains("${")
         || trimmed.starts_with("http")
@@ -1535,7 +1619,7 @@ fn surface_phrase_is_specific(phrase: &str) -> bool {
 }
 
 fn surface_phrase_terms(phrase: &str) -> BTreeSet<String> {
-    tokenize(&phrase.replace(['.', '#', '/', '-', '_', ':'], " "))
+    surface_terms(&phrase.replace(['.', '#', '/', '-', '_', ':'], " "))
         .into_iter()
         .filter(|term| term.len() >= 3)
         .filter(|term| {
@@ -1566,7 +1650,7 @@ fn surface_phrase_terms(phrase: &str) -> BTreeSet<String> {
 }
 
 fn surface_literal_terms(value: &str) -> BTreeSet<String> {
-    tokenize(&value.replace(['.', '#', '/', '-', '_', ':'], " "))
+    surface_terms(&value.replace(['.', '#', '/', '-', '_', ':'], " "))
         .into_iter()
         .filter(|term| term.len() >= 3)
         .filter(|term| {
@@ -1596,6 +1680,14 @@ fn surface_literal_terms(value: &str) -> BTreeSet<String> {
                     | "blueprint"
             )
         })
+        .collect()
+}
+
+fn surface_terms(value: &str) -> BTreeSet<String> {
+    value
+        .split(|ch: char| !(ch.is_alphanumeric() || ch == '_'))
+        .map(str::to_lowercase)
+        .filter(|term| term.len() >= 2)
         .collect()
 }
 
@@ -4797,6 +4889,45 @@ test("flow", async ({ page }) => {
         assert!(surfaces.tokens.contains("settings"));
         assert!(surfaces.tokens.contains("orders"));
         assert!(!surfaces.tokens.contains("prose"));
+    }
+
+    #[test]
+    fn javascript_surface_phrases_capture_bounded_jsx_visible_text() {
+        let source = r#"export function ShellHint() {
+  return (
+    <div className="blueprint-canvas__hint" aria-live="polite">
+      Дважды кликни по канвасу или нажми <kbd className="kbd">F</kbd> — появится новый кадр
+    </div>
+  );
+}
+"#;
+        let test = r#"test("this prose is not a surface", async ({ page }) => {
+  await expect(page.getByText("Дважды кликни по канвасу или нажми")).toBeVisible();
+});
+"#;
+        let prose = r#"export function Plain() {
+  return <p>Дважды кликни по канвасу или нажми</p>;
+}
+"#;
+
+        let source_surfaces = extract_surfaces(source, "tsx");
+        let test_surfaces = extract_surfaces(test, "tsx");
+        let prose_surfaces = extract_surfaces(prose, "tsx");
+
+        assert!(
+            source_surfaces
+                .phrases
+                .contains("дважды-кликни-по-канвасу-или-нажми-f-—-появится-новый-кадр")
+        );
+        assert!(
+            test_surfaces
+                .phrases
+                .contains("дважды-кликни-по-канвасу-или-нажми")
+        );
+        assert!(
+            prose_surfaces.phrases.is_empty(),
+            "visible text without a UI surface container should fail closed: {prose_surfaces:#?}"
+        );
     }
 
     #[test]

@@ -147,6 +147,18 @@ boundaries:
     write(
         &repo
             .path()
+            .join("packages/app/src/features/studio/canvas/shell-hint.tsx"),
+        "export function ShellHint() {\n  return (\n    <div className=\"blueprint-canvas__hint\" aria-live=\"polite\">\n      Дважды кликни по канвасу или нажми <kbd className=\"kbd\">F</kbd> — появится новый кадр\n    </div>\n  );\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/open-frame-board.tsx"),
+        "export function OpenFrameBoard() {\n  return <button className=\"frame-board-action\">Open frame board</button>;\n}\n",
+    );
+    write(
+        &repo
+            .path()
             .join("packages/app/src/features/studio/settings-button.tsx"),
         "export function SettingsButton() {\n  return <button aria-label=\"Open settings panel\">Settings</button>;\n}\n",
     );
@@ -201,6 +213,18 @@ boundaries:
             .path()
             .join("packages/app/tests/e2e/canvas-blueprint-title-drag.spec.ts"),
         "import { test, expect } from '@playwright/test';\n\ntest('blueprint canvas title drag keeps title attached', async ({ page }) => {\n  await page.goto('/studio');\n  await expect(page.locator('.frame-title-control')).toBeVisible();\n});\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/tests/e2e/canvas-shell-hint.spec.ts"),
+        "import { test, expect } from '@playwright/test';\n\ntest('canvas shell empty hint stays visible', async ({ page }) => {\n  await page.goto('/studio');\n  await expect(page.getByText('Дважды кликни по канвасу или нажми')).toBeVisible();\n});\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/tests/e2e/reopen-frame-board.spec.ts"),
+        "import { test, expect } from '@playwright/test';\n\ntest('reopen frame board stays visible', async ({ page }) => {\n  await page.goto('/studio');\n  await expect(page.getByText('Reopen frame board')).toBeVisible();\n});\n",
     );
     write(
         &repo
@@ -670,6 +694,88 @@ fn proof_links_ui_anchor_to_named_unit_and_e2e_surfaces_without_imports() {
             .any(|edge| edge["from"]
                 == "packages/app/tests/e2e/canvas-blueprint-title-drag.spec.ts"
                 && edge["evidence"] == "e2e_surface_phrase")
+    );
+}
+
+#[test]
+fn proof_links_jsx_visible_text_to_e2e_get_by_text_partial() {
+    let (repo, cache) = fixture();
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "packages/app/src/features/studio/canvas/shell-hint.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    let proofs = proof["proofs"].as_array().expect("proof surfaces");
+    assert!(
+        proofs.iter().any(|surface| surface["path"]
+            == "packages/app/tests/e2e/canvas-shell-hint.spec.ts"
+            && surface["evidence"] == "e2e_surface_phrase"
+            && surface["command"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("test:e2e")),
+        "static JSX visible text should link to partial getByText e2e proof without broad fallback: {proof:#}"
+    );
+    assert!(
+        proof["fallback"].as_array().expect("fallback").is_empty(),
+        "e2e visible-text proof should hide broad fallback: {proof:#}"
+    );
+
+    let cone = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "cone",
+            "packages/app/src/features/studio/canvas/shell-hint.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/cone.schema.json", &cone);
+    assert!(
+        cone["proof"]
+            .as_array()
+            .expect("proof edges")
+            .iter()
+            .any(
+                |edge| edge["from"] == "packages/app/tests/e2e/canvas-shell-hint.spec.ts"
+                    && edge["evidence"] == "e2e_surface_phrase"
+            ),
+        "cone should expose the same visible-text proof edge: {cone:#}"
+    );
+}
+
+#[test]
+fn proof_visible_text_partial_match_respects_phrase_boundaries() {
+    let (repo, cache) = fixture();
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "packages/app/src/features/studio/canvas/open-frame-board.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        proof["proofs"]
+            .as_array()
+            .expect("proof surfaces")
+            .iter()
+            .all(|surface| surface["path"] != "packages/app/tests/e2e/reopen-frame-board.spec.ts"),
+        "`Open frame board` must not match `Reopen frame board` by raw substring: {proof:#}"
+    );
+    assert!(
+        !proof["fallback"].as_array().expect("fallback").is_empty(),
+        "without a structural proof, codemap should keep the broad fallback visible: {proof:#}"
     );
 }
 

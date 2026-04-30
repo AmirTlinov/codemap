@@ -1539,13 +1539,50 @@ fn shared_surface_phrases(project: &Project, rel: &str, test: &FileInfo) -> BTre
         .files
         .get(rel)
         .map(|file| {
-            file.surface_phrases
-                .intersection(&test.surface_phrases)
-                .filter(|phrase| meaningful_surface_phrase(phrase))
-                .cloned()
-                .collect()
+            let mut shared = BTreeSet::new();
+            for source_phrase in &file.surface_phrases {
+                if !meaningful_surface_phrase(source_phrase) {
+                    continue;
+                }
+                for test_phrase in &test.surface_phrases {
+                    if !meaningful_surface_phrase(test_phrase) {
+                        continue;
+                    }
+                    if surface_phrases_match(source_phrase, test_phrase) {
+                        shared.insert(source_phrase.clone());
+                    }
+                }
+            }
+            shared
         })
         .unwrap_or_default()
+}
+
+fn surface_phrases_match(left: &str, right: &str) -> bool {
+    if left == right {
+        return true;
+    }
+    let (shorter, longer) = if left.len() <= right.len() {
+        (left, right)
+    } else {
+        (right, left)
+    };
+    let shorter_terms = surface_phrase_terms(shorter);
+    shorter_terms.len() >= 3 && phrase_contains_with_boundaries(longer, shorter)
+}
+
+fn phrase_contains_with_boundaries(longer: &str, shorter: &str) -> bool {
+    longer.match_indices(shorter).any(|(start, _)| {
+        let before = longer[..start].chars().next_back();
+        let end = start + shorter.len();
+        let after = longer[end..].chars().next();
+        before.map(phrase_boundary_char).unwrap_or(true)
+            && after.map(phrase_boundary_char).unwrap_or(true)
+    })
+}
+
+fn phrase_boundary_char(ch: char) -> bool {
+    ch == '-'
 }
 
 fn source_stem(rel: &str) -> String {
@@ -1719,7 +1756,7 @@ fn meaningful_surface_phrase(phrase: &str) -> bool {
 }
 
 fn surface_phrase_terms(phrase: &str) -> BTreeSet<String> {
-    repo::tokenize(&phrase.replace(['.', '#', '/', '-', '_', ':'], " "))
+    surface_terms(&phrase.replace(['.', '#', '/', '-', '_', ':'], " "))
         .into_iter()
         .filter(|term| term.len() >= 3)
         .filter(|term| {
@@ -1746,6 +1783,14 @@ fn surface_phrase_terms(phrase: &str) -> BTreeSet<String> {
                     | "nopan"
             )
         })
+        .collect()
+}
+
+fn surface_terms(value: &str) -> BTreeSet<String> {
+    value
+        .split(|ch: char| !(ch.is_alphanumeric() || ch == '_'))
+        .map(str::to_lowercase)
+        .filter(|term| term.len() >= 2)
         .collect()
 }
 
