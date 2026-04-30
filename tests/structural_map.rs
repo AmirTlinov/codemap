@@ -2905,6 +2905,13 @@ public final class HostViewModel {
 "#,
     );
     write(
+        &repo.path().join("Sources/HostApp/AppModel.swift"),
+        r#"struct HostAppModel {
+    let viewModel = HostViewModel()
+}
+"#,
+    );
+    write(
         &repo.path().join("Packages/Core/Package.swift"),
         r#"// swift-tools-version: 6.0
 import PackageDescription
@@ -2932,6 +2939,8 @@ import Testing
 func hostViewModelRefreshes() {
     let model = HostViewModel()
     model.refresh()
+    let app = HostAppModel()
+    _ = app.viewModel
 }
 "#,
     );
@@ -3095,6 +3104,35 @@ func hostViewModelRefreshes() {
     assert!(
         proof["fallback"].as_array().expect("fallback").is_empty(),
         "Swift symbol reference proof should suppress broad fallback: {proof:#}"
+    );
+    let impact = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "impact",
+            "--files",
+            "Sources/HostApp/main.swift",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/impact.schema.json", &impact);
+    let impact_proof = impact["clusters"][0]["proof"]
+        .as_array()
+        .expect("impact proof");
+    let host_test_count = impact_proof
+        .iter()
+        .filter(|edge| edge["from"] == "Tests/HostAppTests/HostViewModelTests.swift")
+        .count();
+    assert_eq!(
+        host_test_count, 1,
+        "impact proof candidates should dedupe one test file across changed and consumer seeds: {impact:#}"
+    );
+    assert!(
+        impact_proof.iter().any(|edge| edge["from"]
+            == "Tests/HostAppTests/HostViewModelTests.swift"
+            && edge["to"] == "Sources/HostApp/main.swift"),
+        "impact proof should prefer the direct changed-anchor edge when a test also proves consumers: {impact:#}"
     );
 }
 
