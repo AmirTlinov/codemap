@@ -47,6 +47,7 @@ Keep this flat until a module is hard to change safely.
 - structural `impact` by changed anchors, direct consumers, cross-boundary consumers, contract risks, and proof edges;
 - structural `proof` from adjacent/importing tests and package-local commands;
 - boundary checks from explicit `.ctx.yml` forbidden rules plus resolved imports/package edges;
+- anchor validation with resolved domain/concept/boundary/verification details;
 - graph lenses for causal, impact, proof, and boundaries;
 - schema printing without loading a project or writing cache;
 - optional `codemap init --agents`, `--print`, and `--write-minimal`.

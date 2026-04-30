@@ -11,11 +11,15 @@ codemap schema <kind>
 codemap schema manifest
 ```
 
-Structural output contracts use:
+Most structural output contracts currently use:
 
 ```json
 "schema_version": "2"
 ```
+
+Each manifest entry is the authority for that output's exact version. Individual
+outputs may advance independently when their emitted JSON contract changes; for
+example, `anchor-validation` is versioned separately from map/proof outputs.
 
 Semantic anchor config uses:
 
@@ -44,6 +48,6 @@ Tests verify that:
 - every `*.schema.json` file is listed in `schemas/manifest.json`;
 - every manifest entry is printable through `codemap schema <kind>`;
 - printed schemas match bundled files;
-- structural schemas require `schema_version: "2"`;
+- structural schemas declare the `schema_version` listed for their manifest entry;
 - anchor schemas require `version: 1`;
 - schema commands do not write cache.

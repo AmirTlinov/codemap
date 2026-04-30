@@ -68,7 +68,7 @@
       "kind": "anchor-validation",
       "file": "schemas/anchor-validation.schema.json",
       "contract": "structural_output",
-      "schema_version": "2",
+      "schema_version": "3",
       "json_kind": "anchor_validation"
     }
   ]

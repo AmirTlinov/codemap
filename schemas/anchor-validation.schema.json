@@ -11,11 +11,12 @@
     "config",
     "summary",
     "problems",
-    "warnings"
+    "warnings",
+    "details"
   ],
   "properties": {
     "kind": { "const": "anchor_validation" },
-    "schema_version": { "const": "2" },
+    "schema_version": { "const": "3" },
     "ok": { "type": "boolean" },
     "config": {
       "anyOf": [{ "type": "string" }, { "type": "null" }]
@@ -43,6 +44,26 @@
     "warnings": {
       "type": "array",
       "items": { "type": "string" }
+    },
+    "details": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/detail" }
+    }
+  },
+  "$defs": {
+    "detail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "status", "message"],
+      "properties": {
+        "kind": { "type": "string" },
+        "id": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["ok", "warning", "problem", "info"]
+        },
+        "message": { "type": "string" }
+      }
     }
   }
 }

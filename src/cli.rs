@@ -894,6 +894,7 @@ struct AnchorValidation {
     summary: AnchorValidationSummary,
     problems: Vec<String>,
     warnings: Vec<String>,
+    details: Vec<AnchorValidationDetail>,
 }
 
 #[derive(serde::Serialize)]
@@ -904,6 +905,14 @@ struct AnchorValidationSummary {
     verification_defaults: usize,
 }
 
+#[derive(serde::Serialize)]
+struct AnchorValidationDetail {
+    kind: String,
+    id: String,
+    status: String,
+    message: String,
+}
+
 fn validate_anchors(project: &crate::model::Project) -> AnchorValidation {
     let mut problems = project
         .config_errors
@@ -912,9 +921,10 @@ fn validate_anchors(project: &crate::model::Project) -> AnchorValidation {
         .collect::<Vec<_>>();
     problems.extend(semantic_anchor_problems(project));
     let warnings = semantic_anchor_warnings(project);
+    let details = semantic_anchor_details(project);
     AnchorValidation {
         kind: "anchor_validation",
-        schema_version: "2",
+        schema_version: "3",
         ok: problems.is_empty(),
         config: project.config_path.clone(),
         summary: AnchorValidationSummary {
@@ -925,6 +935,7 @@ fn validate_anchors(project: &crate::model::Project) -> AnchorValidation {
         },
         problems,
         warnings,
+        details,
     }
 }
 
@@ -997,7 +1008,7 @@ fn semantic_anchor_problems(project: &crate::model::Project) -> Vec<String> {
 
 fn semantic_anchor_warnings(project: &crate::model::Project) -> Vec<String> {
     let mut warnings = Vec::new();
-    if project.config_path.is_none() {
+    if project.config_path.is_none() && project.config_errors.is_empty() {
         warnings
             .push("no .ctx.yml found; codemap will use zero-config structural maps".to_string());
         return warnings;
@@ -1039,6 +1050,156 @@ fn semantic_anchor_warnings(project: &crate::model::Project) -> Vec<String> {
     warnings
 }
 
+fn semantic_anchor_details(project: &crate::model::Project) -> Vec<AnchorValidationDetail> {
+    let mut details = Vec::new();
+    for error in &project.config_errors {
+        details.push(AnchorValidationDetail {
+            kind: "config".to_string(),
+            id: error.path.clone(),
+            status: "problem".to_string(),
+            message: format!("semantic anchor config rejected: {}", error.error),
+        });
+    }
+    if project.config_path.is_none() {
+        if details.is_empty() {
+            details.push(AnchorValidationDetail {
+                kind: "config".to_string(),
+                id: "zero-config".to_string(),
+                status: "info".to_string(),
+                message:
+                    "no .ctx.yml loaded; structural maps use repo files, manifests, imports, and tests"
+                        .to_string(),
+            });
+        }
+        return details;
+    }
+    if let Some(config) = &project.config_path {
+        details.push(AnchorValidationDetail {
+            kind: "config".to_string(),
+            id: config.clone(),
+            status: "ok".to_string(),
+            message: format!("loaded semantic anchor config `{config}`"),
+        });
+    }
+    if let Some(domain) = &project.anchors.domain {
+        let id = domain.id.as_deref().unwrap_or("repo");
+        let path = domain.path.as_deref().unwrap_or(".");
+        details.push(domain_anchor_detail(project, id, path));
+    }
+    for (id, domain) in &project.anchors.domains {
+        details.push(domain_anchor_detail(
+            project,
+            id,
+            domain.path.as_deref().unwrap_or("."),
+        ));
+    }
+    for (id, concept) in &project.anchors.concepts {
+        let mut resolved_files = 0usize;
+        let mut missing_exact_files = 0usize;
+        let mut glob_patterns = 0usize;
+        let mut glob_matches = 0usize;
+        for file in &concept.files {
+            let rel = map::resolve_anchor_path(project, file);
+            if is_glob_like(file) {
+                glob_patterns += 1;
+                glob_matches += anchor_pattern_match_count(project, file);
+            } else if project.files.contains_key(&rel) {
+                resolved_files += 1;
+            } else {
+                missing_exact_files += 1;
+            }
+        }
+        let status = if concept.files.is_empty() || missing_exact_files > 0 {
+            "problem"
+        } else if concept.invariants.is_empty() || (glob_patterns > 0 && glob_matches == 0) {
+            "warning"
+        } else {
+            "ok"
+        };
+        details.push(AnchorValidationDetail {
+            kind: "concept".to_string(),
+            id: id.clone(),
+            status: status.to_string(),
+            message: format!(
+                "role `{}`; exact files resolved: {}; exact files missing: {}; glob matches: {}; invariants: {}",
+                concept
+                    .role
+                    .as_deref()
+                    .or(concept.kind.as_deref())
+                    .unwrap_or("unspecified"),
+                resolved_files,
+                missing_exact_files,
+                glob_matches,
+                concept.invariants.len()
+            ),
+        });
+    }
+    for (idx, edge) in project.anchors.boundaries.forbidden.iter().enumerate() {
+        let number = idx + 1;
+        let from_matches = anchor_pattern_match_count(project, &edge.from);
+        let to_matches = anchor_pattern_match_count(project, &edge.to);
+        let unsupported_status = edge
+            .status
+            .as_deref()
+            .is_some_and(|status| !matches!(status, "forbidden" | "warn" | "warning"));
+        let status = if edge.from.trim().is_empty()
+            || edge.to.trim().is_empty()
+            || edge.reason.trim().is_empty()
+            || unsupported_status
+        {
+            "problem"
+        } else if from_matches == 0 || to_matches == 0 || edge.recovery.is_empty() {
+            "warning"
+        } else {
+            "ok"
+        };
+        details.push(AnchorValidationDetail {
+            kind: "forbidden_boundary".to_string(),
+            id: format!("#{number}"),
+            status: status.to_string(),
+            message: format!(
+                "`from` matches {}; `to` matches {}; recovery steps: {}; declared status: {}",
+                from_matches,
+                to_matches,
+                edge.recovery.len(),
+                edge.status.as_deref().unwrap_or("forbidden")
+            ),
+        });
+    }
+    for (index, command) in project.anchors.verification.default.iter().enumerate() {
+        details.push(AnchorValidationDetail {
+            kind: "verification_default".to_string(),
+            id: format!("#{}", index + 1),
+            status: if command.trim().is_empty() {
+                "problem"
+            } else {
+                "ok"
+            }
+            .to_string(),
+            message: command.clone(),
+        });
+    }
+    details
+}
+
+fn domain_anchor_detail(
+    project: &crate::model::Project,
+    id: &str,
+    path: &str,
+) -> AnchorValidationDetail {
+    let rel = repo::normalize_rel_path(path);
+    let exists = rel == "." || project.root.join(&rel).is_dir();
+    AnchorValidationDetail {
+        kind: "domain".to_string(),
+        id: id.to_string(),
+        status: if exists { "ok" } else { "problem" }.to_string(),
+        message: format!(
+            "path `{rel}` {}",
+            if exists { "exists" } else { "is missing" }
+        ),
+    }
+}
+
 fn validate_anchor_domain_path(
     project: &crate::model::Project,
     id: &str,
@@ -1056,32 +1217,58 @@ fn is_glob_like(value: &str) -> bool {
 }
 
 fn anchor_pattern_matches_project(project: &crate::model::Project, raw: &str) -> bool {
+    anchor_pattern_match_count(project, raw) > 0
+}
+
+fn anchor_pattern_match_count(project: &crate::model::Project, raw: &str) -> usize {
     let pattern = map::resolve_anchor_path(project, raw);
     if !is_glob_like(&pattern) {
-        return project.files.contains_key(&pattern)
-            || project
-                .packages
-                .iter()
-                .any(|package| package.path == pattern || package.manifest == pattern)
-            || project
-                .domains
-                .iter()
-                .any(|domain| domain.path == pattern || domain.id == pattern)
-            || (pattern != "." && project.root.join(&pattern).exists());
+        let mut targets = BTreeSet::new();
+        if project.files.contains_key(&pattern) {
+            targets.insert(pattern.clone());
+        }
+        for package in &project.packages {
+            if package.path == pattern {
+                targets.insert(package.path.clone());
+            }
+            if package.manifest == pattern {
+                targets.insert(package.manifest.clone());
+            }
+        }
+        for domain in &project.domains {
+            if domain.path == pattern || domain.id == pattern {
+                targets.insert(domain.path.clone());
+            }
+        }
+        if pattern != "." && project.root.join(&pattern).exists() {
+            targets.insert(pattern);
+        }
+        return targets.len();
     }
     let Ok(glob) = GlobBuilder::new(&pattern).literal_separator(true).build() else {
-        return false;
+        return 0;
     };
     let matcher = glob.compile_matcher();
-    project.files.keys().any(|rel| matcher.is_match(rel))
-        || project
-            .packages
-            .iter()
-            .any(|package| matcher.is_match(&package.path) || matcher.is_match(&package.manifest))
-        || project
-            .domains
-            .iter()
-            .any(|domain| matcher.is_match(&domain.path))
+    let mut targets = BTreeSet::new();
+    for rel in project.files.keys() {
+        if matcher.is_match(rel) {
+            targets.insert(rel.clone());
+        }
+    }
+    for package in &project.packages {
+        if matcher.is_match(&package.path) {
+            targets.insert(package.path.clone());
+        }
+        if matcher.is_match(&package.manifest) {
+            targets.insert(package.manifest.clone());
+        }
+    }
+    for domain in &project.domains {
+        if matcher.is_match(&domain.path) {
+            targets.insert(domain.path.clone());
+        }
+    }
+    targets.len()
 }
 
 fn anchors_markdown(report: &AnchorValidation) {
@@ -1122,6 +1309,25 @@ fn anchors_markdown(report: &AnchorValidation) {
         for warning in &report.warnings {
             println!("- {warning}");
         }
+    }
+    if !report.details.is_empty() {
+        println!("\n## Details\n");
+        let rows = report
+            .details
+            .iter()
+            .map(|detail| {
+                vec![
+                    detail.kind.clone(),
+                    detail.id.clone(),
+                    detail.status.clone(),
+                    detail.message.clone(),
+                ]
+            })
+            .collect();
+        println!(
+            "{}",
+            render::table(&["Kind", "ID", "Status", "Message"], rows)
+        );
     }
 }
 
