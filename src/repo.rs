@@ -31,6 +31,7 @@ const ROOT_MARKERS: &[&str] = &[
     "go.work",
     "pyproject.toml",
     "requirements.txt",
+    "Package.swift",
     "Makefile",
     "justfile",
 ];
@@ -635,6 +636,7 @@ fn classify_roles(info: &mut FileInfo) {
             | "cargo.toml"
             | "go.mod"
             | "pyproject.toml"
+            | "package.swift"
     ) {
         info.roles.insert("public_boundary".to_string());
     }
@@ -2210,6 +2212,11 @@ fn detect_packages(root: &Path, files: &BTreeMap<String, FileInfo>) -> Vec<Packa
                     packages.push(package);
                 }
             }
+            Some("Package.swift") => {
+                if let Some(package) = read_swift_package(root, rel) {
+                    packages.push(package);
+                }
+            }
             _ => {}
         }
     }
@@ -2268,6 +2275,18 @@ fn read_python_package(root: &Path, rel: &str) -> Option<PackageInfo> {
     })
 }
 
+fn read_swift_package(root: &Path, rel: &str) -> Option<PackageInfo> {
+    let text = fs::read_to_string(root.join(rel)).ok()?;
+    let path = manifest_dir(rel);
+    let name = swift_package_name(&text).unwrap_or_else(|| package_name_from_path(&path));
+    Some(PackageInfo {
+        name,
+        path,
+        manifest: rel.to_string(),
+        ecosystem: "swift".to_string(),
+    })
+}
+
 fn detect_package_edges(
     root: &Path,
     files: &BTreeMap<String, FileInfo>,
@@ -2302,6 +2321,9 @@ fn detect_package_edges(
             }
             "python" => {
                 edges.extend(python_package_edges(root, package, &by_path));
+            }
+            "swift" => {
+                edges.extend(swift_package_edges(root, package, &by_path));
             }
             _ => {}
         }
@@ -2796,6 +2818,37 @@ fn python_package_edges(
     edges
 }
 
+fn swift_package_edges(
+    root: &Path,
+    package: &PackageInfo,
+    by_path: &BTreeMap<String, &PackageInfo>,
+) -> Vec<PackageDependency> {
+    let Ok(text) = fs::read_to_string(root.join(&package.manifest)) else {
+        return Vec::new();
+    };
+    let base = Path::new(&package.manifest)
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let mut edges = Vec::new();
+    for path in swift_package_path_dependencies(&text) {
+        if let Some(target_path) = resolve_repo_relative_path(base, &path)
+            && let Some(target) = by_path.get(&target_path)
+        {
+            edges.push(PackageDependency {
+                from: package.path.clone(),
+                from_manifest: package.manifest.clone(),
+                to: target.path.clone(),
+                to_manifest: Some(target.manifest.clone()),
+                workspace_manifest: None,
+                dependency: package_name_from_path(&target.path),
+                source: "Package.swift local path dependency".to_string(),
+            });
+        }
+    }
+    edges
+}
+
 fn manifest_dir(rel: &str) -> String {
     Path::new(rel)
         .parent()
@@ -3131,6 +3184,24 @@ fn pyproject_path_dependencies(text: &str) -> Vec<(String, String)> {
     unique_pairs(deps)
 }
 
+fn swift_package_name(text: &str) -> Option<String> {
+    swift_package_name_re()
+        .captures(text)?
+        .get(1)
+        .map(|m| m.as_str().to_string())
+        .filter(|name| !name.is_empty())
+}
+
+fn swift_package_path_dependencies(text: &str) -> Vec<String> {
+    let mut deps = swift_package_path_dependency_re()
+        .captures_iter(text)
+        .filter_map(|cap| cap.get(1).map(|m| m.as_str().to_string()))
+        .collect::<Vec<_>>();
+    deps.sort();
+    deps.dedup();
+    deps
+}
+
 fn unquote(value: &str) -> Option<String> {
     let trimmed = value.trim().trim_end_matches(',');
     trimmed
@@ -3159,6 +3230,8 @@ fn detect_package_manager(root: &Path) -> String {
         "go"
     } else if root.join("pyproject.toml").exists() || root.join("requirements.txt").exists() {
         "python"
+    } else if root.join("Package.swift").exists() {
+        "swift"
     } else {
         "unknown"
     }
@@ -3220,6 +3293,13 @@ fn detect_scripts(root: &Path) -> Vec<ScriptInfo> {
             name: "test".to_string(),
             command: "pytest".to_string(),
             reason: "Python project files detected".to_string(),
+        });
+    }
+    if root.join("Package.swift").exists() {
+        scripts.push(ScriptInfo {
+            name: "test".to_string(),
+            command: "swift test".to_string(),
+            reason: "Package.swift detected".to_string(),
         });
     }
     if root.join("Makefile").exists() {
@@ -3688,6 +3768,19 @@ fn py_import_re() -> &'static Regex {
     RE.get_or_init(|| {
         Regex::new(r#"(?m)^\s*(?:from\s+([A-Za-z0-9_\.]+)\s+import|import\s+([A-Za-z0-9_\.]+))"#)
             .expect("valid python import regex")
+    })
+}
+
+fn swift_package_name_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r#"name:\s*"([^"]+)""#).expect("valid swift package name regex"))
+}
+
+fn swift_package_path_dependency_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"\.package\s*\(\s*path:\s*"([^"]+)""#)
+            .expect("valid swift package path dependency regex")
     })
 }
 

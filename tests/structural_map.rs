@@ -707,6 +707,92 @@ fn python_proof_without_package_manifest_uses_pytest_file_and_skips_init_support
 }
 
 #[test]
+fn swift_package_manifest_surfaces_packages_scripts_and_local_path_edges() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("Package.swift"),
+        r#"// swift-tools-version: 6.0
+import PackageDescription
+
+let package = Package(
+    name: "HostApp",
+    dependencies: [
+        .package(path: "Packages/Core")
+    ],
+    targets: [
+        .executableTarget(name: "HostApp", dependencies: ["Core"])
+    ]
+)
+"#,
+    );
+    write(
+        &repo.path().join("Sources/HostApp/main.swift"),
+        "import Foundation\nprint(\"host\")\n",
+    );
+    write(
+        &repo.path().join("Packages/Core/Package.swift"),
+        r#"// swift-tools-version: 6.0
+import PackageDescription
+
+let package = Package(
+    name: "Core",
+    targets: [
+        .target(name: "Core")
+    ]
+)
+"#,
+    );
+    write(
+        &repo.path().join("Packages/Core/Sources/Core/Core.swift"),
+        "public struct Core {}\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let status = run_json(repo.path(), cache.path(), &["status", "--format", "json"]);
+    assert_schema("schemas/status.schema.json", &status);
+    assert_eq!(status["package_manager"], "swift");
+    assert!(
+        status["scripts"]
+            .as_array()
+            .expect("scripts")
+            .iter()
+            .any(|script| script.as_str().unwrap_or_default() == "swift test")
+    );
+
+    let ls = run_json(repo.path(), cache.path(), &["ls", ".", "--format", "json"]);
+    assert_schema("schemas/ls.schema.json", &ls);
+    assert!(
+        ls["directory"]
+            .as_array()
+            .expect("directory")
+            .iter()
+            .any(|surface| surface["kind"] == "package:swift"
+                && surface["examples"]
+                    .as_array()
+                    .expect("examples")
+                    .iter()
+                    .any(|example| example == "Package.swift")),
+        "root map should surface SwiftPM package manifests: {ls:#}"
+    );
+    assert!(
+        ls["edges"]
+            .as_array()
+            .expect("edges")
+            .iter()
+            .any(|edge| edge["from"] == "Package.swift"
+                && edge["to"] == "Packages/"
+                && edge["type"] == "package_internal"
+                && edge["evidence"] == "package_manifest:Core"),
+        "SwiftPM local path dependencies should become package graph edges: {ls:#}"
+    );
+}
+
+#[test]
 fn proof_does_not_treat_module_specifiers_as_ui_surfaces() {
     let (repo, cache) = fixture();
     let proof = run_json(

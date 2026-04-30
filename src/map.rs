@@ -1767,6 +1767,11 @@ fn proof_command_for_test(project: &Project, test: &str) -> Option<String> {
                 shell_quote(&strip_package_prefix(test, &package.path))
             )
         }),
+        "swift" => Some(if package.path == "." {
+            "swift test".to_string()
+        } else {
+            format!("cd {} && swift test", shell_quote(&package.path))
+        }),
         "rust" => package_minimal_command(
             project,
             package,
@@ -3160,6 +3165,11 @@ fn package_minimal_command(
             "pytest".to_string()
         } else {
             format!("cd {} && pytest", shell_quote(&package.path))
+        }),
+        "swift" => Some(if package.path == "." {
+            "swift test".to_string()
+        } else {
+            format!("cd {} && swift test", shell_quote(&package.path))
         }),
         _ => None,
     }

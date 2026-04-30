@@ -37,8 +37,9 @@ Keep this flat until a module is hard to change safely.
 - JS/TS relative import, workspace package import, package entrypoint, and simple `tsconfig.json` alias resolution;
 - Go local module import resolution;
 - Python src-layout import resolution;
+- SwiftPM `Package.swift` package detection and local `.package(path:)` dependency resolution;
 - reverse import graph;
-- package/workspace detection for package.json, pnpm, Cargo, Go, Python, Make, and just surfaces;
+- package/workspace detection for package.json, pnpm, Cargo, Go, Python, SwiftPM, Make, and just surfaces;
 - domain discovery from common workspace folders and explicit `.ctx.yml`;
 - root/directory `ls` surfaces with bounded domain/package/script/test map;
 - file `ls` with symbols, exports, imports, incoming count, adjacent tests, and next command;
