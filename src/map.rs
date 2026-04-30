@@ -342,13 +342,13 @@ fn ls_file_report(
         }
     }
     let anchor = file_summary(project, info, include_hidden, limit);
-    if !include_hidden && info.symbols.len() > anchor.symbols.len() {
-        hidden.push(HiddenGroup {
-            reason: "symbols hidden by limit".to_string(),
-            count: info.symbols.len() - anchor.symbols.len(),
-            expand: format!("codemap ls {} --include-hidden", shell_quote(&info.rel)),
-        });
-    }
+    push_symbol_hidden_groups(
+        &mut hidden,
+        info,
+        include_hidden,
+        limit,
+        &format!("codemap ls {} --include-hidden", shell_quote(&info.rel)),
+    );
     LsReport {
         kind: "ls_report",
         schema_version: "2",
@@ -1092,13 +1092,13 @@ fn cone_anchor(
     if let Some(info) = project.files.get(rel) {
         let summary = file_summary(project, info, include_hidden, limit);
         let mut hidden = Vec::new();
-        if !include_hidden && info.symbols.len() > summary.symbols.len() {
-            hidden.push(HiddenGroup {
-                reason: "symbols hidden by limit".to_string(),
-                count: info.symbols.len() - summary.symbols.len(),
-                expand: format!("codemap cone {} --include-hidden", shell_quote(rel)),
-            });
-        }
+        push_symbol_hidden_groups(
+            &mut hidden,
+            info,
+            include_hidden,
+            limit,
+            &format!("codemap cone {} --include-hidden", shell_quote(rel)),
+        );
         return (summary, vec![info.rel.clone()], Vec::new(), hidden);
     }
     if directory_has_files(project, rel) {
@@ -1716,10 +1716,7 @@ fn file_summary(
     include_hidden: bool,
     limit: usize,
 ) -> FileSummary {
-    let mut symbols = info.symbols.clone();
-    if !include_hidden {
-        symbols.truncate(limit);
-    }
+    let symbols = file_symbol_visibility(info, include_hidden, limit).symbols;
     FileSummary {
         path: info.rel.clone(),
         kind: file_kind_for_ls(info),
@@ -1736,6 +1733,101 @@ fn file_summary(
             .map(|importers| importers.len())
             .unwrap_or(0),
     }
+}
+
+struct SymbolVisibility {
+    symbols: Vec<crate::model::SymbolInfo>,
+    hidden_by_default: usize,
+    hidden_by_limit: usize,
+}
+
+fn file_symbol_visibility(info: &FileInfo, include_hidden: bool, limit: usize) -> SymbolVisibility {
+    if include_hidden {
+        return SymbolVisibility {
+            symbols: info.symbols.clone(),
+            hidden_by_default: 0,
+            hidden_by_limit: 0,
+        };
+    }
+    let mut symbols = info
+        .symbols
+        .iter()
+        .filter(|symbol| symbol_is_default_visible(info, symbol))
+        .cloned()
+        .collect::<Vec<_>>();
+    let hidden_by_default = info.symbols.len().saturating_sub(symbols.len());
+    let before_limit = symbols.len();
+    symbols.truncate(limit);
+    SymbolVisibility {
+        hidden_by_default,
+        hidden_by_limit: before_limit.saturating_sub(symbols.len()),
+        symbols,
+    }
+}
+
+fn push_symbol_hidden_groups(
+    hidden: &mut Vec<HiddenGroup>,
+    info: &FileInfo,
+    include_hidden: bool,
+    limit: usize,
+    expand: &str,
+) {
+    let visibility = file_symbol_visibility(info, include_hidden, limit);
+    if visibility.hidden_by_default > 0 {
+        hidden.push(HiddenGroup {
+            reason: "nested symbols hidden by default".to_string(),
+            count: visibility.hidden_by_default,
+            expand: expand.to_string(),
+        });
+    }
+    if visibility.hidden_by_limit > 0 {
+        hidden.push(HiddenGroup {
+            reason: "symbols hidden by limit".to_string(),
+            count: visibility.hidden_by_limit,
+            expand: expand.to_string(),
+        });
+    }
+}
+
+fn symbol_is_default_visible(info: &FileInfo, symbol: &crate::model::SymbolInfo) -> bool {
+    if symbol.exported {
+        return true;
+    }
+    if symbol_is_low_signal_nested_member(info, symbol) {
+        return false;
+    }
+    true
+}
+
+fn symbol_is_low_signal_nested_member(info: &FileInfo, symbol: &crate::model::SymbolInfo) -> bool {
+    if !matches!(
+        symbol.kind.as_str(),
+        "property" | "constant" | "const" | "variable"
+    ) {
+        return false;
+    }
+    info.symbols.iter().any(|container| {
+        container.line_start < symbol.line_start
+            && container.line_end >= symbol.line_end
+            && symbol_kind_can_contain_members(&container.kind)
+    })
+}
+
+fn symbol_kind_can_contain_members(kind: &str) -> bool {
+    matches!(
+        kind,
+        "class"
+            | "struct"
+            | "enum"
+            | "interface"
+            | "type"
+            | "impl"
+            | "trait"
+            | "function"
+            | "method"
+            | "component"
+            | "hook"
+    )
 }
 
 fn symbol_file_summary(

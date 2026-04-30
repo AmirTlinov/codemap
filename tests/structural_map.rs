@@ -2675,6 +2675,49 @@ fn symbol_anchor_cone_links_same_file_symbol_body_uses() {
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["commit", "-qm", "local symbol flow fixture"]);
 
+    let file_ls = run_json(
+        repo.path(),
+        cache.path(),
+        &["ls", "src/local-flow.tsx", "--format", "json"],
+    );
+    assert_schema("schemas/ls.schema.json", &file_ls);
+    assert!(
+        file_ls["anchor"]["symbols"]
+            .as_array()
+            .expect("symbols")
+            .iter()
+            .all(|symbol| symbol["name"] != "focus"),
+        "default TSX file map should hide local constants inside functions: {file_ls:#}"
+    );
+    assert!(
+        file_ls["hidden"]
+            .as_array()
+            .expect("hidden")
+            .iter()
+            .any(|group| group["reason"] == "nested symbols hidden by default"),
+        "hidden group should distinguish default symbol filtering from limit truncation: {file_ls:#}"
+    );
+    let full_file_ls = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "ls",
+            "src/local-flow.tsx",
+            "--include-hidden",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/ls.schema.json", &full_file_ls);
+    assert!(
+        full_file_ls["anchor"]["symbols"]
+            .as_array()
+            .expect("symbols")
+            .iter()
+            .any(|symbol| symbol["name"] == "focus" && symbol["kind"] == "const"),
+        "include-hidden should expose local TSX constants on demand: {full_file_ls:#}"
+    );
+
     let panel_cone = run_json(
         repo.path(),
         cache.path(),
@@ -2852,8 +2895,12 @@ import Core
 @MainActor
 public final class HostViewModel {
     @Published public var title: String = "Host"
+    private let cacheKey: String = "host"
 
-    public func refresh() {}
+    public func refresh() {
+        let transientState = title
+        _ = transientState
+    }
 }
 "#,
     );
@@ -2944,7 +2991,7 @@ func hostViewModelRefreshes() {
             .any(|symbol| symbol["name"] == "HostViewModel"
                 && symbol["kind"] == "class"
                 && symbol["line_start"] == 5
-                && symbol["line_end"] == 9),
+                && symbol["line_end"] == 13),
         "Swift file ls should surface class symbols with ranges: {file:#}"
     );
     assert!(
@@ -2956,6 +3003,62 @@ func hostViewModelRefreshes() {
                 && symbol["kind"] == "property"
                 && symbol["exported"] == true),
         "Swift file ls should surface attributed properties: {file:#}"
+    );
+    assert!(
+        anchor["symbols"]
+            .as_array()
+            .expect("symbols")
+            .iter()
+            .all(|symbol| symbol["name"] != "cacheKey"),
+        "Swift file ls should hide low-signal nested private properties by default: {file:#}"
+    );
+    assert!(
+        anchor["symbols"]
+            .as_array()
+            .expect("symbols")
+            .iter()
+            .all(|symbol| symbol["name"] != "transientState"),
+        "Swift file ls should hide local constants inside functions by default: {file:#}"
+    );
+    assert!(
+        file["hidden"]
+            .as_array()
+            .expect("hidden")
+            .iter()
+            .any(|group| group["reason"] == "nested symbols hidden by default"),
+        "hidden symbol count should explain that deeper member symbols exist: {file:#}"
+    );
+    let full_file = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "ls",
+            "Sources/HostApp/main.swift",
+            "--include-hidden",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/ls.schema.json", &full_file);
+    assert!(
+        full_file["anchor"]["symbols"]
+            .as_array()
+            .expect("symbols")
+            .iter()
+            .any(|symbol| symbol["name"] == "cacheKey"
+                && symbol["kind"] == "constant"
+                && symbol["exported"] == false),
+        "include-hidden should still expose nested private properties on demand: {full_file:#}"
+    );
+    assert!(
+        full_file["anchor"]["symbols"]
+            .as_array()
+            .expect("symbols")
+            .iter()
+            .any(|symbol| symbol["name"] == "transientState"
+                && symbol["kind"] == "constant"
+                && symbol["exported"] == false),
+        "include-hidden should still expose local constants on demand: {full_file:#}"
     );
     assert!(
         anchor["imports"]
