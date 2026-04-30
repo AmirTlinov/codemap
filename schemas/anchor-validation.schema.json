@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AmirTlinov/codemap/schemas/anchor-validation.schema.json",
+  "title": "codemap anchor validation report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "schema_version",
+    "ok",
+    "config",
+    "summary",
+    "problems",
+    "warnings"
+  ],
+  "properties": {
+    "kind": { "const": "anchor_validation" },
+    "schema_version": { "const": "2" },
+    "ok": { "type": "boolean" },
+    "config": {
+      "anyOf": [{ "type": "string" }, { "type": "null" }]
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "domains",
+        "concepts",
+        "forbidden_boundaries",
+        "verification_defaults"
+      ],
+      "properties": {
+        "domains": { "type": "integer", "minimum": 0 },
+        "concepts": { "type": "integer", "minimum": 0 },
+        "forbidden_boundaries": { "type": "integer", "minimum": 0 },
+        "verification_defaults": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "problems": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

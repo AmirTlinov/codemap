@@ -1016,8 +1016,12 @@ fn leading_spaces(line: &str) -> usize {
 
 fn extract_js_symbols(text: &str) -> Vec<SymbolStart> {
     let mut symbols = Vec::new();
+    let mut import_export_block_depth = 0usize;
     for (idx, line) in text.lines().enumerate() {
         if is_noise_line(line, "//") {
+            continue;
+        }
+        if js_import_export_block_line(line, &mut import_export_block_depth) {
             continue;
         }
         let line_start = idx + 1;
@@ -1053,6 +1057,21 @@ fn extract_js_symbols(text: &str) -> Vec<SymbolStart> {
         }
     }
     symbols
+}
+
+fn js_import_export_block_line(line: &str, depth: &mut usize) -> bool {
+    let trimmed = line.trim_start();
+    let starts_block = trimmed.starts_with("import {")
+        || trimmed.starts_with("import type {")
+        || trimmed.starts_with("export {")
+        || trimmed.starts_with("export type {");
+    if !starts_block && *depth == 0 {
+        return false;
+    }
+    let opens = trimmed.matches('{').count();
+    let closes = trimmed.matches('}').count();
+    *depth = depth.saturating_add(opens).saturating_sub(closes);
+    true
 }
 
 fn js_symbol_kind(raw_kind: &str, name: &str, exported: bool) -> String {
@@ -3673,6 +3692,30 @@ export function renderFeed() {
 
         assert_symbol(&symbols, "FeedPage", "component", true, 1, 1);
         assert_symbol(&symbols, "renderFeed", "function", true, 3, 5);
+    }
+
+    #[test]
+    fn javascript_local_export_list_does_not_hide_following_symbols() {
+        let text = r#"const Foo = 1;
+export { Foo };
+
+export type {
+  ReplayDto,
+};
+
+export function laterSymbol() {
+  return Foo;
+}
+"#;
+
+        let symbols = extract_symbols(text, "ts");
+
+        assert_symbol(&symbols, "Foo", "const", false, 1, 1);
+        assert_symbol(&symbols, "laterSymbol", "function", true, 8, 10);
+        assert!(
+            symbols.iter().all(|symbol| symbol.name != "ReplayDto"),
+            "export-list members are not declarations"
+        );
     }
 
     #[test]

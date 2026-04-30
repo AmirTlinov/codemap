@@ -1095,18 +1095,10 @@ fn strict_test_edges_for_file(
         return Vec::new();
     }
     let source_domain = scoped_domain_path_for_rel(project, rel, domain_by_rel(project, rel));
-    let stem = Path::new(rel)
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or_default()
-        .replace(".test", "")
-        .replace(".spec", "");
-    let lower_stem = stem.to_ascii_lowercase();
-    let allow_name_match = !lower_stem.is_empty()
-        && !matches!(
-            lower_stem.as_str(),
-            "index" | "mod" | "main" | "lib" | "types"
-        );
+    let anchor_terms = anchor_terms(project, rel);
+    let anchor_core_terms = anchor_core_terms(project, rel);
+    let lower_stem = source_stem(rel);
+    let allow_name_match = meaningful_stem(&lower_stem);
     let mut scored = Vec::new();
     for file in project.files.values() {
         if !file.has_role("test") || file.has_role("test_support") {
@@ -1119,28 +1111,283 @@ fn strict_test_edges_for_file(
         }
         if file.resolved_imports.contains(rel) {
             scored.push((
-                3usize,
+                80usize,
                 file.rel.clone(),
                 "test_import".to_string(),
                 EvidenceStrength::High,
             ));
             continue;
         }
-        if allow_name_match && file.rel.to_ascii_lowercase().contains(&lower_stem) {
+        if allow_name_match && test_name_matches_source_stem(&file.rel, &lower_stem) {
             scored.push((
-                2usize,
+                70usize,
                 file.rel.clone(),
                 "test_name".to_string(),
-                EvidenceStrength::Medium,
+                EvidenceStrength::High,
             ));
+            continue;
+        }
+        if let Some((score, evidence, strength)) =
+            structural_test_surface_match(project, rel, &anchor_terms, &anchor_core_terms, file)
+        {
+            scored.push((score, file.rel.clone(), evidence, strength));
         }
     }
     scored.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+    if scored
+        .iter()
+        .any(|(_, _, _, strength)| *strength == EvidenceStrength::High)
+    {
+        scored.retain(|(_, _, evidence, strength)| {
+            *strength == EvidenceStrength::High || evidence == "e2e_surface_tokens"
+        });
+    }
     scored
         .into_iter()
         .map(|(_, rel, evidence, strength)| (rel, evidence, strength))
         .take(limit)
         .collect()
+}
+
+fn structural_test_surface_match(
+    project: &Project,
+    rel: &str,
+    anchor_terms: &BTreeSet<String>,
+    anchor_core_terms: &BTreeSet<String>,
+    test: &FileInfo,
+) -> Option<(usize, String, EvidenceStrength)> {
+    if anchor_terms.is_empty() {
+        return None;
+    }
+    let test_terms = test_surface_terms(test);
+    let shared = anchor_terms
+        .intersection(&test_terms)
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let shared_count = shared.len();
+    if shared_count < 2 {
+        return None;
+    }
+    let core_shared_count = anchor_core_terms.intersection(&test_terms).count();
+    if core_shared_count == 0 {
+        return None;
+    }
+    let same_parent_signal = same_parent_or_test_scope(rel, &test.rel);
+    if test.has_role("e2e_test") {
+        let has_specific_term = shared.iter().any(|term| !broad_e2e_term(term));
+        if !has_specific_term {
+            return None;
+        }
+        return Some((
+            45 + shared_count.min(8) + core_shared_count.min(4) * 10,
+            "e2e_surface_tokens".to_string(),
+            EvidenceStrength::Medium,
+        ));
+    }
+    if same_parent_signal || core_shared_count >= 2 || shared_count >= 3 {
+        return Some((
+            50 + shared_count.min(8) + core_shared_count.min(4) * 10,
+            "test_surface_tokens".to_string(),
+            EvidenceStrength::Medium,
+        ));
+    }
+    let source_package = package_for_rel(project, rel).map(|package| package.path.clone());
+    let test_package = package_for_rel(project, &test.rel).map(|package| package.path.clone());
+    if source_package.is_some() && source_package == test_package && core_shared_count >= 2 {
+        return Some((
+            42 + shared_count.min(8) + core_shared_count.min(4) * 10,
+            "test_surface_tokens".to_string(),
+            EvidenceStrength::Medium,
+        ));
+    }
+    None
+}
+
+fn source_stem(rel: &str) -> String {
+    Path::new(rel)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default()
+        .replace(".test", "")
+        .replace(".spec", "")
+        .to_ascii_lowercase()
+}
+
+fn test_name_matches_source_stem(test_rel: &str, source_stem: &str) -> bool {
+    test_stem(test_rel) == source_stem
+}
+
+fn test_stem(test_rel: &str) -> String {
+    let mut stem = Path::new(test_rel)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    for suffix in [".test", ".spec", "_test"] {
+        if let Some(stripped) = stem.strip_suffix(suffix) {
+            stem = stripped.to_string();
+        }
+    }
+    stem
+}
+
+fn meaningful_stem(stem: &str) -> bool {
+    !stem.is_empty() && !matches!(stem, "index" | "mod" | "main" | "lib" | "types")
+}
+
+fn anchor_terms(project: &Project, rel: &str) -> BTreeSet<String> {
+    let mut terms = semantic_path_terms(rel);
+    if let Some(file) = project.files.get(rel) {
+        for symbol in &file.symbols {
+            if symbol.exported || structural_anchor_symbol_kind(&symbol.kind) {
+                terms.extend(semantic_name_terms(&symbol.name));
+            }
+        }
+        for export in &file.exports {
+            terms.extend(semantic_name_terms(export));
+        }
+    }
+    terms
+}
+
+fn anchor_core_terms(project: &Project, rel: &str) -> BTreeSet<String> {
+    let mut terms = semantic_name_terms(&source_stem(rel));
+    if let Some(file) = project.files.get(rel) {
+        for symbol in &file.symbols {
+            if symbol.exported {
+                terms.extend(semantic_name_terms(&symbol.name));
+            }
+        }
+        for export in &file.exports {
+            terms.extend(semantic_name_terms(export));
+        }
+    }
+    terms
+}
+
+fn structural_anchor_symbol_kind(kind: &str) -> bool {
+    matches!(
+        kind,
+        "component"
+            | "function"
+            | "class"
+            | "interface"
+            | "type"
+            | "struct"
+            | "enum"
+            | "trait"
+            | "method"
+    )
+}
+
+fn test_surface_terms(file: &FileInfo) -> BTreeSet<String> {
+    semantic_path_terms(&file.rel)
+}
+
+fn semantic_path_terms(path: &str) -> BTreeSet<String> {
+    let normalized = repo::normalize_rel_path(path);
+    let without_ext = Path::new(&normalized)
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .unwrap_or(normalized.as_str());
+    repo::tokenize(&normalized)
+        .into_iter()
+        .chain(semantic_name_terms(without_ext))
+        .filter(|term| meaningful_surface_term(term))
+        .collect()
+}
+
+fn semantic_name_terms(name: &str) -> BTreeSet<String> {
+    let mut expanded = String::new();
+    let mut previous_lower_or_digit = false;
+    for ch in name.chars() {
+        if ch == '-' || ch == '_' || ch == '.' || ch == '/' {
+            expanded.push(' ');
+            previous_lower_or_digit = false;
+            continue;
+        }
+        if ch.is_ascii_uppercase() && previous_lower_or_digit {
+            expanded.push(' ');
+        }
+        previous_lower_or_digit = ch.is_ascii_lowercase() || ch.is_ascii_digit();
+        expanded.push(ch);
+    }
+    repo::tokenize(&expanded)
+        .into_iter()
+        .filter(|term| meaningful_surface_term(term))
+        .collect()
+}
+
+fn meaningful_surface_term(term: &str) -> bool {
+    term.len() >= 3
+        && !matches!(
+            term,
+            "app"
+                | "apps"
+                | "src"
+                | "lib"
+                | "libs"
+                | "test"
+                | "tests"
+                | "spec"
+                | "unit"
+                | "e2e"
+                | "tsx"
+                | "jsx"
+                | "mjs"
+                | "cjs"
+                | "typescript"
+                | "javascript"
+                | "component"
+                | "components"
+                | "feature"
+                | "features"
+                | "page"
+                | "pages"
+                | "hook"
+                | "hooks"
+                | "util"
+                | "utils"
+                | "index"
+                | "main"
+                | "type"
+                | "types"
+                | "support"
+                | "setup"
+                | "helper"
+                | "helpers"
+                | "fixture"
+                | "fixtures"
+        )
+}
+
+fn broad_e2e_term(term: &str) -> bool {
+    matches!(
+        term,
+        "studio"
+            | "canvas"
+            | "frame"
+            | "board"
+            | "node"
+            | "client"
+            | "server"
+            | "route"
+            | "routes"
+            | "view"
+            | "screen"
+    )
+}
+
+fn same_parent_or_test_scope(source: &str, test: &str) -> bool {
+    let source_parent = Path::new(source)
+        .parent()
+        .map(|path| repo::normalize_rel_path(&path.to_string_lossy()))
+        .unwrap_or_else(|| ".".to_string());
+    if test.starts_with(&format!("{}/", source_parent.trim_end_matches('/'))) {
+        return true;
+    }
+    let source_stem = source_stem(source);
+    meaningful_stem(&source_stem) && test.to_ascii_lowercase().contains(&source_stem)
 }
 
 fn surface_priority(kind: &str) -> usize {
@@ -1285,13 +1532,6 @@ pub fn proof_report(
         }
     }
     proofs = unique_proof_surfaces(proofs);
-    proofs.sort_by(|left, right| {
-        right
-            .strength
-            .cmp(&left.strength)
-            .then_with(|| left.path.cmp(&right.path))
-            .then_with(|| left.command.cmp(&right.command))
-    });
     if proofs.len() > limit {
         proofs.truncate(limit);
     }
@@ -1353,6 +1593,13 @@ fn proof_surfaces_for_anchor(
             strength,
         });
     }
+    if depth <= 1
+        && out
+            .iter()
+            .any(|surface| surface.strength == EvidenceStrength::High)
+    {
+        return out;
+    }
     let mut consumers = direct_consumer_edges(project, anchor);
     sort_edges(&mut consumers);
     for consumer in consumers.into_iter().take(limit) {
@@ -1397,6 +1644,8 @@ fn proof_reason_for_evidence(evidence: &str, scope: &str) -> String {
     match evidence {
         "test_import" => format!("test imports {scope}"),
         "test_name" => format!("test name matches {scope}"),
+        "test_surface_tokens" => format!("test path/symbols match {scope} surface"),
+        "e2e_surface_tokens" => format!("e2e path matches {scope} UI/domain surface"),
         _ => format!("structural proof for {scope}"),
     }
 }
@@ -1440,11 +1689,25 @@ fn javascript_test_file_command(
     package: &crate::model::PackageInfo,
     test: &str,
 ) -> Option<String> {
+    let runner = javascript_runner_for_package(project, package);
+    let test_arg = shell_quote(&strip_package_prefix(test, &package.path));
+    if project
+        .files
+        .get(test)
+        .map(|file| file.has_role("e2e_test"))
+        .unwrap_or(false)
+        && let Some(command) =
+            javascript_e2e_test_file_command(project, package, &runner, &test_arg)
+    {
+        return Some(if package.path == "." {
+            command
+        } else {
+            format!("cd {} && {command}", shell_quote(&package.path))
+        });
+    }
     if !javascript_package_has_script(project, package, "test") {
         return None;
     }
-    let runner = javascript_runner_for_package(project, package);
-    let test_arg = shell_quote(&strip_package_prefix(test, &package.path));
     let command = javascript_package_script(project, package, "test")
         .and_then(|script| javascript_test_file_command_for_script(&runner, &script, &test_arg))
         .unwrap_or_else(|| javascript_test_file_command_for_runner(&runner, &test_arg));
@@ -1453,6 +1716,78 @@ fn javascript_test_file_command(
     } else {
         format!("cd {} && {command}", shell_quote(&package.path))
     })
+}
+
+fn javascript_e2e_test_file_command(
+    project: &Project,
+    package: &crate::model::PackageInfo,
+    runner: &str,
+    test_arg: &str,
+) -> Option<String> {
+    let candidates = [
+        "test:e2e",
+        "e2e",
+        "playwright",
+        "test:playwright",
+        "test:e2e:ui",
+        "test:e2e:ui-rails",
+    ];
+    if let Some((name, _)) = javascript_package_script_by_names(project, package, &candidates) {
+        return Some(javascript_package_script_invocation(
+            runner, &name, test_arg,
+        ));
+    }
+    javascript_package_script_matching(project, package, |name, command| {
+        let name = name.to_ascii_lowercase();
+        let command = command.to_ascii_lowercase();
+        (name.contains("e2e") || name.contains("playwright")) && command.contains("playwright")
+    })
+    .map(|(name, _)| javascript_package_script_invocation(runner, &name, test_arg))
+}
+
+fn javascript_package_script_by_names(
+    project: &Project,
+    package: &crate::model::PackageInfo,
+    names: &[&str],
+) -> Option<(String, String)> {
+    for name in names {
+        if let Some(command) = javascript_package_script(project, package, name) {
+            return Some(((*name).to_string(), command));
+        }
+    }
+    None
+}
+
+fn javascript_package_script_matching<F>(
+    project: &Project,
+    package: &crate::model::PackageInfo,
+    predicate: F,
+) -> Option<(String, String)>
+where
+    F: Fn(&str, &str) -> bool,
+{
+    let text = std::fs::read_to_string(project.root.join(&package.manifest)).ok()?;
+    let value = serde_json::from_str::<serde_json::Value>(&text).ok()?;
+    let scripts = value
+        .get("scripts")
+        .and_then(|scripts| scripts.as_object())?;
+    scripts.iter().find_map(|(name, value)| {
+        let command = value.as_str()?.trim();
+        (!command.is_empty() && predicate(name, command))
+            .then(|| (name.to_string(), command.to_string()))
+    })
+}
+
+fn javascript_package_script_invocation(runner: &str, script_name: &str, test_arg: &str) -> String {
+    if script_name == "test" {
+        return javascript_test_file_command_for_runner(runner, test_arg);
+    }
+    match runner {
+        "npm" => format!("npm run {} -- {test_arg}", shell_quote(script_name)),
+        "yarn" => format!("yarn {} {test_arg}", shell_quote(script_name)),
+        "bun" => format!("bun run {} {test_arg}", shell_quote(script_name)),
+        _ => format!("pnpm run {} -- {test_arg}", shell_quote(script_name)),
+    }
 }
 
 fn javascript_test_file_command_for_script(
@@ -1555,6 +1890,9 @@ fn proof_fallback_commands(
     proofs: &[ProofSurface],
 ) -> Vec<String> {
     if anchors.is_empty() && changed.is_empty() {
+        return Vec::new();
+    }
+    if proofs.iter().any(|proof| proof.command.is_some()) {
         return Vec::new();
     }
     let proof_commands = proofs

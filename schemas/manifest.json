@@ -63,6 +63,13 @@
       "kind": "anchors",
       "file": "schemas/anchors.schema.json",
       "contract": "semantic_anchor_config"
+    },
+    {
+      "kind": "anchor-validation",
+      "file": "schemas/anchor-validation.schema.json",
+      "contract": "structural_output",
+      "schema_version": "2",
+      "json_kind": "anchor_validation"
     }
   ]
 }

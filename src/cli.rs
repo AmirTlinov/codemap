@@ -6,6 +6,7 @@ use std::process::Command;
 
 use anyhow::{Result, bail};
 use clap::{Args, Parser, Subcommand, ValueEnum};
+use globset::GlobBuilder;
 
 use crate::{map, render, repo};
 
@@ -150,7 +151,7 @@ struct ProofArgs {
     files: Option<String>,
     #[arg(long, default_value_t = 1)]
     depth: usize,
-    #[arg(long, default_value_t = 30)]
+    #[arg(long, default_value_t = 12)]
     limit: usize,
     #[arg(long)]
     run: bool,
@@ -216,6 +217,7 @@ enum SchemaKind {
     Impact,
     Proof,
     Anchors,
+    AnchorValidation,
     Graph,
     Boundaries,
 }
@@ -375,6 +377,7 @@ fn schema_text(kind: SchemaKind) -> &'static str {
         SchemaKind::Impact => include_str!("../schemas/impact.schema.json"),
         SchemaKind::Proof => include_str!("../schemas/proof.schema.json"),
         SchemaKind::Anchors => include_str!("../schemas/anchors.schema.json"),
+        SchemaKind::AnchorValidation => include_str!("../schemas/anchor-validation.schema.json"),
         SchemaKind::Graph => include_str!("../schemas/graph.schema.json"),
         SchemaKind::Boundaries => include_str!("../schemas/boundaries.schema.json"),
     }
@@ -885,8 +888,20 @@ fn files_markdown(report: &FilesReport) {
 #[derive(serde::Serialize)]
 struct AnchorValidation {
     kind: &'static str,
+    schema_version: &'static str,
     ok: bool,
+    config: Option<String>,
+    summary: AnchorValidationSummary,
     problems: Vec<String>,
+    warnings: Vec<String>,
+}
+
+#[derive(serde::Serialize)]
+struct AnchorValidationSummary {
+    domains: usize,
+    concepts: usize,
+    forbidden_boundaries: usize,
+    verification_defaults: usize,
 }
 
 fn validate_anchors(project: &crate::model::Project) -> AnchorValidation {
@@ -896,10 +911,20 @@ fn validate_anchors(project: &crate::model::Project) -> AnchorValidation {
         .map(|error| format!("{}: {}", error.path, error.error))
         .collect::<Vec<_>>();
     problems.extend(semantic_anchor_problems(project));
+    let warnings = semantic_anchor_warnings(project);
     AnchorValidation {
         kind: "anchor_validation",
+        schema_version: "2",
         ok: problems.is_empty(),
+        config: project.config_path.clone(),
+        summary: AnchorValidationSummary {
+            domains: project.anchors.domain.iter().count() + project.anchors.domains.len(),
+            concepts: project.anchors.concepts.len(),
+            forbidden_boundaries: project.anchors.boundaries.forbidden.len(),
+            verification_defaults: project.anchors.verification.default.len(),
+        },
         problems,
+        warnings,
     }
 }
 
@@ -930,6 +955,9 @@ fn semantic_anchor_problems(project: &crate::model::Project) -> Vec<String> {
         }
     }
     for (id, concept) in &project.anchors.concepts {
+        if concept.files.is_empty() {
+            problems.push(format!("concept `{id}` must declare at least one file"));
+        }
         for file in &concept.files {
             let rel = map::resolve_anchor_path(project, file);
             if !is_glob_like(file) && !project.files.contains_key(&rel) {
@@ -956,7 +984,59 @@ fn semantic_anchor_problems(project: &crate::model::Project) -> Vec<String> {
             ));
         }
     }
+    for (index, command) in project.anchors.verification.default.iter().enumerate() {
+        if command.trim().is_empty() {
+            problems.push(format!(
+                "verification.default #{} is empty",
+                index.saturating_add(1)
+            ));
+        }
+    }
     problems
+}
+
+fn semantic_anchor_warnings(project: &crate::model::Project) -> Vec<String> {
+    let mut warnings = Vec::new();
+    if project.config_path.is_none() {
+        warnings
+            .push("no .ctx.yml found; codemap will use zero-config structural maps".to_string());
+        return warnings;
+    }
+    for (idx, edge) in project.anchors.boundaries.forbidden.iter().enumerate() {
+        let number = idx + 1;
+        if !edge.from.trim().is_empty() && !anchor_pattern_matches_project(project, &edge.from) {
+            warnings.push(format!(
+                "forbidden boundary #{number} `from` pattern `{}` matches no indexed files or packages",
+                edge.from
+            ));
+        }
+        if !edge.to.trim().is_empty() && !anchor_pattern_matches_project(project, &edge.to) {
+            warnings.push(format!(
+                "forbidden boundary #{number} `to` pattern `{}` matches no indexed files or packages",
+                edge.to
+            ));
+        }
+        if edge.recovery.is_empty() {
+            warnings.push(format!(
+                "forbidden boundary #{number} has no recovery steps; violation output will be less actionable"
+            ));
+        }
+    }
+    for (id, concept) in &project.anchors.concepts {
+        for file in &concept.files {
+            if is_glob_like(file) && !anchor_pattern_matches_project(project, file) {
+                warnings.push(format!(
+                    "concept `{id}` glob `{file}` matches no indexed files"
+                ));
+            }
+        }
+        if concept.invariants.is_empty() {
+            warnings.push(format!(
+                "concept `{id}` has no invariants; it can anchor files but not behavior"
+            ));
+        }
+    }
+    warnings
 }
 
 fn validate_anchor_domain_path(
@@ -975,13 +1055,72 @@ fn is_glob_like(value: &str) -> bool {
     value.contains('*') || value.contains('?') || value.contains('[') || value.contains('{')
 }
 
+fn anchor_pattern_matches_project(project: &crate::model::Project, raw: &str) -> bool {
+    let pattern = map::resolve_anchor_path(project, raw);
+    if !is_glob_like(&pattern) {
+        return project.files.contains_key(&pattern)
+            || project
+                .packages
+                .iter()
+                .any(|package| package.path == pattern || package.manifest == pattern)
+            || project
+                .domains
+                .iter()
+                .any(|domain| domain.path == pattern || domain.id == pattern)
+            || (pattern != "." && project.root.join(&pattern).exists());
+    }
+    let Ok(glob) = GlobBuilder::new(&pattern).literal_separator(true).build() else {
+        return false;
+    };
+    let matcher = glob.compile_matcher();
+    project.files.keys().any(|rel| matcher.is_match(rel))
+        || project
+            .packages
+            .iter()
+            .any(|package| matcher.is_match(&package.path) || matcher.is_match(&package.manifest))
+        || project
+            .domains
+            .iter()
+            .any(|domain| matcher.is_match(&domain.path))
+}
+
 fn anchors_markdown(report: &AnchorValidation) {
     println!("# Anchor Validation\n");
+    println!(
+        "{}",
+        render::table(
+            &["Field", "Value"],
+            vec![
+                vec![
+                    "Config".to_string(),
+                    report.config.clone().unwrap_or_else(|| "none".to_string())
+                ],
+                vec!["OK".to_string(), report.ok.to_string()],
+                vec!["Domains".to_string(), report.summary.domains.to_string()],
+                vec!["Concepts".to_string(), report.summary.concepts.to_string()],
+                vec![
+                    "Forbidden boundaries".to_string(),
+                    report.summary.forbidden_boundaries.to_string()
+                ],
+                vec![
+                    "Verification defaults".to_string(),
+                    report.summary.verification_defaults.to_string()
+                ],
+            ],
+        )
+    );
     if report.ok {
-        println!("No anchor problems found.");
+        println!("\nNo anchor problems found.");
     } else {
+        println!("\n## Problems\n");
         for problem in &report.problems {
             println!("- {problem}");
+        }
+    }
+    if !report.warnings.is_empty() {
+        println!("\n## Warnings\n");
+        for warning in &report.warnings {
+            println!("- {warning}");
         }
     }
 }

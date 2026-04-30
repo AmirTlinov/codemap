@@ -69,7 +69,7 @@ fn fixture() -> (TempDir, TempDir) {
   "name": "@fixture/app",
   "private": true,
   "dependencies": { "@fixture/replay": "workspace:*" },
-  "scripts": { "test": "vitest run" }
+  "scripts": { "test": "vitest run", "test:e2e": "playwright test" }
 }
 "#,
     );
@@ -113,6 +113,12 @@ boundaries:
         "import { seek } from '../../src/session';\n\ntest('e2e seek maps frame', () => {\n  expect(seek(3).frame).toBe(3);\n});\n",
     );
     write(
+        &repo
+            .path()
+            .join("packages/replay/tests/session-surface-smoke.test.ts"),
+        "test('session smoke checks package wiring', () => {\n  expect('session').toBeTruthy();\n});\n",
+    );
+    write(
         &repo.path().join("packages/replay/tests/support/setup.ts"),
         "export const setup = true;\n",
     );
@@ -123,6 +129,30 @@ boundaries:
     write(
         &repo.path().join("packages/app/src/badInternal.ts"),
         "import { internalValue } from '../../replay/src/internal';\n\nexport const bad = internalValue;\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/src/features/studio/canvas/frame-title-control.tsx"),
+        "export function FrameTitleControl() {\n  return <button className=\"frame-title-control\">Title</button>;\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/tests/frame-title-placement.test.ts"),
+        "test('frame title placement persists', () => {\n  expect('frame-title').toContain('title');\n});\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/tests/e2e/canvas-blueprint-title-drag.spec.ts"),
+        "import { test, expect } from '@playwright/test';\n\ntest('blueprint canvas title drag keeps title attached', async ({ page }) => {\n  await page.goto('/studio');\n  await expect(page.locator('.frame-title-control')).toBeVisible();\n});\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/tests/e2e/support/canvas-blueprint.ts"),
+        "export const loadCanvas = true;\n",
     );
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["commit", "-qm", "fixture"]);
@@ -322,8 +352,261 @@ fn impact_and_proof_are_structural_without_structural_flag() {
             .as_array()
             .expect("proofs")
             .iter()
+            .all(|proof| proof["path"] != "packages/replay/tests/session-surface-smoke.test.ts"),
+        "token-only unit proof should stay hidden when direct import proof exists"
+    );
+    assert!(
+        proof["proofs"]
+            .as_array()
+            .expect("proofs")
+            .iter()
             .all(|proof| proof["path"] != "packages/replay/tests/support/setup.ts"),
         "test support files are map surfaces, not runnable proof"
+    );
+}
+
+#[test]
+fn proof_links_ui_anchor_to_named_unit_and_e2e_surfaces_without_imports() {
+    let (repo, cache) = fixture();
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "packages/app/src/features/studio/canvas/frame-title-control.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    let proofs = proof["proofs"].as_array().expect("proof surfaces");
+    assert!(
+        proofs.iter().any(|surface| surface["path"]
+            == "packages/app/tests/frame-title-placement.test.ts"
+            && surface["evidence"] == "test_surface_tokens"),
+        "unit proof should link by structural surface tokens: {proof:#}"
+    );
+    assert!(
+        proofs.iter().any(|surface| surface["path"]
+            == "packages/app/tests/e2e/canvas-blueprint-title-drag.spec.ts"
+            && surface["evidence"] == "e2e_surface_tokens"
+            && surface["command"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("test:e2e")),
+        "e2e proof should link by UI/domain surface tokens and use e2e script: {proof:#}"
+    );
+    assert!(
+        proofs
+            .iter()
+            .all(|surface| surface["path"] != "packages/app/tests/e2e/support/canvas-blueprint.ts"),
+        "e2e support files are map surfaces, not runnable proof"
+    );
+    assert!(
+        proof["fallback"].as_array().expect("fallback").is_empty(),
+        "broad fallback should stay hidden when file-level proof commands exist"
+    );
+
+    let cone = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "cone",
+            "packages/app/src/features/studio/canvas/frame-title-control.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert!(
+        cone["proof"]
+            .as_array()
+            .expect("proof edges")
+            .iter()
+            .any(|edge| edge["from"]
+                == "packages/app/tests/e2e/canvas-blueprint-title-drag.spec.ts"
+                && edge["evidence"] == "e2e_surface_tokens")
+    );
+}
+
+#[test]
+fn flat_huge_directory_ls_stays_bounded_without_expanding_the_galaxy() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{
+  "name": "flat-fixture",
+  "private": true,
+  "scripts": { "test": "vitest run" }
+}
+"#,
+    );
+    for index in 0..80 {
+        write(
+            &repo.path().join(format!("src/flat/module-{index:02}.ts")),
+            &format!("export const module{index:02} = {index};\n"),
+        );
+    }
+    write(
+        &repo.path().join("src/flat/deep/nested-owner.ts"),
+        "export function nestedOwner() { return true; }\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let json = run_json(
+        repo.path(),
+        cache.path(),
+        &["ls", "src/flat", "--format", "json"],
+    );
+    assert_schema("schemas/ls.schema.json", &json);
+    let surfaces = json["directory"].as_array().expect("directory surfaces");
+    let source_surface = surfaces
+        .iter()
+        .find(|surface| surface["kind"] == "source")
+        .expect("source surface");
+    assert_eq!(source_surface["count"], 80);
+    assert!(
+        source_surface["examples"]
+            .as_array()
+            .expect("examples")
+            .len()
+            <= 5,
+        "flat directory examples must stay bounded"
+    );
+    assert!(
+        json["hidden"]
+            .as_array()
+            .expect("hidden")
+            .iter()
+            .any(|hidden| hidden["reason"] == "recursive files below this level hidden"),
+        "recursive detail must stay hidden unless explicitly expanded"
+    );
+    assert_eq!(json.get("read_first"), None);
+}
+
+#[test]
+fn anchors_validate_reports_summary_and_actionable_warnings() {
+    let (repo, cache) = fixture();
+    let validation = run_json(
+        repo.path(),
+        cache.path(),
+        &["anchors", "validate", "--format", "json"],
+    );
+    assert_schema("schemas/anchor-validation.schema.json", &validation);
+    assert_eq!(validation["kind"], "anchor_validation");
+    assert_eq!(validation["schema_version"], "2");
+    assert_eq!(validation["ok"], true);
+    assert_eq!(validation["summary"]["forbidden_boundaries"], 1);
+    assert_eq!(validation["summary"]["concepts"], 0);
+    assert!(
+        validation["warnings"]
+            .as_array()
+            .expect("warnings")
+            .iter()
+            .any(|warning| warning
+                .as_str()
+                .unwrap_or_default()
+                .contains("no recovery steps")),
+        "boundary warnings should explain why violations would be less actionable: {validation:#}"
+    );
+}
+
+#[test]
+fn boundaries_check_transitive_package_dependency_graph_without_imports() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{
+  "name": "package-boundary-fixture",
+  "private": true,
+  "workspaces": ["packages/*"]
+}
+"#,
+    );
+    write(
+        &repo.path().join(".ctx.yml"),
+        r#"version: 1
+boundaries:
+  forbidden:
+    - from: packages/app/src/**
+      to: packages/replay/src/**
+      reason: app must consume replay through the public API only
+      recovery:
+        - remove transitive package dependency
+"#,
+    );
+    write(
+        &repo.path().join("packages/app/package.json"),
+        r#"{
+  "name": "@fixture/app",
+  "dependencies": { "@fixture/bridge": "workspace:*" }
+}
+"#,
+    );
+    write(
+        &repo.path().join("packages/bridge/package.json"),
+        r#"{
+  "name": "@fixture/bridge",
+  "dependencies": { "@fixture/replay": "workspace:*" }
+}
+"#,
+    );
+    write(
+        &repo.path().join("packages/replay/package.json"),
+        r#"{ "name": "@fixture/replay" }
+"#,
+    );
+    write(
+        &repo.path().join("packages/app/src/index.ts"),
+        "export const app = true;\n",
+    );
+    write(
+        &repo.path().join("packages/bridge/src/index.ts"),
+        "export const bridge = true;\n",
+    );
+    write(
+        &repo.path().join("packages/replay/src/index.ts"),
+        "export const replay = true;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let output = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["boundaries", "--format", "json"])
+        .output()
+        .expect("codemap should run");
+    assert!(
+        !output.status.success(),
+        "boundary violations should fail closed"
+    );
+    let boundaries: Value =
+        serde_json::from_slice(&output.stdout).expect("boundary report should be json");
+    assert_schema("schemas/boundaries.schema.json", &boundaries);
+    assert!(
+        boundaries["findings"]
+            .as_array()
+            .expect("findings")
+            .iter()
+            .any(
+                |finding| finding["provenance"] == "package_manifest_transitive+semantic_anchor"
+                    && finding["from"] == "packages/app/package.json"
+                    && finding["to"] == "packages/replay/package.json"
+                    && finding["reason"]
+                        .as_str()
+                        .unwrap_or_default()
+                        .contains("@fixture/bridge -> @fixture/replay")
+            ),
+        "transitive package manifest boundary must be reported without source imports: {boundaries:#}"
     );
 }
 

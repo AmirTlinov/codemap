@@ -73,7 +73,8 @@ Soft evidence may explain hidden or secondary surfaces. It must not become a ran
 ## Output Budgets
 
 - `ls` and `cone` default limit: 20 structural items per section;
-- `impact` and `proof` default limit: 30 structural items;
+- `impact` default limit: 30 structural items;
+- `proof` default limit: 12 proof surfaces;
 - graph lens default limit: 12 nodes;
 - root `ls .` must remain a top-level map;
 - hidden counts must be explicit when output is capped.

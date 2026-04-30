@@ -569,7 +569,7 @@ fn section(title: &str, values: &[String]) {
     println!("{}", bullet(values, true, Some(20)));
 }
 
-fn table(headers: &[&str], rows: Vec<Vec<String>>) -> String {
+pub(crate) fn table(headers: &[&str], rows: Vec<Vec<String>>) -> String {
     let mut out = Vec::new();
     out.push(format!("| {} |", headers.join(" | ")));
     out.push(format!("|{}|", vec!["---"; headers.len()].join("|")));
