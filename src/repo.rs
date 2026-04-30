@@ -488,6 +488,7 @@ fn scan_files(root: &Path) -> Result<BTreeMap<String, FileInfo>> {
             references: BTreeSet::new(),
             surface_tokens: BTreeSet::new(),
             surface_phrases: BTreeSet::new(),
+            visited_route_paths: BTreeSet::new(),
         };
         classify_roles(&mut info);
         extract_imports_exports(root, &mut info);
@@ -845,6 +846,7 @@ fn extract_imports_exports(root: &Path, info: &mut FileInfo) {
     let surfaces = extract_surfaces(&text, &info.ext);
     info.surface_tokens = surfaces.tokens;
     info.surface_phrases = surfaces.phrases;
+    info.visited_route_paths = surfaces.visited_routes;
     info.symbols = extract_symbols(&text, &info.ext);
     info.references = extract_identifier_references(&text, &info.ext);
     match info.ext.as_str() {
@@ -1164,6 +1166,7 @@ fn language_keyword(name: &str) -> bool {
 struct SurfaceExtraction {
     tokens: BTreeSet<String>,
     phrases: BTreeSet<String>,
+    visited_routes: BTreeSet<String>,
 }
 
 fn extract_surfaces(text: &str, ext: &str) -> SurfaceExtraction {
@@ -1186,6 +1189,11 @@ fn extract_surfaces(text: &str, ext: &str) -> SurfaceExtraction {
                 continue;
             }
             let value = quoted.value;
+            if quoted_prefix_is_page_goto_argument(&quoted.prefix)
+                && let Some(route) = normalize_route_path(&value)
+            {
+                surfaces.visited_routes.insert(route);
+            }
             let structural_literal = surface_literal_is_structural(&value)
                 || (plain_label_context && surface_label_literal_is_structural(&value));
             if !structural_literal {
@@ -1198,6 +1206,46 @@ fn extract_surfaces(text: &str, ext: &str) -> SurfaceExtraction {
         }
     }
     surfaces
+}
+
+fn quoted_prefix_is_page_goto_argument(prefix: &str) -> bool {
+    let lower = prefix.to_ascii_lowercase();
+    let Some(index) = lower.rfind("page.goto") else {
+        return false;
+    };
+    if lower[..index]
+        .chars()
+        .next_back()
+        .map(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '$')
+        .unwrap_or(false)
+    {
+        return false;
+    }
+    let tail = lower[index + "page.goto".len()..].trim_start();
+    let Some(argument_prefix) = tail.strip_prefix('(') else {
+        return false;
+    };
+    !argument_prefix.contains(')') && argument_prefix.trim().is_empty()
+}
+
+fn normalize_route_path(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    if !trimmed.starts_with('/') || trimmed.starts_with("//") || trimmed.contains("${") {
+        return None;
+    }
+    let path = trimmed
+        .split(['?', '#'])
+        .next()
+        .unwrap_or_default()
+        .trim_end_matches('/');
+    let path = if path.is_empty() { "/" } else { path };
+    if path
+        .chars()
+        .any(|ch| ch.is_whitespace() || matches!(ch, '"' | '\'' | '`'))
+    {
+        return None;
+    }
+    Some(path.to_string())
 }
 
 fn line_has_surface_context(line: &str) -> bool {

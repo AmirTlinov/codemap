@@ -190,6 +190,7 @@ fn write_inventory(project: &Project, version: &str) -> Result<()> {
                 symbols: file.symbols.clone(),
                 surface_tokens: file.surface_tokens.iter().cloned().collect(),
                 surface_phrases: file.surface_phrases.iter().cloned().collect(),
+                visited_route_paths: file.visited_route_paths.iter().cloned().collect(),
             })
             .collect(),
         packages: project.packages.clone(),
@@ -290,6 +291,7 @@ struct CachedFile {
     symbols: Vec<crate::model::SymbolInfo>,
     surface_tokens: Vec<String>,
     surface_phrases: Vec<String>,
+    visited_route_paths: Vec<String>,
 }
 
 #[derive(Serialize)]

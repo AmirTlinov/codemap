@@ -1271,6 +1271,15 @@ fn strict_test_edges_for_file(
             ));
             continue;
         }
+        if e2e_test_visits_route(rel, file) {
+            scored.push((
+                79usize,
+                file.rel.clone(),
+                "e2e_route".to_string(),
+                EvidenceStrength::High,
+            ));
+            continue;
+        }
         if test_imports_support_consuming_anchor(project, rel, file) {
             scored.push((
                 76usize,
@@ -1387,6 +1396,44 @@ fn structural_test_surface_match(
         ));
     }
     None
+}
+
+fn e2e_test_visits_route(rel: &str, test: &FileInfo) -> bool {
+    if !test.has_role("e2e_test") {
+        return false;
+    }
+    let Some(route) = next_app_route_path(rel) else {
+        return false;
+    };
+    test.visited_route_paths.contains(&route)
+}
+
+fn next_app_route_path(rel: &str) -> Option<String> {
+    let rest = rel.strip_prefix("app/")?;
+    let route_dir = ["page.tsx", "page.ts", "page.jsx", "page.js"]
+        .iter()
+        .find_map(|suffix| {
+            if rest == *suffix {
+                Some("")
+            } else {
+                rest.strip_suffix(&format!("/{suffix}"))
+            }
+        })?;
+    let mut segments = Vec::new();
+    for segment in route_dir.split('/').filter(|segment| !segment.is_empty()) {
+        if segment.starts_with('(') && segment.ends_with(')') {
+            continue;
+        }
+        if segment.starts_with('@') || segment.contains('[') {
+            return None;
+        }
+        segments.push(segment);
+    }
+    if segments.is_empty() {
+        Some("/".to_string())
+    } else {
+        Some(format!("/{}", segments.join("/")))
+    }
 }
 
 fn test_imports_support_consuming_anchor(project: &Project, rel: &str, test: &FileInfo) -> bool {
@@ -1969,6 +2016,7 @@ fn proof_reason_for_evidence(evidence: &str, scope: &str) -> String {
     }
     match evidence {
         "test_import" => format!("test imports {scope}"),
+        "e2e_route" => format!("e2e visits route for {scope}"),
         "test_name" => format!("test name matches {scope}"),
         "test_support_import" => format!("test imports support code that imports {scope}"),
         "test_symbol_reference" => format!("test references an anchor symbol from {scope}"),
@@ -2303,6 +2351,7 @@ fn proof_evidence_precedence(evidence: &str) -> usize {
         .unwrap_or(evidence);
     match evidence {
         "test_import" => 6,
+        "e2e_route" => 5,
         "test_support_import" => 5,
         "test_symbol_reference" => 4,
         "test_name" => 3,

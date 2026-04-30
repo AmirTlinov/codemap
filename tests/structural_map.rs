@@ -1900,6 +1900,153 @@ fn malformed_tsconfig_jsonc_does_not_create_alias_edges() {
 }
 
 #[test]
+fn proof_links_next_route_files_to_e2e_route_visits() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{
+  "name": "next-route-proof-fixture",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  }
+}
+"#,
+    );
+    write(
+        &repo.path().join("tsconfig.json"),
+        r#"{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": { "@/*": ["./src/*"] }
+  }
+}
+"#,
+    );
+    write(
+        &repo.path().join("src/features/studio/studio-shell.tsx"),
+        "export function StudioShell() {\n  return <main data-testid=\"studio-shell\" />;\n}\n",
+    );
+    write(
+        &repo.path().join("app/app/page.tsx"),
+        "import { StudioShell } from '@/features/studio/studio-shell';\n\nexport default function StudioAppPage() {\n  return <StudioShell />;\n}\n",
+    );
+    write(
+        &repo.path().join("tests/e2e/studio.spec.ts"),
+        "import { test, expect } from '@playwright/test';\n\ntest('/app renders studio', async ({ page }) => {\n  await page.goto('/app');\n  await expect(page.locator('[data-testid=\"studio-shell\"]')).toBeVisible();\n});\n",
+    );
+    write(
+        &repo.path().join("tests/e2e/not-app.spec.ts"),
+        "import { test, expect } from '@playwright/test';\n\ntest('does not land on app', async ({ page }) => {\n  await page.goto('/login');\n  await expect(page).not.toHaveURL('/app');\n});\n",
+    );
+    write(
+        &repo.path().join("tests/e2e/same-line-not-app.spec.ts"),
+        "import { test, expect } from '@playwright/test';\n\ntest('does not land on app in one line', async ({ page }) => {\n  await page.goto('/login'); await expect(page).not.toHaveURL('/app');\n});\n",
+    );
+    write(
+        &repo.path().join("tests/e2e/href-only.spec.ts"),
+        "import { test, expect } from '@playwright/test';\n\ntest('renders app link without visiting it', async ({ page }) => {\n  await page.goto('/login');\n  await expect(page.getByRole('link')).toHaveAttribute('href', '/app');\n});\n",
+    );
+    write(
+        &repo.path().join("tests/e2e/commented-route.spec.ts"),
+        "import { test } from '@playwright/test';\n\ntest('commented navigation is ignored', async ({ page }) => {\n  // await page.goto('/app');\n  await page.goto('/login');\n});\n",
+    );
+    write(
+        &repo.path().join("tests/e2e/not-playwright-page.spec.ts"),
+        "import { test } from '@playwright/test';\n\ntest('non-page object goto is ignored', async () => {\n  const notPage = { goto(_path: string) {} };\n  notPage.goto('/app');\n});\n",
+    );
+    write(
+        &repo.path().join("tests/e2e/goto-url.spec.ts"),
+        "import { test } from '@playwright/test';\n\ntest('goto-like method is ignored', async ({ page }) => {\n  page.gotoURL('/app');\n});\n",
+    );
+    write(
+        &repo.path().join("tests/e2e/dynamic-user.spec.ts"),
+        "import { test } from '@playwright/test';\n\ntest('dynamic route smoke', async ({ page }) => {\n  await page.goto('/users/123');\n});\n",
+    );
+    write(
+        &repo.path().join("app/users/[id]/page.tsx"),
+        "export default function UserPage() {\n  return null;\n}\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let route_proof = run_json(
+        repo.path(),
+        cache.path(),
+        &["proof", "app/app/page.tsx", "--format", "json"],
+    );
+    assert_schema("schemas/proof.schema.json", &route_proof);
+    assert!(
+        route_proof["proofs"]
+            .as_array()
+            .expect("route proofs")
+            .iter()
+            .any(|proof| proof["path"] == "tests/e2e/studio.spec.ts"
+                && proof["evidence"] == "e2e_route"
+                && proof["strength"] == "high"),
+        "Next route file should map to exact e2e page.goto route proof: {route_proof:#}"
+    );
+    for false_proof in [
+        "tests/e2e/not-app.spec.ts",
+        "tests/e2e/same-line-not-app.spec.ts",
+        "tests/e2e/href-only.spec.ts",
+        "tests/e2e/commented-route.spec.ts",
+        "tests/e2e/not-playwright-page.spec.ts",
+        "tests/e2e/goto-url.spec.ts",
+    ] {
+        assert!(
+            route_proof["proofs"]
+                .as_array()
+                .expect("route proofs")
+                .iter()
+                .all(|proof| proof["path"] != false_proof),
+            "non-navigation route literals must not become e2e_route proof: {route_proof:#}"
+        );
+    }
+
+    let shell_proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "src/features/studio/studio-shell.tsx",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &shell_proof);
+    assert!(
+        shell_proof["proofs"]
+            .as_array()
+            .expect("shell proofs")
+            .iter()
+            .any(|proof| proof["path"] == "tests/e2e/studio.spec.ts"
+                && proof["evidence"] == "e2e_route"),
+        "route e2e proof should be available to the shell through its direct route consumer: {shell_proof:#}"
+    );
+
+    let dynamic_proof = run_json(
+        repo.path(),
+        cache.path(),
+        &["proof", "app/users/[id]/page.tsx", "--format", "json"],
+    );
+    assert!(
+        dynamic_proof["proofs"]
+            .as_array()
+            .expect("dynamic proofs")
+            .iter()
+            .all(|proof| proof["evidence"] != "e2e_route"),
+        "dynamic route proof should not be guessed from a concrete URL without explicit route matching support: {dynamic_proof:#}"
+    );
+    assert_eq!(route_proof.get("read_first"), None);
+}
+
+#[test]
 fn anchors_validate_reports_summary_and_actionable_warnings() {
     let (repo, cache) = fixture();
     let validation = run_json(

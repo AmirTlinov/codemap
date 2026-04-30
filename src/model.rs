@@ -47,6 +47,7 @@ pub struct FileInfo {
     pub references: BTreeSet<String>,
     pub surface_tokens: BTreeSet<String>,
     pub surface_phrases: BTreeSet<String>,
+    pub visited_route_paths: BTreeSet<String>,
 }
 
 impl FileInfo {
