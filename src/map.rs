@@ -1011,7 +1011,7 @@ fn cone_symbol_report(
     let anchor = symbol_file_summary(project, info, symbol_name)?;
     let anchor_path = symbol_anchor_path(file_rel, symbol_name);
     let mut incoming = symbol_reference_edges(project, file_rel, symbol_name, false);
-    let mut proof = symbol_proof_edges(project, file_rel, symbol_name);
+    let mut proof = symbol_proof_edges_with_owning_file(project, file_rel, symbol_name, usize::MAX);
     let mut outgoing = symbol_outgoing_edges(project, info, symbol_name);
     let contracts = symbol_contract_edges(project, file_rel, symbol_name);
     let boundary = Vec::new();
@@ -1906,6 +1906,100 @@ fn symbol_proof_edges(project: &Project, file_rel: &str, symbol_name: &str) -> V
     }
     sort_edges(&mut edges);
     edges
+}
+
+fn symbol_proof_edges_with_owning_file(
+    project: &Project,
+    file_rel: &str,
+    symbol_name: &str,
+    limit: usize,
+) -> Vec<StructuralEdge> {
+    let exact = symbol_proof_edges(project, file_rel, symbol_name);
+    if !exact.is_empty() {
+        return exact;
+    }
+    symbol_owning_file_proof_edges(project, file_rel, symbol_name, limit)
+}
+
+fn symbol_owning_file_proof_edges(
+    project: &Project,
+    file_rel: &str,
+    symbol_name: &str,
+    limit: usize,
+) -> Vec<StructuralEdge> {
+    let Some(anchor) = project.files.get(file_rel) else {
+        return Vec::new();
+    };
+    if !matching_symbols(anchor, symbol_name)
+        .into_iter()
+        .any(|symbol| symbol.exported)
+    {
+        return Vec::new();
+    }
+    let anchor_path = symbol_anchor_path(file_rel, symbol_name);
+    strict_test_edges_for_file(project, file_rel, limit)
+        .into_iter()
+        .filter(|(test, evidence, _)| {
+            symbol_owning_file_proof_can_use(project, file_rel, symbol_name, test, evidence)
+        })
+        .map(|(test, evidence, strength)| StructuralEdge {
+            from: test,
+            to: anchor_path.clone(),
+            edge_type: "tests".to_string(),
+            evidence: format!("{evidence}_owning_file"),
+            strength: strength.min(EvidenceStrength::Medium),
+        })
+        .collect()
+}
+
+fn symbol_owning_file_proof_can_use(
+    project: &Project,
+    file_rel: &str,
+    symbol_name: &str,
+    test_rel: &str,
+    evidence: &str,
+) -> bool {
+    if !matches!(
+        evidence,
+        "e2e_path_surface" | "e2e_surface_phrase" | "test_surface_phrase"
+    ) {
+        return false;
+    }
+    let symbol_terms = semantic_name_terms(symbol_name);
+    if symbol_terms.is_empty() {
+        return false;
+    }
+    let Some(anchor) = project.files.get(file_rel) else {
+        return false;
+    };
+    let path_terms = semantic_path_terms(file_rel);
+    let mut sibling_terms = BTreeSet::new();
+    for symbol in &anchor.symbols {
+        if symbol.name != symbol_name && symbol.exported {
+            sibling_terms.extend(semantic_name_terms(&symbol.name));
+        }
+    }
+    for export in &anchor.exports {
+        if export != symbol_name {
+            sibling_terms.extend(semantic_name_terms(export));
+        }
+    }
+    let distinctive_symbol_terms = symbol_terms
+        .difference(&path_terms)
+        .filter(|term| !sibling_terms.contains(*term))
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    if distinctive_symbol_terms.is_empty() {
+        return false;
+    }
+    let Some(test) = project.files.get(test_rel) else {
+        return false;
+    };
+    let mut test_terms = test_surface_terms(test);
+    for phrase in &test.surface_phrases {
+        test_terms.extend(surface_phrase_terms(phrase));
+    }
+    !distinctive_symbol_terms.is_disjoint(&test_terms)
 }
 
 fn symbol_outgoing_edges(
@@ -4155,7 +4249,7 @@ fn proof_surfaces_for_symbol_anchor(
     depth: usize,
     limit: usize,
 ) -> Vec<ProofSurface> {
-    let mut out = symbol_proof_edges(project, file_rel, symbol_name)
+    let mut out = symbol_proof_edges_with_owning_file(project, file_rel, symbol_name, limit)
         .into_iter()
         .take(limit)
         .map(|edge| ProofSurface {
@@ -4168,26 +4262,6 @@ fn proof_surfaces_for_symbol_anchor(
         .collect::<Vec<_>>();
     if !out.is_empty() {
         return out;
-    }
-    let owning_file_proofs = strict_test_edges_for_file(project, file_rel, limit)
-        .into_iter()
-        .map(|(test, evidence, strength)| ProofSurface {
-            command: proof_command_for_test(project, &test),
-            path: Some(test),
-            reason: proof_reason_for_evidence(&format!("{evidence}_owning_file"), "symbol anchor"),
-            evidence: format!("{evidence}_owning_file"),
-            strength,
-        })
-        .take(limit)
-        .map(|mut surface| {
-            if surface.strength > EvidenceStrength::Medium {
-                surface.strength = EvidenceStrength::Medium;
-            }
-            surface
-        })
-        .collect::<Vec<_>>();
-    if !owning_file_proofs.is_empty() {
-        return owning_file_proofs;
     }
     if depth <= 1 {
         return out;
