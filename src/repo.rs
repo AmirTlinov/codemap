@@ -506,26 +506,41 @@ fn git_list_files(root: &Path) -> Option<Vec<String>> {
     let output = Command::new("git")
         .arg("-C")
         .arg(root)
-        .args(["ls-files", "-co", "--exclude-standard"])
+        .args(["ls-files", "-c", "--exclude-standard"])
         .output()
         .ok()?;
     if !output.status.success() {
         return None;
     }
-    Some(
-        String::from_utf8_lossy(&output.stdout)
-            .lines()
-            .map(normalize_rel_path)
-            .filter(|rel| !rel.is_empty())
-            .collect(),
-    )
+    let mut rels = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(normalize_rel_path)
+        .filter(|rel| !rel.is_empty())
+        .filter(|rel| !should_ignore_rel(rel))
+        .collect::<BTreeSet<_>>();
+    rels.extend(walk_files(root));
+    Some(rels.into_iter().collect())
 }
 
 fn walk_files(root: &Path) -> Vec<String> {
-    WalkBuilder::new(root)
+    let mut builder = WalkBuilder::new(root);
+    builder
         .standard_filters(true)
         .hidden(false)
-        .follow_links(false)
+        .follow_links(false);
+    let root_for_filter = root.to_path_buf();
+    builder.filter_entry(move |entry| {
+        entry
+            .path()
+            .strip_prefix(&root_for_filter)
+            .ok()
+            .map(|path| {
+                let rel = normalize_rel_path(&path.to_string_lossy());
+                rel.is_empty() || !should_ignore_rel(&rel)
+            })
+            .unwrap_or(true)
+    });
+    builder
         .build()
         .filter_map(Result::ok)
         .filter(|entry| entry.file_type().map(|ft| ft.is_file()).unwrap_or(false))
@@ -2733,15 +2748,53 @@ fn line_has_playwright_test_method_call(line: &str, binding: &str, methods: &[&s
 }
 
 fn apply_js_brace_delta(mut depth: usize, line: &str) -> usize {
-    for (byte, ch) in line.char_indices() {
-        if js_byte_is_inside_string_or_regex_literal(line, byte) {
+    let bytes = line.as_bytes();
+    let mut index = 0usize;
+    let mut prefix = String::new();
+    let mut quote: Option<u8> = None;
+    let mut escaped = false;
+    while index < bytes.len() {
+        let byte = bytes[index];
+        if let Some(active_quote) = quote {
+            index += 1;
+            if escaped {
+                prefix.push(' ');
+                escaped = false;
+                continue;
+            }
+            if byte == b'\\' {
+                escaped = true;
+                prefix.push(' ');
+                continue;
+            }
+            if byte == active_quote {
+                quote = None;
+            }
+            prefix.push(' ');
             continue;
         }
-        match ch {
-            '{' => depth += 1,
-            '}' => depth = depth.saturating_sub(1),
+        if matches!(byte, b'"' | b'\'' | b'`') {
+            quote = Some(byte);
+            escaped = false;
+            prefix.push(' ');
+            index += 1;
+            continue;
+        }
+        if byte == b'/'
+            && js_regex_literal_can_start(&prefix)
+            && let Some(end) = js_regex_literal_end(bytes, index)
+        {
+            prefix.push(' ');
+            index = end;
+            continue;
+        }
+        match byte {
+            b'{' => depth += 1,
+            b'}' => depth = depth.saturating_sub(1),
             _ => {}
         }
+        prefix.push(byte as char);
+        index += 1;
     }
     depth
 }

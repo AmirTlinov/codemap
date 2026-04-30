@@ -792,6 +792,49 @@ fn proof_root_stays_bounded_without_expanding_test_galaxy() {
 }
 
 #[test]
+fn proof_ignores_fixture_tests_for_production_anchors() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{"name":"fixture-proof-noise","private":true,"scripts":{"test":"vitest run"}}"#,
+    );
+    write(
+        &repo.path().join("src/repo.ts"),
+        "export function replaySessionRepo() {\n  return true;\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("fixtures/mixed-monorepo/domains/replay/tests/replay-session.test.ts"),
+        "test('replay session repo fixture', () => {\n  expect(true).toBe(true);\n});\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &["proof", "src/repo.ts", "--format", "json"],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        proof["proofs"]
+            .as_array()
+            .expect("proofs")
+            .iter()
+            .all(|surface| !surface["path"]
+                .as_str()
+                .unwrap_or_default()
+                .starts_with("fixtures/")),
+        "fixture tests must not become proof for production anchors: {proof:#}"
+    );
+}
+
+#[test]
 fn cone_shows_proof_edges_through_direct_consumers() {
     let (repo, cache) = fixture();
     let public_impact = run_json(
@@ -6277,6 +6320,72 @@ fn flat_huge_directory_ls_stays_bounded_without_expanding_the_galaxy() {
         "recursive detail must stay hidden unless explicitly expanded"
     );
     assert_eq!(json.get("read_first"), None);
+}
+
+#[test]
+fn inventory_prunes_untracked_build_dirs_before_config_discovery() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{"name":"untracked-build-prune-fixture","private":true}"#,
+    );
+    write(
+        &repo.path().join("src/tracked.ts"),
+        "export const tracked = 1;\n",
+    );
+    write(
+        &repo.path().join("target/generated/.ctx.yml"),
+        "version: 999\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+    write(
+        &repo.path().join("src/untracked.ts"),
+        "export const untracked = 2;\n",
+    );
+    write(
+        &repo.path().join("build/generated/.ctx.yml"),
+        "version: 999\n",
+    );
+    write(
+        &repo.path().join("target/generated/noise.ts"),
+        "export const targetNoise = true;\n",
+    );
+    write(
+        &repo.path().join("build/generated/noise.ts"),
+        "export const buildNoise = true;\n",
+    );
+
+    let files = run_json(repo.path(), cache.path(), &["files", "--format", "json"]);
+    assert_schema("schemas/files.schema.json", &files);
+    let indexed = files["files"].as_array().expect("files");
+    assert!(
+        indexed.iter().any(|path| path == "src/untracked.ts"),
+        "normal untracked source files should still be visible to the map: {files:#}"
+    );
+    assert!(
+        indexed.iter().all(|path| {
+            let path = path.as_str().unwrap_or_default();
+            !path.starts_with("target/") && !path.starts_with("build/")
+        }),
+        "common build dirs must be pruned before they enter inventory: {files:#}"
+    );
+
+    let validation = run_json(
+        repo.path(),
+        cache.path(),
+        &["anchors", "validate", "--format", "json"],
+    );
+    assert_schema("schemas/anchor-validation.schema.json", &validation);
+    assert_eq!(
+        validation["ok"], true,
+        "ignored build-dir .ctx.yml files must not become loaded config errors: {validation:#}"
+    );
+    assert_eq!(validation["config"], Value::Null);
 }
 
 #[test]

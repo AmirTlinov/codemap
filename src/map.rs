@@ -3634,9 +3634,17 @@ fn strict_test_edges_for_file(
     let anchor_core_terms = anchor_core_terms(project, rel);
     let lower_stem = source_stem(rel);
     let allow_name_match = meaningful_stem(&lower_stem);
+    let anchor_is_fixture_scope = project
+        .files
+        .get(rel)
+        .map(|file| file.has_role("fixture") || file.has_role("example"))
+        .unwrap_or(false);
     let mut scored = Vec::new();
     for file in project.files.values() {
         if !file.has_role("test") || file.has_role("test_support") {
+            continue;
+        }
+        if !anchor_is_fixture_scope && (file.has_role("fixture") || file.has_role("example")) {
             continue;
         }
         let test_domain =
