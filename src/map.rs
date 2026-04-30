@@ -821,6 +821,12 @@ fn cone_proof_edges_with_direct_consumers(
         for consumer in direct_consumer_edges(project, seed).into_iter().take(4) {
             for (test, evidence, strength) in strict_test_edges_for_file(project, &consumer.from, 4)
             {
+                let Some(test_file) = project.files.get(&test) else {
+                    continue;
+                };
+                if !test_mentions_anchor(project, seed, test_file) {
+                    continue;
+                }
                 edges.push(StructuralEdge {
                     from: test,
                     to: seed.clone(),
@@ -831,7 +837,55 @@ fn cone_proof_edges_with_direct_consumers(
             }
         }
     }
-    edges
+    dedupe_proof_edges_by_endpoint(edges)
+}
+
+fn test_mentions_anchor(project: &Project, rel: &str, test: &FileInfo) -> bool {
+    let Some(anchor) = project.files.get(rel) else {
+        return false;
+    };
+    if anchor_symbol_reference_names(anchor)
+        .iter()
+        .any(|name| test.references.contains(name))
+    {
+        return true;
+    }
+    let anchor_terms = anchor_terms(project, rel);
+    let anchor_core_terms = anchor_core_terms(project, rel);
+    if structural_test_surface_match(project, rel, &anchor_terms, &anchor_core_terms, test)
+        .is_some()
+    {
+        return true;
+    }
+    if anchor_core_terms.is_empty() {
+        return false;
+    }
+    let mut reference_terms = BTreeSet::new();
+    for reference in &test.references {
+        reference_terms.extend(semantic_name_terms(reference));
+    }
+    anchor_core_terms.intersection(&reference_terms).count() >= 1
+}
+
+fn dedupe_proof_edges_by_endpoint(edges: Vec<StructuralEdge>) -> Vec<StructuralEdge> {
+    let mut seen = BTreeMap::new();
+    let mut out: Vec<StructuralEdge> = Vec::new();
+    for edge in edges {
+        let key = (edge.from.clone(), edge.to.clone(), edge.edge_type.clone());
+        if let Some(index) = seen.get(&key).copied() {
+            if proof_edge_precedence(&edge) > proof_edge_precedence(&out[index]) {
+                out[index] = edge;
+            }
+        } else {
+            seen.insert(key, out.len());
+            out.push(edge);
+        }
+    }
+    out
+}
+
+fn proof_edge_precedence(edge: &StructuralEdge) -> (EvidenceStrength, usize) {
+    (edge.strength, proof_evidence_precedence(&edge.evidence))
 }
 
 fn cone_contract_edges(project: &Project, outgoing: &[StructuralEdge]) -> Vec<StructuralEdge> {

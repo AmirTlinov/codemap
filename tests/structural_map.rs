@@ -498,6 +498,21 @@ fn cone_shows_proof_edges_through_direct_consumers() {
             ),
         "cone should show proof reachable through the direct consumer, not only proof for direct imports: {cone:#}"
     );
+
+    let session_cone = run_json(
+        repo.path(),
+        cache.path(),
+        &["cone", "packages/replay/src/session.ts", "--format", "json"],
+    );
+    assert_schema("schemas/cone.schema.json", &session_cone);
+    assert!(
+        session_cone["proof"]
+            .as_array()
+            .expect("session proof")
+            .iter()
+            .all(|edge| edge["from"] != "packages/replay/tests/public-api.test.ts"),
+        "a test importing a shared public consumer must still mention this anchor before becoming via-consumer proof: {session_cone:#}"
+    );
 }
 
 #[test]
