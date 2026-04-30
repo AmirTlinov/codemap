@@ -1704,6 +1704,14 @@ fn symbol_anchor_cone_filters_javascript_import_bindings() {
         "import { AdminCard, GroupCard } from './card';\n\nexport function TwoCards() {\n  return <><GroupCard /><AdminCard /></>;\n}\n",
     );
     write(
+        &repo.path().join("src/panel-parts.tsx"),
+        "export function PanelHeader() {\n  return <header>Panel</header>;\n}\n\nexport function PanelBody() {\n  return <main>Body</main>;\n}\n",
+    );
+    write(
+        &repo.path().join("src/panel-view.tsx"),
+        "import { PanelBody, PanelHeader } from './panel-parts';\n\ntype Props = {\n  title: string;\n};\n\nexport function PanelView({\n  title,\n}: Props) {\n  return (\n    <section aria-label={title}>\n      <PanelHeader />\n      <PanelBody />\n    </section>\n  );\n}\n",
+    );
+    write(
         &repo.path().join("src/helpers.tsx"),
         "export function custom() {\n  return null;\n}\n",
     );
@@ -1968,6 +1976,37 @@ fn symbol_anchor_cone_filters_javascript_import_bindings() {
             .expect("home unknowns")
             .is_empty(),
         "symbol cone should not claim outgoing unknown when it found structural symbol uses: {home_cone:#}"
+    );
+
+    let panel_cone = run_json(
+        repo.path(),
+        cache.path(),
+        &["cone", "src/panel-view.tsx#PanelView", "--format", "json"],
+    );
+    assert_schema("schemas/cone.schema.json", &panel_cone);
+    let panel_outgoing = panel_cone["outgoing"].as_array().expect("panel outgoing");
+    assert!(
+        panel_outgoing
+            .iter()
+            .any(|edge| edge["to"] == "src/panel-parts.tsx#PanelHeader"
+                && edge["type"] == "symbol_uses"
+                && edge["evidence"] == "imported_symbol_in_symbol_body"),
+        "symbol cone should include imported JSX symbols after multiline destructured params: {panel_cone:#}"
+    );
+    assert!(
+        panel_outgoing
+            .iter()
+            .any(|edge| edge["to"] == "src/panel-parts.tsx#PanelBody"
+                && edge["type"] == "symbol_uses"
+                && edge["evidence"] == "imported_symbol_in_symbol_body"),
+        "symbol cone should not stop the symbol body at the destructured parameter close: {panel_cone:#}"
+    );
+    assert!(
+        panel_cone["unknowns"]
+            .as_array()
+            .expect("panel unknowns")
+            .is_empty(),
+        "symbol cone should not claim unknown outgoing once multiline-param symbol uses are found: {panel_cone:#}"
     );
 
     for false_anchor in [

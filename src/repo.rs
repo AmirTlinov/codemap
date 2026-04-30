@@ -2368,11 +2368,71 @@ fn symbols_with_ranges(mut starts: Vec<SymbolStart>, text: &str, ext: &str) -> V
 fn symbol_end(text: &str, ext: &str, line_start: usize, fallback_end: usize) -> usize {
     match ext {
         "py" => python_symbol_end(text, line_start, fallback_end),
-        "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte" | "rs" | "go" | "swift" => {
+        "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte" => {
+            javascript_symbol_end(text, line_start, fallback_end).unwrap_or(line_start)
+        }
+        "rs" | "go" | "swift" => {
             brace_symbol_end(text, line_start, fallback_end).unwrap_or(line_start)
         }
         _ => fallback_end,
     }
+}
+
+fn javascript_symbol_end(text: &str, line_start: usize, scan_end: usize) -> Option<usize> {
+    let lines: Vec<&str> = text.lines().collect();
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut body_depth: Option<isize> = None;
+    for (idx, line) in lines
+        .iter()
+        .enumerate()
+        .skip(line_start.saturating_sub(1))
+        .take(scan_end.saturating_sub(line_start).saturating_add(1))
+    {
+        for (byte_idx, ch) in line.char_indices() {
+            if let Some(depth) = body_depth.as_mut() {
+                match ch {
+                    '{' => *depth += 1,
+                    '}' => {
+                        *depth -= 1;
+                        if *depth <= 0 {
+                            return Some(idx + 1);
+                        }
+                    }
+                    _ => {}
+                }
+                continue;
+            }
+            match ch {
+                '(' => paren_depth = paren_depth.saturating_add(1),
+                ')' => paren_depth = paren_depth.saturating_sub(1),
+                '[' => bracket_depth = bracket_depth.saturating_add(1),
+                ']' => bracket_depth = bracket_depth.saturating_sub(1),
+                '{' if paren_depth == 0
+                    && bracket_depth == 0
+                    && javascript_body_open_context(line, byte_idx) =>
+                {
+                    body_depth = Some(1);
+                }
+                _ => {}
+            }
+        }
+        if body_depth.is_none() && paren_depth == 0 && bracket_depth == 0 {
+            let trimmed = line.trim_end();
+            if trimmed.ends_with(';')
+                || trimmed.ends_with("=> null")
+                || trimmed.ends_with("=> undefined")
+            {
+                return Some(idx + 1);
+            }
+        }
+    }
+    body_depth.map(|_| scan_end)
+}
+
+fn javascript_body_open_context(line: &str, byte_idx: usize) -> bool {
+    let before = &line[..byte_idx];
+    !matches!(previous_nonspace_byte(before), Some(b':' | b'?'))
 }
 
 fn brace_symbol_end(text: &str, line_start: usize, scan_end: usize) -> Option<usize> {
@@ -5451,6 +5511,26 @@ export function View() {
 
         assert!(tags.contains("GroupCard"));
         assert_eq!(tags.len(), 1);
+    }
+
+    #[test]
+    fn javascript_symbol_ranges_skip_multiline_destructured_params() {
+        let source = r#"export function PanelView({
+  Header,
+  Body,
+}: Props) {
+  return (
+    <section>
+      <Header />
+      <Body />
+    </section>
+  );
+}
+"#;
+
+        let symbols = extract_symbols(source, "tsx");
+
+        assert_symbol(&symbols, "PanelView", "component", true, 1, 11);
     }
 
     #[test]
