@@ -1034,6 +1034,81 @@ fn proof_links_e2e_path_surface_to_non_ui_domain_anchor_without_imports() {
         proof["fallback"].as_array().expect("fallback").is_empty(),
         "structural e2e path proof should suppress broad fallback: {proof:#}"
     );
+
+    let symbol_proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "packages/app/src/features/studio/canvas/blueprint-canvas-rf-selection.ts#pickFocusForSelection",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &symbol_proof);
+    assert!(
+        symbol_proof["proofs"]
+            .as_array()
+            .expect("symbol proofs")
+            .iter()
+            .any(|surface| surface["path"]
+                == "packages/app/tests/e2e/canvas-selection-state.spec.ts"
+                && surface["evidence"] == "e2e_path_surface_owning_file"
+                && surface["strength"] == "medium"),
+        "symbol anchors without exact symbol proof should expose clearly labeled owning-file proof instead of broad fallback: {symbol_proof:#}"
+    );
+    assert!(
+        symbol_proof["fallback"]
+            .as_array()
+            .expect("symbol fallback")
+            .is_empty(),
+        "owning-file proof should suppress broad fallback for symbol anchors: {symbol_proof:#}"
+    );
+}
+
+#[test]
+fn symbol_owning_file_proof_does_not_inherit_consumer_tests_for_sibling_symbol() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("packages/app/src/sibling-anchor.ts"),
+        "export function foo() {\n  return 'foo';\n}\n\nexport function bar() {\n  return 'bar';\n}\n",
+    );
+    write(
+        &repo.path().join("packages/app/src/sibling-consumer.ts"),
+        "import { foo } from './sibling-anchor';\n\nexport const value = foo();\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/tests/sibling-consumer.test.ts"),
+        "import { value } from '../src/sibling-consumer';\n\ntest('uses foo consumer', () => {\n  expect(value).toBe('foo');\n});\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "sibling consumer proof"]);
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "packages/app/src/sibling-anchor.ts#bar",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        proof["proofs"]
+            .as_array()
+            .expect("proofs")
+            .iter()
+            .all(|surface| surface["path"] != "packages/app/tests/sibling-consumer.test.ts"),
+        "symbol owning-file fallback must not inherit direct-consumer tests for a sibling export: {proof:#}"
+    );
+    assert!(
+        !proof["fallback"].as_array().expect("fallback").is_empty(),
+        "without exact symbol or strict owning-file proof, broad fallback must remain visible: {proof:#}"
+    );
 }
 
 #[test]

@@ -4077,7 +4077,30 @@ fn proof_surfaces_for_symbol_anchor(
             strength: edge.strength,
         })
         .collect::<Vec<_>>();
-    if depth <= 1 || !out.is_empty() {
+    if !out.is_empty() {
+        return out;
+    }
+    let owning_file_proofs = strict_test_edges_for_file(project, file_rel, limit)
+        .into_iter()
+        .map(|(test, evidence, strength)| ProofSurface {
+            command: proof_command_for_test(project, &test),
+            path: Some(test),
+            reason: proof_reason_for_evidence(&format!("{evidence}_owning_file"), "symbol anchor"),
+            evidence: format!("{evidence}_owning_file"),
+            strength,
+        })
+        .take(limit)
+        .map(|mut surface| {
+            if surface.strength > EvidenceStrength::Medium {
+                surface.strength = EvidenceStrength::Medium;
+            }
+            surface
+        })
+        .collect::<Vec<_>>();
+    if !owning_file_proofs.is_empty() {
+        return owning_file_proofs;
+    }
+    if depth <= 1 {
         return out;
     }
     for consumer in symbol_reference_edges(project, file_rel, symbol_name, false)
@@ -4129,6 +4152,12 @@ fn structural_risk_for_file(project: &Project, rel: &str, depth: usize) -> (Risk
 }
 
 fn proof_reason_for_evidence(evidence: &str, scope: &str) -> String {
+    if let Some(base) = evidence.strip_suffix("_owning_file") {
+        return format!(
+            "{} on owning file; no exact symbol proof found",
+            proof_reason_for_evidence(base, scope)
+        );
+    }
     if let Some(base) = evidence.strip_suffix("_via_direct_consumer") {
         return format!(
             "{} via direct consumer",
@@ -4494,7 +4523,8 @@ fn proof_evidence_precedence(evidence: &str) -> usize {
         .map(|(prefix, _)| prefix)
         .unwrap_or(evidence);
     let evidence = evidence
-        .strip_suffix("_via_direct_consumer")
+        .strip_suffix("_owning_file")
+        .or_else(|| evidence.strip_suffix("_via_direct_consumer"))
         .or_else(|| evidence.strip_suffix("_via_direct_dependency"))
         .unwrap_or(evidence);
     match evidence {
