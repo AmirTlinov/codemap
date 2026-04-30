@@ -1141,7 +1141,7 @@ fn js_regex_literal_end(bytes: &[u8], start: usize) -> Option<usize> {
     None
 }
 
-fn extract_local_bindings(text: &str, ext: &str) -> BTreeSet<String> {
+pub(crate) fn extract_local_bindings(text: &str, ext: &str) -> BTreeSet<String> {
     if !matches!(
         ext,
         "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte"
@@ -1150,6 +1150,7 @@ fn extract_local_bindings(text: &str, ext: &str) -> BTreeSet<String> {
     }
     let cleaned = code_without_comments_or_strings(text, ext);
     let mut out = BTreeSet::new();
+    collect_js_balanced_param_bindings(&cleaned, &mut out);
     for cap in js_function_params_re().captures_iter(&cleaned) {
         if let Some(params) = cap.name("params") {
             collect_js_param_bindings(params.as_str(), &mut out);
@@ -1194,6 +1195,94 @@ fn extract_local_bindings(text: &str, ext: &str) -> BTreeSet<String> {
         collect_js_param_bindings(pattern, &mut out);
     }
     out
+}
+
+fn collect_js_balanced_param_bindings(text: &str, out: &mut BTreeSet<String>) {
+    for start in js_keyword_positions(text, "function") {
+        let mut index = skip_ascii_whitespace(text, start + "function".len());
+        if text
+            .as_bytes()
+            .get(index)
+            .map(|byte| byte.is_ascii_alphabetic() || matches!(byte, b'_' | b'$'))
+            .unwrap_or(false)
+        {
+            while text
+                .as_bytes()
+                .get(index)
+                .map(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'$'))
+                .unwrap_or(false)
+            {
+                index += 1;
+            }
+            index = skip_ascii_whitespace(text, index);
+        }
+        if text.as_bytes().get(index) == Some(&b'(')
+            && let Some(end) = js_balanced_pattern_end(text, index)
+        {
+            collect_js_param_bindings(&text[index + 1..end], out);
+        }
+    }
+
+    let bytes = text.as_bytes();
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] != b'(' {
+            index += 1;
+            continue;
+        }
+        let Some(end) = js_balanced_pattern_end(text, index) else {
+            index += 1;
+            continue;
+        };
+        if js_param_list_context(text, index, end) {
+            collect_js_param_bindings(&text[index + 1..end], out);
+        }
+        index = end.saturating_add(1);
+    }
+}
+
+fn js_param_list_context(text: &str, open: usize, close: usize) -> bool {
+    let before_open = text[..open].trim_end();
+    let after_close = text[close + 1..].trim_start();
+    if before_open.ends_with("catch") {
+        return true;
+    }
+    if js_tail_starts_arrow(after_close) {
+        return true;
+    }
+    if js_tail_starts_block(after_close) {
+        let name_before_params = before_open
+            .rsplit(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '_' || ch == '$'))
+            .find(|part| !part.is_empty())
+            .unwrap_or_default();
+        return !matches!(
+            name_before_params,
+            "if" | "for" | "while" | "switch" | "catch" | "with" | "function"
+        );
+    }
+    false
+}
+
+fn js_tail_starts_arrow(tail: &str) -> bool {
+    if tail.starts_with("=>") {
+        return true;
+    }
+    if !tail.starts_with(':') {
+        return false;
+    }
+    let before_arrow = tail.split("=>").next().unwrap_or(tail);
+    tail.contains("=>") && !before_arrow.contains(['{', ';'])
+}
+
+fn js_tail_starts_block(tail: &str) -> bool {
+    if tail.starts_with('{') {
+        return true;
+    }
+    if !tail.starts_with(':') {
+        return false;
+    }
+    let before_block = tail.split('{').next().unwrap_or(tail);
+    tail.contains('{') && !before_block.contains([';', '='])
 }
 
 fn js_destructuring_binding_patterns(text: &str) -> Vec<&str> {
@@ -5545,6 +5634,16 @@ const Single = ShellAction => <ShellAction />;
 export default function({ DefaultShellHint }: Props) {
   return <DefaultShellHint />;
 }
+export function FunctionTypedParam(
+  makeHint: (id: string) => string,
+  LaterShellHint: (id: string) => string
+) {
+  return LaterShellHint('x');
+}
+const ArrowTypedParam = (
+  makeHint: (id: string) => string,
+  LaterArrowHint: (id: string) => string
+) => LaterArrowHint('x');
 const methods = {
   render({ MethodShellHint }: Props) {
     return <MethodShellHint />;
@@ -5580,6 +5679,8 @@ function LoopAndCatch() {
         assert!(bindings.contains("CanvasShellHint"));
         assert!(bindings.contains("ShellAction"));
         assert!(bindings.contains("DefaultShellHint"));
+        assert!(bindings.contains("LaterShellHint"));
+        assert!(bindings.contains("LaterArrowHint"));
         assert!(bindings.contains("MethodShellHint"));
         assert!(bindings.contains("LocalHint"));
         assert!(bindings.contains("MultilineHint"));
