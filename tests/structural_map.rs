@@ -2860,6 +2860,68 @@ fn root_ls_balances_directory_edges_across_structural_sources() {
 }
 
 #[test]
+fn zero_config_roles_do_not_label_project_maps_or_routes_as_codemap_engine() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{
+  "name": "role-noise-fixture",
+  "private": true
+}
+"#,
+    );
+    write(&repo.path().join(".agents/system_map.md"), "# System map\n");
+    write(&repo.path().join("artifacts/proof-map.json"), "{}\n");
+    write(
+        &repo.path().join("app/api/auth/route.ts"),
+        "export async function POST() {\n  return Response.json({ ok: true });\n}\n",
+    );
+    write(
+        &repo.path().join("harness/cone-probe.ts"),
+        "export const probe = true;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let root = run_json(repo.path(), cache.path(), &["ls", ".", "--format", "json"]);
+    assert_schema("schemas/ls.schema.json", &root);
+    assert!(
+        root["directory"]
+            .as_array()
+            .expect("directory surfaces")
+            .iter()
+            .all(|surface| surface["kind"] != "map_engine"),
+        "project-local maps/routes/proof artifacts should not be mislabeled as the codemap engine role: {root:#}"
+    );
+
+    for path in [
+        ".agents/system_map.md",
+        "artifacts/proof-map.json",
+        "app/api/auth/route.ts",
+        "harness/cone-probe.ts",
+    ] {
+        let file = run_json(repo.path(), cache.path(), &["ls", path, "--format", "json"]);
+        assert_schema("schemas/ls.schema.json", &file);
+        assert_ne!(
+            file["anchor"]["kind"], "map_engine",
+            "{path} should keep its real file kind instead of codemap-specific noise: {file:#}"
+        );
+        assert!(
+            file["anchor"]["roles"]
+                .as_array()
+                .expect("roles")
+                .iter()
+                .all(|role| role != "map_engine"),
+            "{path} should not carry codemap-specific map_engine role: {file:#}"
+        );
+    }
+}
+
+#[test]
 fn directory_cone_stays_at_directory_level_without_file_galaxy() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");

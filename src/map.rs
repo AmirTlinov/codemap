@@ -1641,7 +1641,6 @@ fn directory_role_surface(project: &Project, dir: &str) -> Option<String> {
         "build_ci",
         "docs",
         "test",
-        "map_engine",
         "repo_discovery",
         "cache",
     ] {
@@ -2413,7 +2412,6 @@ fn file_kind_for_ls(info: &FileInfo) -> String {
         "parser",
         "renderer_ui",
         "persistence",
-        "map_engine",
         "repo_discovery",
         "cache",
         "build_ci",
@@ -3152,7 +3150,7 @@ fn surface_priority(kind: &str) -> usize {
     }
     match kind {
         "schema_contract" | "public_boundary" => 4,
-        "runtime_state" | "persistence" | "adapter" | "parser" | "renderer_ui" | "map_engine" => 5,
+        "runtime_state" | "persistence" | "adapter" | "parser" | "renderer_ui" => 5,
         "test" | "e2e_test" | "test_support" => 6,
         "source" => 7,
         "config" | "build_ci" => 8,
@@ -4666,9 +4664,6 @@ fn risk_for_file(project: &Project, rel: &str) -> (Risk, Vec<String>) {
     }
     if file.has_role("runtime_state") {
         bump(Risk::MediumHigh, "runtime state / session/controller");
-    }
-    if file.has_role("map_engine") {
-        bump(Risk::High, "structural map engine");
     }
     if file.has_role("cli_surface") {
         bump(Risk::High, "CLI command surface");

@@ -709,12 +709,6 @@ fn classify_roles(info: &mut FileInfo) {
     add_role_if(
         &mut info.roles,
         &rel,
-        &["route", "map", "lens", "impact", "proof", "cone"],
-        "map_engine",
-    );
-    add_role_if(
-        &mut info.roles,
-        &rel,
         &["root", "inventory", "files", "discover"],
         "repo_discovery",
     );
@@ -742,7 +736,6 @@ fn classify_roles(info: &mut FileInfo) {
             "parser",
             "renderer_ui",
             "persistence",
-            "map_engine",
             "repo_discovery",
             "cache",
             "cli_surface",
