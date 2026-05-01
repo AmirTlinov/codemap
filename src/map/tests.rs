@@ -90,6 +90,7 @@ mod tests {
         assert_eq!(proofs[0].strength, EvidenceStrength::High);
         assert_eq!(hidden.len(), 1);
         assert_eq!(hidden[0].count, 1);
+        assert_eq!(hidden[0].expand, "codemap proof-map . --limit 2");
     }
 
     #[test]

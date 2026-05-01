@@ -50,7 +50,8 @@ fn siblings_groups_duplicate_proof_pattern_sensors() {
             .any(|group| group["reason"]
                 == "duplicate proof pattern sensors grouped by structural key"
                 && group["expand"].as_str().is_some_and(|expand| {
-                    expand == "codemap proof-map packages/app/src --raw-sensors --limit <larger-number>"
+                    expand.starts_with("codemap proof-map packages/app/src --raw-sensors --limit ")
+                        && !expand.contains("<larger-number>")
                 })),
         "grouped siblings proof sensors should expose raw proof-map zoom: {siblings:#}"
     );
@@ -110,7 +111,8 @@ fn place_groups_duplicate_paired_proof_sensors() {
             .any(|group| group["reason"]
                 == "duplicate paired proof sensors grouped by structural key"
                 && group["expand"].as_str().is_some_and(|expand| {
-                    expand == "codemap proof-map packages/app/src --raw-sensors --limit <larger-number>"
+                    expand.starts_with("codemap proof-map packages/app/src --raw-sensors --limit ")
+                        && !expand.contains("<larger-number>")
                 })),
         "grouped place proof sensors should expose raw proof-map zoom: {place:#}"
     );

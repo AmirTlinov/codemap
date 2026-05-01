@@ -50,7 +50,7 @@ pub fn impact_report(
         hidden.push(HiddenGroup {
             reason: "changed anchors hidden by limit".to_string(),
             count: changed_count - changed_summaries.len(),
-            expand: "codemap impact --changed --limit <larger-number>".to_string(),
+            expand: impact_hidden_changed_expand(&changed, depth, changed_count),
         });
     }
     ImpactReport {
@@ -62,6 +62,18 @@ pub fn impact_report(
         unknowns,
         expand: impact_expand_commands(&changed),
     }
+}
+
+fn impact_hidden_changed_expand(changed: &[String], depth: usize, limit: usize) -> String {
+    if changed.is_empty() {
+        return format!("codemap impact --changed --depth {depth} --limit {limit}");
+    }
+    let files = changed
+        .iter()
+        .map(|file| shell_quote(file))
+        .collect::<Vec<_>>()
+        .join(",");
+    format!("codemap impact --files {files} --depth {depth} --limit {limit}")
 }
 
 pub fn proof_report(

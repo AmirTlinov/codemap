@@ -46,6 +46,42 @@ fn proof_risk_uses_structural_edges_without_high_inflation() {
     );
 }
 
+#[test]
+fn impact_hidden_changed_expand_preserves_explicit_files_and_depth() {
+    let (repo, cache) = fixture();
+
+    let impact = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "impact",
+            "--files",
+            "packages/replay/src/session.ts,packages/replay/src/types.ts",
+            "--depth",
+            "3",
+            "--limit",
+            "1",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/impact.schema.json", &impact);
+    let hidden = impact["hidden"].as_array().expect("hidden");
+    assert!(
+        hidden.iter().any(|group| group["reason"] == "changed anchors hidden by limit"
+            && group["expand"].as_str().is_some_and(|expand| {
+                expand
+                    == "codemap impact --files packages/replay/src/session.ts,packages/replay/src/types.ts --depth 3 --limit 2"
+            })),
+        "impact hidden changed anchors expand should preserve file selector and depth: {impact:#}"
+    );
+    assert!(
+        hidden.iter().all(|group| group["expand"]
+            .as_str()
+            .is_none_or(|expand| !expand.contains("<larger-number>"))),
+        "impact hidden expands should not emit placeholder limits: {impact:#}"
+    );
+}
 
 #[test]
 fn impact_and_proof_are_structural_without_structural_flag() {

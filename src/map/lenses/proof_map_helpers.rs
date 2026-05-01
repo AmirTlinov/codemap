@@ -23,7 +23,7 @@ fn group_duplicate_proof_surfaces(
         hidden.push(HiddenGroup {
             reason: reason.to_string(),
             count: duplicate_count,
-            expand: expand.to_string(),
+            expand: expand_with_concrete_limit(expand, out.len() + duplicate_count),
         });
     }
     *values = out;
@@ -67,7 +67,7 @@ fn group_duplicate_missing_surfaces(
         hidden.push(HiddenGroup {
             reason: reason.to_string(),
             count: duplicate_count,
-            expand: expand.to_string(),
+            expand: expand_with_concrete_limit(expand, out.len() + duplicate_count),
         });
     }
     *values = out;
@@ -100,7 +100,7 @@ fn group_duplicate_unknowns(
         hidden.push(HiddenGroup {
             reason: reason.to_string(),
             count: duplicate_count,
-            expand: expand.to_string(),
+            expand: expand_with_concrete_limit(expand, out.len() + duplicate_count),
         });
     }
     *values = out;

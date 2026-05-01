@@ -167,9 +167,13 @@ fn truncate_with_hidden<T>(
     hidden.push(HiddenGroup {
         reason: reason.to_string(),
         count: values.len() - limit,
-        expand: expand.to_string(),
+        expand: expand_with_concrete_limit(expand, values.len()),
     });
     values.truncate(limit);
+}
+
+fn expand_with_concrete_limit(expand: &str, next_limit: usize) -> String {
+    expand.replace("<larger-number>", &next_limit.max(1).to_string())
 }
 
 fn runtime_entrypoint_kind(file: &FileInfo) -> Option<&'static str> {
