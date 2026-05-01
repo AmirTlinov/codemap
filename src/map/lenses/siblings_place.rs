@@ -7,7 +7,9 @@ pub fn siblings_report(
     let limit = limit.max(1);
     let scope = repo::normalize_rel_path(scope);
     let mut grouped: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    for file in files_under_directory(project, &scope) {
+    let (scope_files, recursive_hidden_count) =
+        siblings_scope_files(project, &scope, include_hidden);
+    for file in &scope_files {
         grouped
             .entry(file_kind_for_ls(file))
             .or_default()
@@ -36,6 +38,13 @@ pub fn siblings_report(
     same_kind.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.kind.cmp(&b.kind)));
     let mut hidden = Vec::new();
     let include_hidden_expand = format!("codemap siblings {} --include-hidden", shell_quote(&scope));
+    if recursive_hidden_count > 0 {
+        hidden.push(HiddenGroup {
+            reason: "recursive sibling files hidden at root scope".to_string(),
+            count: recursive_hidden_count,
+            expand: include_hidden_expand.clone(),
+        });
+    }
     truncate_with_hidden(
         &mut same_kind,
         limit,
@@ -67,7 +76,12 @@ pub fn siblings_report(
         "codemap proof-map {} --raw-sensors --limit <larger-number>",
         shell_quote(&scope)
     );
-    let mut proof_pattern = proof_surfaces_for_directory(project, &scope, 1, limit);
+    let proof_seed_files = if scope == "." && !include_hidden {
+        Vec::new()
+    } else {
+        directory_seed_file_paths(project, &scope, false)
+    };
+    let mut proof_pattern = proof_surfaces_for_file_paths(project, &proof_seed_files, 1, limit);
     group_duplicate_proof_surfaces(
         &mut proof_pattern,
         &mut hidden,
@@ -88,7 +102,7 @@ pub fn siblings_report(
     }
     let runtime_facts = runtime_fact_index(project);
     let mut route_service_test_triplets =
-        route_service_test_triplets(project, &scope, &runtime_facts);
+        route_service_test_triplets(&scope, &runtime_facts, &scope_files);
     truncate_with_hidden(
         &mut route_service_test_triplets,
         limit,
@@ -109,6 +123,20 @@ pub fn siblings_report(
         hidden,
         expand: vec![format!("codemap ls {} --include-hidden", shell_quote(&scope))],
     }
+}
+
+fn siblings_scope_files<'a>(
+    project: &'a Project,
+    scope: &str,
+    include_hidden: bool,
+) -> (Vec<&'a FileInfo>, usize) {
+    if scope == "." && !include_hidden {
+        let direct = direct_files_under_directory(project, scope);
+        let recursive_count = files_under_directory(project, scope).len();
+        let hidden_count = recursive_count.saturating_sub(direct.len());
+        return (direct, hidden_count);
+    }
+    (files_under_directory(project, scope), 0)
 }
 
 pub fn place_report(
@@ -218,12 +246,12 @@ struct TripletParts {
 }
 
 fn route_service_test_triplets(
-    project: &Project,
     scope: &str,
     runtime_facts: &RuntimeFactIndex,
+    files: &[&FileInfo],
 ) -> Vec<Surface> {
     let mut groups: BTreeMap<String, TripletParts> = BTreeMap::new();
-    for file in files_under_directory(project, scope) {
+    for file in files {
         let key = feature_stem(&file.rel);
         let group = groups.entry(key).or_default();
         if route_from_path(&file.rel) || runtime_facts.has_routes_for_file(&file.rel) {
