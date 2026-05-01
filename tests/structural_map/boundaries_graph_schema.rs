@@ -140,6 +140,132 @@ fn graph_causal_root_hides_support_packages_until_scoped() {
     );
 }
 
+#[test]
+fn graph_causal_root_uses_ls_level_directory_map() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{
+  "name": "single-package-map-fixture",
+  "private": true,
+  "scripts": { "test": "vitest run" }
+}
+"#,
+    );
+    write(
+        &repo.path().join("src/auth/login.ts"),
+        "import { session } from '../shared/session';\n\nexport function login() {\n  return session();\n}\n",
+    );
+    write(
+        &repo.path().join("src/shared/session.ts"),
+        "export function session() {\n  return 'ok';\n}\n",
+    );
+    write(
+        &repo.path().join("tests/auth-login.test.ts"),
+        "import { login } from '../src/auth/login';\n\ntest('login', () => {\n  expect(login()).toBe('ok');\n});\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "single package map fixture"]);
+
+    let graph = run_json(
+        repo.path(),
+        cache.path(),
+        &["graph", "--lens", "causal", "--limit", "20", "--format", "json"],
+    );
+    assert_schema("schemas/graph.schema.json", &graph);
+    let nodes = graph["nodes"].as_array().expect("nodes");
+    assert!(
+        nodes.iter().any(|node| node == "package.json")
+            && nodes.iter().any(|node| node == "src/")
+            && nodes.iter().any(|node| node == "tests/"),
+        "root causal graph should show ls-level package and top-level folders: {graph:#}"
+    );
+    assert!(
+        nodes
+            .iter()
+            .all(|node| node.as_str() != Some("src/auth/login.ts")),
+        "root causal graph should not dump nested files when a directory surface is enough: {graph:#}"
+    );
+    assert!(
+        graph["edges"]
+            .as_array()
+            .expect("edges")
+            .iter()
+            .any(|edge| {
+                edge["from"] == "tests/" && edge["to"] == "src/" && edge["type"] == "outgoing_import"
+            }),
+        "root causal graph should preserve aggregate directory edges: {graph:#}"
+    );
+}
+
+#[test]
+fn graph_causal_directory_scope_uses_current_level_not_recursive_file_dump() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{"name":"scoped-directory-map-fixture","private":true}"#,
+    );
+    write(
+        &repo.path().join("src/features/login.ts"),
+        "import { session } from '../shared/session';\n\nexport function login() {\n  return session();\n}\n",
+    );
+    write(
+        &repo.path().join("src/shared/session.ts"),
+        "export function session() {\n  return 'ok';\n}\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "scoped map fixture"]);
+
+    let graph = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "graph",
+            "--path",
+            "src",
+            "--lens",
+            "causal",
+            "--limit",
+            "20",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/graph.schema.json", &graph);
+    let nodes = graph["nodes"].as_array().expect("nodes");
+    assert!(
+        nodes.iter().any(|node| node == "src/features/")
+            && nodes.iter().any(|node| node == "src/shared/"),
+        "scoped causal graph should show current-level child surfaces: {graph:#}"
+    );
+    assert!(
+        nodes
+            .iter()
+            .all(|node| node.as_str() != Some("src/features/login.ts")),
+        "scoped directory graph should not recursively dump nested files by default: {graph:#}"
+    );
+    assert!(
+        graph["edges"]
+            .as_array()
+            .expect("edges")
+            .iter()
+            .any(|edge| {
+                edge["from"] == "src/features/"
+                    && edge["to"] == "src/shared/"
+                    && edge["type"] == "outgoing_import"
+            }),
+        "scoped causal graph should keep aggregate import edges between current-level surfaces: {graph:#}"
+    );
+}
+
 
 #[test]
 fn graph_proof_lens_uses_explicit_path_scope() {
@@ -271,4 +397,3 @@ fn schema_manifest_has_no_removed_router_contracts_and_schema_command_is_side_ef
     }
     assert_eq!(fs::read_dir(cache.path()).expect("cache dir").count(), 0);
 }
-

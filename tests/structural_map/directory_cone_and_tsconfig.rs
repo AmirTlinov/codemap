@@ -144,6 +144,40 @@ fn directory_cone_stays_at_directory_level_without_file_galaxy() {
     );
 }
 
+#[test]
+fn directory_cone_proof_uses_structural_sensors_not_name_matching() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{"name":"directory-proof-sensor-fixture","private":true,"scripts":{"test":"vitest run"}}"#,
+    );
+    write(
+        &repo.path().join("src/widgets/alpha-panel.ts"),
+        "export function alphaPanel() {\n  return true;\n}\n",
+    );
+    write(
+        &repo.path().join("tests/alpha-panel.test.ts"),
+        "test('alpha panel smoke', () => {\n  expect(true).toBe(true);\n});\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "directory proof sensor fixture"]);
+
+    let cone = run_json(
+        repo.path(),
+        cache.path(),
+        &["cone", "src", "--depth", "1", "--format", "json"],
+    );
+    assert_schema("schemas/cone.schema.json", &cone);
+    assert!(
+        cone["proof"].as_array().expect("proof").is_empty(),
+        "directory cone should not run file-level name/surface proof across every seed; proof-map/proof own that deeper scan: {cone:#}"
+    );
+}
+
 
 #[test]
 fn tsconfig_jsonc_path_aliases_create_reverse_edges() {
@@ -274,4 +308,3 @@ fn malformed_tsconfig_jsonc_does_not_create_alias_edges() {
     );
     assert_eq!(cone.get("read_first"), None);
 }
-

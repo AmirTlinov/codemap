@@ -129,10 +129,56 @@ fn directory_proof_edges_at_depth(
     include_hidden: bool,
     endpoint_depth: usize,
 ) -> Vec<StructuralEdge> {
-    let seeds = directory_seed_file_paths(project, rel, include_hidden);
+    let seeds = directory_seed_file_paths(project, rel, include_hidden)
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    let route_seeds = seeds
+        .iter()
+        .filter(|seed| next_app_route_pattern(seed).is_some())
+        .filter(|seed| next_app_route_pattern_is_unique(project, seed))
+        .cloned()
+        .collect::<Vec<_>>();
+    let scope_is_support = is_support_artifact_path(rel);
+    let mut edges = Vec::new();
+    for test in project.files.values() {
+        if !test.has_role("test") || (!include_hidden && test.has_role("test_support")) {
+            continue;
+        }
+        if !include_hidden && !scope_is_support && is_support_artifact_path(&test.rel) {
+            continue;
+        }
+        for target in &test.resolved_imports {
+            if seeds.contains(target) {
+                edges.push(import_edge(
+                    project,
+                    test.rel.clone(),
+                    target.clone(),
+                    "tests",
+                    "test_import",
+                    EvidenceStrength::High,
+                ));
+            }
+        }
+        if !test.has_role("e2e_test") {
+            continue;
+        }
+        for seed in &route_seeds {
+            if e2e_test_visits_route(seed, test) {
+                edges.push(edge_with_path_location(
+                    test.rel.clone(),
+                    seed.clone(),
+                    "tests",
+                    "e2e_route",
+                    EvidenceStrength::High,
+                    test.rel.clone(),
+                    "route_visit",
+                ));
+            }
+        }
+    }
     dedupe_proof_edges_by_endpoint(aggregate_edges_at_directory_depth(
         project,
-        cone_proof_edges_with_direct_consumers(project, &seeds),
+        edges,
         rel,
         endpoint_depth,
     ))
