@@ -51,13 +51,13 @@ Keep new implementation under the existing owner folders. Do not create a second
 - structural `impact` by changed anchors, direct consumers, cross-boundary consumers, contract risks, and proof edges;
 - `diff-map` for map-level changed structural lines, exported symbol surfaces, and new unknowns;
 - `contract` for exported/schema/package/public surfaces and their consumers/proof;
-- `runtime` for deterministic entrypoints, route file conventions, scripts, env references, workers/jobs, CI, and proof;
+- `runtime` for deterministic entrypoints, Next file-convention routes, static JS/Python/Go route registrations, scripts, env references, workers/jobs, CI, typed runtime unknowns, and proof;
 - structural `proof` from adjacent/importing tests and package-local commands;
-- `proof-map` for direct/indirect/e2e/contract proof coverage around a scope or diff;
-- `delete` for deletion blockers and cleanup hints without safety claims;
+- `proof-map` for direct/indirect/e2e/contract proof coverage and typed blind spots around a scope or diff;
+- `delete` for deletion blockers, dynamic-reference blind spots, and cleanup hints without safety claims;
 - `boundary-map` as read-only package/domain crossing map separate from boundary checks;
-- `flow` as bounded structural steps that stop at unknowns;
-- `siblings` and `place` for local structural conventions without semantic ranking;
+- `flow` as bounded structural steps, side-effect surfaces, and unknown stops;
+- `siblings` and `place` for local structural conventions and route/service/test triplets without semantic ranking;
 - boundary checks from explicit `.ctx.yml` forbidden rules plus resolved imports/package edges;
 - anchor validation with resolved domain/concept/boundary/verification details;
 - graph lenses for causal, impact, proof, and boundaries;
@@ -71,6 +71,8 @@ Hard evidence:
 - resolved imports;
 - reverse imports;
 - package manifests;
+- exact file route conventions;
+- static JS/Python/Go route registrations;
 - tests that import an anchor;
 - explicit semantic anchors;
 - git changed-file inputs;
@@ -85,6 +87,8 @@ Soft evidence:
 - script names.
 
 Soft evidence may explain hidden or secondary surfaces. It must not become a ranked task route.
+
+Typed unknowns are facts too. Dynamic imports, dynamic env lookups, composed route strings, and raw SQL are reported as unresolved structural gaps instead of being converted into guessed edges.
 
 ## Output Budgets
 

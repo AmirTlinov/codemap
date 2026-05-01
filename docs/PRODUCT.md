@@ -35,7 +35,7 @@ codemap = ls + xref + cone + impact + proof for code
 
 `codemap contract <anchor>` shows exported/schema/package/public surfaces, producers, consumers, cross-package consumers, and proof edges.
 
-`codemap runtime <scope>` shows deterministic runtime surfaces: entrypoints, file-convention routes, scripts, env references, workers/jobs, CI, and nearby proof.
+`codemap runtime <scope>` shows deterministic runtime surfaces: entrypoints, file-convention routes, static framework route registrations, scripts, env references, workers/jobs, CI, nearby proof, and typed blind spots such as dynamic route strings or env keys.
 
 `codemap proof <anchor>|--changed` returns the smallest structural proof surfaces it can justify. It prefers adjacent/importing tests and package-local commands before broad fallbacks. It never runs by default.
 
@@ -45,9 +45,9 @@ codemap = ls + xref + cone + impact + proof for code
 
 `codemap boundary-map <scope>` is a read-only map of actual package/domain crossings. `codemap boundaries` remains the explicit rule checker.
 
-`codemap flow <anchor>` shows bounded structural steps only. It must stop at unknowns instead of claiming full callgraph or dataflow.
+`codemap flow <anchor>` shows bounded structural steps and deterministic side-effect surfaces. It must stop at unknowns instead of claiming full callgraph or dataflow.
 
-`codemap siblings <scope>` and `codemap place <scope> --kind <kind>` show local structural conventions from same directory/kind/proof patterns. They are not semantic search or ranking.
+`codemap siblings <scope>` and `codemap place <scope> --kind <kind>` show local structural conventions from same directory/kind/proof patterns, including route/service/test triplets when naming and roles prove them. They are not semantic search or ranking.
 
 `codemap graph` is a small lens renderer for humans. It is not the primary product surface and must stay bounded.
 

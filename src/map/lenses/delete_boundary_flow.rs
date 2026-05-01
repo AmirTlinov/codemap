@@ -118,7 +118,11 @@ pub fn delete_report(
         package_exports,
         tests,
         runtime_refs,
-        unknowns: Vec::new(),
+        unknowns: project
+            .files
+            .get(&file_rel)
+            .map(|file| unknowns_for_file(project, file))
+            .unwrap_or_default(),
         checklist,
         hidden,
         expand: vec![format!("codemap cone {}", shell_quote(&file_rel))],
@@ -231,6 +235,24 @@ pub fn flow_report(
         .map(|file| file_summary(project, file, include_hidden, 20));
     if let Some((file_rel, symbol)) = split_symbol_anchor(&rel) {
         if let Some(info) = project.files.get(&file_rel) {
+            if symbol_file_summary(project, info, &symbol).is_none() {
+                unknown_breaks.push(unknown_missing_symbol_anchor(&file_rel, &symbol));
+                return FlowReport {
+                    kind: "flow_report",
+                    schema_version: "1",
+                    anchor: rel.clone(),
+                    flow_kind: "structural".to_string(),
+                    precision: "bounded_edges_only".to_string(),
+                    entry: None,
+                    steps,
+                    side_effects: Vec::new(),
+                    contracts,
+                    proof,
+                    unknown_breaks,
+                    hidden: Vec::new(),
+                    expand: vec![format!("codemap ls {}", shell_quote(&file_rel))],
+                };
+            }
             steps.push(FlowStep {
                 index: 0,
                 anchor: rel.clone(),
@@ -259,6 +281,7 @@ pub fn flow_report(
                 }
             }
             proof = symbol_proof_edges(project, &file_rel, &symbol);
+            unknown_breaks.extend(unknowns_for_file(project, info));
         } else {
             unknown_breaks.push(unknown_unindexed_anchor(&file_rel));
         }
@@ -281,6 +304,7 @@ pub fn flow_report(
         }
         contracts = cone_contract_edges(project, &direct_dependency_edges(project, &rel));
         proof = cone_proof_edges(project, std::slice::from_ref(&file.rel));
+        unknown_breaks.extend(unknowns_for_file(project, file));
     } else {
         unknown_breaks.push(unknown_unindexed_anchor(&rel));
     }
@@ -302,7 +326,11 @@ pub fn flow_report(
         precision: "bounded_edges_only".to_string(),
         entry,
         steps,
-        side_effects: Vec::new(),
+        side_effects: project
+            .files
+            .get(&rel)
+            .map(|file| side_effect_surfaces_for_file(project, file))
+            .unwrap_or_default(),
         contracts,
         proof,
         unknown_breaks,

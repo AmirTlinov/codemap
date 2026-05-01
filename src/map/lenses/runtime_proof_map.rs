@@ -13,6 +13,7 @@ pub fn runtime_report(
     let mut workers = Vec::new();
     let mut ci = Vec::new();
     let mut proof = Vec::new();
+    let mut unknowns = Vec::new();
     for file in files_under_directory(project, &scope) {
         if runtime_entrypoint_kind(file).is_some() {
             entrypoints.push(surface_from_path(
@@ -38,10 +39,9 @@ pub fn runtime_report(
                 EvidenceStrength::Medium,
             ));
         }
-        if let Some(route) = route_from_file_convention(project, file) {
-            routes.push(route);
-        }
+        routes.extend(runtime_routes_for_file(project, file));
         env.extend(env_surfaces_for_file(project, file));
+        unknowns.extend(unknowns_for_file(project, file));
         proof.extend(cone_proof_edges(project, std::slice::from_ref(&file.rel)));
     }
     for script in &project.scripts {
@@ -81,6 +81,13 @@ pub fn runtime_report(
         "environment surfaces hidden by limit",
         "codemap runtime <scope> --include-hidden",
     );
+    truncate_with_hidden(
+        &mut unknowns,
+        limit,
+        &mut hidden,
+        "runtime unknowns hidden by limit",
+        "codemap runtime <scope> --include-hidden",
+    );
     if !include_hidden {
         proof.truncate(limit);
     }
@@ -95,7 +102,7 @@ pub fn runtime_report(
         workers,
         ci,
         proof,
-        unknowns: Vec::new(),
+        unknowns,
         hidden,
         expand: vec![
             format!("codemap cone {}", shell_quote(&scope)),
@@ -129,7 +136,11 @@ pub fn proof_map_report(
     let mut e2e = Vec::new();
     let mut contract = Vec::new();
     let mut missing_direct = Vec::new();
+    let mut unknowns = Vec::new();
     for seed in &seeds {
+        if let Some(file) = project.files.get(seed) {
+            unknowns.extend(unknowns_for_file(project, file));
+        }
         let proofs = proof_surfaces_for_anchor(project, seed, 1, limit);
         if proofs.is_empty() && proof_missing_should_surface(project, seed) {
             missing_direct.push(surface_from_path(
@@ -171,6 +182,13 @@ pub fn proof_map_report(
         "indirect proof surfaces hidden by limit",
         "codemap proof-map <scope> --include-hidden",
     );
+    truncate_with_hidden(
+        &mut unknowns,
+        limit,
+        &mut hidden,
+        "proof-map unknowns hidden by limit",
+        "codemap proof-map <scope> --include-hidden",
+    );
     let commands = unique_proof_surfaces(
         direct
             .iter()
@@ -194,7 +212,7 @@ pub fn proof_map_report(
         missing_direct,
         commands,
         fallback,
-        unknowns: Vec::new(),
+        unknowns,
         hidden,
         expand: vec!["codemap proof --changed".to_string()],
     }

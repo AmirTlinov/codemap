@@ -169,6 +169,7 @@ pub fn flow(report: &FlowReport) {
             .collect();
         println!("{}", table(&["#", "Anchor", "Kind", "Evidence", "Where"], rows));
     }
+    surface_section("Side Effects", &report.side_effects);
     cone_section("Contracts", &report.contracts);
     cone_section("Proof", &report.proof);
     unknown_section(&report.unknown_breaks);

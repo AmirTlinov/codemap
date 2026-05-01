@@ -109,7 +109,11 @@ pub fn contract_report(
         consumers,
         cross_package_consumers,
         proof,
-        unknowns: Vec::new(),
+        unknowns: project
+            .files
+            .get(&rel)
+            .map(|file| unknowns_for_file(project, file))
+            .unwrap_or_default(),
         hidden,
         expand: vec![
             format!("codemap cone {}", shell_quote(&rel)),
@@ -117,4 +121,3 @@ pub fn contract_report(
         ],
     }
 }
-

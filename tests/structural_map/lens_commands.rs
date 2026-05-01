@@ -254,3 +254,136 @@ fn delete_missing_symbol_anchor_fails_closed() {
         "missing symbol anchor must not silently show whole-file deletion blockers: {delete_map:#}"
     );
 }
+
+#[test]
+fn runtime_lens_extracts_framework_routes_unknowns_and_flow_side_effects() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("packages/app/src/server.ts"),
+        "const prefix = '/v1';\nconst cached = lookup.get('/not-a-route');\nrouter.get('/auth/login', loginHandler);\nrouter.post(prefix + '/auth/logout', logoutHandler);\nconst envName = 'TOKEN';\nconst token = process.env[envName];\nconst users = `SELECT * FROM users`;\nexport async function loginHandler() {\n  await fetch('/api/session');\n  return token ?? users;\n}\nexport function logoutHandler() {\n  localStorage.setItem('session', '');\n}\n",
+    );
+    write(
+        &repo.path().join("packages/app/src/api.py"),
+        "from fastapi import FastAPI\napp = FastAPI()\n\n@app.get('/health')\ndef health():\n    return {'ok': True}\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "runtime lens fixture"]);
+
+    let runtime = run_json(
+        repo.path(),
+        cache.path(),
+        &["runtime", "packages/app/src", "--format", "json"],
+    );
+    assert_schema("schemas/runtime.schema.json", &runtime);
+    assert!(
+        runtime["routes"]
+            .as_array()
+            .expect("runtime routes")
+            .iter()
+            .any(|route| route["path"] == "/auth/login"
+                && route["method"] == "GET"
+                && route["evidence"] == "javascript_route_registration"),
+        "runtime lens should extract static JS route registrations: {runtime:#}"
+    );
+    assert!(
+        runtime["routes"]
+            .as_array()
+            .expect("runtime routes")
+            .iter()
+            .any(|route| route["path"] == "/health"
+                && route["method"] == "GET"
+                && route["evidence"] == "python_route_decorator"),
+        "runtime lens should extract static Python route decorators: {runtime:#}"
+    );
+    assert!(
+        runtime["routes"]
+            .as_array()
+            .expect("runtime routes")
+            .iter()
+            .all(|route| route["path"] != "/not-a-route"),
+        "runtime lens must not treat arbitrary map.get string lookups as routes: {runtime:#}"
+    );
+    for kind in ["route_string_concat", "env_dynamic_lookup", "raw_sql_literal"] {
+        assert!(
+            runtime["unknowns"]
+                .as_array()
+                .expect("runtime unknowns")
+                .iter()
+                .any(|unknown| unknown["kind"] == kind),
+            "runtime lens should expose typed unknown `{kind}`: {runtime:#}"
+        );
+    }
+
+    let flow = run_json(
+        repo.path(),
+        cache.path(),
+        &["flow", "packages/app/src/server.ts", "--format", "json"],
+    );
+    assert_schema("schemas/flow.schema.json", &flow);
+    assert!(
+        flow["side_effects"]
+            .as_array()
+            .expect("side effects")
+            .iter()
+            .any(|surface| surface["kind"] == "network_call"
+                && surface["examples"]
+                    .as_array()
+                    .is_some_and(|examples| examples.iter().any(|example| example == "packages/app/src/server.ts:9"))),
+        "flow lens should expose deterministic side-effect surfaces with line examples: {flow:#}"
+    );
+    let markdown = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["flow", "packages/app/src/server.ts"])
+        .output()
+        .expect("flow markdown should run");
+    assert!(markdown.status.success());
+    let stdout = String::from_utf8(markdown.stdout).expect("flow markdown utf8");
+    assert!(
+        stdout.contains("## Side Effects") && stdout.contains("network_call"),
+        "default flow output must render side-effect surfaces, not only JSON: {stdout}"
+    );
+}
+
+#[test]
+fn siblings_lens_exposes_route_service_test_triplets_by_convention() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("packages/app/src/auth/auth-route.ts"),
+        "router.post('/auth/login', login);\nexport function login() { return true; }\n",
+    );
+    write(
+        &repo.path().join("packages/app/src/auth/auth-service.ts"),
+        "export function loginService() { return true; }\n",
+    );
+    write(
+        &repo.path().join("packages/app/src/auth/auth-route.test.ts"),
+        "import { login } from './auth-route';\n\ntest('auth login route', () => {\n  expect(login()).toBe(true);\n});\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "siblings triplet fixture"]);
+
+    let siblings = run_json(
+        repo.path(),
+        cache.path(),
+        &["siblings", "packages/app/src/auth", "--format", "json"],
+    );
+    assert_schema("schemas/siblings.schema.json", &siblings);
+    let triplet = siblings["route_service_test_triplets"]
+        .as_array()
+        .expect("triplets")
+        .iter()
+        .find(|surface| surface["kind"] == "route_service_test_triplet")
+        .unwrap_or_else(|| panic!("siblings lens should expose deterministic triplet: {siblings:#}"));
+    let examples = triplet["examples"].as_array().expect("triplet examples");
+    for expected in [
+        "packages/app/src/auth/auth-route.ts",
+        "packages/app/src/auth/auth-service.ts",
+        "packages/app/src/auth/auth-route.test.ts",
+    ] {
+        assert!(
+            examples.iter().any(|example| example == expected),
+            "triplet should include {expected}: {siblings:#}"
+        );
+    }
+}
