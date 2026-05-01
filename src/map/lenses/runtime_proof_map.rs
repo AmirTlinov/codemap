@@ -15,7 +15,8 @@ pub fn runtime_report(
     let mut proof = Vec::new();
     let mut unknowns = Vec::new();
     let runtime_facts = runtime_fact_index(project);
-    for file in runtime_scope_files(project, &scope) {
+    let (scope_files, hidden_scope_count) = runtime_scope_files(project, &scope, include_hidden);
+    for file in scope_files {
         if runtime_entrypoint_kind(file).is_some() {
             entrypoints.push(surface_from_path(
                 runtime_entrypoint_kind(file).unwrap_or("entrypoint"),
@@ -53,6 +54,7 @@ pub fn runtime_report(
         env.extend(env_surfaces_for_file(project, file));
         unknowns.extend(unknowns_for_file(project, file));
     }
+    entrypoints = dedupe_runtime_entrypoints(entrypoints);
     env = group_env_surfaces(env);
     for script in &project.scripts {
         if scope == "." {
@@ -71,6 +73,13 @@ pub fn runtime_report(
     }
     let mut hidden = Vec::new();
     let include_hidden_expand = format!("codemap runtime {} --include-hidden", shell_quote(&scope));
+    if hidden_scope_count > 0 {
+        hidden.push(HiddenGroup {
+            reason: "recursive runtime files hidden at root scope".to_string(),
+            count: hidden_scope_count,
+            expand: include_hidden_expand.clone(),
+        });
+    }
     truncate_with_hidden(
         &mut entrypoints,
         limit,
@@ -383,14 +392,6 @@ fn proof_map_missing_should_surface(
         return true;
     }
     !project.packages.iter().any(|package| package.manifest == seed)
-}
-
-fn runtime_scope_files<'a>(project: &'a Project, scope: &str) -> Vec<&'a FileInfo> {
-    if let Some(file) = project.files.get(scope) {
-        vec![file]
-    } else {
-        files_under_directory(project, scope)
-    }
 }
 
 fn group_env_surfaces(values: Vec<EnvSurface>) -> Vec<EnvSurface> {

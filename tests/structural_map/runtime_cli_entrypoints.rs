@@ -52,7 +52,11 @@ fn runtime_lens_exposes_manifest_cli_entrypoints() {
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["commit", "-qm", "cli runtime fixture"]);
 
-    let runtime = run_json(repo.path(), cache.path(), &["runtime", ".", "--format", "json"]);
+    let runtime = run_json(
+        repo.path(),
+        cache.path(),
+        &["runtime", ".", "--include-hidden", "--format", "json"],
+    );
     assert_schema("schemas/runtime.schema.json", &runtime);
     for (command, path, evidence) in [
         (
