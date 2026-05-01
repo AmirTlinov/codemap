@@ -44,6 +44,7 @@ pub fn runtime_report(
         unknowns.extend(unknowns_for_file(project, file));
         proof.extend(cone_proof_edges(project, std::slice::from_ref(&file.rel)));
     }
+    env = group_env_surfaces(env);
     for script in &project.scripts {
         if scope == "." {
             scripts.push(Surface {
@@ -280,6 +281,29 @@ pub fn proof_map_report(
         hidden,
         expand: vec!["codemap proof --changed".to_string()],
     }
+}
+
+fn group_env_surfaces(values: Vec<EnvSurface>) -> Vec<EnvSurface> {
+    let mut seen: BTreeMap<(String, String, String, String), usize> = BTreeMap::new();
+    let mut out: Vec<EnvSurface> = Vec::new();
+    for value in values {
+        let key = (
+            value.name.clone(),
+            value.used_by.clone(),
+            value.declaration.clone().unwrap_or_default(),
+            value.evidence.clone(),
+        );
+        if let Some(index) = seen.get(&key).copied() {
+            if value.strength > out[index].strength {
+                out[index].strength = value.strength;
+            }
+            out[index].locations.extend(value.locations);
+        } else {
+            seen.insert(key, out.len());
+            out.push(value);
+        }
+    }
+    out
 }
 
 fn route_proof_surfaces(project: &Project, file: &FileInfo) -> Vec<ProofSurface> {

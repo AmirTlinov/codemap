@@ -276,12 +276,16 @@ fn env_section(title: &str, env: &[EnvSurface]) {
                     .unwrap_or_else(|| "none".to_string()),
                 item.evidence.clone(),
                 format!("{:?}", item.strength).to_ascii_lowercase(),
+                proof_location_summary(&item.locations),
             ]
         })
         .collect();
     println!(
         "{}",
-        table(&["Name", "Used By", "Declaration", "Evidence", "Strength"], rows)
+        table(
+            &["Name", "Used By", "Declaration", "Evidence", "Strength", "Where"],
+            rows,
+        )
     );
 }
 
