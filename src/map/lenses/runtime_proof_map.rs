@@ -167,13 +167,14 @@ pub fn proof_map_report(
     let mut contract = Vec::new();
     let mut missing_direct = Vec::new();
     let mut unknowns = Vec::new();
+    let discovery_limit = usize::MAX;
     for seed in &seeds {
         if let Some(file) = project.files.get(seed) {
             unknowns.extend(unknowns_for_file(project, file));
             e2e.extend(route_proof_surfaces(project, file));
             unknowns.extend(route_proof_unknowns(project, file));
         }
-        let proofs = proof_surfaces_for_anchor(project, seed, 1, limit);
+        let proofs = proof_surfaces_for_anchor(project, seed, 1, discovery_limit);
         if proofs.is_empty() && proof_missing_should_surface(project, seed) {
             missing_direct.push(surface_from_path(
                 "missing_direct_proof",
