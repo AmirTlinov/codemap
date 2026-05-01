@@ -290,4 +290,3 @@ fn go_type_symbol_re() -> &'static Regex {
             .expect("valid go type symbol regex")
     })
 }
-

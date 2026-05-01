@@ -57,6 +57,9 @@ fn resolve_python_relative(from: &str, spec: &str, paths: &BTreeSet<String>) -> 
 }
 
 fn resolve_rust(from: &str, spec: &str, paths: &BTreeSet<String>) -> Option<String> {
+    if let Some(target) = resolve_rust_include_path(from, spec, paths) {
+        return Some(target);
+    }
     let raw = spec
         .strip_prefix("crate::")
         .map(|s| format!("src/{}", s.replace("::", "/")))
@@ -65,15 +68,44 @@ fn resolve_rust(from: &str, spec: &str, paths: &BTreeSet<String>) -> Option<Stri
         .parent()
         .map(|p| normalize_rel_path(&p.to_string_lossy()))
         .unwrap_or_default();
-    [
-        format!("{raw}.rs"),
-        format!("{raw}/mod.rs"),
+    let module_dir = rust_module_dir(from);
+    let mut candidates = Vec::new();
+    if spec.starts_with("crate::") {
+        candidates.push(format!("{raw}.rs"));
+        candidates.push(format!("{raw}/mod.rs"));
+    }
+    candidates.extend([
+        format!("{module_dir}/{raw}.rs"),
+        format!("{module_dir}/{raw}/mod.rs"),
         format!("{base_dir}/{raw}.rs"),
         format!("{base_dir}/{raw}/mod.rs"),
-    ]
-    .into_iter()
-    .map(|p| normalize_rel_path(&p))
-    .find(|c| paths.contains(c))
+    ]);
+    candidates
+        .into_iter()
+        .map(|p| normalize_rel_path(&p))
+        .find(|c| paths.contains(c))
+}
+
+fn resolve_rust_include_path(from: &str, spec: &str, paths: &BTreeSet<String>) -> Option<String> {
+    if !spec.ends_with(".rs") {
+        return None;
+    }
+    let base_dir = Path::new(from).parent().unwrap_or_else(|| Path::new("."));
+    let candidate = normalize_rel_path(&base_dir.join(spec).to_string_lossy());
+    paths.contains(&candidate).then_some(candidate)
+}
+
+fn rust_module_dir(from: &str) -> String {
+    let path = Path::new(from);
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    if matches!(
+        path.file_stem().and_then(|name| name.to_str()),
+        Some("lib" | "main" | "mod")
+    ) {
+        return normalize_rel_path(&parent.to_string_lossy());
+    }
+    let stem = path.file_stem().and_then(|name| name.to_str()).unwrap_or("");
+    normalize_rel_path(&parent.join(stem).to_string_lossy())
 }
 
 fn resolve_go(spec: &str, paths: &BTreeSet<String>, packages: &[PackageInfo]) -> Option<String> {
@@ -168,4 +200,3 @@ fn go_package_files(files: &BTreeMap<String, FileInfo>, target: &str) -> Vec<Str
         .map(|file| file.rel.clone())
         .collect()
 }
-
