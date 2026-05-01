@@ -24,6 +24,7 @@ include!("repo/import_resolution.rs");
 include!("repo/component_contracts_core.rs");
 include!("repo/component_render_analysis.rs");
 include!("repo/component_labelledby_jsx.rs");
+include!("repo/package_targets.rs");
 include!("repo/path_resolution.rs");
 include!("repo/ts_aliases.rs");
 include!("repo/language_resolution.rs");

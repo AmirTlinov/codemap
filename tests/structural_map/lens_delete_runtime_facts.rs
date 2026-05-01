@@ -31,6 +31,83 @@ fn delete_lens_reports_package_manifest_export_blocker() {
 }
 
 #[test]
+fn delete_lens_rejects_package_export_targets_that_escape_package_base() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("packages/app/package.json"),
+        r#"{
+  "name": "@fixture/app",
+  "private": true,
+  "exports": { ".": "../../../packages/replay/src/index.ts" },
+  "dependencies": { "@fixture/replay": "workspace:*" },
+  "scripts": { "test": "vitest run", "test:e2e": "playwright test" }
+}
+"#,
+    );
+    write(
+        &repo.path().join("packages/consumer/package.json"),
+        r#"{
+  "name": "@fixture/consumer",
+  "private": true,
+  "dependencies": { "@fixture/app": "workspace:*" }
+}
+"#,
+    );
+    write(
+        &repo.path().join("packages/consumer/src/useApp.ts"),
+        "import { publicOnly } from '@fixture/app';\n\nexport const value = publicOnly;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "escaped package export fixture"]);
+
+    let delete_map = run_json(
+        repo.path(),
+        cache.path(),
+        &["delete", "packages/replay/src/index.ts", "--format", "json"],
+    );
+    assert_schema("schemas/delete.schema.json", &delete_map);
+    assert!(
+        !delete_map["package_exports"]
+            .as_array()
+            .expect("package exports")
+            .iter()
+            .any(|edge| edge["from"] == "packages/app/package.json"
+                && edge["to"] == "packages/replay/src/index.ts"),
+        "escaped package export targets must not normalize into false exact package export blockers: {delete_map:#}"
+    );
+    assert!(
+        !delete_map["direct_users"]
+            .as_array()
+            .expect("direct users")
+            .iter()
+            .any(|edge| edge["from"] == "packages/consumer/src/useApp.ts"
+                && edge["to"] == "packages/replay/src/index.ts"),
+        "imports through escaped package exports must not normalize into false exact direct users: {delete_map:#}"
+    );
+
+    let contract = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "contract",
+            "packages/replay/src/index.ts",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/contract.schema.json", &contract);
+    assert!(
+        !contract["consumers"]
+            .as_array()
+            .expect("contract consumers")
+            .iter()
+            .any(|edge| edge["from"] == "packages/consumer/src/useApp.ts"
+                && edge["to"] == "packages/replay/src/index.ts"),
+        "contract lens must not report consumers through escaped package exports as exact edges: {contract:#}"
+    );
+}
+
+#[test]
 fn delete_lens_uses_runtime_fact_index_for_static_route_refs() {
     let (repo, cache) = fixture();
     write(

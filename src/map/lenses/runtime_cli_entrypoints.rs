@@ -51,7 +51,7 @@ fn js_manifest_cli_entrypoints(
     entries
         .into_iter()
         .map(|(command, target)| {
-            let resolved = package_public_target_candidates(package_path, &target)
+            let resolved = repo::package_public_target_candidates(package_path, &target)
                 .into_iter()
                 .find(|candidate| project.files.contains_key(candidate));
             cli_entrypoint_surface(
@@ -87,7 +87,7 @@ fn cargo_manifest_cli_entrypoints(
             let Some(target) = bin.get("path").and_then(|value| value.as_str()) else {
                 continue;
             };
-            let resolved = package_target_path(package_path, target)
+            let resolved = repo::package_target_path(package_path, target)
                 .filter(|candidate| project.files.contains_key(candidate));
             explicit_bins.insert((command.to_string(), resolved.clone()));
             out.push(cli_entrypoint_surface(
@@ -99,7 +99,7 @@ fn cargo_manifest_cli_entrypoints(
             ));
         }
     }
-    let default_target = package_target_path(package_path, "src/main.rs");
+    let default_target = repo::package_target_path(package_path, "src/main.rs");
     if let Some(path) = default_target.filter(|candidate| project.files.contains_key(candidate)) {
         if explicit_bins.contains(&(package_name.to_string(), Some(path.clone()))) {
             return out;
@@ -188,70 +188,8 @@ fn python_entrypoint_target(project: &Project, package_path: &str, target: &str)
         format!("src/{rel}/__init__.py"),
     ]
     .into_iter()
-    .filter_map(|candidate| package_target_path(package_path, &candidate))
+    .filter_map(|candidate| repo::package_target_path(package_path, &candidate))
     .find(|candidate| project.files.contains_key(candidate))
-}
-
-fn package_target_path(package_path: &str, target: &str) -> Option<String> {
-    let target = target.trim();
-    if target.is_empty() || target.contains('*') {
-        return None;
-    }
-    let target = target.replace('\\', "/");
-    if target.starts_with('/') || windows_absolute_path(&target) {
-        return None;
-    }
-
-    let base = repo::normalize_rel_path(package_path);
-    let mut parts = if base == "." || base.is_empty() {
-        Vec::new()
-    } else {
-        base.split('/').map(str::to_string).collect::<Vec<_>>()
-    };
-    let min_depth = parts.len();
-
-    for part in target.split('/') {
-        match part {
-            "" | "." => {}
-            ".." => {
-                if parts.len() <= min_depth {
-                    return None;
-                }
-                parts.pop();
-            }
-            other => parts.push(other.to_string()),
-        }
-    }
-
-    if parts.is_empty() {
-        Some(".".to_string())
-    } else {
-        Some(parts.join("/"))
-    }
-}
-
-fn windows_absolute_path(path: &str) -> bool {
-    let bytes = path.as_bytes();
-    bytes.len() >= 3
-        && bytes[0].is_ascii_alphabetic()
-        && bytes[1] == b':'
-        && bytes[2] == b'/'
-}
-
-fn package_public_target_candidates(package_path: &str, target: &str) -> Vec<String> {
-    let Some(base) = package_target_path(package_path, target) else {
-        return Vec::new();
-    };
-    let mut out = vec![base.clone()];
-    if Path::new(&base).extension().is_none() {
-        for ext in ["ts", "tsx", "js", "jsx", "mjs", "cjs", "d.ts"] {
-            out.push(format!("{base}.{ext}"));
-        }
-        for index in ["index.ts", "index.tsx", "index.js", "index.jsx"] {
-            out.push(repo::normalize_rel_path(&format!("{base}/{index}")));
-        }
-    }
-    out
 }
 
 fn manifest_parent(rel: &str) -> String {

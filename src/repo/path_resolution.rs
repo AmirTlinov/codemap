@@ -97,10 +97,10 @@ fn resolve_javascript(
     if exports_declared {
         return None;
     }
-    for base in [
-        format!("{}/{}", package.path, subpath),
-        format!("{}/src/{}", package.path, subpath),
-    ] {
+    for base in [subpath.to_string(), format!("src/{subpath}")] {
+        let Some(base) = package_target_path(&package.path, &base) else {
+            continue;
+        };
         if let Some(target) = resolve_path_like(&base, paths) {
             return Some(target);
         }
@@ -195,10 +195,7 @@ fn normalize_package_entries(package: &PackageInfo, entries: Vec<String>) -> Vec
     unique_strings(
         entries
             .into_iter()
-            .map(|entry| {
-                let entry = entry.trim().trim_start_matches("./");
-                normalize_rel_path(&format!("{}/{}", package.path, entry))
-            })
+            .flat_map(|entry| package_public_target_candidates(&package.path, &entry))
             .collect(),
     )
 }

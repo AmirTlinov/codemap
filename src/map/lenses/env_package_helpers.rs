@@ -124,22 +124,5 @@ fn normalize_package_public_target(
     package: &crate::model::PackageInfo,
     target: &str,
 ) -> Vec<String> {
-    if target.contains('*') {
-        return Vec::new();
-    }
-    let target = target.trim().trim_start_matches("./");
-    if target.is_empty() {
-        return Vec::new();
-    }
-    let base = repo::normalize_rel_path(&format!("{}/{}", package.path, target));
-    let mut out = vec![base.clone()];
-    if Path::new(&base).extension().is_none() {
-        for ext in ["ts", "tsx", "js", "jsx", "mjs", "cjs", "d.ts"] {
-            out.push(format!("{base}.{ext}"));
-        }
-        for index in ["index.ts", "index.tsx", "index.js", "index.jsx"] {
-            out.push(repo::normalize_rel_path(&format!("{base}/{index}")));
-        }
-    }
-    out
+    repo::package_public_target_candidates(&package.path, target)
 }
