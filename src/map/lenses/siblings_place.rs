@@ -52,14 +52,29 @@ pub fn siblings_report(
         .into_iter()
         .take(limit)
         .collect::<Vec<_>>();
-    let proof_pattern = if include_hidden {
-        proof_surfaces_for_directory(project, &scope, 1, limit)
-    } else {
-        proof_surfaces_for_directory(project, &scope, 1, limit)
-            .into_iter()
-            .take(limit)
-            .collect()
-    };
+    let proof_map_raw_expand = format!(
+        "codemap proof-map {} --raw-sensors --limit <larger-number>",
+        shell_quote(&scope)
+    );
+    let mut proof_pattern = proof_surfaces_for_directory(project, &scope, 1, limit);
+    group_duplicate_proof_surfaces(
+        &mut proof_pattern,
+        &mut hidden,
+        "duplicate proof pattern sensors grouped by structural key",
+        &proof_map_raw_expand,
+    );
+    if !include_hidden {
+        truncate_with_hidden(
+            &mut proof_pattern,
+            limit,
+            &mut hidden,
+            "proof pattern surfaces hidden by limit",
+            &format!(
+                "codemap proof-map {} --limit <larger-number>",
+                shell_quote(&scope)
+            ),
+        );
+    }
     let mut route_service_test_triplets = route_service_test_triplets(project, &scope);
     truncate_with_hidden(
         &mut route_service_test_triplets,
@@ -120,7 +135,30 @@ pub fn place_report(
         }]
     };
     let local_conventions = placement_conventions(&scope, &requested_kind, &existing_surfaces);
-    let paired_proof_pattern = proof_surfaces_for_directory(project, &scope, 1, limit);
+    let mut hidden = Vec::new();
+    let proof_map_raw_expand = format!(
+        "codemap proof-map {} --raw-sensors --limit <larger-number>",
+        shell_quote(&scope)
+    );
+    let mut paired_proof_pattern = proof_surfaces_for_directory(project, &scope, 1, limit);
+    group_duplicate_proof_surfaces(
+        &mut paired_proof_pattern,
+        &mut hidden,
+        "duplicate paired proof sensors grouped by structural key",
+        &proof_map_raw_expand,
+    );
+    if !include_hidden {
+        truncate_with_hidden(
+            &mut paired_proof_pattern,
+            limit,
+            &mut hidden,
+            "paired proof pattern surfaces hidden by limit",
+            &format!(
+                "codemap proof-map {} --limit <larger-number>",
+                shell_quote(&scope)
+            ),
+        );
+    }
     let shared_contracts = directory_contract_edges_at_depth(project, &scope, include_hidden, 1)
         .into_iter()
         .take(limit)
@@ -135,7 +173,7 @@ pub fn place_report(
         paired_proof_pattern,
         shared_contracts,
         unknowns: Vec::new(),
-        hidden: Vec::new(),
+        hidden,
         expand: vec![format!("codemap siblings {}", shell_quote(&scope))],
     }
 }

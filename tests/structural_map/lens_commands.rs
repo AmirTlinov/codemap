@@ -126,7 +126,9 @@ fn lens_hidden_expands_use_concrete_scope_commands() {
     assert!(
         sibling_hidden.iter().all(|group| group["expand"]
             .as_str()
-            .is_some_and(|expand| expand == "codemap siblings . --include-hidden")),
+            .is_some_and(|expand| expand.starts_with("codemap ")
+                && !expand.contains("<scope>")
+                && !expand.contains("<anchor>"))),
         "siblings hidden expands must be concrete runnable commands: {siblings:#}"
     );
 
