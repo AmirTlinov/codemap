@@ -169,6 +169,19 @@ enum CommandKind {
     #[command(alias = "check-boundaries")]
     #[command(about = "Check explicit forbidden boundaries")]
     Boundaries(BoundariesArgs),
+    #[command(about = "Validate optional anchors")]
+    Anchors(AnchorsArgs),
+}
+
+#[derive(Debug, Args)]
+struct AnchorsArgs {
+    #[command(subcommand)]
+    action: AnchorAction,
+}
+
+#[derive(Debug, Subcommand)]
+enum AnchorAction {
+    Validate(FormatArgs),
 }
 "#,
     );
@@ -226,5 +239,32 @@ enum CommandKind {
                 })
         }),
         "runtime src/cli should preserve Clap aliases and about text as evidence, not prose guessing: {cli_runtime:#}"
+    );
+    assert!(
+        entrypoints.iter().any(|surface| {
+            surface["kind"] == "cli_command"
+                && surface["path"] == "src/cli/args.rs#AnchorAction::Validate"
+                && surface["examples"].as_array().is_some_and(|examples| {
+                    examples.iter().any(|example| {
+                        example.as_str().is_some_and(|value| {
+                            value.contains("anchors validate -> src/cli/args.rs:")
+                        })
+                    })
+                })
+        }),
+        "nested Clap subcommands should keep their parent command path, not surface as bare local variants: {cli_runtime:#}"
+    );
+    assert!(
+        entrypoints.iter().all(|surface| {
+            surface["path"] != "src/cli/args.rs#AnchorAction::Validate"
+                || surface["examples"].as_array().is_some_and(|examples| {
+                    examples.iter().all(|example| {
+                        example
+                            .as_str()
+                            .is_none_or(|value| !value.starts_with("validate ->"))
+                    })
+                })
+        }),
+        "nested Clap subcommands must not show a misleading bare invocation: {cli_runtime:#}"
     );
 }
