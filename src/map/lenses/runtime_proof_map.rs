@@ -39,10 +39,13 @@ pub fn runtime_report(
                 EvidenceStrength::Medium,
             ));
         }
-        routes.extend(runtime_routes_for_file(project, file));
+        let file_routes = runtime_routes_for_file(project, file);
+        for route in &file_routes {
+            proof.extend(route_reference_edges(project, route));
+        }
+        routes.extend(file_routes);
         env.extend(env_surfaces_for_file(project, file));
         unknowns.extend(unknowns_for_file(project, file));
-        proof.extend(cone_proof_edges(project, std::slice::from_ref(&file.rel)));
     }
     env = group_env_surfaces(env);
     for script in &project.scripts {
@@ -111,6 +114,19 @@ pub fn runtime_report(
         "runtime unknowns hidden by limit",
         &include_hidden_expand,
     );
+    proof.sort_by(|a, b| {
+        a.from
+            .cmp(&b.from)
+            .then_with(|| a.to.cmp(&b.to))
+            .then_with(|| a.edge_type.cmp(&b.edge_type))
+            .then_with(|| a.evidence.cmp(&b.evidence))
+            .then_with(|| {
+                a.locations
+                    .first()
+                    .and_then(|location| location.line_start)
+                    .cmp(&b.locations.first().and_then(|location| location.line_start))
+            })
+    });
     limit_edge_section(
         &mut proof,
         &mut hidden,
@@ -149,18 +165,7 @@ pub fn proof_map_report(
 ) -> ProofMapReport {
     let limit = limit.max(1);
     let scope = scope.map(|value| repo::normalize_rel_path(&value));
-    let seeds = if let Some(scope) = &scope {
-        if directory_has_files(project, scope) {
-            files_under_directory(project, scope)
-                .into_iter()
-                .map(|file| file.rel.clone())
-                .collect::<Vec<_>>()
-        } else {
-            vec![scope.clone()]
-        }
-    } else {
-        changed.clone()
-    };
+    let (seeds, hidden_seed_count) = proof_map_seed_selection(project, scope.as_deref(), &changed, raw_sensors);
     let mut direct = Vec::new();
     let mut indirect = Vec::new();
     let mut e2e = Vec::new();
@@ -168,6 +173,16 @@ pub fn proof_map_report(
     let mut missing_direct = Vec::new();
     let mut unknowns = Vec::new();
     let discovery_limit = usize::MAX;
+    let mut hidden = Vec::new();
+    let expand_larger_limit = proof_map_expand(&proof_selector, false);
+    let expand_raw_sensors = proof_map_expand(&proof_selector, true);
+    if hidden_seed_count > 0 {
+        hidden.push(HiddenGroup {
+            reason: "recursive proof seeds hidden at root scope".to_string(),
+            count: hidden_seed_count,
+            expand: expand_with_concrete_limit(&expand_raw_sensors, seeds.len() + hidden_seed_count),
+        });
+    }
     for seed in &seeds {
         if let Some(file) = project.files.get(seed) {
             unknowns.extend(unknowns_for_file(project, file));
@@ -200,9 +215,6 @@ pub fn proof_map_report(
             }
         }
     }
-    let mut hidden = Vec::new();
-    let expand_larger_limit = proof_map_expand(&proof_selector, false);
-    let expand_raw_sensors = proof_map_expand(&proof_selector, true);
     if !raw_sensors {
         group_duplicate_proof_surfaces(
             &mut direct,
@@ -311,6 +323,35 @@ pub fn proof_map_report(
         hidden,
         expand: vec![proof_expand],
     }
+}
+
+fn proof_map_seed_selection(
+    project: &Project,
+    scope: Option<&str>,
+    changed: &[String],
+    raw_sensors: bool,
+) -> (Vec<String>, usize) {
+    let Some(scope) = scope else {
+        return (changed.to_vec(), 0);
+    };
+    if !directory_has_files(project, scope) {
+        return (vec![scope.to_string()], 0);
+    }
+    let all = files_under_directory(project, scope)
+        .into_iter()
+        .map(|file| file.rel.clone())
+        .collect::<Vec<_>>();
+    if scope != "." || raw_sensors {
+        return (all, 0);
+    }
+    let mut seeds = direct_files_under_directory(project, scope)
+        .into_iter()
+        .filter(|file| !file.has_role("generated") && !is_generic_noise(file))
+        .map(|file| file.rel.clone())
+        .collect::<Vec<_>>();
+    seeds.sort();
+    let hidden = all.len().saturating_sub(seeds.len());
+    (seeds, hidden)
 }
 
 fn runtime_scope_files<'a>(project: &'a Project, scope: &str) -> Vec<&'a FileInfo> {

@@ -201,6 +201,63 @@ fn proof_map_files_expands_to_matching_proof_files() {
 }
 
 #[test]
+fn proof_map_explicit_root_stays_current_level_until_raw_sensors() {
+    let (repo, cache) = fixture();
+
+    let proof_map = run_json(
+        repo.path(),
+        cache.path(),
+        &["proof-map", ".", "--format", "json"],
+    );
+    assert_schema("schemas/proof-map.schema.json", &proof_map);
+    assert!(
+        proof_map["hidden"]
+            .as_array()
+            .expect("hidden")
+            .iter()
+            .any(|hidden| hidden["reason"] == "recursive proof seeds hidden at root scope"
+                && hidden["expand"]
+                    .as_str()
+                    .is_some_and(|expand| expand.starts_with("codemap proof-map . --raw-sensors --limit "))),
+        "explicit root proof-map should make recursive proof seeds opt-in instead of scanning the whole repo by default: {proof_map:#}"
+    );
+    for section in ["direct", "indirect", "e2e", "contract"] {
+        assert!(
+            proof_map[section]
+                .as_array()
+                .expect("proof section")
+                .iter()
+                .filter_map(|proof| proof["path"].as_str())
+                .all(|path| !path.starts_with("packages/")),
+            "root proof-map should not surface nested package proof sensors before raw-sensors in {section}: {proof_map:#}"
+        );
+    }
+
+    let raw = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof-map",
+            ".",
+            "--raw-sensors",
+            "--limit",
+            "200",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof-map.schema.json", &raw);
+    assert!(
+        raw["hidden"]
+            .as_array()
+            .expect("raw hidden")
+            .iter()
+            .all(|hidden| hidden["reason"] != "recursive proof seeds hidden at root scope"),
+        "raw-sensors is the explicit deeper proof-map expansion and should not keep the root seed gate: {raw:#}"
+    );
+}
+
+#[test]
 fn proof_map_default_matches_changed_selector() {
     let (repo, cache) = fixture();
     write(

@@ -115,20 +115,31 @@ fn runtime_exact_file_scope_exposes_env_and_routes() {
 #[test]
 fn runtime_reports_hidden_proof_edges_when_limited() {
     let (repo, cache) = fixture();
+    write(
+        &repo.path().join("packages/app/src/routes.ts"),
+        "router.get('/runtime/one', oneHandler);\nrouter.get('/runtime/two', twoHandler);\nexport function oneHandler() { return true; }\nexport function twoHandler() { return true; }\n",
+    );
+    write(
+        &repo.path().join("packages/app/tests/e2e/runtime.spec.ts"),
+        "import { test } from '@playwright/test';\n\ntest('runtime routes', async ({ page }) => {\n  await page.goto('/runtime/one');\n  await page.goto('/runtime/two');\n});\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "runtime proof edges fixture"]);
 
     let runtime = run_json(
         repo.path(),
         cache.path(),
-        &[
-            "runtime",
-            "packages/replay/src",
-            "--limit",
-            "1",
-            "--format",
-            "json",
-        ],
+        &["runtime", "packages/app/src", "--limit", "1", "--format", "json"],
     );
     assert_schema("schemas/runtime.schema.json", &runtime);
+    assert!(
+        runtime["proof"]
+            .as_array()
+            .expect("proof")
+            .iter()
+            .all(|edge| edge["evidence"] == "e2e_visited_route"),
+        "runtime proof should be tied to runtime surfaces, not generic file-level proof: {runtime:#}"
+    );
     assert!(
         runtime["hidden"]
             .as_array()
@@ -136,7 +147,7 @@ fn runtime_reports_hidden_proof_edges_when_limited() {
             .iter()
             .any(|group| group["reason"] == "runtime proof edges hidden by limit"
                 && group["expand"].as_str().is_some_and(|expand| {
-                    expand.starts_with("codemap runtime packages/replay/src --include-hidden --limit ")
+                    expand.starts_with("codemap runtime packages/app/src --include-hidden --limit ")
                         && !expand.contains("<larger-number>")
                 })),
         "runtime proof truncation must be visible and expandable, not silent: {runtime:#}"
