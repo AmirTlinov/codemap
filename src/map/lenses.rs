@@ -1,4 +1,5 @@
 include!("lenses/diff_map.rs");
+include!("lenses/diff_map_unknowns.rs");
 include!("lenses/contract.rs");
 include!("lenses/proof_map_helpers.rs");
 include!("lenses/proof_map_current_level.rs");
@@ -12,6 +13,7 @@ include!("lenses/delete_boundary_flow.rs");
 include!("lenses/siblings_place.rs");
 include!("lenses/runtime_code_shape.rs");
 include!("lenses/runtime_route_forms.rs");
+include!("lenses/runtime_unsupported_routes.rs");
 include!("lenses/runtime_extractors.rs");
 include!("lenses/runtime_facts.rs");
 include!("lenses/flow_route_helpers.rs");

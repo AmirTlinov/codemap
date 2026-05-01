@@ -48,6 +48,7 @@ include!("structural_map/test_kind_executable_surfaces.rs");
 include!("structural_map/lens_delete_runtime_facts.rs");
 include!("structural_map/lens_dynamic_runtime_routes.rs");
 include!("structural_map/lens_runtime_extractors.rs");
+include!("structural_map/unsupported_framework_routes.rs");
 include!("structural_map/lens_runtime_facts.rs");
 include!("structural_map/runtime_cli_entrypoints.rs");
 include!("structural_map/runtime_env_fail_closed.rs");

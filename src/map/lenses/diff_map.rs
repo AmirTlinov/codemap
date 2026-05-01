@@ -51,6 +51,10 @@ pub fn diff_map_report(
         let delta = git_unified_zero_delta(project, rel, &mode);
         let added_code = diff_current_runtime_code(project, rel, &mode);
         let removed_code = diff_base_runtime_code(project, rel, &mode);
+        let added_framework_context = diff_current_file_text(project, rel, &mode)
+            .as_deref()
+            .map(unsupported_framework_route_context)
+            .unwrap_or_default();
         if diff_file_is_added(project, rel, &mode)
             && let Some(route) = runtime_route_from_path_convention(rel)
         {
@@ -82,7 +86,9 @@ pub fn diff_map_report(
                     EvidenceStrength::Medium,
                 ));
             }
-            if let Some(unknown) = unknown_from_added_line(rel, *line, code) {
+            if let Some(unknown) =
+                unknown_from_added_line(rel, *line, code, &added_framework_context)
+            {
                 new_unknowns.push(unknown);
             }
             added_runtime_routes.extend(runtime_routes_from_diff_line(rel, *line, code));

@@ -36,6 +36,7 @@ fn unknowns_for_file(project: &Project, file: &FileInfo) -> Vec<Unknown> {
     let js_like = matches!(file.ext.as_str(), "js" | "jsx" | "ts" | "tsx" | "mjs" | "cjs");
     let route_like = js_like || matches!(file.ext.as_str(), "py" | "go");
     let env_like = js_like || matches!(file.ext.as_str(), "py" | "rs");
+    let unsupported_route_framework_context = unsupported_framework_route_context(&text);
     for (line_number, line) in runtime_code_lines(&text) {
         if js_like && dynamic_import_line(&line) {
             out.push(unknown(
@@ -92,6 +93,18 @@ fn unknowns_for_file(project: &Project, file: &FileInfo) -> Vec<Unknown> {
                 Some(&file.rel),
                 Some(line_number),
                 "route method is computed instead of a static framework method",
+                "runtime route is not added to the exact method/path map",
+                Some(format!("codemap runtime {}", shell_quote(&file.rel))),
+            ));
+        }
+        if js_like
+            && unsupported_framework_route_line(&line, &unsupported_route_framework_context)
+        {
+            out.push(unknown(
+                "unsupported_framework_route",
+                Some(&file.rel),
+                Some(line_number),
+                "framework route decorator is recognized but not resolved by a deterministic adapter",
                 "runtime route is not added to the exact method/path map",
                 Some(format!("codemap runtime {}", shell_quote(&file.rel))),
             ));

@@ -272,3 +272,59 @@ fn diff_map_reports_removed_runtime_route_and_env_dependency() {
         "diff-map should expose removed static env dependencies as map deltas: {diff:#}"
     );
 }
+
+#[test]
+fn diff_map_reports_new_unsupported_framework_route_unknowns() {
+    let (repo, cache) = fixture();
+
+    write(
+        &repo.path().join("packages/app/src/auth.controller.ts"),
+        "import { Controller, Get } from '@nestjs/common';\n\n@Controller('/auth')\nexport class AuthController {\n  @Get(':id')\n  show() { return true; }\n}\n",
+    );
+
+    let diff = run_json(
+        repo.path(),
+        cache.path(),
+        &["diff-map", "--changed", "--format", "json"],
+    );
+    assert_schema("schemas/diff-map.schema.json", &diff);
+    let unknowns = diff["new_unknowns"].as_array().expect("new unknowns");
+    assert!(
+        unknowns.iter().any(|unknown| unknown["kind"] == "unsupported_framework_route"
+            && unknown["path"] == "packages/app/src/auth.controller.ts"
+            && unknown["line_start"] == 3),
+        "diff-map should expose newly added unsupported route decorators as typed blind spots: {diff:#}"
+    );
+    assert!(
+        diff["added_runtime_routes"]
+            .as_array()
+            .expect("added runtime routes")
+            .is_empty(),
+        "unsupported decorator framework routes must not become added runtime routes: {diff:#}"
+    );
+}
+
+#[test]
+fn diff_map_does_not_report_local_decorator_names_as_framework_route_unknowns() {
+    let (repo, cache) = fixture();
+
+    write(
+        &repo.path().join("packages/app/src/local-decorators.ts"),
+        "function Get() { return function noop() {}; }\nfunction Controller() { return function noop() {}; }\n\n@Controller()\nexport class LocalMetadataOnly {\n  @Get()\n  title = 'not a route';\n}\n",
+    );
+
+    let diff = run_json(
+        repo.path(),
+        cache.path(),
+        &["diff-map", "--changed", "--format", "json"],
+    );
+    assert_schema("schemas/diff-map.schema.json", &diff);
+    assert!(
+        diff["new_unknowns"]
+            .as_array()
+            .expect("new unknowns")
+            .iter()
+            .all(|unknown| unknown["kind"] != "unsupported_framework_route"),
+        "diff-map must not turn local ordinary decorators into framework route unknowns: {diff:#}"
+    );
+}

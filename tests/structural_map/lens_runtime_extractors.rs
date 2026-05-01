@@ -83,6 +83,76 @@ fn runtime_lens_extracts_additional_static_api_forms_and_blind_spots() {
 }
 
 #[test]
+fn runtime_lens_reports_unsupported_framework_route_decorators_as_unknowns() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("packages/app/src/auth.controller.ts"),
+        "import { Controller, Get, Post } from '@nestjs/common';\n\n@Controller('/auth')\nexport class AuthController {\n  @Get(':id')\n  show() { return true; }\n\n  @Post()\n  create() { return true; }\n}\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "unsupported decorator route fixture"]);
+
+    let runtime = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "runtime",
+            "packages/app/src/auth.controller.ts",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/runtime.schema.json", &runtime);
+    assert!(
+        runtime["routes"]
+            .as_array()
+            .expect("runtime routes")
+            .is_empty(),
+        "unsupported decorator framework routes must not become exact runtime routes: {runtime:#}"
+    );
+    let unknowns = runtime["unknowns"].as_array().expect("unknowns");
+    for line in [3, 5, 8] {
+        assert!(
+            unknowns.iter().any(|unknown| unknown["kind"] == "unsupported_framework_route"
+                && unknown["path"] == "packages/app/src/auth.controller.ts"
+                && unknown["line_start"] == line),
+            "unsupported framework route decorator at line {line} should be a typed blind spot: {runtime:#}"
+        );
+    }
+}
+
+#[test]
+fn runtime_lens_does_not_treat_local_decorator_names_as_framework_routes() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("packages/app/src/local-decorators.ts"),
+        "function Get() { return function noop() {}; }\nfunction Controller() { return function noop() {}; }\n\n@Controller()\nexport class LocalMetadataOnly {\n  @Get()\n  title = 'not a route';\n}\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "local decorator negative fixture"]);
+
+    let runtime = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "runtime",
+            "packages/app/src/local-decorators.ts",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/runtime.schema.json", &runtime);
+    assert!(
+        runtime["unknowns"]
+            .as_array()
+            .expect("unknowns")
+            .iter()
+            .all(|unknown| unknown["kind"] != "unsupported_framework_route"),
+        "local ordinary decorators must not become framework route unknowns: {runtime:#}"
+    );
+}
+
+#[test]
 fn runtime_lens_reads_go_gorilla_method_chains_without_guessing_missing_methods() {
     let (repo, cache) = fixture();
     write(
