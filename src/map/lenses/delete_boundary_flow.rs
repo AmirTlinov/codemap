@@ -108,6 +108,18 @@ pub fn delete_report(
     if !runtime_refs.is_empty() {
         checklist.push("inspect runtime references shown above".to_string());
     }
+    let mut unknowns = project
+        .files
+        .get(&file_rel)
+        .map(|file| unknowns_for_file(project, file))
+        .unwrap_or_default();
+    truncate_with_hidden(
+        &mut unknowns,
+        limit,
+        &mut hidden,
+        "delete unknowns hidden by limit",
+        &format!("codemap delete {} --include-hidden", shell_quote(&rel)),
+    );
     DeleteReport {
         kind: "delete_report",
         schema_version: "1",
@@ -118,11 +130,7 @@ pub fn delete_report(
         package_exports,
         tests,
         runtime_refs,
-        unknowns: project
-            .files
-            .get(&file_rel)
-            .map(|file| unknowns_for_file(project, file))
-            .unwrap_or_default(),
+        unknowns,
         checklist,
         hidden,
         expand: vec![format!("codemap cone {}", shell_quote(&file_rel))],
@@ -177,7 +185,7 @@ pub fn boundary_map_report(
         .filter(|edge| path_under_scope(&edge.from_manifest, &scope))
         .cloned()
         .collect::<Vec<_>>();
-    let explicit_forbidden_findings = boundary_findings(project, changed).into_iter().collect();
+    let mut explicit_forbidden_findings = boundary_findings(project, changed).into_iter().collect();
     let mut hidden = Vec::new();
     let changed_flag = if changed.is_some() { " --changed" } else { "" };
     let include_hidden_expand = format!(
@@ -192,6 +200,14 @@ pub fn boundary_map_report(
         "actual cross-boundary edges hidden by limit",
         &include_hidden_expand,
     );
+    limit_edge_section(
+        &mut test_only_crossings,
+        &mut hidden,
+        include_hidden,
+        limit,
+        "test-only boundary crossings hidden by limit",
+        &include_hidden_expand,
+    );
     truncate_with_hidden(
         &mut public_boundary_files,
         limit,
@@ -204,6 +220,13 @@ pub fn boundary_map_report(
         limit,
         &mut hidden,
         "package edges hidden by limit",
+        &include_hidden_expand,
+    );
+    truncate_with_hidden(
+        &mut explicit_forbidden_findings,
+        limit,
+        &mut hidden,
+        "explicit forbidden findings hidden by limit",
         &include_hidden_expand,
     );
     BoundaryMapReport {
@@ -267,10 +290,7 @@ pub fn flow_report(
                 evidence: "runtime_route_owner".to_string(),
                 locations: vec![EvidenceLocation::path(&route_file, "route_file")],
             });
-            for edge in direct_dependency_edges(project, &route_file)
-                .into_iter()
-                .take(limit)
-            {
+            for edge in direct_dependency_edges(project, &route_file) {
                 steps.push(FlowStep {
                     index: steps.len(),
                     anchor: edge.to.clone(),
@@ -342,10 +362,7 @@ pub fn flow_report(
                             "symbol_definition",
                         ),
                     });
-                    for edge in symbol_outgoing_edges(project, info, &symbol)
-                        .into_iter()
-                        .take(limit)
-                    {
+                    for edge in symbol_outgoing_edges(project, info, &symbol) {
                         steps.push(FlowStep {
                             index: steps.len(),
                             anchor: edge.to.clone(),
@@ -370,7 +387,7 @@ pub fn flow_report(
                     evidence: "exact_file_anchor".to_string(),
                     locations: vec![EvidenceLocation::path(&rel, "file_anchor")],
                 });
-                for edge in direct_dependency_edges(project, &rel).into_iter().take(limit) {
+                for edge in direct_dependency_edges(project, &rel) {
                     steps.push(FlowStep {
                         index: steps.len(),
                         anchor: edge.to.clone(),
@@ -398,6 +415,45 @@ pub fn flow_report(
             Some(format!("codemap cone {}", shell_quote(&rel))),
         ));
     }
+    let mut hidden = Vec::new();
+    let include_hidden_expand = format!("codemap flow {} --include-hidden", shell_quote(&rel));
+    truncate_with_hidden(
+        &mut steps,
+        limit,
+        &mut hidden,
+        "flow steps hidden by limit",
+        &include_hidden_expand,
+    );
+    truncate_with_hidden(
+        &mut side_effects,
+        limit,
+        &mut hidden,
+        "flow side-effect surfaces hidden by limit",
+        &include_hidden_expand,
+    );
+    limit_edge_section(
+        &mut contracts,
+        &mut hidden,
+        include_hidden,
+        limit,
+        "flow contract edges hidden by limit",
+        &include_hidden_expand,
+    );
+    limit_edge_section(
+        &mut proof,
+        &mut hidden,
+        include_hidden,
+        limit,
+        "flow proof edges hidden by limit",
+        &include_hidden_expand,
+    );
+    truncate_with_hidden(
+        &mut unknown_breaks,
+        limit,
+        &mut hidden,
+        "flow unknown breaks hidden by limit",
+        &include_hidden_expand,
+    );
     FlowReport {
         kind: "flow_report",
         schema_version: "1",
@@ -410,7 +466,7 @@ pub fn flow_report(
         contracts,
         proof,
         unknown_breaks,
-        hidden: Vec::new(),
+        hidden,
         expand,
     }
 }

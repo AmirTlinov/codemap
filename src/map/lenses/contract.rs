@@ -22,13 +22,12 @@ pub fn contract_report(
         .cloned()
         .collect::<Vec<_>>();
     let mut proof = cone_proof_edges_with_direct_consumers(project, std::slice::from_ref(&rel));
-    let exported_contracts = project
+    let mut exported_contracts = project
         .files
         .get(&rel)
         .map(|file| {
             file.exports
                 .iter()
-                .take(limit)
                 .map(|export| Surface {
                     id: format!("surface:export:{rel}#{export}"),
                     kind: "exported_symbol".to_string(),
@@ -66,13 +65,21 @@ pub fn contract_report(
             }
         });
     let mut hidden = Vec::new();
+    let include_hidden_expand = format!("codemap contract {} --include-hidden", shell_quote(&rel));
+    truncate_with_hidden(
+        &mut exported_contracts,
+        limit,
+        &mut hidden,
+        "exported contract surfaces hidden by limit",
+        &include_hidden_expand,
+    );
     limit_edge_section(
         &mut producers,
         &mut hidden,
         include_hidden,
         limit,
         "contract producer edges hidden by limit",
-        &format!("codemap contract {} --include-hidden", shell_quote(&rel)),
+        &include_hidden_expand,
     );
     limit_edge_section(
         &mut consumers,
@@ -80,7 +87,7 @@ pub fn contract_report(
         include_hidden,
         limit,
         "contract consumer edges hidden by limit",
-        &format!("codemap contract {} --include-hidden", shell_quote(&rel)),
+        &include_hidden_expand,
     );
     limit_edge_section(
         &mut cross_package_consumers,
@@ -88,7 +95,7 @@ pub fn contract_report(
         include_hidden,
         limit,
         "cross-package consumer edges hidden by limit",
-        &format!("codemap contract {} --include-hidden", shell_quote(&rel)),
+        &include_hidden_expand,
     );
     limit_edge_section(
         &mut proof,
@@ -96,7 +103,19 @@ pub fn contract_report(
         include_hidden,
         limit,
         "contract proof edges hidden by limit",
-        &format!("codemap contract {} --include-hidden", shell_quote(&rel)),
+        &include_hidden_expand,
+    );
+    let mut unknowns = project
+        .files
+        .get(&rel)
+        .map(|file| unknowns_for_file(project, file))
+        .unwrap_or_default();
+    truncate_with_hidden(
+        &mut unknowns,
+        limit,
+        &mut hidden,
+        "contract unknowns hidden by limit",
+        &include_hidden_expand,
     );
     ContractReport {
         kind: "contract_report",
@@ -109,11 +128,7 @@ pub fn contract_report(
         consumers,
         cross_package_consumers,
         proof,
-        unknowns: project
-            .files
-            .get(&rel)
-            .map(|file| unknowns_for_file(project, file))
-            .unwrap_or_default(),
+        unknowns,
         hidden,
         expand: vec![
             format!("codemap cone {}", shell_quote(&rel)),

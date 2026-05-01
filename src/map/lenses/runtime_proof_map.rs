@@ -84,6 +84,27 @@ pub fn runtime_report(
         &include_hidden_expand,
     );
     truncate_with_hidden(
+        &mut scripts,
+        limit,
+        &mut hidden,
+        "runtime scripts hidden by limit",
+        &include_hidden_expand,
+    );
+    truncate_with_hidden(
+        &mut workers,
+        limit,
+        &mut hidden,
+        "worker/job surfaces hidden by limit",
+        &include_hidden_expand,
+    );
+    truncate_with_hidden(
+        &mut ci,
+        limit,
+        &mut hidden,
+        "ci surfaces hidden by limit",
+        &include_hidden_expand,
+    );
+    truncate_with_hidden(
         &mut unknowns,
         limit,
         &mut hidden,

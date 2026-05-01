@@ -43,15 +43,26 @@ pub fn siblings_report(
         "sibling groups hidden by limit",
         &include_hidden_expand,
     );
-    let shared_helpers = directory_edges(project, &scope, include_hidden)
+    let mut shared_helpers = directory_edges(project, &scope, include_hidden)
         .into_iter()
         .filter(|edge| edge.edge_type.contains("import"))
-        .take(limit)
         .collect::<Vec<_>>();
-    let shared_contracts = directory_contract_edges_at_depth(project, &scope, include_hidden, 1)
-        .into_iter()
-        .take(limit)
-        .collect::<Vec<_>>();
+    truncate_with_hidden(
+        &mut shared_helpers,
+        limit,
+        &mut hidden,
+        "shared helper edges hidden by limit",
+        &include_hidden_expand,
+    );
+    let mut shared_contracts =
+        directory_contract_edges_at_depth(project, &scope, include_hidden, 1);
+    truncate_with_hidden(
+        &mut shared_contracts,
+        limit,
+        &mut hidden,
+        "shared contract edges hidden by limit",
+        &include_hidden_expand,
+    );
     let proof_map_raw_expand = format!(
         "codemap proof-map {} --raw-sensors --limit <larger-number>",
         shell_quote(&scope)
@@ -159,10 +170,16 @@ pub fn place_report(
             ),
         );
     }
-    let shared_contracts = directory_contract_edges_at_depth(project, &scope, include_hidden, 1)
-        .into_iter()
-        .take(limit)
-        .collect();
+    let include_hidden_expand = format!("codemap place {} --include-hidden", shell_quote(&scope));
+    let mut shared_contracts =
+        directory_contract_edges_at_depth(project, &scope, include_hidden, 1);
+    truncate_with_hidden(
+        &mut shared_contracts,
+        limit,
+        &mut hidden,
+        "shared contract edges hidden by limit",
+        &include_hidden_expand,
+    );
     PlaceReport {
         kind: "place_report",
         schema_version: "2",
