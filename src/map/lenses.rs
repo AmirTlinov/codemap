@@ -1,6 +1,7 @@
 include!("lenses/diff_map.rs");
 include!("lenses/contract.rs");
 include!("lenses/proof_map_helpers.rs");
+include!("lenses/proof_map_current_level.rs");
 include!("lenses/runtime_cli_entrypoints.rs");
 include!("lenses/runtime_scope.rs");
 include!("lenses/runtime_proof_map.rs");

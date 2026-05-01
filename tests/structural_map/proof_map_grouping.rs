@@ -281,6 +281,66 @@ fn proof_map_explicit_root_stays_current_level_until_raw_sensors() {
 }
 
 #[test]
+fn proof_map_root_shows_current_level_test_containers_not_recursive_files() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("tests/root-smoke.test.ts"),
+        "test('root smoke', () => {\n  expect(true).toBe(true);\n});\n",
+    );
+    write(&repo.path().join("tests/README.md"), "# test notes\n");
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "root proof container"]);
+
+    let proof_map = run_json(
+        repo.path(),
+        cache.path(),
+        &["proof-map", ".", "--format", "json"],
+    );
+    assert_schema("schemas/proof-map.schema.json", &proof_map);
+    assert!(
+        proof_map["direct"]
+            .as_array()
+            .expect("direct proof")
+            .iter()
+            .any(|proof| proof["path"] == "tests/"
+                && proof["evidence"] == "current_level_proof_container"
+                && proof["reason"]
+                    .as_str()
+                    .is_some_and(|reason| reason.contains("test container"))),
+        "root proof-map should show current-level test containers without listing every test file: {proof_map:#}"
+    );
+    assert!(
+        proof_map["direct"]
+            .as_array()
+            .expect("direct proof")
+            .iter()
+            .filter_map(|proof| proof["path"].as_str())
+            .all(|path| path != "tests/root-smoke.test.ts" && !path.ends_with(".md")),
+        "root proof-map should keep recursive test files and markdown notes hidden by default: {proof_map:#}"
+    );
+    assert!(
+        proof_map["commands"]
+            .as_array()
+            .expect("commands")
+            .iter()
+            .any(|proof| proof["path"] == "tests/"
+                && proof["command"]
+                    .as_str()
+                    .is_some_and(|command| command.contains("test"))),
+        "current-level proof container should still feed the command map: {proof_map:#}"
+    );
+    assert!(
+        proof_map["e2e"]
+            .as_array()
+            .expect("e2e proof")
+            .iter()
+            .filter_map(|proof| proof["path"].as_str())
+            .all(|path| path != "packages/"),
+        "root proof-map must not collapse nested package tests into a fake packages/ proof container: {proof_map:#}"
+    );
+}
+
+#[test]
 fn proof_map_default_matches_changed_selector() {
     let (repo, cache) = fixture();
     write(

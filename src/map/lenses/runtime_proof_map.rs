@@ -200,6 +200,10 @@ pub fn proof_map_report(
             expand: expand_with_concrete_limit(&expand_raw_sensors, seeds.len() + hidden_seed_count),
         });
     }
+    let (current_direct, current_e2e) =
+        proof_map_current_level_containers(project, scope.as_deref(), raw_sensors);
+    direct.extend(current_direct);
+    e2e.extend(current_e2e);
     for seed in &seeds {
         if let Some(file) = project.files.get(seed) {
             unknowns.extend(unknowns_for_file(project, file));
