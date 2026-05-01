@@ -46,6 +46,7 @@ At the repository root:
 
 ```bash
 codemap ls .
+codemap graph --lens causal
 ```
 
 This returns a bounded top-level map: domains, packages, scripts, test surfaces, and cross-scope edges. It does not print the whole project galaxy.
@@ -58,7 +59,7 @@ codemap ls packages/replay/src/session.ts
 codemap cone packages/replay/src/session.ts --depth 1
 ```
 
-Use additional lenses when the intent needs a different map spectrum:
+Run additional map views when the intent needs a different spectrum:
 
 ```bash
 codemap contract packages/replay/src/types.ts
@@ -125,10 +126,11 @@ One-time global instruction:
 For coding tasks, if `codemap` is available in PATH, begin with a bounded structural map:
 
 `codemap ls .`
+`codemap graph --lens causal`
 `codemap ls <scope-or-file>`
 `codemap cone <scope-or-file> --depth 1`
 
-Use `contract`, `runtime`, `flow`, `siblings`, `place`, or `delete` only when that lens matches the work. They are deterministic map views, not recommendations.
+Run `codemap contract`, `codemap runtime`, `codemap flow`, `codemap siblings`, `codemap place`, or `codemap delete` only when that view matches the code you are about to touch. They are deterministic map views, not recommendations.
 
 After edits:
 
