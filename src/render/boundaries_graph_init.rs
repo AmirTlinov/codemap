@@ -95,11 +95,11 @@ pub fn init_suggestion(path: Option<&str>) {
 }
 
 pub fn agents_bootloader() -> &'static str {
-    "# Agent Bootstrap\n\nFor coding tasks in this repository, map the relevant code before broad manual scanning:\n\n```bash\ncodemap ls .\ncodemap ls <scope-or-file>\ncodemap cone <scope-or-file> --depth 1\n```\n\nAfter edits:\n\n```bash\ncodemap impact --changed\ncodemap proof --changed\n```\n\nUse `codemap cone <anchor> --depth 2` only when the first cone is structurally empty, crosses a public/package/schema boundary, or the proof surface is missing.\n"
+    "# Agent Bootstrap\n\nFor coding tasks in this repository, map the current level before broad manual scanning:\n\n```bash\ncodemap ls .\ncodemap graph --lens causal\ncodemap ls <scope-or-file>\ncodemap cone <scope-or-file> --depth 1\n```\n\nRun `codemap contract`, `codemap runtime`, `codemap flow`, `codemap siblings`, `codemap place`, or `codemap delete` only when that view matches the code you are about to touch.\n\nAfter edits:\n\n```bash\ncodemap diff-map --changed\ncodemap impact --changed\ncodemap proof-map --changed\ncodemap proof --changed\n```\n\nRead code lines after choosing anchors from the map. Expand with `codemap cone <anchor> --depth 2` only when the first cone is structurally empty, crosses a public/package/schema boundary, or the proof surface is missing.\n"
 }
 
 pub fn global_instruction() -> &'static str {
-    "For coding tasks, if `codemap` is available in PATH, begin with a bounded structural map:\n\n```bash\ncodemap ls .\ncodemap ls <scope-or-file>\ncodemap cone <scope-or-file> --depth 1\n```\n\nAfter edits:\n\n```bash\ncodemap impact --changed\ncodemap proof --changed\n```\n\nRead code lines after choosing anchors from the map. Widen with `codemap cone <anchor> --depth 2` only when structural edges, public/package/schema boundaries, or proof surfaces require it.\n"
+    "For coding tasks, if `codemap` is available in PATH, begin with a bounded structural map:\n\n```bash\ncodemap ls .\ncodemap graph --lens causal\ncodemap ls <scope-or-file>\ncodemap cone <scope-or-file> --depth 1\n```\n\nRun `codemap contract`, `codemap runtime`, `codemap flow`, `codemap siblings`, `codemap place`, or `codemap delete` only when that view matches the code you are about to touch. These are deterministic map views, not recommendations.\n\nAfter edits:\n\n```bash\ncodemap diff-map --changed\ncodemap impact --changed\ncodemap proof-map --changed\ncodemap proof --changed\n```\n\nRead code lines after choosing anchors from the map. Expand with `codemap cone <anchor> --depth 2` only when structural edges, public/package/schema boundaries, or proof surfaces require it.\n"
 }
 
 pub fn suggested_ctx_yml_for(path: Option<&str>) -> String {

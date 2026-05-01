@@ -14,6 +14,60 @@ fn help_exposes_only_map_first_commands() {
     }
 }
 
+#[test]
+fn bootstrap_instruction_teaches_map_lenses_not_removed_router_flow() {
+    let output = codemap()
+        .args(["bootstrap", "--global-instruction"])
+        .output()
+        .expect("bootstrap should run");
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("bootstrap utf8");
+    assert_map_bootstrap_text(&stdout);
+
+    let (repo, cache) = fixture();
+    let output = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["init", "--agents"])
+        .output()
+        .expect("init --agents should run");
+    assert!(
+        output.status.success(),
+        "init --agents should write the tiny bootloader: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let agents = fs::read_to_string(repo.path().join("AGENTS.md")).expect("bootloader");
+    assert_map_bootstrap_text(&agents);
+}
+
+fn assert_map_bootstrap_text(text: &str) {
+    for expected in [
+        "codemap ls .",
+        "codemap graph --lens causal",
+        "codemap contract",
+        "codemap runtime",
+        "codemap diff-map --changed",
+        "codemap proof-map --changed",
+    ] {
+        assert!(
+            text.contains(expected),
+            "bootstrap should teach current map workflow command `{expected}`: {text}"
+        );
+    }
+    for forbidden in [
+        "codemap start",
+        "codemap verify",
+        "read_first",
+        "ranking engine",
+        "when that lens matches",
+    ] {
+        assert!(
+            !text.contains(forbidden),
+            "bootstrap must not revive removed or ambiguous wording `{forbidden}`: {text}"
+        );
+    }
+}
+
 
 #[test]
 fn root_ls_is_a_bounded_domain_and_package_map() {
