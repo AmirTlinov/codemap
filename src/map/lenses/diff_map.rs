@@ -24,6 +24,8 @@ pub fn diff_map_report(
     let mut removed_exports = Vec::new();
     let mut new_unknowns = Vec::new();
     let mut hidden = Vec::new();
+    let selector = diff_map_selector(&changed, &mode);
+    let diff_expand = format!("codemap diff-map {selector} --limit <larger-number>");
     for rel in changed.iter().take(limit) {
         if let Some(file) = project.files.get(rel) {
             changed_summaries.push(file_summary(project, file, false, 12));
@@ -92,21 +94,21 @@ pub fn diff_map_report(
         limit,
         &mut hidden,
         "added structural edges hidden by limit",
-        "codemap diff-map --changed --limit <larger-number>",
+        &diff_expand,
     );
     truncate_with_hidden(
         &mut removed_edges,
         limit,
         &mut hidden,
         "removed structural edges hidden by limit",
-        "codemap diff-map --changed --limit <larger-number>",
+        &diff_expand,
     );
     truncate_with_hidden(
         &mut new_unknowns,
         limit,
         &mut hidden,
         "new unknowns hidden by limit",
-        "codemap diff-map --changed --limit <larger-number>",
+        &diff_expand,
     );
     DiffMapReport {
         kind: "diff_map_report",
@@ -120,8 +122,28 @@ pub fn diff_map_report(
         new_unknowns,
         hidden,
         expand: vec![
-            "codemap impact --changed".to_string(),
-            "codemap proof-map --changed".to_string(),
+            format!("codemap impact {selector}"),
+            format!("codemap proof-map {selector}"),
         ],
     }
+}
+
+fn diff_map_selector(changed: &[String], mode: &DiffMapMode) -> String {
+    match mode {
+        DiffMapMode::Staged => "--staged".to_string(),
+        DiffMapMode::Since(since) => format!("--since {}", shell_quote(since)),
+        DiffMapMode::WorkingTree => changed_snapshot_selector(changed),
+    }
+}
+
+fn changed_snapshot_selector(changed: &[String]) -> String {
+    if changed.is_empty() {
+        return "--changed".to_string();
+    }
+    let files = changed
+        .iter()
+        .map(|file| shell_quote(file))
+        .collect::<Vec<_>>()
+        .join(",");
+    format!("--files {files}")
 }

@@ -221,7 +221,7 @@ fn diff_map_uses_selected_git_delta_mode() {
     let (repo, cache) = fixture();
     write(
         &repo.path().join("packages/replay/src/staged-delta.ts"),
-        "import { Timeline } from './timeline';\n\nexport const stagedDelta = new Timeline();\n",
+        "import { Timeline } from './timeline';\nimport type { FrameDto } from './types';\n\nexport const stagedDelta: FrameDto = { frame: new Timeline().frameAt(1) };\n",
     );
     git(repo.path(), &["add", "packages/replay/src/staged-delta.ts"]);
 
@@ -237,12 +237,28 @@ fn diff_map_uses_selected_git_delta_mode() {
                 && edge["locations"][0]["kind"] == "diff_added_line:1"),
         "diff-map --staged must read the staged delta, not the unstaged working tree: {staged:#}"
     );
+    assert!(
+        staged["expand"]
+            .as_array()
+            .expect("staged expand")
+            .iter()
+            .any(|expand| expand == "codemap impact --staged"),
+        "diff-map --staged next impact lens should preserve staged selector: {staged:#}"
+    );
 
     git(repo.path(), &["commit", "-qm", "add staged delta fixture"]);
     let since = run_json(
         repo.path(),
         cache.path(),
-        &["diff-map", "--since", "HEAD~1", "--format", "json"],
+        &[
+            "diff-map",
+            "--since",
+            "HEAD~1",
+            "--limit",
+            "1",
+            "--format",
+            "json",
+        ],
     );
     assert_schema("schemas/diff-map.schema.json", &since);
     assert!(
@@ -254,6 +270,23 @@ fn diff_map_uses_selected_git_delta_mode() {
                 && edge["type"] == "added_structural_line"
                 && edge["locations"][0]["kind"] == "diff_added_line:1"),
         "diff-map --since must read the selected base delta, not the ambient working tree: {since:#}"
+    );
+    assert!(
+        since["expand"]
+            .as_array()
+            .expect("since expand")
+            .iter()
+            .any(|expand| expand == "codemap impact --since 'HEAD~1'"),
+        "diff-map --since next impact lens should preserve since selector: {since:#}"
+    );
+    assert!(
+        since["hidden"]
+            .as_array()
+            .expect("since hidden")
+            .iter()
+            .any(|group| group["reason"] == "added structural edges hidden by limit"
+                && group["expand"] == "codemap diff-map --since 'HEAD~1' --limit 3"),
+        "diff-map --since hidden expand should preserve selector and concrete limit: {since:#}"
     );
 }
 
