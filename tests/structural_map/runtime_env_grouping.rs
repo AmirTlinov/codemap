@@ -110,3 +110,31 @@ fn runtime_exact_file_scope_exposes_env_and_routes() {
         "runtime exact-file scope should expose route facts from that file: {runtime:#}"
     );
 }
+
+#[test]
+fn runtime_reports_hidden_proof_edges_when_limited() {
+    let (repo, cache) = fixture();
+
+    let runtime = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "runtime",
+            "packages/replay/src",
+            "--limit",
+            "1",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/runtime.schema.json", &runtime);
+    assert!(
+        runtime["hidden"]
+            .as_array()
+            .expect("hidden")
+            .iter()
+            .any(|group| group["reason"] == "runtime proof edges hidden by limit"
+                && group["expand"] == "codemap runtime packages/replay/src --include-hidden"),
+        "runtime proof truncation must be visible and expandable, not silent: {runtime:#}"
+    );
+}

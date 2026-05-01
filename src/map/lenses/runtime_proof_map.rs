@@ -90,9 +90,14 @@ pub fn runtime_report(
         "runtime unknowns hidden by limit",
         &include_hidden_expand,
     );
-    if !include_hidden {
-        proof.truncate(limit);
-    }
+    limit_edge_section(
+        &mut proof,
+        &mut hidden,
+        include_hidden,
+        limit,
+        "runtime proof edges hidden by limit",
+        &include_hidden_expand,
+    );
     RuntimeReport {
         kind: "runtime_report",
         schema_version: "1",
@@ -173,8 +178,8 @@ pub fn proof_map_report(
         }
     }
     let mut hidden = Vec::new();
-    let expand_larger_limit = proof_map_larger_limit_expand(&scope, &changed);
-    let expand_raw_sensors = proof_map_raw_sensors_expand(&scope, &changed);
+    let expand_larger_limit = proof_map_expand(&scope, &changed, false);
+    let expand_raw_sensors = proof_map_expand(&scope, &changed, true);
     if !raw_sensors {
         group_duplicate_proof_surfaces(
             &mut direct,
@@ -468,14 +473,6 @@ fn group_duplicate_unknowns(
         });
     }
     *values = out;
-}
-
-fn proof_map_larger_limit_expand(scope: &Option<String>, changed: &[String]) -> String {
-    proof_map_expand(scope, changed, false)
-}
-
-fn proof_map_raw_sensors_expand(scope: &Option<String>, changed: &[String]) -> String {
-    proof_map_expand(scope, changed, true)
 }
 
 fn proof_map_expand(scope: &Option<String>, changed: &[String], raw_sensors: bool) -> String {
