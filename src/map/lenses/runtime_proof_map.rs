@@ -14,7 +14,7 @@ pub fn runtime_report(
     let mut ci = Vec::new();
     let mut proof = Vec::new();
     let mut unknowns = Vec::new();
-    for file in files_under_directory(project, &scope) {
+    for file in runtime_scope_files(project, &scope) {
         if runtime_entrypoint_kind(file).is_some() {
             entrypoints.push(surface_from_path(
                 runtime_entrypoint_kind(file).unwrap_or("entrypoint"),
@@ -281,6 +281,14 @@ pub fn proof_map_report(
         unknowns,
         hidden,
         expand: vec!["codemap proof --changed".to_string()],
+    }
+}
+
+fn runtime_scope_files<'a>(project: &'a Project, scope: &str) -> Vec<&'a FileInfo> {
+    if let Some(file) = project.files.get(scope) {
+        vec![file]
+    } else {
+        files_under_directory(project, scope)
     }
 }
 

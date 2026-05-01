@@ -69,3 +69,44 @@ fn runtime_hidden_expands_use_the_actual_scope() {
         "runtime hidden expand should be an executable command for the current scope, not a placeholder: {runtime:#}"
     );
 }
+
+#[test]
+fn runtime_exact_file_scope_exposes_env_and_routes() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("packages/app/src/runtime-file.ts"),
+        "const token = process.env.RUNTIME_TOKEN;\nrouter.get('/runtime-file', runtimeFileHandler);\nexport function runtimeFileHandler() {\n  return token;\n}\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "runtime exact file scope fixture"]);
+
+    let runtime = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "runtime",
+            "packages/app/src/runtime-file.ts",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/runtime.schema.json", &runtime);
+    assert!(
+        runtime["env"]
+            .as_array()
+            .expect("env")
+            .iter()
+            .any(|surface| surface["name"] == "RUNTIME_TOKEN"
+                && surface["used_by"] == "packages/app/src/runtime-file.ts"),
+        "runtime exact-file scope should inspect that file instead of treating it as an empty directory: {runtime:#}"
+    );
+    assert!(
+        runtime["routes"]
+            .as_array()
+            .expect("routes")
+            .iter()
+            .any(|route| route["path"] == "/runtime-file"
+                && route["file"] == "packages/app/src/runtime-file.ts"),
+        "runtime exact-file scope should expose route facts from that file: {runtime:#}"
+    );
+}
