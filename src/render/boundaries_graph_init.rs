@@ -46,6 +46,21 @@ pub fn graph_markdown(graph: &GraphLens) {
             .collect();
         println!("{}", table(&["From", "Type", "To"], rows));
     }
+    if !graph.hidden.is_empty() {
+        println!("\n## Hidden\n");
+        let rows = graph
+            .hidden
+            .iter()
+            .map(|hidden| {
+                vec![
+                    hidden.reason.clone(),
+                    hidden.count.to_string(),
+                    code(&hidden.expand),
+                ]
+            })
+            .collect();
+        println!("{}", table(&["Reason", "Count", "Expand"], rows));
+    }
 }
 
 pub fn graph_mermaid(graph: &GraphLens) {
@@ -53,6 +68,14 @@ pub fn graph_mermaid(graph: &GraphLens) {
     if graph.nodes.is_empty() && graph.edges.is_empty() {
         println!("  Empty[\"No graph data for lens\"]");
         return;
+    }
+    for hidden in &graph.hidden {
+        println!(
+            "  %% hidden: {} ({}); expand: {}",
+            escape_mermaid(&hidden.reason),
+            hidden.count,
+            escape_mermaid(&hidden.expand)
+        );
     }
     for node in &graph.nodes {
         println!("  {}[\"{}\"]", mermaid_id(node), escape_mermaid(node));

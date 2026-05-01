@@ -1,10 +1,10 @@
 use std::collections::BTreeSet;
 
-use crate::model::{Domain, GraphEdge, GraphLens, Project};
+use crate::model::{Domain, GraphEdge, GraphLens, HiddenGroup, Project};
 
 use super::{
     boundary_findings, impact_report, impacted_domains, is_support_artifact_path, proof_report,
-    unique,
+    shell_quote, unique,
 };
 
 pub fn graph_lens(
@@ -17,21 +17,32 @@ pub fn graph_lens(
     let limit = limit.max(1);
     let lens_key = lens.to_ascii_lowercase();
     let explicit_seed = path.and_then(|path| file_seed_for_path(project, path));
+    let changed_selected = changed.is_some();
     let graph_changed = changed.or(explicit_seed.as_ref().map(std::slice::from_ref));
-    let (nodes, edges) = match lens_key.as_str() {
-        "boundary" | "boundaries" => boundary_graph(project, graph_changed, limit),
-        "impact" => impact_graph(project, graph_changed.unwrap_or(&[]), limit),
-        "proof" => proof_graph(project, path, changed, limit),
-        _ => causal_graph(project, path, limit),
+    let (nodes, edges, hidden) = match lens_key.as_str() {
+        "boundary" | "boundaries" => {
+            boundary_graph(project, graph_changed, limit, lens, path, changed_selected)
+        }
+        "impact" => impact_graph(
+            project,
+            graph_changed.unwrap_or(&[]),
+            limit,
+            lens,
+            path,
+            changed_selected,
+        ),
+        "proof" => proof_graph(project, path, changed, limit, lens, changed_selected),
+        _ => causal_graph(project, path, limit, lens),
     };
     let domain = graph_output_domain(project, path, &nodes);
     GraphLens {
         kind: "graph_lens",
-        schema_version: "2",
+        schema_version: "3",
         domain: (&domain).into(),
         lens: lens.to_string(),
         nodes,
         edges,
+        hidden,
     }
 }
 
@@ -81,15 +92,20 @@ fn causal_graph(
     project: &Project,
     path: Option<&str>,
     limit: usize,
-) -> (Vec<String>, Vec<GraphEdge>) {
+    lens: &str,
+) -> (Vec<String>, Vec<GraphEdge>, Vec<HiddenGroup>) {
     let mut nodes = Vec::new();
     if let Some(seed) = path.and_then(|path| file_seed_for_path(project, path)) {
-        push_unique_nodes(&mut nodes, [seed.clone()], limit);
+        push_unique_nodes(&mut nodes, [seed.clone()], usize::MAX);
         if let Some(file) = project.files.get(&seed) {
-            push_unique_nodes(&mut nodes, file.resolved_imports.iter().cloned(), limit);
+            push_unique_nodes(
+                &mut nodes,
+                file.resolved_imports.iter().cloned(),
+                usize::MAX,
+            );
         }
         if let Some(importers) = project.reverse_imports.get(&seed) {
-            push_unique_nodes(&mut nodes, importers.iter().cloned(), limit);
+            push_unique_nodes(&mut nodes, importers.iter().cloned(), usize::MAX);
         }
     } else if let Some(path) = path {
         let prefix = directory_prefix(path);
@@ -99,9 +115,8 @@ fn causal_graph(
                 .files
                 .keys()
                 .filter(|rel| prefix_matches(rel, prefix.as_deref()))
-                .take(limit)
                 .cloned(),
-            limit,
+            usize::MAX,
         );
     } else {
         push_unique_nodes(
@@ -115,22 +130,26 @@ fn causal_graph(
                 })
                 .map(|package| package.manifest.clone())
                 .chain(project.domains.iter().map(|domain| domain.path.clone())),
-            limit,
+            usize::MAX,
         );
     }
+    let (nodes, hidden) = limit_graph_nodes(nodes, limit, lens, path, false);
     let edges = structural_edges_for_nodes(project, &nodes);
-    (nodes, edges)
+    (nodes, edges, hidden)
 }
 
 fn impact_graph(
     project: &Project,
     changed: &[String],
     limit: usize,
-) -> (Vec<String>, Vec<GraphEdge>) {
+    lens: &str,
+    path: Option<&str>,
+    changed_selected: bool,
+) -> (Vec<String>, Vec<GraphEdge>, Vec<HiddenGroup>) {
     if changed.is_empty() {
-        return (Vec::new(), Vec::new());
+        return (Vec::new(), Vec::new(), Vec::new());
     }
-    let report = impact_report(project, changed.to_vec(), 2, limit);
+    let report = impact_report(project, changed.to_vec(), 2, usize::MAX);
     let nodes = unique(
         report
             .changed
@@ -145,12 +164,10 @@ fn impact_graph(
                     .flat_map(|edge| [edge.from.clone(), edge.to.clone()])
             }))
             .collect(),
-    )
-    .into_iter()
-    .take(limit)
-    .collect::<Vec<_>>();
+    );
+    let (nodes, hidden) = limit_graph_nodes(nodes, limit, lens, path, changed_selected);
     let edges = structural_edges_for_nodes(project, &nodes);
-    (nodes, edges)
+    (nodes, edges, hidden)
 }
 
 fn proof_graph(
@@ -158,18 +175,20 @@ fn proof_graph(
     path: Option<&str>,
     changed: Option<&[String]>,
     limit: usize,
-) -> (Vec<String>, Vec<GraphEdge>) {
+    lens: &str,
+    changed_selected: bool,
+) -> (Vec<String>, Vec<GraphEdge>, Vec<HiddenGroup>) {
     if changed.is_none() {
         if let Some(path) = path {
-            return proof_graph_for_path(project, path, limit);
+            return proof_graph_for_path(project, path, limit, lens);
         }
-        return (Vec::new(), Vec::new());
+        return (Vec::new(), Vec::new(), Vec::new());
     }
     let changed = changed.unwrap_or(&[]);
     if changed.is_empty() {
-        return (Vec::new(), Vec::new());
+        return (Vec::new(), Vec::new(), Vec::new());
     }
-    let report = impact_report(project, changed.to_vec(), 1, limit);
+    let report = impact_report(project, changed.to_vec(), 1, usize::MAX);
     let nodes = unique(
         report
             .clusters
@@ -181,10 +200,8 @@ fn proof_graph(
                     .flat_map(|edge| [edge.from.clone(), edge.to.clone()])
             })
             .collect(),
-    )
-    .into_iter()
-    .take(limit)
-    .collect::<Vec<_>>();
+    );
+    let (nodes, hidden) = limit_graph_nodes(nodes, limit, lens, path, changed_selected);
     let mut edges = structural_edges_for_nodes(project, &nodes);
     let mut seen = graph_edge_set(&edges);
     let node_set = nodes.iter().cloned().collect::<BTreeSet<_>>();
@@ -195,14 +212,15 @@ fn proof_graph(
             }
         }
     }
-    (nodes, edges)
+    (nodes, edges, hidden)
 }
 
 fn proof_graph_for_path(
     project: &Project,
     path: &str,
     limit: usize,
-) -> (Vec<String>, Vec<GraphEdge>) {
+    lens: &str,
+) -> (Vec<String>, Vec<GraphEdge>, Vec<HiddenGroup>) {
     let target = crate::repo::normalize_rel_path(path);
     let report = proof_report(
         project,
@@ -210,16 +228,14 @@ fn proof_graph_for_path(
         Vec::new(),
         target.clone(),
         1,
-        limit,
+        usize::MAX,
     );
     let nodes = unique(
         std::iter::once(target.clone())
             .chain(report.proofs.iter().filter_map(|proof| proof.path.clone()))
             .collect(),
-    )
-    .into_iter()
-    .take(limit)
-    .collect::<Vec<_>>();
+    );
+    let (nodes, hidden) = limit_graph_nodes(nodes, limit, lens, Some(path), false);
     let mut edges = structural_edges_for_nodes(project, &nodes);
     let mut seen = graph_edge_set(&edges);
     let node_set = nodes.iter().cloned().collect::<BTreeSet<_>>();
@@ -231,14 +247,17 @@ fn proof_graph_for_path(
             push_graph_edge(&mut edges, &mut seen, path, target.clone(), "tests");
         }
     }
-    (nodes, edges)
+    (nodes, edges, hidden)
 }
 
 fn boundary_graph(
     project: &Project,
     changed: Option<&[String]>,
     limit: usize,
-) -> (Vec<String>, Vec<GraphEdge>) {
+    lens: &str,
+    path: Option<&str>,
+    changed_selected: bool,
+) -> (Vec<String>, Vec<GraphEdge>, Vec<HiddenGroup>) {
     let changed_set = changed.map(|files| files.iter().cloned().collect::<BTreeSet<_>>());
     let findings = boundary_findings(project, changed_set.as_ref());
     let nodes = unique(
@@ -247,10 +266,8 @@ fn boundary_graph(
             .flat_map(|finding| [finding.from.clone(), finding.to.clone()])
             .filter(|value| !value.is_empty())
             .collect(),
-    )
-    .into_iter()
-    .take(limit)
-    .collect::<Vec<_>>();
+    );
+    let (nodes, hidden) = limit_graph_nodes(nodes, limit, lens, path, changed_selected);
     let node_set = nodes.iter().cloned().collect::<BTreeSet<_>>();
     let mut edges = Vec::new();
     let mut seen = BTreeSet::new();
@@ -270,7 +287,42 @@ fn boundary_graph(
             finding.status,
         );
     }
-    (nodes, edges)
+    (nodes, edges, hidden)
+}
+
+fn limit_graph_nodes(
+    mut nodes: Vec<String>,
+    limit: usize,
+    lens: &str,
+    path: Option<&str>,
+    changed: bool,
+) -> (Vec<String>, Vec<HiddenGroup>) {
+    if nodes.len() <= limit {
+        return (nodes, Vec::new());
+    }
+    let total = nodes.len();
+    nodes.truncate(limit);
+    (
+        nodes,
+        vec![HiddenGroup {
+            reason: "graph nodes hidden by limit".to_string(),
+            count: total - limit,
+            expand: graph_expand_command(lens, path, changed, total),
+        }],
+    )
+}
+
+fn graph_expand_command(lens: &str, path: Option<&str>, changed: bool, limit: usize) -> String {
+    let mut command = format!("codemap graph --lens {}", shell_quote(lens));
+    if let Some(path) = path {
+        command.push_str(" --path ");
+        command.push_str(&shell_quote(path));
+    }
+    if changed {
+        command.push_str(" --changed");
+    }
+    command.push_str(&format!(" --limit {limit}"));
+    command
 }
 
 fn structural_edges_for_nodes(project: &Project, nodes: &[String]) -> Vec<GraphEdge> {

@@ -409,6 +409,7 @@ pub struct GraphLens {
     pub lens: String,
     pub nodes: Vec<String>,
     pub edges: Vec<GraphEdge>,
+    pub hidden: Vec<HiddenGroup>,
 }
 
 #[derive(Debug, Clone, Serialize)]

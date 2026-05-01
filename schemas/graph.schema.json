@@ -4,10 +4,10 @@
   "title": "codemap graph lens",
   "type": "object",
   "additionalProperties": false,
-  "required": ["kind", "schema_version", "domain", "lens", "nodes", "edges"],
+  "required": ["kind", "schema_version", "domain", "lens", "nodes", "edges", "hidden"],
   "properties": {
     "kind": { "const": "graph_lens" },
-    "schema_version": { "const": "2" },
+    "schema_version": { "const": "3" },
     "domain": { "$ref": "#/$defs/domain_ref" },
     "lens": { "type": "string" },
     "nodes": {
@@ -17,6 +17,10 @@
     "edges": {
       "type": "array",
       "items": { "$ref": "#/$defs/graph_edge" }
+    },
+    "hidden": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/hidden_group" }
     }
   },
   "$defs": {
@@ -37,6 +41,16 @@
         "from": { "type": "string" },
         "to": { "type": "string" },
         "type": { "type": "string" }
+      }
+    },
+    "hidden_group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reason", "count", "expand"],
+      "properties": {
+        "reason": { "type": "string" },
+        "count": { "type": "integer", "minimum": 0 },
+        "expand": { "type": "string" }
       }
     }
   }
