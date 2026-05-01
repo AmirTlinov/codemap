@@ -12,20 +12,7 @@ fn framework_routes_for_file(project: &Project, file: &FileInfo) -> Vec<RuntimeR
         return Vec::new();
     };
     let mut routes = Vec::new();
-    let mut in_block_comment = false;
-    let mut in_template_literal = false;
-    let mut in_triple_quote = None;
-    for (index, line) in text.lines().enumerate() {
-        let line = mask_cross_line_runtime_context(
-            line,
-            &mut in_block_comment,
-            &mut in_template_literal,
-            &mut in_triple_quote,
-        );
-        if line_is_comment(&line) {
-            continue;
-        }
-        let line_number = index + 1;
+    for (line_number, line) in runtime_code_lines(&text) {
         if matches!(file.ext.as_str(), "js" | "jsx" | "ts" | "tsx") {
             routes.extend(javascript_route_registrations(
                 &file.rel,
@@ -46,20 +33,7 @@ fn unknowns_for_file(project: &Project, file: &FileInfo) -> Vec<Unknown> {
         return Vec::new();
     };
     let mut out = Vec::new();
-    let mut in_block_comment = false;
-    let mut in_template_literal = false;
-    let mut in_triple_quote = None;
-    for (index, line) in text.lines().enumerate() {
-        let line = mask_cross_line_runtime_context(
-            line,
-            &mut in_block_comment,
-            &mut in_template_literal,
-            &mut in_triple_quote,
-        );
-        if line_is_comment(&line) {
-            continue;
-        }
-        let line_number = index + 1;
+    for (line_number, line) in runtime_code_lines(&text) {
         if dynamic_import_line(&line) {
             out.push(unknown(
                 "dynamic_import",
@@ -169,20 +143,7 @@ fn side_effect_surfaces_for_file(project: &Project, file: &FileInfo) -> Vec<Surf
         return Vec::new();
     };
     let mut out = Vec::new();
-    let mut in_block_comment = false;
-    let mut in_template_literal = false;
-    let mut in_triple_quote = None;
-    for (index, line) in text.lines().enumerate() {
-        let line = mask_cross_line_runtime_context(
-            line,
-            &mut in_block_comment,
-            &mut in_template_literal,
-            &mut in_triple_quote,
-        );
-        if line_is_comment(&line) {
-            continue;
-        }
-        let line_number = index + 1;
+    for (line_number, line) in runtime_code_lines(&text) {
         let Some((kind, evidence)) = side_effect_kind(&line) else {
             continue;
         };

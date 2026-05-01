@@ -54,6 +54,56 @@ fn git_unified_zero_delta(project: &Project, rel: &str, mode: &DiffMapMode) -> L
     delta
 }
 
+fn diff_current_runtime_code(
+    project: &Project,
+    rel: &str,
+    mode: &DiffMapMode,
+) -> BTreeMap<usize, String> {
+    let text = match mode {
+        DiffMapMode::Staged => git_show_file(project, ":", rel),
+        DiffMapMode::WorkingTree | DiffMapMode::Since(_) => {
+            std::fs::read_to_string(project.root.join(rel)).ok()
+        }
+    };
+    text.as_deref()
+        .map(runtime_code_line_lookup)
+        .unwrap_or_default()
+}
+
+fn diff_base_runtime_code(
+    project: &Project,
+    rel: &str,
+    mode: &DiffMapMode,
+) -> BTreeMap<usize, String> {
+    let revision = match mode {
+        DiffMapMode::WorkingTree | DiffMapMode::Staged => "HEAD",
+        DiffMapMode::Since(base) => base.as_str(),
+    };
+    git_show_file(project, revision, rel)
+        .as_deref()
+        .map(runtime_code_line_lookup)
+        .unwrap_or_default()
+}
+
+fn git_show_file(project: &Project, revision: &str, rel: &str) -> Option<String> {
+    let object = if revision == ":" {
+        format!(":{rel}")
+    } else {
+        format!("{revision}:{rel}")
+    };
+    let output = std::process::Command::new("git")
+        .arg("-C")
+        .arg(&project.root)
+        .arg("show")
+        .arg(object)
+        .output()
+        .ok()?;
+    output
+        .status
+        .success()
+        .then(|| String::from_utf8_lossy(&output.stdout).to_string())
+}
+
 fn git_file_is_untracked(project: &Project, rel: &str) -> bool {
     if !project.root.join(rel).is_file() {
         return false;
@@ -110,9 +160,7 @@ fn structural_line_target(line: &str) -> String {
 }
 
 fn unknown_from_added_line(rel: &str, line: usize, text: &str) -> Option<Unknown> {
-    let trimmed = text.trim();
-    if trimmed.contains("import(") && !(trimmed.contains("import(\"") || trimmed.contains("import('"))
-    {
+    if dynamic_import_line(text) {
         return Some(unknown(
             "dynamic_import",
             Some(rel),
@@ -122,7 +170,7 @@ fn unknown_from_added_line(rel: &str, line: usize, text: &str) -> Option<Unknown
             Some(format!("codemap ls {}", shell_quote(rel))),
         ));
     }
-    if trimmed.contains("process.env[") {
+    if dynamic_env_lookup_line(text) {
         return Some(unknown(
             "env_dynamic_lookup",
             Some(rel),
@@ -252,11 +300,8 @@ fn env_surfaces_for_file(project: &Project, file: &FileInfo) -> Vec<EnvSurface> 
         return Vec::new();
     };
     let mut out = Vec::new();
-    for (index, line) in text.lines().enumerate() {
-        if line_is_comment(line) {
-            continue;
-        }
-        for name in static_env_names(line) {
+    for (line_number, line) in runtime_code_lines(&text) {
+        for name in static_env_names(&line) {
             out.push(EnvSurface {
                 name,
                 used_by: file.rel.clone(),
@@ -265,7 +310,7 @@ fn env_surfaces_for_file(project: &Project, file: &FileInfo) -> Vec<EnvSurface> 
                 strength: EvidenceStrength::High,
                 locations: vec![EvidenceLocation::line(
                     &file.rel,
-                    index + 1,
+                    line_number,
                     "env_reference",
                 )],
             });

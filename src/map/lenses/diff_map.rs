@@ -43,8 +43,11 @@ pub fn diff_map_report(
             new_unknowns.push(unknown_unindexed_anchor(rel));
         }
         let delta = git_unified_zero_delta(project, rel, &mode);
+        let added_code = diff_current_runtime_code(project, rel, &mode);
+        let removed_code = diff_base_runtime_code(project, rel, &mode);
         for (line, text) in &delta.added {
-            if line_looks_like_import_or_reexport(text.trim_start()) {
+            let code = added_code.get(line).map(String::as_str).unwrap_or("");
+            if line_looks_like_import_or_reexport(code.trim_start()) {
                 added_edges.push(edge_with_path_location(
                     rel.clone(),
                     structural_line_target(text),
@@ -55,7 +58,7 @@ pub fn diff_map_report(
                     format!("diff_added_line:{line}"),
                 ));
             }
-            if text.trim_start().starts_with("export ") {
+            if code.trim_start().starts_with("export ") {
                 added_exports.push(surface_from_path(
                     "added_export",
                     rel,
@@ -63,12 +66,13 @@ pub fn diff_map_report(
                     EvidenceStrength::Medium,
                 ));
             }
-            if let Some(unknown) = unknown_from_added_line(rel, *line, text) {
+            if let Some(unknown) = unknown_from_added_line(rel, *line, code) {
                 new_unknowns.push(unknown);
             }
         }
         for (line, text) in &delta.removed {
-            if line_looks_like_import_or_reexport(text.trim_start()) {
+            let code = removed_code.get(line).map(String::as_str).unwrap_or("");
+            if line_looks_like_import_or_reexport(code.trim_start()) {
                 removed_edges.push(edge_with_path_location(
                     rel.clone(),
                     structural_line_target(text),
@@ -79,7 +83,7 @@ pub fn diff_map_report(
                     format!("diff_removed_line:{line}"),
                 ));
             }
-            if text.trim_start().starts_with("export ") {
+            if code.trim_start().starts_with("export ") {
                 removed_exports.push(surface_from_path(
                     "removed_export",
                     rel,

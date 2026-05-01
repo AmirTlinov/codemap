@@ -3,8 +3,14 @@ fn extract_symbols(text: &str, ext: &str) -> Vec<SymbolInfo> {
         let cleaned = code_without_comments_or_strings(text, ext);
         return symbols_with_ranges(extract_swift_symbols(&cleaned), &cleaned, ext);
     }
+    if matches!(
+        ext,
+        "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte"
+    ) {
+        let cleaned = code_without_comments_or_strings(text, ext);
+        return symbols_with_ranges(extract_js_symbols(&cleaned), text, ext);
+    }
     let starts = match ext {
-        "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte" => extract_js_symbols(text),
         "rs" => extract_rust_symbols(text),
         "py" => extract_python_symbols(text),
         "go" => extract_go_symbols(text),
@@ -273,4 +279,3 @@ pub(crate) fn extract_local_bindings(text: &str, ext: &str) -> BTreeSet<String> 
     }
     out
 }
-

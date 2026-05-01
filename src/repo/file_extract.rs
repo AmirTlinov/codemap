@@ -19,8 +19,9 @@ fn extract_imports_exports(root: &Path, info: &mut FileInfo) {
         "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte" => {
             info.imports.extend(extract_js_import_specs(&text));
             info.import_bindings = extract_js_import_bindings(&text);
+            let export_text = code_without_comments_or_strings(&text, &info.ext);
             let export_re = js_export_re();
-            for cap in export_re.captures_iter(&text) {
+            for cap in export_re.captures_iter(&export_text) {
                 if let Some(m) = cap.get(1) {
                     info.exports.insert(m.as_str().trim().to_string());
                 }

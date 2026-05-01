@@ -206,6 +206,30 @@ fn mask_cross_line_runtime_context(
     out
 }
 
+fn runtime_code_lines(text: &str) -> Vec<(usize, String)> {
+    let mut out = Vec::new();
+    let mut in_block_comment = false;
+    let mut in_template_literal = false;
+    let mut in_triple_quote = None;
+    for (index, line) in text.lines().enumerate() {
+        let line = mask_cross_line_runtime_context(
+            line,
+            &mut in_block_comment,
+            &mut in_template_literal,
+            &mut in_triple_quote,
+        );
+        if line_is_comment(&line) || line.trim().is_empty() {
+            continue;
+        }
+        out.push((index + 1, line));
+    }
+    out
+}
+
+fn runtime_code_line_lookup(text: &str) -> BTreeMap<usize, String> {
+    runtime_code_lines(text).into_iter().collect()
+}
+
 fn template_literal_closes_on_line(chars: &[char], mut index: usize) -> bool {
     let mut escaped = false;
     while index < chars.len() {
