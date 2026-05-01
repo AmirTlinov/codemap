@@ -130,6 +130,8 @@ fn should_scan_file(path: &Path, size: u64) -> bool {
             | "taskfile"
             | "taskfile.yml"
             | "taskfile.yaml"
+            | ".env.example"
+            | ".env.sample"
             | ".ctx.yml"
             | ".ctx.yaml"
             | ".ctx.json"
@@ -156,4 +158,3 @@ fn language_for(path: &Path) -> String {
     }
     .to_string()
 }
-

@@ -216,43 +216,56 @@ fn static_route_methods() -> &'static [&'static str] {
 }
 
 fn dynamic_import_line(line: &str) -> bool {
-    let Some((_, tail)) = line.split_once("import") else {
+    let code = code_shape_without_literal_content(line);
+    let Some(start) = code.find("import") else {
         return false;
     };
-    let tail = tail.trim_start();
-    (tail.starts_with('(') || tail.starts_with(" (")) && quoted_literal_at(tail.trim_start_matches('(')).is_none()
+    let tail = &line[start + "import".len()..];
+    let code_tail = code[start + "import".len()..].trim_start();
+    code_tail.starts_with('(') && quoted_literal_at(tail.trim_start().trim_start_matches('(')).is_none()
 }
 
 fn dynamic_require_line(line: &str) -> bool {
-    let Some((_, tail)) = line.split_once("require") else {
+    let code = code_shape_without_literal_content(line);
+    let Some(start) = code.find("require") else {
         return false;
     };
-    let tail = tail.trim_start();
-    tail.starts_with('(') && quoted_literal_at(tail.trim_start_matches('(')).is_none()
+    let tail = &line[start + "require".len()..];
+    let code_tail = code[start + "require".len()..].trim_start();
+    code_tail.starts_with('(') && quoted_literal_at(tail.trim_start().trim_start_matches('(')).is_none()
 }
 
 fn dynamic_env_lookup_line(line: &str) -> bool {
-    line.contains("process.env[")
-        || line.contains("import.meta.env[")
-        || dynamic_call_arg(line, "Deno.env.get(")
-        || dynamic_call_arg(line, "std::env::var(")
-        || dynamic_call_arg(line, "env::var(")
-        || dynamic_call_arg(line, "os.getenv(")
-        || line.contains("os.environ[") && !line.contains("os.environ[\"") && !line.contains("os.environ['")
+    let code = code_shape_without_literal_content(line);
+    code.contains("process.env[")
+        || code.contains("import.meta.env[")
+        || dynamic_call_arg(line, &code, "Deno.env.get(")
+        || dynamic_call_arg(line, &code, "std::env::var(")
+        || dynamic_call_arg(line, &code, "env::var(")
+        || dynamic_call_arg(line, &code, "os.getenv(")
+        || dynamic_os_environ_lookup(line, &code)
 }
 
-fn dynamic_call_arg(line: &str, call: &str) -> bool {
-    let Some((_, tail)) = line.split_once(call) else {
+fn dynamic_call_arg(line: &str, code: &str, call: &str) -> bool {
+    let Some(start) = code.find(call) else {
         return false;
     };
-    quoted_literal_at(tail).is_none()
+    quoted_literal_at(&line[start + call.len()..]).is_none()
+}
+
+fn dynamic_os_environ_lookup(line: &str, code: &str) -> bool {
+    let Some(start) = code.find("os.environ[") else {
+        return false;
+    };
+    quoted_literal_at(&line[start + "os.environ[".len()..]).is_none()
 }
 
 fn route_string_concat_line(line: &str) -> bool {
+    let code = code_shape_without_literal_content(line);
     static_route_methods().iter().any(|method| {
         let call = format!(".{method}(");
-        line.find(&call).is_some_and(|start| {
-            if !route_like_receiver(&line[..start]) {
+        code.find(&call).is_some_and(|start| {
+            if !route_like_receiver(&code[..start]) {
                 return false;
             }
             let arg = line[start + call.len()..].trim_start();
@@ -262,32 +275,156 @@ fn route_string_concat_line(line: &str) -> bool {
 }
 
 fn raw_sql_literal_line(line: &str) -> bool {
-    let upper = line.to_ascii_uppercase();
-    ["SELECT ", "INSERT INTO ", "UPDATE ", "DELETE FROM "]
-        .iter()
-        .any(|needle| upper.contains(needle))
-        && (line.contains('"') || line.contains('\'') || line.contains('`'))
+    raw_sql_literal_kind(line).is_some()
 }
 
 fn side_effect_kind(line: &str) -> Option<(&'static str, &'static str)> {
-    if line.contains("fetch(") || line.contains("axios.") {
+    let code = code_shape_without_literal_content(line);
+    if code.contains("fetch(") || code.contains("axios.") {
         Some(("network_call", "static_network_call"))
-    } else if line.contains("localStorage.setItem")
-        || line.contains("sessionStorage.setItem")
-        || line.contains("fs.writeFile")
-        || line.contains("std::fs::write")
-        || line.contains("os.WriteFile")
+    } else if code.contains("localStorage.setItem")
+        || code.contains("sessionStorage.setItem")
+        || code.contains("fs.writeFile")
+        || code.contains("std::fs::write")
+        || code.contains("os.WriteFile")
     {
         Some(("storage_write", "static_storage_write"))
-    } else if raw_sql_literal_line(line)
-        && (line.to_ascii_uppercase().contains("INSERT INTO ")
-            || line.to_ascii_uppercase().contains("UPDATE ")
-            || line.to_ascii_uppercase().contains("DELETE FROM "))
+    } else if matches!(
+        raw_sql_literal_kind(line),
+        Some("INSERT INTO " | "UPDATE " | "DELETE FROM ")
+    )
     {
         Some(("database_write", "raw_sql_mutation"))
     } else {
         None
     }
+}
+
+fn raw_sql_literal_kind(line: &str) -> Option<&'static str> {
+    if !has_raw_sql_execution_context(line) {
+        return None;
+    }
+    let literals = quoted_literal_contents(line)
+        .into_iter()
+        .map(|literal| literal.to_ascii_uppercase())
+        .collect::<Vec<_>>();
+    ["SELECT ", "INSERT INTO ", "UPDATE ", "DELETE FROM "]
+        .into_iter()
+        .find(|needle| literals.iter().any(|literal| literal.contains(needle)))
+}
+
+fn has_raw_sql_execution_context(line: &str) -> bool {
+    let code = code_shape_without_literal_content(line).to_ascii_lowercase();
+    [
+        ".query(",
+        "query(",
+        ".execute(",
+        "execute(",
+        ".exec(",
+        "exec(",
+        "sqlx::query",
+        "sql!",
+        "$queryraw",
+        "rawquery",
+        "prepare(",
+    ]
+    .iter()
+    .any(|needle| code.contains(needle))
+}
+
+fn quoted_literal_contents(line: &str) -> Vec<String> {
+    let chars = line.chars().collect::<Vec<_>>();
+    let mut out = Vec::new();
+    let mut index = 0;
+    while index < chars.len() {
+        let quote = chars[index];
+        if !matches!(quote, '"' | '\'' | '`') {
+            index += 1;
+            continue;
+        }
+        let mut literal = String::new();
+        let mut escaped = false;
+        index += 1;
+        while index < chars.len() {
+            let ch = chars[index];
+            if escaped {
+                literal.push(ch);
+                escaped = false;
+            } else if ch == '\\' && quote != '`' {
+                escaped = true;
+            } else if ch == quote {
+                out.push(literal);
+                break;
+            } else {
+                literal.push(ch);
+            }
+            index += 1;
+        }
+        index += 1;
+    }
+    out
+}
+
+fn code_shape_without_literal_content(line: &str) -> String {
+    let chars = line.chars().collect::<Vec<_>>();
+    let mut out = String::new();
+    let mut quote = None;
+    let mut escaped = false;
+    let mut index = 0;
+    while index < chars.len() {
+        let ch = chars[index];
+        let next = chars.get(index + 1).copied();
+        if let Some(active_quote) = quote {
+            if escaped {
+                escaped = false;
+                out.push(' ');
+            } else if ch == '\\' && active_quote != '`' {
+                escaped = true;
+                out.push(' ');
+            } else if ch == active_quote {
+                quote = None;
+                out.push(ch);
+            } else {
+                out.push(' ');
+            }
+            index += 1;
+            continue;
+        }
+        if ch == '/' && next == Some('/') {
+            out.extend(std::iter::repeat_n(' ', chars.len() - index));
+            break;
+        }
+        if ch == '/' && next == Some('*') {
+            out.push(' ');
+            out.push(' ');
+            index += 2;
+            while index < chars.len() {
+                if chars[index] == '*' && chars.get(index + 1) == Some(&'/') {
+                    out.push(' ');
+                    out.push(' ');
+                    index += 2;
+                    break;
+                }
+                out.push(' ');
+                index += 1;
+            }
+            continue;
+        }
+        if ch == '#' {
+            out.extend(std::iter::repeat_n(' ', chars.len() - index));
+            break;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            quote = Some(ch);
+            escaped = false;
+            out.push(ch);
+            index += 1;
+            continue;
+        }
+        out.push(ch);
+        index += 1;
+    }
+    out
 }
 
 fn line_is_comment(line: &str) -> bool {

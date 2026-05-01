@@ -260,7 +260,7 @@ fn runtime_lens_extracts_framework_routes_unknowns_and_flow_side_effects() {
     let (repo, cache) = fixture();
     write(
         &repo.path().join("packages/app/src/server.ts"),
-        "const prefix = '/v1';\nconst cached = lookup.get('/not-a-route');\nrouter.get('/auth/login', loginHandler);\nrouter.post(prefix + '/auth/logout', logoutHandler);\nconst envName = 'TOKEN';\nconst token = process.env[envName];\nconst users = `SELECT * FROM users`;\nexport async function loginHandler() {\n  await fetch('/api/session');\n  return token ?? users;\n}\nexport function logoutHandler() {\n  localStorage.setItem('session', '');\n}\n",
+        "const prefix = '/v1';\nconst cached = lookup.get('/not-a-route');\nrouter.get('/auth/login', loginHandler);\nrouter.post(prefix + '/auth/logout', logoutHandler);\nconst envName = 'TOKEN';\nconst token = process.env[envName];\nconst users = db.query(`SELECT * FROM users`);\nexport async function loginHandler() {\n  await fetch('/api/session');\n  return token ?? users;\n}\nexport function logoutHandler() {\n  localStorage.setItem('session', '');\n}\n",
     );
     write(
         &repo.path().join("packages/app/src/api.py"),

@@ -246,39 +246,25 @@ fn env_surfaces_for_file(project: &Project, file: &FileInfo) -> Vec<EnvSurface> 
     };
     let mut out = Vec::new();
     for (index, line) in text.lines().enumerate() {
-        for prefix in ["process.env.", "import.meta.env.", "Deno.env.get(\"", "Deno.env.get('"] {
-            if let Some(start) = line.find(prefix) {
-                let tail = &line[start + prefix.len()..];
-                let name = tail
-                    .chars()
-                    .take_while(|ch| ch.is_ascii_alphanumeric() || *ch == '_')
-                    .collect::<String>();
-                if !name.is_empty() {
-                    out.push(EnvSurface {
-                        name,
-                        used_by: file.rel.clone(),
-                        declaration: env_declaration(project, &file.rel),
-                        evidence: "static_env_reference".to_string(),
-                        strength: EvidenceStrength::High,
-                        locations: vec![EvidenceLocation::line(
-                            &file.rel,
-                            index + 1,
-                            "env_reference",
-                        )],
-                    });
-                }
-            }
+        if line_is_comment(line) {
+            continue;
+        }
+        for name in static_env_names(line) {
+            out.push(EnvSurface {
+                name,
+                used_by: file.rel.clone(),
+                declaration: env_declaration(project, &file.rel),
+                evidence: "static_env_reference".to_string(),
+                strength: EvidenceStrength::High,
+                locations: vec![EvidenceLocation::line(
+                    &file.rel,
+                    index + 1,
+                    "env_reference",
+                )],
+            });
         }
     }
     out
-}
-
-fn env_declaration(project: &Project, rel: &str) -> Option<String> {
-    let parent = Path::new(rel).parent().unwrap_or_else(|| Path::new("."));
-    [".env.example", ".env.sample"]
-        .into_iter()
-        .map(|name| repo::normalize_rel_path(&parent.join(name).to_string_lossy()))
-        .find(|candidate| project.files.contains_key(candidate))
 }
 
 fn proof_missing_should_surface(project: &Project, seed: &str) -> bool {
@@ -298,7 +284,13 @@ fn package_export_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {
     project
         .packages
         .iter()
-        .filter(|package| package.manifest == rel || package.path == rel)
+        .filter(|package| {
+            package.manifest == rel
+                || package.path == rel
+                || package_public_targets(project, package)
+                    .into_iter()
+                    .any(|target| target == rel)
+        })
         .map(|package| {
             edge_with_path_location(
                 package.manifest.clone(),
