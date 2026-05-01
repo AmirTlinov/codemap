@@ -42,6 +42,7 @@ include!("structural_map/diff_map_limits.rs");
 include!("structural_map/lens_budget.rs");
 include!("structural_map/siblings_place_proof_grouping.rs");
 include!("structural_map/place_lens_kind.rs");
+include!("structural_map/test_kind_executable_surfaces.rs");
 include!("structural_map/lens_delete_runtime_facts.rs");
 include!("structural_map/lens_dynamic_runtime_routes.rs");
 include!("structural_map/lens_runtime_extractors.rs");

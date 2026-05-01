@@ -40,7 +40,7 @@ fn scan_files(root: &Path) -> Result<BTreeMap<String, FileInfo>> {
             surface_phrases: BTreeSet::new(),
             visited_route_paths: BTreeSet::new(),
         };
-        classify_roles(&mut info);
+        classify_roles(root, &mut info);
         extract_imports_exports(root, &mut info);
         files.insert(rel, info);
     }
