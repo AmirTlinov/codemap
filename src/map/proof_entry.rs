@@ -80,6 +80,7 @@ pub fn proof_report(
     project: &Project,
     target: Option<String>,
     changed: Vec<String>,
+    selector: String,
     depth: usize,
     limit: usize,
 ) -> ProofReport {
@@ -96,15 +97,20 @@ pub fn proof_report(
         changed.clone()
     };
     let mut proofs = Vec::new();
+    let mut hidden = Vec::new();
     let mut risk = Risk::Low;
+    let discovery_limit = usize::MAX;
     if target.is_none() && !changed.is_empty() {
-        let impact = impact_report(project, changed.clone(), depth, limit);
+        let impact = impact_report(project, changed.clone(), depth, limit.max(changed.len()));
         for cluster in &impact.clusters {
             risk = risk.max(risk_from_str(&cluster.risk));
-            proofs.extend(proof_surfaces_from_edges(
+        }
+        for anchor in &changed {
+            proofs.extend(proof_surfaces_for_anchor(
                 project,
-                &cluster.proof,
-                "impact cluster",
+                anchor,
+                depth,
+                discovery_limit,
             ));
         }
     } else {
@@ -122,35 +128,60 @@ pub fn proof_report(
                     &file_rel,
                     &symbol_name,
                     depth,
-                    limit,
+                    discovery_limit,
                 ));
             } else {
                 if project.files.contains_key(anchor) {
                     risk = risk.max(structural_risk_for_file(project, anchor, depth).0);
-                    proofs.extend(proof_surfaces_for_anchor(project, anchor, depth, limit));
+                    proofs.extend(proof_surfaces_for_anchor(
+                        project,
+                        anchor,
+                        depth,
+                        discovery_limit,
+                    ));
                 } else if anchor != "." && directory_has_files(project, anchor) {
                     risk = risk.max(risk_for_directory(project, anchor, depth));
-                    proofs.extend(proof_surfaces_for_directory(project, anchor, depth, limit));
+                    proofs.extend(proof_surfaces_for_directory(
+                        project,
+                        anchor,
+                        depth,
+                        discovery_limit,
+                    ));
                 } else {
                     risk = risk.max(Risk::Medium);
-                    proofs.extend(proof_surfaces_for_anchor(project, anchor, depth, limit));
+                    proofs.extend(proof_surfaces_for_anchor(
+                        project,
+                        anchor,
+                        depth,
+                        discovery_limit,
+                    ));
                 }
             }
         }
     }
     proofs = unique_proof_surfaces(proofs);
     if proofs.len() > limit {
+        hidden.push(HiddenGroup {
+            reason: "proof surfaces hidden by limit".to_string(),
+            count: proofs.len() - limit,
+            expand: format!(
+                "codemap proof {} --depth {depth} --limit {}",
+                selector,
+                proofs.len()
+            ),
+        });
         proofs.truncate(limit);
     }
     let fallback = proof_fallback_commands(project, &anchors, &changed, &proofs);
     ProofReport {
         kind: "proof_plan",
-        schema_version: "3",
+        schema_version: "4",
         target,
         changed,
         risk: risk.as_str().to_string(),
         proofs,
         fallback,
+        hidden,
         run_hint: "codemap proof prints only by default; use --run to execute proof commands"
             .to_string(),
     }

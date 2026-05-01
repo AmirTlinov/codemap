@@ -1,22 +1,3 @@
-fn proof_surfaces_from_edges(
-    project: &Project,
-    edges: &[StructuralEdge],
-    scope: &str,
-) -> Vec<ProofSurface> {
-    edges
-        .iter()
-        .filter(|edge| edge.edge_type == "tests")
-        .map(|edge| ProofSurface {
-            command: proof_command_for_test(project, &edge.from),
-            path: Some(edge.from.clone()),
-            evidence: edge.evidence.clone(),
-            strength: edge.strength,
-            reason: proof_reason_for_evidence(&edge.evidence, scope),
-            locations: edge.locations.clone(),
-        })
-        .collect()
-}
-
 fn proof_surfaces_for_anchor(
     project: &Project,
     anchor: &str,

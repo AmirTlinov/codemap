@@ -125,23 +125,42 @@ fn proof_map_inputs(
 fn proof_inputs(
     project: &crate::model::Project,
     args: &ProofArgs,
-) -> Result<(Option<String>, Vec<String>)> {
+) -> Result<(Option<String>, Vec<String>, String)> {
     ensure_single_proof_selector(args)?;
     if let Some(target) = args.target.as_deref() {
-        return Ok((Some(project_relative_arg(project, target)?), Vec::new()));
+        let target = project_relative_arg(project, target)?;
+        let selector = shell_quote_arg(&target);
+        return Ok((Some(target), Vec::new(), selector));
     }
     if args.changed {
-        return Ok((None, repo::changed_files(&project.root, false, None)));
+        return Ok((
+            None,
+            repo::changed_files(&project.root, false, None),
+            "--changed".to_string(),
+        ));
     }
     if args.staged {
-        return Ok((None, repo::changed_files(&project.root, true, None)));
+        return Ok((
+            None,
+            repo::changed_files(&project.root, true, None),
+            "--staged".to_string(),
+        ));
     }
     if let Some(since) = &args.since {
-        return Ok((None, repo::changed_files(&project.root, false, Some(since))));
+        return Ok((
+            None,
+            repo::changed_files(&project.root, false, Some(since)),
+            format!("--since {}", shell_quote_arg(since)),
+        ));
     }
     let files = parse_files(project, args.files.as_deref(), &[])?;
     if !files.is_empty() {
-        return Ok((None, files));
+        let files_arg = files
+            .iter()
+            .map(|file| shell_quote_arg(file))
+            .collect::<Vec<_>>()
+            .join(",");
+        return Ok((None, files, format!("--files {files_arg}")));
     }
     bail!("codemap proof needs an exact target, --changed, --staged, --since, or --files");
 }

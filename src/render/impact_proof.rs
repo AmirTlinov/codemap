@@ -101,6 +101,21 @@ pub fn proof(report: &ProofReport) {
         println!("\n## Fallback\n");
         println!("{}", code_block("bash", &report.fallback));
     }
+    if !report.hidden.is_empty() {
+        println!("\n## Hidden\n");
+        let rows = report
+            .hidden
+            .iter()
+            .map(|hidden| {
+                vec![
+                    hidden.reason.clone(),
+                    hidden.count.to_string(),
+                    code(&hidden.expand),
+                ]
+            })
+            .collect();
+        println!("{}", table(&["Reason", "Count", "Expand"], rows));
+    }
     println!("\n{}", report.run_hint);
 }
 

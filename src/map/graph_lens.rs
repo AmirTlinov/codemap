@@ -204,7 +204,14 @@ fn proof_graph_for_path(
     limit: usize,
 ) -> (Vec<String>, Vec<GraphEdge>) {
     let target = crate::repo::normalize_rel_path(path);
-    let report = proof_report(project, Some(target.clone()), Vec::new(), 1, limit);
+    let report = proof_report(
+        project,
+        Some(target.clone()),
+        Vec::new(),
+        target.clone(),
+        1,
+        limit,
+    );
     let nodes = unique(
         std::iter::once(target.clone())
             .chain(report.proofs.iter().filter_map(|proof| proof.path.clone()))

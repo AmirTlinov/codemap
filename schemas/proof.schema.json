@@ -12,11 +12,12 @@
     "risk",
     "proofs",
     "fallback",
+    "hidden",
     "run_hint"
   ],
   "properties": {
     "kind": { "const": "proof_plan" },
-    "schema_version": { "const": "3" },
+    "schema_version": { "const": "4" },
     "target": {
       "anyOf": [{ "type": "string" }, { "type": "null" }]
     },
@@ -35,6 +36,10 @@
     "fallback": {
       "type": "array",
       "items": { "type": "string" }
+    },
+    "hidden": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/hidden_group" }
     },
     "run_hint": { "type": "string" }
   },
@@ -83,6 +88,16 @@
           "type": "array",
           "items": { "$ref": "#/$defs/evidence_location" }
         }
+      }
+    },
+    "hidden_group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reason", "count", "expand"],
+      "properties": {
+        "reason": { "type": "string" },
+        "count": { "type": "integer", "minimum": 0 },
+        "expand": { "type": "string" }
       }
     }
   }

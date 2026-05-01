@@ -1,7 +1,7 @@
 fn proof(project: &crate::model::Project, args: ProofArgs) -> Result<()> {
     ensure_valid_config(project)?;
-    let (target, changed) = proof_inputs(project, &args)?;
-    let report = map::proof_report(project, target, changed, args.depth, args.limit);
+    let (target, changed, selector) = proof_inputs(project, &args)?;
+    let report = map::proof_report(project, target, changed, selector, args.depth, args.limit);
     if args.run {
         render::proof(&report);
         return run_proof_plan(project, &report);
@@ -119,4 +119,3 @@ fn shell_quote_path(path: &Path) -> String {
 fn is_runnable_verification_command(command: &str) -> bool {
     !command.trim().is_empty() && !command.contains("nearest domain tests")
 }
-

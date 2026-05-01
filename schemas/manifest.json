@@ -63,7 +63,7 @@
       "kind": "proof",
       "file": "schemas/proof.schema.json",
       "contract": "structural_output",
-      "schema_version": "3",
+      "schema_version": "4",
       "json_kind": "proof_plan"
     },
     {

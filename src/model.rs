@@ -201,6 +201,7 @@ pub struct ProofReport {
     pub risk: String,
     pub proofs: Vec<ProofSurface>,
     pub fallback: Vec<String>,
+    pub hidden: Vec<HiddenGroup>,
     pub run_hint: String,
 }
 
