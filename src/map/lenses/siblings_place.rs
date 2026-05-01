@@ -122,7 +122,7 @@ pub fn place_report(
     let scope = repo::normalize_rel_path(scope);
     let requested_kind = requested_kind.to_string();
     let runtime_facts = (requested_kind == "route").then(|| runtime_fact_index(project));
-    let mut examples = files_under_directory(project, &scope)
+    let mut matched_files = files_under_directory(project, &scope)
         .into_iter()
         .filter(|file| {
             file_matches_place_kind(file, &requested_kind)
@@ -132,13 +132,14 @@ pub fn place_report(
         })
         .map(|file| file.rel.clone())
         .collect::<Vec<_>>();
-    examples.sort();
-    let count = examples.len();
+    matched_files.sort();
+    let count = matched_files.len();
     let hidden_count = count.saturating_sub(limit);
+    let mut visible_examples = matched_files.clone();
     if !include_hidden {
-        examples.truncate(limit);
+        visible_examples.truncate(limit);
     }
-    let existing_surfaces = if examples.is_empty() {
+    let existing_surfaces = if matched_files.is_empty() {
         Vec::new()
     } else {
         vec![Surface {
@@ -149,7 +150,7 @@ pub fn place_report(
             evidence: "same_scope_kind_filter".to_string(),
             strength: EvidenceStrength::Medium,
             count: Some(count),
-            examples,
+            examples: visible_examples.clone(),
             hidden_count,
         }]
     };
@@ -159,7 +160,13 @@ pub fn place_report(
         "codemap proof-map {} --raw-sensors --limit <larger-number>",
         shell_quote(&scope)
     );
-    let mut paired_proof_pattern = proof_surfaces_for_directory(project, &scope, 1, limit);
+    let proof_seed_files = if include_hidden {
+        matched_files.as_slice()
+    } else {
+        visible_examples.as_slice()
+    };
+    let mut paired_proof_pattern =
+        proof_surfaces_for_file_paths(project, proof_seed_files, 1, limit);
     group_duplicate_proof_surfaces(
         &mut paired_proof_pattern,
         &mut hidden,

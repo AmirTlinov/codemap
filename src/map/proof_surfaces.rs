@@ -78,9 +78,19 @@ fn proof_surfaces_for_directory(
     depth: usize,
     limit: usize,
 ) -> Vec<ProofSurface> {
+    let files = directory_seed_file_paths(project, rel, false);
+    proof_surfaces_for_file_paths(project, &files, depth, limit)
+}
+
+fn proof_surfaces_for_file_paths(
+    project: &Project,
+    files: &[String],
+    depth: usize,
+    limit: usize,
+) -> Vec<ProofSurface> {
     let mut out = Vec::new();
-    for file in directory_seed_file_paths(project, rel, false) {
-        out.extend(proof_surfaces_for_anchor(project, &file, depth, limit));
+    for file in files {
+        out.extend(proof_surfaces_for_anchor(project, file, depth, limit));
     }
     out
 }

@@ -82,7 +82,7 @@ fn place_groups_duplicate_paired_proof_sensors() {
             "place",
             "packages/app/src",
             "--kind",
-            "component",
+            "source",
             "--limit",
             "50",
             "--format",
@@ -115,5 +115,74 @@ fn place_groups_duplicate_paired_proof_sensors() {
                         && !expand.contains("<larger-number>")
                 })),
         "grouped place proof sensors should expose raw proof-map zoom: {place:#}"
+    );
+}
+
+#[test]
+fn place_paired_proof_pattern_uses_requested_kind_files() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{
+  "name": "place-kind-proof",
+  "private": true,
+  "scripts": { "test": "vitest run" }
+}
+"#,
+    );
+    write(
+        &repo.path().join("src/lenses/runtime.ts"),
+        "export function runtimeLens() { return true; }\n",
+    );
+    write(
+        &repo.path().join("src/helper.ts"),
+        "export function helper() { return true; }\n",
+    );
+    write(
+        &repo.path().join("tests/runtime.test.ts"),
+        "import { runtimeLens } from '../src/lenses/runtime';\n\ntest('runtime lens', () => {\n  expect(runtimeLens()).toBe(true);\n});\n",
+    );
+    write(
+        &repo.path().join("tests/helper.test.ts"),
+        "import { helper } from '../src/helper';\n\ntest('helper', () => {\n  expect(helper()).toBe(true);\n});\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(
+        repo.path(),
+        &["commit", "-qm", "place kind proof fixture"],
+    );
+
+    let place = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "place",
+            "src",
+            "--kind",
+            "lens",
+            "--limit",
+            "20",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/place.schema.json", &place);
+    let proof_paths = place["paired_proof_pattern"]
+        .as_array()
+        .expect("paired proof pattern")
+        .iter()
+        .filter_map(|proof| proof["path"].as_str())
+        .collect::<Vec<_>>();
+    assert!(
+        proof_paths.contains(&"tests/runtime.test.ts"),
+        "lens place proof should include proof for matched lens files: {place:#}"
+    );
+    assert!(
+        !proof_paths.contains(&"tests/helper.test.ts"),
+        "lens place proof should not include proof for non-lens files in the same scope: {place:#}"
     );
 }
