@@ -225,7 +225,7 @@ pub fn proof_map_report(
     let fallback = proof_fallback_commands(project, &seeds, &changed, &commands);
     ProofMapReport {
         kind: "proof_map_report",
-        schema_version: "1",
+        schema_version: "2",
         scope,
         changed,
         direct,
@@ -254,6 +254,7 @@ fn route_proof_surfaces(project: &Project, file: &FileInfo) -> Vec<ProofSurface>
                     evidence: edge.evidence,
                     strength: edge.strength,
                     reason: format!("e2e visits runtime route {label}"),
+                    locations: edge.locations,
                 })
         })
         .collect()

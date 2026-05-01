@@ -12,6 +12,7 @@ fn proof_surfaces_from_edges(
             evidence: edge.evidence.clone(),
             strength: edge.strength,
             reason: proof_reason_for_evidence(&edge.evidence, scope),
+            locations: edge.locations.clone(),
         })
         .collect()
 }
@@ -26,6 +27,7 @@ fn proof_surfaces_for_anchor(
     for (test, evidence, strength) in strict_test_edges_for_file(project, anchor, limit) {
         out.push(ProofSurface {
             command: proof_command_for_test(project, &test),
+            locations: proof_surface_locations_for_test(&test, &evidence),
             path: Some(test),
             reason: proof_reason_for_evidence(&evidence, "anchor"),
             evidence,
@@ -38,6 +40,7 @@ fn proof_surfaces_for_anchor(
                 command: proof_command_for_test(project, &edge.from),
                 path: Some(edge.from),
                 reason: proof_reason_for_evidence(&edge.evidence, "anchor"),
+                locations: edge.locations,
                 evidence: edge.evidence,
                 strength: edge.strength,
             });
@@ -53,6 +56,7 @@ fn proof_surfaces_for_anchor(
         {
             out.push(ProofSurface {
                 command: proof_command_for_test(project, &test),
+                locations: proof_surface_locations_for_test(&test, &evidence),
                 path: Some(test),
                 reason: proof_reason_for_evidence(&evidence, "direct consumer"),
                 evidence,
@@ -74,6 +78,7 @@ fn proof_surfaces_for_anchor(
                 {
                     out.push(ProofSurface {
                         command: proof_command_for_test(project, &test),
+                        locations: proof_surface_locations_for_test(&test, &evidence),
                         path: Some(test),
                         reason: proof_reason_for_evidence(&evidence, "depth-2 consumer"),
                         evidence,
@@ -113,6 +118,7 @@ fn proof_surfaces_for_symbol_anchor(
             command: proof_command_for_test(project, &edge.from),
             path: Some(edge.from),
             reason: proof_reason_for_evidence(&edge.evidence, "symbol anchor"),
+            locations: edge.locations,
             evidence: edge.evidence,
             strength: edge.strength,
         })
@@ -132,6 +138,7 @@ fn proof_surfaces_for_symbol_anchor(
         {
             out.push(ProofSurface {
                 command: proof_command_for_test(project, &test),
+                locations: proof_surface_locations_for_test(&test, &evidence),
                 path: Some(test),
                 reason: proof_reason_for_evidence(&evidence, "symbol consumer"),
                 evidence,
@@ -140,6 +147,10 @@ fn proof_surfaces_for_symbol_anchor(
         }
     }
     out
+}
+
+fn proof_surface_locations_for_test(test: &str, evidence: &str) -> Vec<EvidenceLocation> {
+    vec![EvidenceLocation::path(test, evidence)]
 }
 
 fn risk_for_directory(project: &Project, rel: &str, depth: usize) -> Risk {
@@ -215,4 +226,3 @@ fn proof_reason_for_evidence(evidence: &str, scope: &str) -> String {
         _ => format!("structural proof for {scope}"),
     }
 }
-

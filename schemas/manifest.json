@@ -63,14 +63,14 @@
       "kind": "proof",
       "file": "schemas/proof.schema.json",
       "contract": "structural_output",
-      "schema_version": "2",
+      "schema_version": "3",
       "json_kind": "proof_plan"
     },
     {
       "kind": "proof-map",
       "file": "schemas/proof-map.schema.json",
       "contract": "structural_output",
-      "schema_version": "1",
+      "schema_version": "2",
       "json_kind": "proof_map_report"
     },
     {
@@ -98,14 +98,14 @@
       "kind": "siblings",
       "file": "schemas/siblings.schema.json",
       "contract": "structural_output",
-      "schema_version": "1",
+      "schema_version": "2",
       "json_kind": "siblings_report"
     },
     {
       "kind": "place",
       "file": "schemas/place.schema.json",
       "contract": "structural_output",
-      "schema_version": "1",
+      "schema_version": "2",
       "json_kind": "place_report"
     },
     {

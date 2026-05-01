@@ -133,7 +133,7 @@ pub fn proof_report(
     let fallback = proof_fallback_commands(project, &anchors, &changed, &proofs);
     ProofReport {
         kind: "proof_plan",
-        schema_version: "2",
+        schema_version: "3",
         target,
         changed,
         risk: risk.as_str().to_string(),

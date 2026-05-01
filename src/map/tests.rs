@@ -14,6 +14,7 @@ mod tests {
             evidence: evidence.to_string(),
             strength,
             reason: format!("{evidence} reason"),
+            locations: vec![EvidenceLocation::path(path, evidence)],
         }
     }
 

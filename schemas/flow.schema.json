@@ -425,7 +425,8 @@
         "path",
         "evidence",
         "strength",
-        "reason"
+        "reason",
+        "locations"
       ],
       "properties": {
         "command": {
@@ -456,6 +457,12 @@
         },
         "reason": {
           "type": "string"
+        },
+        "locations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence_location"
+          }
         }
       }
     },

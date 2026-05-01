@@ -16,7 +16,7 @@
   ],
   "properties": {
     "kind": { "const": "proof_plan" },
-    "schema_version": { "const": "2" },
+    "schema_version": { "const": "3" },
     "target": {
       "anyOf": [{ "type": "string" }, { "type": "null" }]
     },
@@ -43,10 +43,32 @@
       "type": "string",
       "enum": ["low", "medium", "high", "hard"]
     },
+    "evidence_location": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "line_start", "line_end", "kind"],
+      "properties": {
+        "path": { "type": "string" },
+        "line_start": {
+          "anyOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }]
+        },
+        "line_end": {
+          "anyOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }]
+        },
+        "kind": { "type": "string" }
+      }
+    },
     "proof_surface": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["command", "path", "evidence", "strength", "reason"],
+      "required": [
+        "command",
+        "path",
+        "evidence",
+        "strength",
+        "reason",
+        "locations"
+      ],
       "properties": {
         "command": {
           "anyOf": [{ "type": "string" }, { "type": "null" }]
@@ -56,7 +78,11 @@
         },
         "evidence": { "type": "string" },
         "strength": { "$ref": "#/$defs/evidence_strength" },
-        "reason": { "type": "string" }
+        "reason": { "type": "string" },
+        "locations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidence_location" }
+        }
       }
     }
   }

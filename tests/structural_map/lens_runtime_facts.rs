@@ -230,6 +230,8 @@ fn proof_map_shows_e2e_route_sensors_for_runtime_routes() {
             .iter()
             .any(|proof| proof["path"] == "packages/app/tests/e2e/auth.spec.ts"
                 && proof["evidence"] == "e2e_visited_route"
+                && proof["locations"][0]["path"] == "packages/app/tests/e2e/auth.spec.ts"
+                && proof["locations"][0]["kind"] == "route_visit"
                 && proof["reason"]
                     .as_str()
                     .is_some_and(|reason| reason.contains("GET /auth/login"))),

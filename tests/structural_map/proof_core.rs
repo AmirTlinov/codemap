@@ -105,6 +105,7 @@ fn impact_and_proof_are_structural_without_structural_flag() {
                         .as_str()
                         .unwrap_or_default()
                         .contains("vitest run")
+                    && proof["locations"][0]["path"] == "packages/replay/tests/session.test.ts"
             )
     );
     assert!(

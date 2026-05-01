@@ -22,7 +22,7 @@
       "const": "siblings_report"
     },
     "schema_version": {
-      "const": "1"
+      "const": "2"
     },
     "scope": {
       "type": "string"
@@ -413,7 +413,8 @@
         "path",
         "evidence",
         "strength",
-        "reason"
+        "reason",
+        "locations"
       ],
       "properties": {
         "command": {
@@ -444,6 +445,12 @@
         },
         "reason": {
           "type": "string"
+        },
+        "locations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence_location"
+          }
         }
       }
     },

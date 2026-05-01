@@ -293,7 +293,10 @@ fn proof_surface_section(title: &str, proofs: &[ProofSurface]) {
     let rows = proofs.iter().map(proof_row).collect::<Vec<_>>();
     println!(
         "{}",
-        table(&["Command", "Path", "Evidence", "Strength", "Reason"], rows)
+        table(
+            &["Command", "Path", "Evidence", "Strength", "Where", "Reason"],
+            rows,
+        )
     );
 }
 

@@ -69,7 +69,7 @@ pub fn siblings_report(
     );
     SiblingsReport {
         kind: "siblings_report",
-        schema_version: "1",
+        schema_version: "2",
         scope: scope.clone(),
         same_kind,
         route_service_test_triplets,
@@ -126,7 +126,7 @@ pub fn place_report(
         .collect();
     PlaceReport {
         kind: "place_report",
-        schema_version: "1",
+        schema_version: "2",
         scope: scope.clone(),
         requested_kind,
         existing_surfaces,

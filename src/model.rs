@@ -211,6 +211,7 @@ pub struct ProofSurface {
     pub evidence: String,
     pub strength: EvidenceStrength,
     pub reason: String,
+    pub locations: Vec<EvidenceLocation>,
 }
 
 #[derive(Debug, Clone, Serialize)]

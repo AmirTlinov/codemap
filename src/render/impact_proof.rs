@@ -91,7 +91,10 @@ pub fn proof(report: &ProofReport) {
         let rows = report.proofs.iter().map(proof_row).collect::<Vec<_>>();
         println!(
             "{}",
-            table(&["Command", "Path", "Evidence", "Strength", "Reason"], rows,)
+            table(
+                &["Command", "Path", "Evidence", "Strength", "Where", "Reason"],
+                rows,
+            )
         );
     }
     if !report.fallback.is_empty() {
@@ -115,6 +118,26 @@ fn proof_row(proof: &ProofSurface) -> Vec<String> {
             .unwrap_or_else(|| "none".to_string()),
         proof.evidence.clone(),
         format!("{:?}", proof.strength).to_ascii_lowercase(),
+        proof_location_summary(&proof.locations),
         proof.reason.clone(),
     ]
+}
+
+fn proof_location_summary(locations: &[EvidenceLocation]) -> String {
+    let Some(first) = locations.first() else {
+        return "unknown".to_string();
+    };
+    let suffix = if locations.len() > 1 {
+        format!(" +{}", locations.len() - 1)
+    } else {
+        String::new()
+    };
+    let base = if first.path == "aggregate" {
+        "aggregate".to_string()
+    } else if let Some(line) = first.line_start {
+        format!("{}:{line}", first.path)
+    } else {
+        first.path.clone()
+    };
+    format!("{}{}", code(&base), suffix)
 }
