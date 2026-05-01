@@ -12,98 +12,33 @@ fn framework_routes_for_file(project: &Project, file: &FileInfo) -> Vec<RuntimeR
         return Vec::new();
     };
     let mut routes = Vec::new();
+    let mut in_block_comment = false;
+    let mut in_template_literal = false;
+    let mut in_triple_quote = None;
     for (index, line) in text.lines().enumerate() {
-        if line_is_comment(line) {
+        let line = mask_cross_line_runtime_context(
+            line,
+            &mut in_block_comment,
+            &mut in_template_literal,
+            &mut in_triple_quote,
+        );
+        if line_is_comment(&line) {
             continue;
         }
         let line_number = index + 1;
         if matches!(file.ext.as_str(), "js" | "jsx" | "ts" | "tsx") {
             routes.extend(javascript_route_registrations(
                 &file.rel,
-                line,
+                &line,
                 line_number,
             ));
         } else if file.ext == "py" {
-            routes.extend(python_route_decorators(&file.rel, line, line_number));
+            routes.extend(python_route_decorators(&file.rel, &line, line_number));
         } else if file.ext == "go" {
-            routes.extend(go_route_registrations(&file.rel, line, line_number));
+            routes.extend(go_route_registrations(&file.rel, &line, line_number));
         }
     }
     routes
-}
-
-fn javascript_route_registrations(rel: &str, line: &str, line_number: usize) -> Vec<RuntimeRoute> {
-    static_route_methods()
-        .iter()
-        .filter_map(|method| {
-            let call = format!(".{method}(");
-            let start = line.find(&call)?;
-            if !route_like_receiver(&line[..start]) {
-                return None;
-            }
-            let start = start + call.len();
-            let path = quoted_literal_at(line[start..].trim_start())?;
-            Some(RuntimeRoute {
-                method: Some(method.to_ascii_uppercase()),
-                path,
-                file: rel.to_string(),
-                evidence: "javascript_route_registration".to_string(),
-                strength: EvidenceStrength::High,
-                locations: vec![EvidenceLocation::line(
-                    rel,
-                    line_number,
-                    "route_registration",
-                )],
-            })
-        })
-        .collect()
-}
-
-fn python_route_decorators(rel: &str, line: &str, line_number: usize) -> Vec<RuntimeRoute> {
-    let trimmed = line.trim_start();
-    if !trimmed.starts_with('@') {
-        return Vec::new();
-    }
-    static_route_methods()
-        .iter()
-        .filter_map(|method| {
-            let call = format!(".{method}(");
-            let start = trimmed.find(&call)? + call.len();
-            let path = quoted_literal_at(trimmed[start..].trim_start())?;
-            Some(RuntimeRoute {
-                method: Some(method.to_ascii_uppercase()),
-                path,
-                file: rel.to_string(),
-                evidence: "python_route_decorator".to_string(),
-                strength: EvidenceStrength::High,
-                locations: vec![EvidenceLocation::line(
-                    rel,
-                    line_number,
-                    "route_decorator",
-                )],
-            })
-        })
-        .collect()
-}
-
-fn go_route_registrations(rel: &str, line: &str, line_number: usize) -> Vec<RuntimeRoute> {
-    let Some(start) = line
-        .find("http.HandleFunc(")
-        .or_else(|| line.find(".HandleFunc("))
-    else {
-        return Vec::new();
-    };
-    let Some(path) = quoted_literal_at(line[start..].split_once('(').map(|(_, tail)| tail).unwrap_or("")) else {
-        return Vec::new();
-    };
-    vec![RuntimeRoute {
-        method: Some("ANY".to_string()),
-        path,
-        file: rel.to_string(),
-        evidence: "go_http_route_registration".to_string(),
-        strength: EvidenceStrength::High,
-        locations: vec![EvidenceLocation::line(rel, line_number, "route_registration")],
-    }]
 }
 
 fn unknowns_for_file(project: &Project, file: &FileInfo) -> Vec<Unknown> {
@@ -111,12 +46,21 @@ fn unknowns_for_file(project: &Project, file: &FileInfo) -> Vec<Unknown> {
         return Vec::new();
     };
     let mut out = Vec::new();
+    let mut in_block_comment = false;
+    let mut in_template_literal = false;
+    let mut in_triple_quote = None;
     for (index, line) in text.lines().enumerate() {
-        if line_is_comment(line) {
+        let line = mask_cross_line_runtime_context(
+            line,
+            &mut in_block_comment,
+            &mut in_template_literal,
+            &mut in_triple_quote,
+        );
+        if line_is_comment(&line) {
             continue;
         }
         let line_number = index + 1;
-        if dynamic_import_line(line) {
+        if dynamic_import_line(&line) {
             out.push(unknown(
                 "dynamic_import",
                 Some(&file.rel),
@@ -126,7 +70,7 @@ fn unknowns_for_file(project: &Project, file: &FileInfo) -> Vec<Unknown> {
                 Some(format!("codemap ls {}", shell_quote(&file.rel))),
             ));
         }
-        if dynamic_require_line(line) {
+        if dynamic_require_line(&line) {
             out.push(unknown(
                 "js_require_dynamic",
                 Some(&file.rel),
@@ -136,7 +80,7 @@ fn unknowns_for_file(project: &Project, file: &FileInfo) -> Vec<Unknown> {
                 Some(format!("codemap ls {}", shell_quote(&file.rel))),
             ));
         }
-        if dynamic_env_lookup_line(line) {
+        if dynamic_env_lookup_line(&line) {
             out.push(unknown(
                 "env_dynamic_lookup",
                 Some(&file.rel),
@@ -146,7 +90,7 @@ fn unknowns_for_file(project: &Project, file: &FileInfo) -> Vec<Unknown> {
                 Some(format!("codemap runtime {}", shell_quote(&file.rel))),
             ));
         }
-        if route_string_concat_line(line) {
+        if route_string_concat_line(&line) {
             out.push(unknown(
                 "route_string_concat",
                 Some(&file.rel),
@@ -155,8 +99,58 @@ fn unknowns_for_file(project: &Project, file: &FileInfo) -> Vec<Unknown> {
                 "runtime route cannot be mapped to an exact path structurally",
                 Some(format!("codemap runtime {}", shell_quote(&file.rel))),
             ));
+        } else if route_dynamic_path_line(&line) {
+            out.push(unknown(
+                "route_dynamic_path",
+                Some(&file.rel),
+                Some(line_number),
+                "route path is not a static literal",
+                "runtime route cannot be mapped to an exact path structurally",
+                Some(format!("codemap runtime {}", shell_quote(&file.rel))),
+            ));
         }
-        if raw_sql_literal_line(line) {
+        if route_dynamic_method_line(&line) {
+            out.push(unknown(
+                "route_dynamic_method",
+                Some(&file.rel),
+                Some(line_number),
+                "route method is computed instead of a static framework method",
+                "runtime route is not added to the exact method/path map",
+                Some(format!("codemap runtime {}", shell_quote(&file.rel))),
+            ));
+        }
+        if route_object_dynamic_line(&line) {
+            out.push(unknown(
+                "route_object_dynamic",
+                Some(&file.rel),
+                Some(line_number),
+                "route object does not expose static method and path fields",
+                "runtime route cannot be mapped to an exact method/path structurally",
+                Some(format!("codemap runtime {}", shell_quote(&file.rel))),
+            ));
+        }
+        if let Some(kind) = route_mount_prefix_unknown_kind(&line) {
+            let (reason, effect) = if kind == "route_mount_prefix" {
+                (
+                    "route prefix mounts middleware or a nested router",
+                    "nested endpoints under this prefix are not expanded structurally",
+                )
+            } else {
+                (
+                    "route mount prefix is not a static literal",
+                    "nested runtime routes cannot be mapped to exact paths structurally",
+                )
+            };
+            out.push(unknown(
+                kind,
+                Some(&file.rel),
+                Some(line_number),
+                reason,
+                effect,
+                Some(format!("codemap runtime {}", shell_quote(&file.rel))),
+            ));
+        }
+        if raw_sql_literal_line(&line) {
             out.push(unknown(
                 "raw_sql_literal",
                 Some(&file.rel),
@@ -175,12 +169,21 @@ fn side_effect_surfaces_for_file(project: &Project, file: &FileInfo) -> Vec<Surf
         return Vec::new();
     };
     let mut out = Vec::new();
+    let mut in_block_comment = false;
+    let mut in_template_literal = false;
+    let mut in_triple_quote = None;
     for (index, line) in text.lines().enumerate() {
-        if line_is_comment(line) {
+        let line = mask_cross_line_runtime_context(
+            line,
+            &mut in_block_comment,
+            &mut in_template_literal,
+            &mut in_triple_quote,
+        );
+        if line_is_comment(&line) {
             continue;
         }
         let line_number = index + 1;
-        let Some((kind, evidence)) = side_effect_kind(line) else {
+        let Some((kind, evidence)) = side_effect_kind(&line) else {
             continue;
         };
         out.push(Surface {
@@ -196,23 +199,6 @@ fn side_effect_surfaces_for_file(project: &Project, file: &FileInfo) -> Vec<Surf
         });
     }
     out
-}
-
-fn quoted_literal_at(value: &str) -> Option<String> {
-    let value = value.trim_start();
-    let quote = value.chars().next()?;
-    if quote != '"' && quote != '\'' && quote != '`' {
-        return None;
-    }
-    if quote == '`' && value.contains("${") {
-        return None;
-    }
-    let end = value[1..].find(quote)?;
-    Some(value[1..1 + end].to_string())
-}
-
-fn static_route_methods() -> &'static [&'static str] {
-    &["get", "post", "put", "patch", "delete", "all", "head", "options"]
 }
 
 fn dynamic_import_line(line: &str) -> bool {
@@ -274,6 +260,109 @@ fn route_string_concat_line(line: &str) -> bool {
     })
 }
 
+fn route_dynamic_path_line(line: &str) -> bool {
+    let code = code_shape_without_literal_content(line);
+    static_route_methods().iter().any(|method| {
+        let call = format!(".{method}(");
+        code.find(&call).is_some_and(|start| {
+            if !route_like_receiver(&code[..start]) {
+                return false;
+            }
+            let arg = line[start + call.len()..].trim_start();
+            quoted_literal_at(arg).is_none()
+        })
+    })
+}
+
+fn route_dynamic_method_line(line: &str) -> bool {
+    let code = code_shape_without_literal_content(line);
+    if go_dynamic_route_method_line(line, &code) {
+        return true;
+    }
+    let mut offset = 0;
+    while let Some(found) = code[offset..].find('[') {
+        let start = offset + found;
+        if route_like_receiver(&code[..start])
+            && code[start..]
+                .find("](")
+                .is_some_and(|close| quoted_literal_at(&line[start + close + 2..]).is_some())
+        {
+            return true;
+        }
+        offset = start + 1;
+    }
+    false
+}
+
+fn go_dynamic_route_method_line(line: &str, code: &str) -> bool {
+    let Some(start) = code
+        .find("http.HandleFunc(")
+        .or_else(|| code.find(".HandleFunc("))
+    else {
+        return false;
+    };
+    if quoted_literal_at(line[start..].split_once('(').map(|(_, tail)| tail).unwrap_or(""))
+        .is_none()
+    {
+        return false;
+    }
+    let Some(open_paren) = code[start..].find('(').map(|found| start + found) else {
+        return false;
+    };
+    let Some(close) = matching_close_paren(code, open_paren) else {
+        return false;
+    };
+    go_route_has_methods_chain(code, close + 1)
+        && go_route_method_in_chain(line, code, close + 1).is_none()
+}
+
+fn route_object_dynamic_line(line: &str) -> bool {
+    let code = code_shape_without_literal_content(line);
+    let call = ".route(";
+    let Some(start) = code.find(call) else {
+        return false;
+    };
+    let arg_start = start + call.len();
+    if !route_like_receiver(&code[..start]) {
+        return false;
+    }
+    let Some((object_start, object_end)) = object_argument_range(&code, arg_start) else {
+        return false;
+    };
+    let object_line = &line[object_start..object_end];
+    let object_code = &code[object_start..object_end];
+    object_field_literal(object_line, object_code, "method").is_none()
+        || object_field_literal(object_line, object_code, "url")
+            .or_else(|| object_field_literal(object_line, object_code, "path"))
+            .is_none()
+}
+
+fn route_mount_prefix_unknown_kind(line: &str) -> Option<&'static str> {
+    let code = code_shape_without_literal_content(line);
+    let call = ".use(";
+    let start = code.find(call)?;
+    let arg_start = start + call.len();
+    if !route_like_receiver(&code[..start]) {
+        return None;
+    }
+    let arg = line[arg_start..].trim_start();
+    if quoted_literal_at(arg).is_some_and(|path| path.starts_with('/')) {
+        return Some("route_mount_prefix");
+    }
+    let first_arg = arg.split([',', ')']).next()?.trim();
+    if !first_arg.is_empty()
+        && arg.contains(',')
+        && (first_arg.contains('+')
+            || first_arg.contains("${")
+            || first_arg.to_ascii_lowercase().contains("prefix")
+            || first_arg.to_ascii_lowercase().contains("path")
+            || first_arg.to_ascii_lowercase().contains("route"))
+    {
+        return Some("route_mount_dynamic_prefix");
+    }
+    None
+}
+
 fn raw_sql_literal_line(line: &str) -> bool {
     raw_sql_literal_kind(line).is_some()
 }
@@ -330,127 +419,4 @@ fn has_raw_sql_execution_context(line: &str) -> bool {
     ]
     .iter()
     .any(|needle| code.contains(needle))
-}
-
-fn quoted_literal_contents(line: &str) -> Vec<String> {
-    let chars = line.chars().collect::<Vec<_>>();
-    let mut out = Vec::new();
-    let mut index = 0;
-    while index < chars.len() {
-        let quote = chars[index];
-        if !matches!(quote, '"' | '\'' | '`') {
-            index += 1;
-            continue;
-        }
-        let mut literal = String::new();
-        let mut escaped = false;
-        index += 1;
-        while index < chars.len() {
-            let ch = chars[index];
-            if escaped {
-                literal.push(ch);
-                escaped = false;
-            } else if ch == '\\' && quote != '`' {
-                escaped = true;
-            } else if ch == quote {
-                out.push(literal);
-                break;
-            } else {
-                literal.push(ch);
-            }
-            index += 1;
-        }
-        index += 1;
-    }
-    out
-}
-
-fn code_shape_without_literal_content(line: &str) -> String {
-    let chars = line.chars().collect::<Vec<_>>();
-    let mut out = String::new();
-    let mut quote = None;
-    let mut escaped = false;
-    let mut index = 0;
-    while index < chars.len() {
-        let ch = chars[index];
-        let next = chars.get(index + 1).copied();
-        if let Some(active_quote) = quote {
-            if escaped {
-                escaped = false;
-                out.push(' ');
-            } else if ch == '\\' && active_quote != '`' {
-                escaped = true;
-                out.push(' ');
-            } else if ch == active_quote {
-                quote = None;
-                out.push(ch);
-            } else {
-                out.push(' ');
-            }
-            index += 1;
-            continue;
-        }
-        if ch == '/' && next == Some('/') {
-            out.extend(std::iter::repeat_n(' ', chars.len() - index));
-            break;
-        }
-        if ch == '/' && next == Some('*') {
-            out.push(' ');
-            out.push(' ');
-            index += 2;
-            while index < chars.len() {
-                if chars[index] == '*' && chars.get(index + 1) == Some(&'/') {
-                    out.push(' ');
-                    out.push(' ');
-                    index += 2;
-                    break;
-                }
-                out.push(' ');
-                index += 1;
-            }
-            continue;
-        }
-        if ch == '#' {
-            out.extend(std::iter::repeat_n(' ', chars.len() - index));
-            break;
-        }
-        if matches!(ch, '"' | '\'' | '`') {
-            quote = Some(ch);
-            escaped = false;
-            out.push(ch);
-            index += 1;
-            continue;
-        }
-        out.push(ch);
-        index += 1;
-    }
-    out
-}
-
-fn line_is_comment(line: &str) -> bool {
-    let trimmed = line.trim_start();
-    trimmed.starts_with("//")
-        || trimmed.starts_with('#')
-        || trimmed.starts_with("/*")
-        || trimmed.starts_with('*')
-}
-
-fn route_like_receiver(prefix: &str) -> bool {
-    let receiver = prefix
-        .trim_end()
-        .chars()
-        .rev()
-        .take_while(|ch| ch.is_ascii_alphanumeric() || *ch == '_' || *ch == '$')
-        .collect::<String>()
-        .chars()
-        .rev()
-        .collect::<String>();
-    let receiver = receiver.to_ascii_lowercase();
-    receiver == "app"
-        || receiver == "api"
-        || receiver == "router"
-        || receiver == "server"
-        || receiver == "fastify"
-        || receiver.ends_with("router")
-        || receiver.ends_with("server")
 }
