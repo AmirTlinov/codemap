@@ -1,7 +1,7 @@
 fn cone_proof_edges(project: &Project, seeds: &[String]) -> Vec<StructuralEdge> {
     let mut edges = Vec::new();
     for seed in seeds {
-        for (test, evidence, strength) in strict_test_edges_for_file(project, seed, 4) {
+        for (test, evidence, strength) in strict_test_edges_for_file(project, seed, usize::MAX) {
             let locations = import_statement_locations(project, &test, seed);
             edges.push(structural_edge_with_locations(
                 test,
@@ -23,10 +23,15 @@ fn cone_proof_edges_with_direct_consumers(
     let mut edges = cone_proof_edges(project, seeds);
     for seed in seeds {
         if !edges.iter().any(|edge| edge.to == *seed) {
-            edges.extend(proof_edges_via_direct_dependencies(project, seed, 4));
+            edges.extend(proof_edges_via_direct_dependencies(
+                project,
+                seed,
+                usize::MAX,
+            ));
         }
-        for consumer in direct_consumer_edges(project, seed).into_iter().take(4) {
-            for (test, evidence, strength) in strict_test_edges_for_file(project, &consumer.from, 4)
+        for consumer in direct_consumer_edges(project, seed) {
+            for (test, evidence, strength) in
+                strict_test_edges_for_file(project, &consumer.from, usize::MAX)
             {
                 let Some(test_file) = project.files.get(&test) else {
                     continue;

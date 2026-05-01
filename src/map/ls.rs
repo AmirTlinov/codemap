@@ -79,7 +79,7 @@ fn ls_file_report(
             ));
         }
     }
-    for (test, evidence, strength) in strict_test_edges_for_file(project, &info.rel, 4) {
+    for (test, evidence, strength) in strict_test_edges_for_file(project, &info.rel, usize::MAX) {
         let locations = import_statement_locations(project, &test, &info.rel);
         edges.push(structural_edge_with_locations(
             test,
