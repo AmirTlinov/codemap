@@ -72,7 +72,7 @@ fn limit_edge_section(
         hidden.push(HiddenGroup {
             reason: reason.to_string(),
             count: count - edges.len(),
-            expand: expand.to_string(),
+            expand: expand_with_concrete_limit(expand, count),
         });
     }
 }

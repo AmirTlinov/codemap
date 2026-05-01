@@ -173,7 +173,14 @@ fn truncate_with_hidden<T>(
 }
 
 fn expand_with_concrete_limit(expand: &str, next_limit: usize) -> String {
-    expand.replace("<larger-number>", &next_limit.max(1).to_string())
+    let next_limit = next_limit.max(1);
+    if expand.contains("<larger-number>") {
+        return expand.replace("<larger-number>", &next_limit.to_string());
+    }
+    if expand.split_whitespace().any(|part| part == "--limit") {
+        return expand.to_string();
+    }
+    format!("{expand} --limit {next_limit}")
 }
 
 fn runtime_entrypoint_kind(file: &FileInfo) -> Option<&'static str> {
