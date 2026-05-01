@@ -24,6 +24,12 @@ pub fn diff_map(report: &DiffMapReport) {
     }
     surface_section("Added Exports", &report.added_exports);
     surface_section("Removed Exports", &report.removed_exports);
+    runtime_routes_section("Added Runtime Routes", &report.added_runtime_routes);
+    runtime_routes_section("Removed Runtime Routes", &report.removed_runtime_routes);
+    env_section("Added Env", &report.added_env);
+    env_section("Removed Env", &report.removed_env);
+    proof_surface_section("Added Proof Surfaces", &report.added_proof_surfaces);
+    proof_surface_section("Removed Proof Surfaces", &report.removed_proof_surfaces);
     unknown_section(&report.new_unknowns);
     hidden_section(&report.hidden);
     section("Expand", &report.expand);

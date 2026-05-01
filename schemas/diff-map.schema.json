@@ -13,6 +13,12 @@
     "changed_symbols",
     "added_exports",
     "removed_exports",
+    "added_runtime_routes",
+    "removed_runtime_routes",
+    "added_env",
+    "removed_env",
+    "added_proof_surfaces",
+    "removed_proof_surfaces",
     "new_unknowns",
     "hidden",
     "expand"
@@ -22,7 +28,7 @@
       "const": "diff_map_report"
     },
     "schema_version": {
-      "const": "1"
+      "const": "2"
     },
     "changed": {
       "type": "array",
@@ -58,6 +64,42 @@
       "type": "array",
       "items": {
         "$ref": "#/$defs/surface"
+      }
+    },
+    "added_runtime_routes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/runtime_route"
+      }
+    },
+    "removed_runtime_routes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/runtime_route"
+      }
+    },
+    "added_env": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/env_surface"
+      }
+    },
+    "removed_env": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/env_surface"
+      }
+    },
+    "added_proof_surfaces": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/proof_surface"
+      }
+    },
+    "removed_proof_surfaces": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/proof_surface"
       }
     },
     "new_unknowns": {

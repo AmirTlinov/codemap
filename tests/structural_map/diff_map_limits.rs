@@ -120,4 +120,155 @@ fn diff_map_ignores_added_structural_text_inside_runtime_comments() {
             .all(|unknown| unknown["kind"] != "dynamic_import"),
         "dynamic-import-looking text inside a string literal must not become a diff-map unknown: {diff:#}"
     );
+    for section in [
+        "added_runtime_routes",
+        "added_env",
+        "added_proof_surfaces",
+    ] {
+        assert!(
+            diff[section].as_array().expect(section).is_empty(),
+            "diff-map section `{section}` must also ignore comment/string-only runtime text: {diff:#}"
+        );
+    }
+}
+
+#[test]
+fn diff_map_reports_runtime_env_and_proof_surface_changes() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("packages/app/src/server.ts"),
+        "export function keep() { return true; }\n",
+    );
+    write(
+        &repo.path().join("packages/app/tests/e2e/auth.spec.ts"),
+        "import { test } from '@playwright/test';\n\ntest('old route', async ({ page }) => {\n  await page.goto('/old');\n});\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "diff-map runtime base"]);
+
+    write(
+        &repo.path().join("packages/app/.env.example"),
+        "AUTH_TOKEN=\n",
+    );
+    write(
+        &repo.path().join("packages/app/src/server.ts"),
+        "router.get('/auth/login', loginHandler);\nexport function loginHandler() {\n  return process.env.AUTH_TOKEN;\n}\n",
+    );
+    write(
+        &repo.path().join("packages/app/app/users/[id]/page.tsx"),
+        "export default function UserPage() {\n  return null;\n}\n",
+    );
+    write(
+        &repo.path().join("packages/app/tests/e2e/auth.spec.ts"),
+        "import { test } from '@playwright/test';\n\ntest('new route', async ({ page }) => {\n  await page.goto('/auth/login');\n});\n",
+    );
+
+    let diff = run_json(
+        repo.path(),
+        cache.path(),
+        &["diff-map", "--changed", "--format", "json"],
+    );
+    assert_schema("schemas/diff-map.schema.json", &diff);
+    assert!(
+        diff["added_runtime_routes"]
+            .as_array()
+            .expect("added runtime routes")
+            .iter()
+            .any(|route| route["method"] == "GET"
+                && route["path"] == "/auth/login"
+                && route["file"] == "packages/app/src/server.ts"
+                && route["locations"][0]["kind"] == "route_registration"),
+        "diff-map should expose added static route registrations as map deltas: {diff:#}"
+    );
+    assert!(
+        diff["added_runtime_routes"]
+            .as_array()
+            .expect("added runtime routes")
+            .iter()
+            .any(|route| route["method"] == "GET"
+                && route["path"] == "/users/:id"
+                && route["file"] == "packages/app/app/users/[id]/page.tsx"
+                && route["evidence"] == "file_route_convention"),
+        "diff-map should expose added convention routes as map deltas: {diff:#}"
+    );
+    assert!(
+        diff["added_env"]
+            .as_array()
+            .expect("added env")
+            .iter()
+            .any(|surface| surface["name"] == "AUTH_TOKEN"
+                && surface["used_by"] == "packages/app/src/server.ts"
+                && surface["declaration"] == "packages/app/.env.example"),
+        "diff-map should expose added static env dependencies with declaration evidence: {diff:#}"
+    );
+    assert!(
+        diff["added_proof_surfaces"]
+            .as_array()
+            .expect("added proof surfaces")
+            .iter()
+            .any(|proof| proof["path"] == "packages/app/tests/e2e/auth.spec.ts"
+                && proof["evidence"] == "added_e2e_route_visit"
+                && proof["reason"]
+                    .as_str()
+                    .is_some_and(|reason| reason.contains("/auth/login"))),
+        "diff-map should expose added e2e route visits as proof surface changes: {diff:#}"
+    );
+    assert!(
+        diff["removed_proof_surfaces"]
+            .as_array()
+            .expect("removed proof surfaces")
+            .iter()
+            .any(|proof| proof["path"] == "packages/app/tests/e2e/auth.spec.ts"
+                && proof["evidence"] == "removed_e2e_route_visit"
+                && proof["reason"]
+                    .as_str()
+                    .is_some_and(|reason| reason.contains("/old"))),
+        "diff-map should expose removed e2e route visits as proof surface changes: {diff:#}"
+    );
+}
+
+#[test]
+fn diff_map_reports_removed_runtime_route_and_env_dependency() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("packages/app/.env.example"),
+        "AUTH_TOKEN=\n",
+    );
+    write(
+        &repo.path().join("packages/app/src/server.ts"),
+        "router.get('/auth/login', loginHandler);\nexport function loginHandler() {\n  return process.env.AUTH_TOKEN;\n}\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "diff-map removed runtime base"]);
+
+    write(
+        &repo.path().join("packages/app/src/server.ts"),
+        "export function loginHandler() {\n  return true;\n}\n",
+    );
+
+    let diff = run_json(
+        repo.path(),
+        cache.path(),
+        &["diff-map", "--changed", "--format", "json"],
+    );
+    assert_schema("schemas/diff-map.schema.json", &diff);
+    assert!(
+        diff["removed_runtime_routes"]
+            .as_array()
+            .expect("removed runtime routes")
+            .iter()
+            .any(|route| route["method"] == "GET"
+                && route["path"] == "/auth/login"
+                && route["file"] == "packages/app/src/server.ts"),
+        "diff-map should expose removed static route registrations as map deltas: {diff:#}"
+    );
+    assert!(
+        diff["removed_env"]
+            .as_array()
+            .expect("removed env")
+            .iter()
+            .any(|surface| surface["name"] == "AUTH_TOKEN"
+                && surface["used_by"] == "packages/app/src/server.ts"),
+        "diff-map should expose removed static env dependencies as map deltas: {diff:#}"
+    );
 }
