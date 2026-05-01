@@ -140,6 +140,7 @@ pub fn proof_map_report(
     for seed in &seeds {
         if let Some(file) = project.files.get(seed) {
             unknowns.extend(unknowns_for_file(project, file));
+            e2e.extend(route_proof_surfaces(project, file));
         }
         let proofs = proof_surfaces_for_anchor(project, seed, 1, limit);
         if proofs.is_empty() && proof_missing_should_surface(project, seed) {
@@ -167,6 +168,7 @@ pub fn proof_map_report(
             }
         }
     }
+    e2e = unique_route_proof_surfaces(e2e);
     let mut hidden = Vec::new();
     truncate_with_hidden(
         &mut direct,
@@ -180,6 +182,27 @@ pub fn proof_map_report(
         limit,
         &mut hidden,
         "indirect proof surfaces hidden by limit",
+        "codemap proof-map <scope> --include-hidden",
+    );
+    truncate_with_hidden(
+        &mut e2e,
+        limit,
+        &mut hidden,
+        "e2e proof surfaces hidden by limit",
+        "codemap proof-map <scope> --include-hidden",
+    );
+    truncate_with_hidden(
+        &mut contract,
+        limit,
+        &mut hidden,
+        "contract proof surfaces hidden by limit",
+        "codemap proof-map <scope> --include-hidden",
+    );
+    truncate_with_hidden(
+        &mut missing_direct,
+        limit,
+        &mut hidden,
+        "missing direct proof surfaces hidden by limit",
         "codemap proof-map <scope> --include-hidden",
     );
     truncate_with_hidden(
@@ -216,4 +239,39 @@ pub fn proof_map_report(
         hidden,
         expand: vec!["codemap proof --changed".to_string()],
     }
+}
+
+fn route_proof_surfaces(project: &Project, file: &FileInfo) -> Vec<ProofSurface> {
+    runtime_routes_for_file(project, file)
+        .into_iter()
+        .flat_map(|route| {
+            let label = route_anchor_label(&route);
+            route_reference_edges(project, &route)
+                .into_iter()
+                .map(move |edge| ProofSurface {
+                    command: proof_command_for_test(project, &edge.from),
+                    path: Some(edge.from),
+                    evidence: edge.evidence,
+                    strength: edge.strength,
+                    reason: format!("e2e visits runtime route {label}"),
+                })
+        })
+        .collect()
+}
+
+fn unique_route_proof_surfaces(values: Vec<ProofSurface>) -> Vec<ProofSurface> {
+    let mut seen = BTreeSet::new();
+    let mut out = Vec::new();
+    for value in values {
+        let key = (
+            value.command.clone().unwrap_or_default(),
+            value.path.clone().unwrap_or_default(),
+            value.evidence.clone(),
+            value.reason.clone(),
+        );
+        if seen.insert(key) {
+            out.push(value);
+        }
+    }
+    out
 }

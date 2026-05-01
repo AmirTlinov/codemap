@@ -87,10 +87,15 @@ fn route_anchor_label(route: &RuntimeRoute) -> String {
 }
 
 fn route_reference_edges(project: &Project, route: &RuntimeRoute) -> Vec<StructuralEdge> {
+    if !route_can_be_proved_by_page_goto(route) || !route_page_visit_owner_is_unique(project, route)
+    {
+        return Vec::new();
+    }
     project
         .files
         .values()
         .filter(|file| file.has_role("test"))
+        .filter(|file| route_proof_scope_matches(project, &route.file, &file.rel))
         .filter(|file| file.visited_route_paths.contains(&route.path))
         .map(|file| {
             structural_edge_with_locations(
@@ -103,6 +108,42 @@ fn route_reference_edges(project: &Project, route: &RuntimeRoute) -> Vec<Structu
             )
         })
         .collect()
+}
+
+fn route_can_be_proved_by_page_goto(route: &RuntimeRoute) -> bool {
+    matches!(
+        route.method.as_deref(),
+        None | Some("GET") | Some("ANY") | Some("ALL")
+    )
+}
+
+fn route_page_visit_owner_is_unique(project: &Project, route: &RuntimeRoute) -> bool {
+    if !route_can_be_proved_by_page_goto(route) {
+        return false;
+    }
+    project
+        .files
+        .values()
+        .flat_map(|file| runtime_routes_for_file(project, file))
+        .filter(|candidate| {
+            candidate.path == route.path && route_can_be_proved_by_page_goto(candidate)
+                && route_proof_scope_matches(project, &route.file, &candidate.file)
+        })
+        .take(2)
+        .count()
+        == 1
+}
+
+fn route_proof_scope_matches(project: &Project, owner_rel: &str, other_rel: &str) -> bool {
+    match (
+        package_for_rel(project, owner_rel),
+        package_for_rel(project, other_rel),
+    ) {
+        (Some(owner), Some(other)) => owner.manifest == other.manifest,
+        (Some(_), None) | (None, Some(_)) => false,
+        (None, None) => scoped_domain_path_for_rel(project, other_rel, domain_by_rel(project, owner_rel))
+            == scoped_domain_path_for_rel(project, owner_rel, domain_by_rel(project, owner_rel)),
+    }
 }
 
 fn route_visit_locations(project: &Project, rel: &str, path: &str) -> Vec<EvidenceLocation> {
