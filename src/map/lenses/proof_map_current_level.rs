@@ -35,21 +35,18 @@ fn proof_map_current_level_containers(
 }
 
 fn proof_container_surface(
-    project: &Project,
+    _project: &Project,
     dir: &str,
     test_files: &[&FileInfo],
     has_e2e: bool,
 ) -> ProofSurface {
-    let command = test_files
-        .iter()
-        .find_map(|file| proof_command_for_test(project, &file.rel));
     let kind = if has_e2e {
         "e2e test container"
     } else {
         "test container"
     };
     ProofSurface {
-        command,
+        command: None,
         path: Some(dir.to_string()),
         evidence: "current_level_proof_container".to_string(),
         strength: EvidenceStrength::Medium,

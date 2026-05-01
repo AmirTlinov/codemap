@@ -304,6 +304,7 @@ fn proof_map_root_shows_current_level_test_containers_not_recursive_files() {
             .iter()
             .any(|proof| proof["path"] == "tests/"
                 && proof["evidence"] == "current_level_proof_container"
+                && proof["command"].is_null()
                 && proof["reason"]
                     .as_str()
                     .is_some_and(|reason| reason.contains("test container"))),
@@ -323,11 +324,9 @@ fn proof_map_root_shows_current_level_test_containers_not_recursive_files() {
             .as_array()
             .expect("commands")
             .iter()
-            .any(|proof| proof["path"] == "tests/"
-                && proof["command"]
-                    .as_str()
-                    .is_some_and(|command| command.contains("test"))),
-        "current-level proof container should still feed the command map: {proof_map:#}"
+            .all(|proof| !(proof["path"] == "tests/"
+                && proof["evidence"] == "current_level_proof_container")),
+        "current-level proof containers must not invent one nested test command for the whole container: {proof_map:#}"
     );
     assert!(
         proof_map["e2e"]

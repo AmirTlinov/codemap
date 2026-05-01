@@ -395,17 +395,26 @@ fn pages_route_path(rel: &str) -> bool {
 fn placement_conventions(scope: &str, kind: &str, surfaces: &[Surface]) -> Vec<String> {
     let mut out = Vec::new();
     if let Some(surface) = surfaces.first() {
-        out.push(format!(
-            "{kind} surfaces already exist under `{scope}` with {} example(s)",
-            surface.count.unwrap_or(surface.examples.len())
-        ));
+        if surface.evidence == "proof_sensor_for_scope" {
+            out.push(format!(
+                "{kind} proof sensors already reference `{scope}` with {} example(s)",
+                surface.count.unwrap_or(surface.examples.len())
+            ));
+        } else {
+            out.push(format!(
+                "{kind} surfaces already exist under `{scope}` with {} example(s)",
+                surface.count.unwrap_or(surface.examples.len())
+            ));
+        }
         if let Some(example) = surface.examples.first()
             && let Some(parent) = Path::new(example).parent()
         {
-            out.push(format!(
-                "existing {kind} parent: `{}`",
-                repo::normalize_rel_path(&parent.to_string_lossy())
-            ));
+            let parent = repo::normalize_rel_path(&parent.to_string_lossy());
+            if surface.evidence == "proof_sensor_for_scope" {
+                out.push(format!("observed {kind} proof parent: `{parent}`"));
+            } else {
+                out.push(format!("existing {kind} parent: `{parent}`"));
+            }
         }
     }
     out

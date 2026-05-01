@@ -18,6 +18,25 @@ fn unique_proof_surfaces(values: Vec<ProofSurface>) -> Vec<ProofSurface> {
     out
 }
 
+fn unique_proof_commands(values: Vec<ProofSurface>) -> Vec<ProofSurface> {
+    let mut seen = BTreeMap::new();
+    let mut out = Vec::new();
+    for value in values {
+        let Some(command) = value.command.clone() else {
+            continue;
+        };
+        if let Some(index) = seen.get(&command).copied() {
+            if proof_surface_precedence(&value) > proof_surface_precedence(&out[index]) {
+                out[index] = value;
+            }
+        } else {
+            seen.insert(command, out.len());
+            out.push(value);
+        }
+    }
+    out
+}
+
 fn proof_surface_precedence(value: &ProofSurface) -> (EvidenceStrength, usize) {
     (value.strength, proof_evidence_precedence(&value.evidence))
 }

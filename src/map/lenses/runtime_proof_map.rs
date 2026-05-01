@@ -325,7 +325,7 @@ pub fn proof_map_report(
         "proof-map unknowns hidden by limit",
         &expand_larger_limit,
     );
-    let commands = unique_proof_surfaces(
+    let commands = unique_proof_commands(
         direct
             .iter()
             .chain(indirect.iter())

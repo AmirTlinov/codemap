@@ -167,34 +167,36 @@ pub fn place_report(
     if !include_hidden {
         visible_examples.truncate(limit);
     }
-    let existing_surfaces = if matched_files.is_empty() {
-        Vec::new()
-    } else {
-        vec![Surface {
-            id: format!("surface:place:{scope}:{requested_kind}"),
-            kind: requested_kind.clone(),
-            path: None,
-            role: Some("placement_convention".to_string()),
-            evidence: "same_scope_kind_filter".to_string(),
-            strength: EvidenceStrength::Medium,
-            count: Some(count),
-            examples: visible_examples.clone(),
-            hidden_count,
-        }]
-    };
-    let local_conventions = placement_conventions(&scope, &requested_kind, &existing_surfaces);
     let mut hidden = Vec::new();
     let proof_map_raw_expand = format!(
         "codemap proof-map {} --raw-sensors --limit <larger-number>",
         shell_quote(&scope)
     );
-    let proof_seed_files = if include_hidden {
+    let scoped_test_seed_files;
+    let proof_seed_files = if requested_kind == "test" && matched_files.is_empty() {
+        scoped_test_seed_files = directory_seed_file_paths(project, &scope, include_hidden);
+        scoped_test_seed_files.as_slice()
+    } else if include_hidden {
         matched_files.as_slice()
     } else {
         visible_examples.as_slice()
     };
-    let mut paired_proof_pattern =
-        proof_surfaces_for_file_paths(project, proof_seed_files, 1, limit);
+    let mut paired_proof_pattern = if requested_kind == "test" && matched_files.is_empty() {
+        direct_test_import_proof_surfaces_for_scope(project, proof_seed_files)
+    } else {
+        proof_surfaces_for_file_paths(project, proof_seed_files, 1, limit)
+    };
+    let proof_based_existing_surface = if requested_kind == "test" && matched_files.is_empty() {
+        proof_sensor_surface_for_place_tests(
+            &scope,
+            &requested_kind,
+            &paired_proof_pattern,
+            include_hidden,
+            limit,
+        )
+    } else {
+        None
+    };
     group_duplicate_proof_surfaces(
         &mut paired_proof_pattern,
         &mut hidden,
@@ -213,6 +215,22 @@ pub fn place_report(
             ),
         );
     }
+    let existing_surfaces = if matched_files.is_empty() {
+        proof_based_existing_surface.into_iter().collect()
+    } else {
+        vec![Surface {
+            id: format!("surface:place:{scope}:{requested_kind}"),
+            kind: requested_kind.clone(),
+            path: None,
+            role: Some("placement_convention".to_string()),
+            evidence: "same_scope_kind_filter".to_string(),
+            strength: EvidenceStrength::Medium,
+            count: Some(count),
+            examples: visible_examples.clone(),
+            hidden_count,
+        }]
+    };
+    let local_conventions = placement_conventions(&scope, &requested_kind, &existing_surfaces);
     let include_hidden_expand = format!("codemap place {} --include-hidden", shell_quote(&scope));
     let mut shared_contracts =
         directory_contract_edges_at_depth(project, &scope, include_hidden, 1);
@@ -236,6 +254,78 @@ pub fn place_report(
         hidden,
         expand: vec![format!("codemap siblings {}", shell_quote(&scope))],
     }
+}
+
+fn proof_sensor_surface_for_place_tests(
+    scope: &str,
+    requested_kind: &str,
+    proofs: &[ProofSurface],
+    include_hidden: bool,
+    limit: usize,
+) -> Option<Surface> {
+    let mut examples = proofs
+        .iter()
+        .filter_map(|proof| proof.path.clone())
+        .collect::<Vec<_>>();
+    examples.sort();
+    examples.dedup();
+    if examples.is_empty() {
+        return None;
+    }
+    let count = examples.len();
+    let hidden_count = count.saturating_sub(limit);
+    if !include_hidden {
+        examples.truncate(limit);
+    }
+    let strength = proofs
+        .iter()
+        .map(|proof| proof.strength)
+        .max()
+        .unwrap_or(EvidenceStrength::Medium);
+    Some(Surface {
+        id: format!("surface:place:{scope}:{requested_kind}:proof-sensors"),
+        kind: requested_kind.to_string(),
+        path: None,
+        role: Some("placement_convention".to_string()),
+        evidence: "proof_sensor_for_scope".to_string(),
+        strength,
+        count: Some(count),
+        examples,
+        hidden_count,
+    })
+}
+
+fn direct_test_import_proof_surfaces_for_scope(
+    project: &Project,
+    seed_files: &[String],
+) -> Vec<ProofSurface> {
+    let seeds = seed_files.iter().cloned().collect::<BTreeSet<_>>();
+    if seeds.is_empty() {
+        return Vec::new();
+    }
+    let mut out = project
+        .files
+        .values()
+        .filter(|file| {
+            file.has_role("test") && !file.has_role("test_support") && repo::is_source_ext(&file.ext)
+        })
+        .filter(|file| file.resolved_imports.iter().any(|target| seeds.contains(target)))
+        .map(|file| ProofSurface {
+            command: proof_command_for_test(project, &file.rel),
+            path: Some(file.rel.clone()),
+            evidence: "test_import".to_string(),
+            strength: EvidenceStrength::High,
+            reason: "test imports scope file".to_string(),
+            locations: proof_surface_locations_for_test(&file.rel, "test_import"),
+        })
+        .collect::<Vec<_>>();
+    out.sort_by(|a, b| {
+        a.path
+            .cmp(&b.path)
+            .then_with(|| a.command.cmp(&b.command))
+            .then_with(|| a.evidence.cmp(&b.evidence))
+    });
+    out
 }
 
 #[derive(Default)]

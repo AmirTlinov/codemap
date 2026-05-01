@@ -94,6 +94,36 @@ mod tests {
     }
 
     #[test]
+    fn proof_map_commands_dedupe_by_command_and_keep_strongest_evidence() {
+        let commands = unique_proof_commands(vec![
+            proof(
+                "cargo test",
+                "tests/weak.rs",
+                "test_surface_tokens",
+                EvidenceStrength::Medium,
+            ),
+            proof(
+                "cargo test",
+                "tests/strong.rs",
+                "test_import",
+                EvidenceStrength::High,
+            ),
+            proof(
+                "cargo test --doc",
+                "tests/doc.rs",
+                "test_import",
+                EvidenceStrength::High,
+            ),
+        ]);
+
+        assert_eq!(commands.len(), 2);
+        assert_eq!(commands[0].command.as_deref(), Some("cargo test"));
+        assert_eq!(commands[0].path.as_deref(), Some("tests/strong.rs"));
+        assert_eq!(commands[0].evidence, "test_import");
+        assert_eq!(commands[1].command.as_deref(), Some("cargo test --doc"));
+    }
+
+    #[test]
     fn proof_map_grouping_preserves_distinct_route_sensors_from_same_file() {
         let mut login = proof(
             "pnpm run test:e2e -- tests/e2e/auth.spec.ts",
