@@ -61,33 +61,34 @@ pub fn runtime_report(
         }
     }
     let mut hidden = Vec::new();
+    let include_hidden_expand = format!("codemap runtime {} --include-hidden", shell_quote(&scope));
     truncate_with_hidden(
         &mut entrypoints,
         limit,
         &mut hidden,
         "runtime entrypoints hidden by limit",
-        "codemap runtime <scope> --include-hidden",
+        &include_hidden_expand,
     );
     truncate_with_hidden(
         &mut routes,
         limit,
         &mut hidden,
         "runtime routes hidden by limit",
-        "codemap runtime <scope> --include-hidden",
+        &include_hidden_expand,
     );
     truncate_with_hidden(
         &mut env,
         limit,
         &mut hidden,
         "environment surfaces hidden by limit",
-        "codemap runtime <scope> --include-hidden",
+        &include_hidden_expand,
     );
     truncate_with_hidden(
         &mut unknowns,
         limit,
         &mut hidden,
         "runtime unknowns hidden by limit",
-        "codemap runtime <scope> --include-hidden",
+        &include_hidden_expand,
     );
     if !include_hidden {
         proof.truncate(limit);
