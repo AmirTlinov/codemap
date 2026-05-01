@@ -303,8 +303,17 @@ fn ls_directory_report(
         directory: surfaces,
         edges,
         hidden,
-        next: vec![format!("codemap cone {}", shell_quote(rel))],
+        next: directory_next_commands(rel),
     }
+}
+
+fn directory_next_commands(rel: &str) -> Vec<String> {
+    let graph = if rel == "." {
+        "codemap graph --lens causal".to_string()
+    } else {
+        format!("codemap graph --path {} --lens causal", shell_quote(rel))
+    };
+    vec![graph, format!("codemap cone {} --depth 1", shell_quote(rel))]
 }
 
 fn directory_surface_id(scope: &str, kind: &str, examples: &[String]) -> String {

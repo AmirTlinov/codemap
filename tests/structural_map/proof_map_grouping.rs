@@ -232,6 +232,14 @@ fn proof_map_explicit_root_stays_current_level_until_raw_sensors() {
             "root proof-map should not surface nested package proof sensors before raw-sensors in {section}: {proof_map:#}"
         );
     }
+    assert!(
+        proof_map["missing_direct"]
+            .as_array()
+            .expect("missing direct")
+            .iter()
+            .all(|surface| surface["path"] != "package.json"),
+        "root proof-map should not complain that the top-level manifest lacks direct proof; exact or changed manifest scopes own that question: {proof_map:#}"
+    );
 
     let raw = run_json(
         repo.path(),

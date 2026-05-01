@@ -266,6 +266,51 @@ fn graph_causal_directory_scope_uses_current_level_not_recursive_file_dump() {
     );
 }
 
+#[test]
+fn directory_ls_points_to_current_level_graph_before_cone() {
+    let (repo, cache) = fixture();
+
+    let root = run_json(
+        repo.path(),
+        cache.path(),
+        &["ls", ".", "--format", "json"],
+    );
+    assert_schema("schemas/ls.schema.json", &root);
+    assert_eq!(
+        root["next"]
+            .as_array()
+            .expect("root next")
+            .first()
+            .and_then(|command| command.as_str()),
+        Some("codemap graph --lens causal"),
+        "root ls should send agents to the current-level map before a deeper cone: {root:#}"
+    );
+
+    let scoped = run_json(
+        repo.path(),
+        cache.path(),
+        &["ls", "packages/app", "--format", "json"],
+    );
+    assert_schema("schemas/ls.schema.json", &scoped);
+    assert_eq!(
+        scoped["next"]
+            .as_array()
+            .expect("scoped next")
+            .first()
+            .and_then(|command| command.as_str()),
+        Some("codemap graph --path packages/app --lens causal"),
+        "directory ls should keep graph scope exact before suggesting cone: {scoped:#}"
+    );
+    assert!(
+        scoped["next"]
+            .as_array()
+            .expect("scoped next")
+            .iter()
+            .any(|command| command == "codemap cone packages/app --depth 1"),
+        "cone remains available after the current-level graph: {scoped:#}"
+    );
+}
+
 
 #[test]
 fn graph_proof_lens_uses_explicit_path_scope() {

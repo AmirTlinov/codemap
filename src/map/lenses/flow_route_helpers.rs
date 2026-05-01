@@ -23,6 +23,20 @@ enum RouteAnchorLookup {
     Ambiguous,
 }
 
+struct RouteProofIndex {
+    routes: Vec<RuntimeRoute>,
+}
+
+fn route_proof_index(project: &Project) -> RouteProofIndex {
+    RouteProofIndex {
+        routes: project
+            .files
+            .values()
+            .flat_map(|file| runtime_routes_for_file(project, file))
+            .collect(),
+    }
+}
+
 fn route_anchor_lookup(project: &Project, anchor: &str) -> RouteAnchorLookup {
     let (method, path) = parse_route_anchor(anchor).unwrap_or((None, anchor));
     let mut routes = project
@@ -87,7 +101,17 @@ fn route_anchor_label(route: &RuntimeRoute) -> String {
 }
 
 fn route_reference_edges(project: &Project, route: &RuntimeRoute) -> Vec<StructuralEdge> {
-    if !route_can_be_proved_by_page_goto(route) || !route_page_visit_owner_is_unique(project, route)
+    let index = route_proof_index(project);
+    route_reference_edges_with_index(project, route, &index)
+}
+
+fn route_reference_edges_with_index(
+    project: &Project,
+    route: &RuntimeRoute,
+    index: &RouteProofIndex,
+) -> Vec<StructuralEdge> {
+    if !route_can_be_proved_by_page_goto(route)
+        || !route_page_visit_owner_is_unique_with_index(project, route, index)
     {
         return Vec::new();
     }
@@ -117,18 +141,25 @@ fn route_can_be_proved_by_page_goto(route: &RuntimeRoute) -> bool {
     )
 }
 
-fn route_page_visit_owner_is_unique(project: &Project, route: &RuntimeRoute) -> bool {
-    route_page_visit_owner_count(project, route) == 1
+fn route_page_visit_owner_is_unique_with_index(
+    project: &Project,
+    route: &RuntimeRoute,
+    index: &RouteProofIndex,
+) -> bool {
+    route_page_visit_owner_count_with_index(project, route, index) == 1
 }
 
-fn route_page_visit_owner_count(project: &Project, route: &RuntimeRoute) -> usize {
+fn route_page_visit_owner_count_with_index(
+    project: &Project,
+    route: &RuntimeRoute,
+    index: &RouteProofIndex,
+) -> usize {
     if !route_can_be_proved_by_page_goto(route) {
         return 0;
     }
-    project
-        .files
-        .values()
-        .flat_map(|file| runtime_routes_for_file(project, file))
+    index
+        .routes
+        .iter()
         .filter(|candidate| {
             candidate.path == route.path && route_can_be_proved_by_page_goto(candidate)
                 && route_proof_scope_matches(project, &route.file, &candidate.file)

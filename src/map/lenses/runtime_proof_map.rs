@@ -14,6 +14,7 @@ pub fn runtime_report(
     let mut ci = Vec::new();
     let mut proof = Vec::new();
     let mut unknowns = Vec::new();
+    let mut route_index = None;
     for file in runtime_scope_files(project, &scope) {
         if runtime_entrypoint_kind(file).is_some() {
             entrypoints.push(surface_from_path(
@@ -40,8 +41,13 @@ pub fn runtime_report(
             ));
         }
         let file_routes = runtime_routes_for_file(project, file);
+        if !file_routes.is_empty() && route_index.is_none() {
+            route_index = Some(route_proof_index(project));
+        }
         for route in &file_routes {
-            proof.extend(route_reference_edges(project, route));
+            if let Some(index) = &route_index {
+                proof.extend(route_reference_edges_with_index(project, route, index));
+            }
         }
         routes.extend(file_routes);
         env.extend(env_surfaces_for_file(project, file));
@@ -174,6 +180,7 @@ pub fn proof_map_report(
     let mut unknowns = Vec::new();
     let discovery_limit = usize::MAX;
     let mut hidden = Vec::new();
+    let mut route_index = None;
     let expand_larger_limit = proof_map_expand(&proof_selector, false);
     let expand_raw_sensors = proof_map_expand(&proof_selector, true);
     if hidden_seed_count > 0 {
@@ -186,11 +193,17 @@ pub fn proof_map_report(
     for seed in &seeds {
         if let Some(file) = project.files.get(seed) {
             unknowns.extend(unknowns_for_file(project, file));
-            e2e.extend(route_proof_surfaces(project, file));
-            unknowns.extend(route_proof_unknowns(project, file));
+            let file_routes = runtime_routes_for_file(project, file);
+            if !file_routes.is_empty() && route_index.is_none() {
+                route_index = Some(route_proof_index(project));
+            }
+            if let Some(index) = &route_index {
+                e2e.extend(route_proof_surfaces_for_routes(project, file_routes.clone(), index));
+                unknowns.extend(route_proof_unknowns_for_routes(project, file_routes, index));
+            }
         }
         let proofs = proof_surfaces_for_anchor(project, seed, 1, discovery_limit);
-        if proofs.is_empty() && proof_missing_should_surface(project, seed) {
+        if proofs.is_empty() && proof_map_missing_should_surface(project, seed, scope.as_deref(), &changed) {
             missing_direct.push(surface_from_path(
                 "missing_direct_proof",
                 seed,
@@ -354,6 +367,21 @@ fn proof_map_seed_selection(
     (seeds, hidden)
 }
 
+fn proof_map_missing_should_surface(
+    project: &Project,
+    seed: &str,
+    scope: Option<&str>,
+    changed: &[String],
+) -> bool {
+    if !proof_missing_should_surface(project, seed) {
+        return false;
+    }
+    if changed.iter().any(|path| path == seed) || scope.is_some_and(|scope| scope == seed) {
+        return true;
+    }
+    !project.packages.iter().any(|package| package.manifest == seed)
+}
+
 fn runtime_scope_files<'a>(project: &'a Project, scope: &str) -> Vec<&'a FileInfo> {
     if let Some(file) = project.files.get(scope) {
         vec![file]
@@ -385,12 +413,16 @@ fn group_env_surfaces(values: Vec<EnvSurface>) -> Vec<EnvSurface> {
     out
 }
 
-fn route_proof_surfaces(project: &Project, file: &FileInfo) -> Vec<ProofSurface> {
-    runtime_routes_for_file(project, file)
+fn route_proof_surfaces_for_routes(
+    project: &Project,
+    routes: Vec<RuntimeRoute>,
+    index: &RouteProofIndex,
+) -> Vec<ProofSurface> {
+    routes
         .into_iter()
         .flat_map(|route| {
             let label = route_anchor_label(&route);
-            route_reference_edges(project, &route)
+            route_reference_edges_with_index(project, &route, index)
                 .into_iter()
                 .map(move |edge| ProofSurface {
                     command: proof_command_for_test(project, &edge.from),
@@ -404,13 +436,17 @@ fn route_proof_surfaces(project: &Project, file: &FileInfo) -> Vec<ProofSurface>
         .collect()
 }
 
-fn route_proof_unknowns(project: &Project, file: &FileInfo) -> Vec<Unknown> {
-    runtime_routes_for_file(project, file)
+fn route_proof_unknowns_for_routes(
+    project: &Project,
+    routes: Vec<RuntimeRoute>,
+    index: &RouteProofIndex,
+) -> Vec<Unknown> {
+    routes
         .into_iter()
         .filter(|route| {
             route_can_be_proved_by_page_goto(route)
                 && route_has_page_visit_in_proof_scope(project, route)
-                && route_page_visit_owner_count(project, route) > 1
+                && route_page_visit_owner_count_with_index(project, route, index) > 1
         })
         .map(|route| {
             let line = route
