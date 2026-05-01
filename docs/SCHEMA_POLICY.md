@@ -18,9 +18,9 @@ Core edge-based structural outputs currently use:
 ```
 
 Each manifest entry is the authority for that output's exact version. Individual
-outputs may advance independently when their emitted JSON contract changes; for
-example, new lens outputs start at version `1`, `proof` remains version `2`,
-and `anchor-validation` is versioned separately from map/proof outputs.
+outputs may advance independently when their emitted JSON contract changes.
+The schema manifest is the source of truth for mixed-version surfaces such as
+`proof`, `proof-map`, `siblings`, and `place`.
 
 Semantic anchor config uses:
 
