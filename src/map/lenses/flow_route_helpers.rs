@@ -23,26 +23,11 @@ enum RouteAnchorLookup {
     Ambiguous,
 }
 
-struct RouteProofIndex {
-    routes: Vec<RuntimeRoute>,
-}
-
-fn route_proof_index(project: &Project) -> RouteProofIndex {
-    RouteProofIndex {
-        routes: project
-            .files
-            .values()
-            .flat_map(|file| runtime_routes_for_file(project, file))
-            .collect(),
-    }
-}
-
-fn route_anchor_lookup(project: &Project, anchor: &str) -> RouteAnchorLookup {
+fn route_anchor_lookup_with_index(anchor: &str, index: &RuntimeFactIndex) -> RouteAnchorLookup {
     let (method, path) = parse_route_anchor(anchor).unwrap_or((None, anchor));
-    let mut routes = project
-        .files
-        .values()
-        .flat_map(|file| runtime_routes_for_file(project, file))
+    let mut routes = index
+        .routes
+        .iter()
         .filter(|route| {
             route.path == path
                 && method.is_none_or(|method| {
@@ -53,6 +38,7 @@ fn route_anchor_lookup(project: &Project, anchor: &str) -> RouteAnchorLookup {
                 })
         })
         .take(2)
+        .cloned()
         .collect::<Vec<_>>();
     match routes.len() {
         0 => RouteAnchorLookup::None,
@@ -100,35 +86,29 @@ fn route_anchor_label(route: &RuntimeRoute) -> String {
         .unwrap_or_else(|| route.path.clone())
 }
 
-fn route_reference_edges(project: &Project, route: &RuntimeRoute) -> Vec<StructuralEdge> {
-    let index = route_proof_index(project);
-    route_reference_edges_with_index(project, route, &index)
-}
-
 fn route_reference_edges_with_index(
     project: &Project,
     route: &RuntimeRoute,
-    index: &RouteProofIndex,
+    index: &RuntimeFactIndex,
 ) -> Vec<StructuralEdge> {
     if !route_can_be_proved_by_page_goto(route)
         || !route_page_visit_owner_is_unique_with_index(project, route, index)
     {
         return Vec::new();
     }
-    project
-        .files
-        .values()
-        .filter(|file| file.has_role("test"))
-        .filter(|file| route_proof_scope_matches(project, &route.file, &file.rel))
-        .filter(|file| file.visited_route_paths.contains(&route.path))
-        .map(|file| {
+    index
+        .route_visits
+        .iter()
+        .filter(|visit| visit.path == route.path)
+        .filter(|visit| route_proof_scope_matches(project, &route.file, &visit.file))
+        .map(|visit| {
             structural_edge_with_locations(
-                file.rel.clone(),
+                visit.file.clone(),
                 route.file.clone(),
                 "runtime_reference",
                 "e2e_visited_route",
                 EvidenceStrength::High,
-                route_visit_locations(project, &file.rel, &route.path),
+                visit.locations.clone(),
             )
         })
         .collect()
@@ -144,7 +124,7 @@ fn route_can_be_proved_by_page_goto(route: &RuntimeRoute) -> bool {
 fn route_page_visit_owner_is_unique_with_index(
     project: &Project,
     route: &RuntimeRoute,
-    index: &RouteProofIndex,
+    index: &RuntimeFactIndex,
 ) -> bool {
     route_page_visit_owner_count_with_index(project, route, index) == 1
 }
@@ -152,7 +132,7 @@ fn route_page_visit_owner_is_unique_with_index(
 fn route_page_visit_owner_count_with_index(
     project: &Project,
     route: &RuntimeRoute,
-    index: &RouteProofIndex,
+    index: &RuntimeFactIndex,
 ) -> usize {
     if !route_can_be_proved_by_page_goto(route) {
         return 0;
@@ -168,11 +148,13 @@ fn route_page_visit_owner_count_with_index(
         .count()
 }
 
-fn route_has_page_visit_in_proof_scope(project: &Project, route: &RuntimeRoute) -> bool {
-    project.files.values().any(|file| {
-        file.has_role("test")
-            && route_proof_scope_matches(project, &route.file, &file.rel)
-            && file.visited_route_paths.contains(&route.path)
+fn route_has_page_visit_in_proof_scope_with_index(
+    project: &Project,
+    route: &RuntimeRoute,
+    index: &RuntimeFactIndex,
+) -> bool {
+    index.route_visits.iter().any(|visit| {
+        visit.path == route.path && route_proof_scope_matches(project, &route.file, &visit.file)
     })
 }
 

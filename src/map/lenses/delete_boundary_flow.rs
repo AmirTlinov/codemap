@@ -258,12 +258,13 @@ pub fn flow_report(
     let mut proof = Vec::new();
     let mut unknown_breaks = Vec::new();
     let mut expand = vec![format!("codemap cone {}", shell_quote(&rel))];
+    let runtime_facts = runtime_fact_index(project);
     let mut entry = project
         .files
         .get(&rel)
         .map(|file| file_summary(project, file, include_hidden, 20));
     let mut side_effects = Vec::new();
-    match route_anchor_lookup(project, &rel) {
+    match route_anchor_lookup_with_index(&rel, &runtime_facts) {
         RouteAnchorLookup::One(route) => {
             let route_file = route.file.clone();
             expand = vec![
@@ -301,7 +302,7 @@ pub fn flow_report(
             }
             let dependency_edges = direct_dependency_edges(project, &route_file);
             contracts = cone_contract_edges(project, &dependency_edges);
-            proof = route_reference_edges(project, &route);
+            proof = route_reference_edges_with_index(project, &route, &runtime_facts);
             if let Some(file) = project.files.get(&route_file) {
                 side_effects = side_effect_surfaces_for_file(project, file);
                 unknown_breaks.extend(unknowns_for_file(project, file));

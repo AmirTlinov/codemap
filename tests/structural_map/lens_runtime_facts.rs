@@ -79,34 +79,32 @@ fn runtime_lens_extracts_static_env_across_languages() {
 }
 
 #[test]
-fn delete_lens_reports_package_manifest_export_blocker() {
+fn place_route_uses_runtime_fact_index_for_static_route_registrations() {
     let (repo, cache) = fixture();
+    write(
+        &repo.path().join("packages/app/src/server.ts"),
+        "router.get('/place/runtime', placeRuntime);\nexport function placeRuntime() { return true; }\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "place route fixture"]);
 
-    let delete_map = run_json(
+    let place = run_json(
         repo.path(),
         cache.path(),
-        &["delete", "packages/replay/src/index.ts", "--format", "json"],
+        &["place", "packages/app/src", "--kind", "route", "--format", "json"],
     );
-    assert_schema("schemas/delete.schema.json", &delete_map);
+    assert_schema("schemas/place.schema.json", &place);
     assert!(
-        delete_map["package_exports"]
+        place["existing_surfaces"]
             .as_array()
-            .expect("package exports")
+            .expect("existing surfaces")
             .iter()
-            .any(|edge| edge["from"] == "packages/replay/package.json"
-                && edge["to"] == "packages/replay/src/index.ts"
-                && edge["type"] == "package_export"),
-        "delete lens must show package manifest exports as deletion blockers: {delete_map:#}"
-    );
-    assert!(
-        delete_map["checklist"]
-            .as_array()
-            .expect("checklist")
-            .iter()
-            .any(|item| item
-                .as_str()
-                .is_some_and(|text| text.contains("package public exports"))),
-        "delete lens checklist should point at the manifest blocker without claiming safety: {delete_map:#}"
+            .any(|surface| surface["examples"]
+                .as_array()
+                .expect("examples")
+                .iter()
+                .any(|example| example == "packages/app/src/server.ts")),
+        "place --kind route should use the shared runtime fact index, not only route-looking paths: {place:#}"
     );
 }
 

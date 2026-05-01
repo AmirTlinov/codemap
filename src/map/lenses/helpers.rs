@@ -317,26 +317,11 @@ fn package_export_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {
 }
 
 fn runtime_reference_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {
-    let route = project.files.get(rel).and_then(|file| route_from_file_convention(project, file));
-    let Some(route) = route else {
-        return Vec::new();
-    };
-    project
-        .files
-        .values()
-        .filter(|file| file.has_role("test"))
-        .filter(|file| file.visited_route_paths.contains(&route.path))
-        .map(|file| {
-            edge_with_path_location(
-                file.rel.clone(),
-                rel.to_string(),
-                "runtime_reference",
-                "e2e_visited_route",
-                EvidenceStrength::High,
-                file.rel.clone(),
-                "route_visit",
-            )
-        })
+    let runtime_facts = runtime_fact_index(project);
+    runtime_facts
+        .routes_for_file(rel)
+        .into_iter()
+        .flat_map(|route| route_reference_edges_with_index(project, &route, &runtime_facts))
         .collect()
 }
 
@@ -353,10 +338,35 @@ fn file_matches_place_kind(file: &FileInfo, kind: &str) -> bool {
 
 fn route_from_path(rel: &str) -> bool {
     rel.contains("/routes/")
-        || rel.contains("/app/")
-        || rel.contains("/pages/")
         || rel.ends_with("/route.ts")
         || rel.ends_with("/route.js")
+        || next_app_route_path(rel)
+        || pages_route_path(rel)
+}
+
+fn next_app_route_path(rel: &str) -> bool {
+    let rest = rel
+        .strip_prefix("app/")
+        .or_else(|| rel.split_once("/app/").map(|(_, rest)| rest));
+    rest.is_some_and(|rest| {
+        rest.ends_with("/page.tsx")
+            || rest.ends_with("/page.jsx")
+            || rest.ends_with("/page.ts")
+            || rest.ends_with("/route.ts")
+            || rest.ends_with("/route.js")
+    })
+}
+
+fn pages_route_path(rel: &str) -> bool {
+    let rest = rel
+        .strip_prefix("pages/")
+        .or_else(|| rel.split_once("/pages/").map(|(_, rest)| rest));
+    rest.is_some_and(|rest| {
+        matches!(
+            Path::new(rest).extension().and_then(|ext| ext.to_str()),
+            Some("tsx" | "jsx" | "ts" | "js")
+        )
+    })
 }
 
 fn placement_conventions(scope: &str, kind: &str, surfaces: &[Surface]) -> Vec<String> {

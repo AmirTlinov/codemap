@@ -86,7 +86,9 @@ pub fn siblings_report(
             ),
         );
     }
-    let mut route_service_test_triplets = route_service_test_triplets(project, &scope);
+    let runtime_facts = runtime_fact_index(project);
+    let mut route_service_test_triplets =
+        route_service_test_triplets(project, &scope, &runtime_facts);
     truncate_with_hidden(
         &mut route_service_test_triplets,
         limit,
@@ -119,9 +121,15 @@ pub fn place_report(
     let limit = limit.max(1);
     let scope = repo::normalize_rel_path(scope);
     let requested_kind = requested_kind.to_string();
+    let runtime_facts = (requested_kind == "route").then(|| runtime_fact_index(project));
     let mut examples = files_under_directory(project, &scope)
         .into_iter()
-        .filter(|file| file_matches_place_kind(file, &requested_kind))
+        .filter(|file| {
+            file_matches_place_kind(file, &requested_kind)
+                || runtime_facts
+                    .as_ref()
+                    .is_some_and(|facts| facts.has_routes_for_file(&file.rel))
+        })
         .map(|file| file.rel.clone())
         .collect::<Vec<_>>();
     examples.sort();
@@ -202,12 +210,16 @@ struct TripletParts {
     tests: Vec<String>,
 }
 
-fn route_service_test_triplets(project: &Project, scope: &str) -> Vec<Surface> {
+fn route_service_test_triplets(
+    project: &Project,
+    scope: &str,
+    runtime_facts: &RuntimeFactIndex,
+) -> Vec<Surface> {
     let mut groups: BTreeMap<String, TripletParts> = BTreeMap::new();
     for file in files_under_directory(project, scope) {
         let key = feature_stem(&file.rel);
         let group = groups.entry(key).or_default();
-        if route_from_path(&file.rel) || !runtime_routes_for_file(project, file).is_empty() {
+        if route_from_path(&file.rel) || runtime_facts.has_routes_for_file(&file.rel) {
             group.routes.push(file.rel.clone());
         }
         if file_matches_place_kind(file, "service") {

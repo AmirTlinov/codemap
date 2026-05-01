@@ -14,7 +14,7 @@ pub fn runtime_report(
     let mut ci = Vec::new();
     let mut proof = Vec::new();
     let mut unknowns = Vec::new();
-    let mut route_index = None;
+    let runtime_facts = runtime_fact_index(project);
     for file in runtime_scope_files(project, &scope) {
         if runtime_entrypoint_kind(file).is_some() {
             entrypoints.push(surface_from_path(
@@ -40,14 +40,13 @@ pub fn runtime_report(
                 EvidenceStrength::Medium,
             ));
         }
-        let file_routes = runtime_routes_for_file(project, file);
-        if !file_routes.is_empty() && route_index.is_none() {
-            route_index = Some(route_proof_index(project));
-        }
+        let file_routes = runtime_facts.routes_for_file(&file.rel);
         for route in &file_routes {
-            if let Some(index) = &route_index {
-                proof.extend(route_reference_edges_with_index(project, route, index));
-            }
+            proof.extend(route_reference_edges_with_index(
+                project,
+                route,
+                &runtime_facts,
+            ));
         }
         routes.extend(file_routes);
         env.extend(env_surfaces_for_file(project, file));
@@ -180,7 +179,7 @@ pub fn proof_map_report(
     let mut unknowns = Vec::new();
     let discovery_limit = usize::MAX;
     let mut hidden = Vec::new();
-    let mut route_index = None;
+    let runtime_facts = runtime_fact_index(project);
     let expand_larger_limit = proof_map_expand(&proof_selector, false);
     let expand_raw_sensors = proof_map_expand(&proof_selector, true);
     if hidden_seed_count > 0 {
@@ -193,14 +192,17 @@ pub fn proof_map_report(
     for seed in &seeds {
         if let Some(file) = project.files.get(seed) {
             unknowns.extend(unknowns_for_file(project, file));
-            let file_routes = runtime_routes_for_file(project, file);
-            if !file_routes.is_empty() && route_index.is_none() {
-                route_index = Some(route_proof_index(project));
-            }
-            if let Some(index) = &route_index {
-                e2e.extend(route_proof_surfaces_for_routes(project, file_routes.clone(), index));
-                unknowns.extend(route_proof_unknowns_for_routes(project, file_routes, index));
-            }
+            let file_routes = runtime_facts.routes_for_file(seed);
+            e2e.extend(route_proof_surfaces_for_routes(
+                project,
+                file_routes.clone(),
+                &runtime_facts,
+            ));
+            unknowns.extend(route_proof_unknowns_for_routes(
+                project,
+                file_routes,
+                &runtime_facts,
+            ));
         }
         let proofs = proof_surfaces_for_anchor(project, seed, 1, discovery_limit);
         if proofs.is_empty() && proof_map_missing_should_surface(project, seed, scope.as_deref(), &changed) {
@@ -416,7 +418,7 @@ fn group_env_surfaces(values: Vec<EnvSurface>) -> Vec<EnvSurface> {
 fn route_proof_surfaces_for_routes(
     project: &Project,
     routes: Vec<RuntimeRoute>,
-    index: &RouteProofIndex,
+    index: &RuntimeFactIndex,
 ) -> Vec<ProofSurface> {
     routes
         .into_iter()
@@ -439,13 +441,13 @@ fn route_proof_surfaces_for_routes(
 fn route_proof_unknowns_for_routes(
     project: &Project,
     routes: Vec<RuntimeRoute>,
-    index: &RouteProofIndex,
+    index: &RuntimeFactIndex,
 ) -> Vec<Unknown> {
     routes
         .into_iter()
         .filter(|route| {
             route_can_be_proved_by_page_goto(route)
-                && route_has_page_visit_in_proof_scope(project, route)
+                && route_has_page_visit_in_proof_scope_with_index(project, route, index)
                 && route_page_visit_owner_count_with_index(project, route, index) > 1
         })
         .map(|route| {
