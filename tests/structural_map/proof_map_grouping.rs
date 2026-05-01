@@ -203,6 +203,12 @@ fn proof_map_files_expands_to_matching_proof_files() {
 #[test]
 fn proof_map_explicit_root_stays_current_level_until_raw_sensors() {
     let (repo, cache) = fixture();
+    write(&repo.path().join("AGENTS.md"), "# Root Bootstrap\n");
+    write(&repo.path().join("README.md"), "# Fixture\n");
+    write(&repo.path().join("tests/AGENTS.md"), "# Test Bootstrap\n");
+    write(&repo.path().join("tests/README.md"), "# Test Notes\n");
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "proof map markdown noise fixture"]);
 
     let proof_map = run_json(
         repo.path(),
@@ -230,6 +236,15 @@ fn proof_map_explicit_root_stays_current_level_until_raw_sensors() {
                 .filter_map(|proof| proof["path"].as_str())
                 .all(|path| !path.starts_with("packages/")),
             "root proof-map should not surface nested package proof sensors before raw-sensors in {section}: {proof_map:#}"
+        );
+        assert!(
+            proof_map[section]
+                .as_array()
+                .expect("proof section")
+                .iter()
+                .filter_map(|proof| proof["path"].as_str())
+                .all(|path| !path.ends_with("AGENTS.md") && !path.ends_with(".md")),
+            "root proof-map must not treat Markdown bootstrap/docs inside tests directories as executable proof sensors in {section}: {proof_map:#}"
         );
     }
     assert!(

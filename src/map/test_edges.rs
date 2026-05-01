@@ -18,7 +18,8 @@ fn strict_test_edges_for_file(
         .unwrap_or(false);
     let mut scored = Vec::new();
     for file in project.files.values() {
-        if !file.has_role("test") || file.has_role("test_support") {
+        if !file.has_role("test") || file.has_role("test_support") || !repo::is_source_ext(&file.ext)
+        {
             continue;
         }
         if !anchor_is_fixture_scope && (file.has_role("fixture") || file.has_role("example")) {
