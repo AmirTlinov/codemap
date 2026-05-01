@@ -147,3 +147,161 @@ fn proof_map_hidden_expands_use_supported_flags() {
         "proof-map hidden expand commands must be runnable by the current CLI: {proof_map:#}"
     );
 }
+
+#[test]
+fn proof_map_scope_expands_to_matching_proof_scope() {
+    let (repo, cache) = fixture();
+
+    let proof_map = run_json(
+        repo.path(),
+        cache.path(),
+        &["proof-map", "packages/app/src", "--format", "json"],
+    );
+    assert_schema("schemas/proof-map.schema.json", &proof_map);
+    let expand = proof_map["expand"].as_array().expect("expand");
+    assert!(
+        expand
+            .iter()
+            .any(|command| command == "codemap proof packages/app/src"),
+        "proof-map scope expand should keep the same explicit scope: {proof_map:#}"
+    );
+    assert!(
+        expand.iter().all(|command| command != "codemap proof --changed"),
+        "explicit proof-map scope must not point at changed files: {proof_map:#}"
+    );
+}
+
+#[test]
+fn proof_map_files_expands_to_matching_proof_files() {
+    let (repo, cache) = fixture();
+
+    let proof_map = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof-map",
+            "--files",
+            "packages/app/src/useReplay.ts",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof-map.schema.json", &proof_map);
+    let expand = proof_map["expand"].as_array().expect("expand");
+    assert!(
+        expand
+            .iter()
+            .any(|command| command == "codemap proof --files packages/app/src/useReplay.ts"),
+        "proof-map --files expand should keep the same explicit file selector: {proof_map:#}"
+    );
+    assert!(
+        expand.iter().all(|command| command != "codemap proof --changed"),
+        "explicit proof-map files must not point at changed files: {proof_map:#}"
+    );
+}
+
+#[test]
+fn proof_map_default_matches_changed_selector() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("packages/app/src/useReplay.ts"),
+        "import { seek } from '@fixture/replay';\n\nexport const frame = seek(4).frame;\n",
+    );
+
+    let default_report = run_json(
+        repo.path(),
+        cache.path(),
+        &["proof-map", "--format", "json"],
+    );
+    let changed_report = run_json(
+        repo.path(),
+        cache.path(),
+        &["proof-map", "--changed", "--format", "json"],
+    );
+    assert_schema("schemas/proof-map.schema.json", &default_report);
+    assert_eq!(
+        default_report["changed"], changed_report["changed"],
+        "bare proof-map should inspect the same changed files as --changed"
+    );
+    let expand = default_report["expand"].as_array().expect("expand");
+    assert_eq!(
+        expand,
+        changed_report["expand"].as_array().expect("changed expand"),
+        "bare proof-map expand should match explicit --changed"
+    );
+    assert!(
+        expand.iter().all(|command| command == "codemap proof --changed"),
+        "bare proof-map must not double-prefix or degrade changed selector: {default_report:#}"
+    );
+}
+
+#[test]
+fn proof_map_staged_expands_to_matching_proof_staged_selector() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("packages/app/src/useReplay.ts"),
+        "import { seek } from '@fixture/replay';\n\nexport const frame = seek(2).frame;\n",
+    );
+    git(repo.path(), &["add", "packages/app/src/useReplay.ts"]);
+
+    let proof_map = run_json(
+        repo.path(),
+        cache.path(),
+        &["proof-map", "--staged", "--format", "json"],
+    );
+    assert_schema("schemas/proof-map.schema.json", &proof_map);
+    let expand = proof_map["expand"].as_array().expect("expand");
+    assert!(
+        expand.iter().any(|command| command == "codemap proof --staged"),
+        "proof-map --staged expand should preserve the staged selector: {proof_map:#}"
+    );
+    assert!(
+        expand.iter().all(|command| command != "codemap proof --changed"
+            && !command.as_str().unwrap_or_default().starts_with("codemap proof --files")),
+        "proof-map --staged must not degrade into changed/files selectors: {proof_map:#}"
+    );
+}
+
+#[test]
+fn proof_map_since_expands_to_matching_proof_since_selector() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("packages/replay/src/session.ts"),
+        "import { Timeline } from './timeline';\nimport type { FrameDto } from './types';\n\nexport function seek(cursor: number): FrameDto {\n  return { frame: new Timeline().frameAt(cursor + 1) };\n}\n",
+    );
+    write(
+        &repo.path().join("packages/replay/src/public-only.ts"),
+        "export function publicOnly() {\n  return false;\n}\n",
+    );
+
+    let proof_map = run_json(
+        repo.path(),
+        cache.path(),
+        &["proof-map", "--since", "HEAD", "--limit", "1", "--format", "json"],
+    );
+    assert_schema("schemas/proof-map.schema.json", &proof_map);
+    let expand = proof_map["expand"].as_array().expect("expand");
+    assert!(
+        expand
+            .iter()
+            .any(|command| command == "codemap proof --since HEAD"),
+        "proof-map --since expand should preserve the since selector: {proof_map:#}"
+    );
+    assert!(
+        expand.iter().all(|command| command != "codemap proof --changed"
+            && !command.as_str().unwrap_or_default().starts_with("codemap proof --files")),
+        "proof-map --since must not degrade into changed/files selectors: {proof_map:#}"
+    );
+    let hidden = proof_map["hidden"].as_array().expect("hidden");
+    assert!(
+        !hidden.is_empty(),
+        "fixture should force at least one hidden proof-map group: {proof_map:#}"
+    );
+    assert!(
+        hidden.iter().all(|group| group["expand"].as_str().is_some_and(|command| {
+            command.starts_with("codemap proof-map --since HEAD")
+                && !command.starts_with("codemap proof-map --files")
+        })),
+        "proof-map hidden expands should preserve the since selector too: {proof_map:#}"
+    );
+}

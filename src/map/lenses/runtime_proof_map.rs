@@ -122,6 +122,7 @@ pub fn proof_map_report(
     project: &Project,
     scope: Option<String>,
     changed: Vec<String>,
+    proof_selector: String,
     limit: usize,
     raw_sensors: bool,
 ) -> ProofMapReport {
@@ -178,8 +179,8 @@ pub fn proof_map_report(
         }
     }
     let mut hidden = Vec::new();
-    let expand_larger_limit = proof_map_expand(&scope, &changed, false);
-    let expand_raw_sensors = proof_map_expand(&scope, &changed, true);
+    let expand_larger_limit = proof_map_expand(&proof_selector, false);
+    let expand_raw_sensors = proof_map_expand(&proof_selector, true);
     if !raw_sensors {
         group_duplicate_proof_surfaces(
             &mut direct,
@@ -271,6 +272,7 @@ pub fn proof_map_report(
             .collect(),
     );
     let fallback = proof_fallback_commands(project, &seeds, &changed, &commands);
+    let proof_expand = proof_map_proof_expand(&proof_selector);
     ProofMapReport {
         kind: "proof_map_report",
         schema_version: "2",
@@ -285,7 +287,7 @@ pub fn proof_map_report(
         fallback,
         unknowns,
         hidden,
-        expand: vec!["codemap proof --changed".to_string()],
+        expand: vec![proof_expand],
     }
 }
 
@@ -365,131 +367,4 @@ fn route_proof_unknowns(project: &Project, file: &FileInfo) -> Vec<Unknown> {
             )
         })
         .collect()
-}
-
-fn group_duplicate_proof_surfaces(
-    values: &mut Vec<ProofSurface>,
-    hidden: &mut Vec<HiddenGroup>,
-    reason: &str,
-    expand: &str,
-) {
-    let mut seen = BTreeMap::new();
-    let mut out = Vec::new();
-    let mut duplicate_count = 0usize;
-    for value in values.drain(..) {
-        let key = proof_surface_group_key(&value);
-        if let Some(index) = seen.get(&key).copied() {
-            duplicate_count += 1;
-            if proof_surface_precedence(&value) > proof_surface_precedence(&out[index]) {
-                out[index] = value;
-            }
-        } else {
-            seen.insert(key, out.len());
-            out.push(value);
-        }
-    }
-    if duplicate_count > 0 {
-        hidden.push(HiddenGroup {
-            reason: reason.to_string(),
-            count: duplicate_count,
-            expand: expand.to_string(),
-        });
-    }
-    *values = out;
-}
-
-fn proof_surface_group_key(value: &ProofSurface) -> (String, String, String) {
-    let detail = if value.evidence == "e2e_visited_route" {
-        value.reason.clone()
-    } else {
-        String::new()
-    };
-    (
-        value.command.clone().unwrap_or_default(),
-        value.path.clone().unwrap_or_default(),
-        detail,
-    )
-}
-
-fn group_duplicate_missing_surfaces(
-    values: &mut Vec<Surface>,
-    hidden: &mut Vec<HiddenGroup>,
-    reason: &str,
-    expand: &str,
-) {
-    let mut seen = BTreeSet::new();
-    let mut out = Vec::new();
-    let mut duplicate_count = 0usize;
-    for value in values.drain(..) {
-        let key = (
-            value.kind.clone(),
-            value.path.clone().unwrap_or_default(),
-            value.evidence.clone(),
-        );
-        if seen.insert(key) {
-            out.push(value);
-        } else {
-            duplicate_count += 1;
-        }
-    }
-    if duplicate_count > 0 {
-        hidden.push(HiddenGroup {
-            reason: reason.to_string(),
-            count: duplicate_count,
-            expand: expand.to_string(),
-        });
-    }
-    *values = out;
-}
-
-fn group_duplicate_unknowns(
-    values: &mut Vec<Unknown>,
-    hidden: &mut Vec<HiddenGroup>,
-    reason: &str,
-    expand: &str,
-) {
-    let mut seen = BTreeSet::new();
-    let mut out = Vec::new();
-    let mut duplicate_count = 0usize;
-    for value in values.drain(..) {
-        let key = (
-            value.kind.clone(),
-            value.path.clone().unwrap_or_default(),
-            value.line_start.unwrap_or_default(),
-            value.reason.clone(),
-            value.effect.clone(),
-        );
-        if seen.insert(key) {
-            out.push(value);
-        } else {
-            duplicate_count += 1;
-        }
-    }
-    if duplicate_count > 0 {
-        hidden.push(HiddenGroup {
-            reason: reason.to_string(),
-            count: duplicate_count,
-            expand: expand.to_string(),
-        });
-    }
-    *values = out;
-}
-
-fn proof_map_expand(scope: &Option<String>, changed: &[String], raw_sensors: bool) -> String {
-    let raw = if raw_sensors { " --raw-sensors" } else { "" };
-    if let Some(scope) = scope {
-        return format!(
-            "codemap proof-map {}{raw} --limit <larger-number>",
-            shell_quote(scope)
-        );
-    }
-    if changed.is_empty() {
-        return format!("codemap proof-map --changed{raw} --limit <larger-number>");
-    }
-    let files = changed
-        .iter()
-        .map(|file| shell_quote(file))
-        .collect::<Vec<_>>()
-        .join(",");
-    format!("codemap proof-map --files {files}{raw} --limit <larger-number>")
 }

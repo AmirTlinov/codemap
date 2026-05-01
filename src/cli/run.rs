@@ -92,9 +92,15 @@ pub fn run() -> Result<()> {
         CommandKind::Proof(args) => proof(&project, args),
         CommandKind::ProofMap(args) => {
             ensure_valid_config(&project)?;
-            let (target, changed) = proof_map_inputs(&project, &args)?;
-            let report =
-                map::proof_map_report(&project, target, changed, args.limit, args.raw_sensors);
+            let (target, changed, proof_selector) = proof_map_inputs(&project, &args)?;
+            let report = map::proof_map_report(
+                &project,
+                target,
+                changed,
+                proof_selector,
+                args.limit,
+                args.raw_sensors,
+            );
             output(args.format, &report, || render::proof_map(&report))
         }
         CommandKind::Delete(args) => {
