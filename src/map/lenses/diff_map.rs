@@ -26,10 +26,10 @@ pub fn diff_map_report(
     let mut hidden = Vec::new();
     let selector = diff_map_selector(&changed, &mode);
     let diff_expand = format!("codemap diff-map {selector} --limit <larger-number>");
-    for rel in changed.iter().take(limit) {
+    for rel in &changed {
         if let Some(file) = project.files.get(rel) {
             changed_summaries.push(file_summary(project, file, false, 12));
-            for symbol in file.symbols.iter().filter(|symbol| symbol.exported).take(limit) {
+            for symbol in file.symbols.iter().filter(|symbol| symbol.exported) {
                 changed_symbols.push(ChangedSymbol {
                     path: rel.clone(),
                     name: symbol.name.clone(),
@@ -90,6 +90,13 @@ pub fn diff_map_report(
         }
     }
     truncate_with_hidden(
+        &mut changed_summaries,
+        limit,
+        &mut hidden,
+        "changed file summaries hidden by limit",
+        &diff_expand,
+    );
+    truncate_with_hidden(
         &mut added_edges,
         limit,
         &mut hidden,
@@ -101,6 +108,27 @@ pub fn diff_map_report(
         limit,
         &mut hidden,
         "removed structural edges hidden by limit",
+        &diff_expand,
+    );
+    truncate_with_hidden(
+        &mut changed_symbols,
+        limit,
+        &mut hidden,
+        "changed symbol surfaces hidden by limit",
+        &diff_expand,
+    );
+    truncate_with_hidden(
+        &mut added_exports,
+        limit,
+        &mut hidden,
+        "added export surfaces hidden by limit",
+        &diff_expand,
+    );
+    truncate_with_hidden(
+        &mut removed_exports,
+        limit,
+        &mut hidden,
+        "removed export surfaces hidden by limit",
         &diff_expand,
     );
     truncate_with_hidden(
