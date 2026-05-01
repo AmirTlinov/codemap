@@ -23,18 +23,17 @@ pub fn impact_report(
     let mut hidden = Vec::new();
     let mut unknowns = Vec::new();
     let mut changed_summaries = Vec::new();
-    let mut clusters = Vec::new();
+    let mut cluster_reports = Vec::new();
     let changed_count = changed.len();
-    for rel in changed.iter().take(limit) {
+    for rel in &changed {
         if let Some(file) = project.files.get(rel) {
             changed_summaries.push(file_summary(project, file, false, 12));
             let (cluster, cluster_hidden) = impact_cluster(project, rel, depth, limit);
-            hidden.extend(cluster_hidden);
-            clusters.push(cluster);
+            cluster_reports.push((cluster, cluster_hidden));
         } else {
             unknowns.push(unknown_unindexed_anchor(rel));
             changed_summaries.push(missing_file_summary(project, rel));
-            clusters.push(ImpactCluster {
+            cluster_reports.push((ImpactCluster {
                 id: format!("changed:{rel}"),
                 risk: Risk::Medium.as_str().to_string(),
                 changed: vec![rel.clone()],
@@ -43,15 +42,26 @@ pub fn impact_report(
                 contract_risks: Vec::new(),
                 proof: Vec::new(),
                 reasons: vec!["changed file is not indexed".to_string()],
-            });
+            }, Vec::new()));
         }
     }
-    if changed_count > changed_summaries.len() {
+    if changed_count > limit {
         hidden.push(HiddenGroup {
             reason: "changed anchors hidden by limit".to_string(),
-            count: changed_count - changed_summaries.len(),
+            count: changed_count - limit,
             expand: impact_hidden_changed_expand(&changed, depth, changed_count),
         });
+        hidden.push(HiddenGroup {
+            reason: "impact clusters hidden by limit".to_string(),
+            count: cluster_reports.len().saturating_sub(limit),
+            expand: impact_hidden_changed_expand(&changed, depth, changed_count),
+        });
+        changed_summaries.truncate(limit);
+    }
+    let mut clusters = Vec::new();
+    for (cluster, cluster_hidden) in cluster_reports.into_iter().take(limit) {
+        hidden.extend(cluster_hidden);
+        clusters.push(cluster);
     }
     ImpactReport {
         kind: "impact_report",

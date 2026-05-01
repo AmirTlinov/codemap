@@ -33,6 +33,7 @@ include!("structural_map/anchors_validate_summary.rs");
 include!("structural_map/anchors_validate_details.rs");
 include!("structural_map/boundaries_graph_schema.rs");
 include!("structural_map/lens_commands.rs");
+include!("structural_map/impact_limits.rs");
 include!("structural_map/diff_map_limits.rs");
 include!("structural_map/lens_budget.rs");
 include!("structural_map/siblings_place_proof_grouping.rs");
