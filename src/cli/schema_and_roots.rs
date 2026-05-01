@@ -50,7 +50,7 @@ fn command_root_hint(command: &CommandKind, ambient_root: Option<&Path>) -> Opti
         CommandKind::ProofMap(args) => proof_map_root_hint(args),
         CommandKind::Delete(args) => absolute_path_hint(Some(&args.path)),
         CommandKind::BoundaryMap(args) => absolute_path_hint(Some(&args.scope)),
-        CommandKind::Flow(args) => absolute_path_hint(Some(&args.path)),
+        CommandKind::Flow(args) => flow_root_hint(&args.path),
         CommandKind::Siblings(args) => absolute_path_hint(Some(&args.scope)),
         CommandKind::Place(args) => absolute_path_hint(Some(&args.scope)),
         CommandKind::Graph(args) => absolute_path_hint(args.path.as_deref()),
@@ -75,6 +75,15 @@ fn proof_root_hint(args: &ProofArgs) -> Option<PathBuf> {
 fn proof_map_root_hint(args: &ProofMapArgs) -> Option<PathBuf> {
     absolute_path_hint(args.target.as_deref())
         .or_else(|| absolute_files_hint(args.files.as_deref(), &[]))
+}
+
+fn flow_root_hint(path: &str) -> Option<PathBuf> {
+    let path_buf = PathBuf::from(path);
+    if path_buf.is_absolute() && path_buf.exists() {
+        Some(path_buf)
+    } else {
+        None
+    }
 }
 
 fn absolute_path_hint(path: Option<&str>) -> Option<PathBuf> {

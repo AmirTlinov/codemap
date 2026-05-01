@@ -224,48 +224,45 @@ pub fn flow_report(
     limit: usize,
 ) -> FlowReport {
     let limit = limit.max(1);
-    let rel = repo::normalize_rel_path(anchor_path);
+    let rel = normalize_flow_anchor(project, anchor_path);
     let mut steps = Vec::new();
     let mut contracts = Vec::new();
     let mut proof = Vec::new();
     let mut unknown_breaks = Vec::new();
-    let entry = project
+    let mut expand = vec![format!("codemap cone {}", shell_quote(&rel))];
+    let mut entry = project
         .files
         .get(&rel)
         .map(|file| file_summary(project, file, include_hidden, 20));
-    if let Some((file_rel, symbol)) = split_symbol_anchor(&rel) {
-        if let Some(info) = project.files.get(&file_rel) {
-            if symbol_file_summary(project, info, &symbol).is_none() {
-                unknown_breaks.push(unknown_missing_symbol_anchor(&file_rel, &symbol));
-                return FlowReport {
-                    kind: "flow_report",
-                    schema_version: "1",
-                    anchor: rel.clone(),
-                    flow_kind: "structural".to_string(),
-                    precision: "bounded_edges_only".to_string(),
-                    entry: None,
-                    steps,
-                    side_effects: Vec::new(),
-                    contracts,
-                    proof,
-                    unknown_breaks,
-                    hidden: Vec::new(),
-                    expand: vec![format!("codemap ls {}", shell_quote(&file_rel))],
-                };
-            }
+    let mut side_effects = Vec::new();
+    match route_anchor_lookup(project, &rel) {
+        RouteAnchorLookup::One(route) => {
+            let route_file = route.file.clone();
+            expand = vec![
+                format!("codemap cone {}", shell_quote(&route_file)),
+                format!("codemap runtime {}", shell_quote(&route_file)),
+            ];
+            entry.clone_from(
+                &project
+                    .files
+                    .get(&route_file)
+                    .map(|file| file_summary(project, file, include_hidden, 20)),
+            );
             steps.push(FlowStep {
                 index: 0,
-                anchor: rel.clone(),
-                kind: "symbol_anchor".to_string(),
-                evidence: "exact_symbol_anchor".to_string(),
-                locations: symbol_definition_location(
-                    project,
-                    &file_rel,
-                    &symbol,
-                    "symbol_definition",
-                ),
+                anchor: route_anchor_label(&route),
+                kind: "route_anchor".to_string(),
+                evidence: route.evidence.clone(),
+                locations: route.locations.clone(),
             });
-            for edge in symbol_outgoing_edges(project, info, &symbol)
+            steps.push(FlowStep {
+                index: 1,
+                anchor: route_file.clone(),
+                kind: "route_file".to_string(),
+                evidence: "runtime_route_owner".to_string(),
+                locations: vec![EvidenceLocation::path(&route_file, "route_file")],
+            });
+            for edge in direct_dependency_edges(project, &route_file)
                 .into_iter()
                 .take(limit)
             {
@@ -276,37 +273,115 @@ pub fn flow_report(
                     evidence: edge.evidence.clone(),
                     locations: edge.locations.clone(),
                 });
-                if edge.edge_type == "contract" {
-                    contracts.push(edge);
-                }
             }
-            proof = symbol_proof_edges(project, &file_rel, &symbol);
-            unknown_breaks.extend(unknowns_for_file(project, info));
-        } else {
-            unknown_breaks.push(unknown_unindexed_anchor(&file_rel));
+            let dependency_edges = direct_dependency_edges(project, &route_file);
+            contracts = cone_contract_edges(project, &dependency_edges);
+            proof = route_reference_edges(project, &route);
+            if let Some(file) = project.files.get(&route_file) {
+                side_effects = side_effect_surfaces_for_file(project, file);
+                unknown_breaks.extend(unknowns_for_file(project, file));
+            }
         }
-    } else if let Some(file) = project.files.get(&rel) {
-        steps.push(FlowStep {
-            index: 0,
-            anchor: rel.clone(),
-            kind: "file_anchor".to_string(),
-            evidence: "exact_file_anchor".to_string(),
-            locations: vec![EvidenceLocation::path(&rel, "file_anchor")],
-        });
-        for edge in direct_dependency_edges(project, &rel).into_iter().take(limit) {
-            steps.push(FlowStep {
-                index: steps.len(),
-                anchor: edge.to.clone(),
-                kind: edge.edge_type.clone(),
-                evidence: edge.evidence.clone(),
-                locations: edge.locations.clone(),
-            });
+        RouteAnchorLookup::Ambiguous => {
+            unknown_breaks.push(unknown(
+                "route_anchor_ambiguous",
+                Some(&rel),
+                None,
+                "multiple static runtime routes matched this anchor",
+                "flow stops instead of choosing a route by file order; use a method-specific anchor",
+                Some("codemap runtime .".to_string()),
+            ));
+            expand = vec!["codemap runtime .".to_string()];
         }
-        contracts = cone_contract_edges(project, &direct_dependency_edges(project, &rel));
-        proof = cone_proof_edges(project, std::slice::from_ref(&file.rel));
-        unknown_breaks.extend(unknowns_for_file(project, file));
-    } else {
-        unknown_breaks.push(unknown_unindexed_anchor(&rel));
+        RouteAnchorLookup::None if route_like_anchor(&rel) => {
+            unknown_breaks.push(unknown(
+                "route_anchor_not_found",
+                Some(&rel),
+                None,
+                "no static runtime route matched this anchor",
+                "flow stops instead of guessing framework routing",
+                Some("codemap runtime .".to_string()),
+            ));
+            expand = vec!["codemap runtime .".to_string()];
+        }
+        RouteAnchorLookup::None => {
+            if let Some((file_rel, symbol)) = split_symbol_anchor(&rel) {
+                if let Some(info) = project.files.get(&file_rel) {
+                    if symbol_file_summary(project, info, &symbol).is_none() {
+                        unknown_breaks.push(unknown_missing_symbol_anchor(&file_rel, &symbol));
+                        return FlowReport {
+                            kind: "flow_report",
+                            schema_version: "1",
+                            anchor: rel.clone(),
+                            flow_kind: "structural".to_string(),
+                            precision: "bounded_edges_only".to_string(),
+                            entry: None,
+                            steps,
+                            side_effects: Vec::new(),
+                            contracts,
+                            proof,
+                            unknown_breaks,
+                            hidden: Vec::new(),
+                            expand: vec![format!("codemap ls {}", shell_quote(&file_rel))],
+                        };
+                    }
+                    steps.push(FlowStep {
+                        index: 0,
+                        anchor: rel.clone(),
+                        kind: "symbol_anchor".to_string(),
+                        evidence: "exact_symbol_anchor".to_string(),
+                        locations: symbol_definition_location(
+                            project,
+                            &file_rel,
+                            &symbol,
+                            "symbol_definition",
+                        ),
+                    });
+                    for edge in symbol_outgoing_edges(project, info, &symbol)
+                        .into_iter()
+                        .take(limit)
+                    {
+                        steps.push(FlowStep {
+                            index: steps.len(),
+                            anchor: edge.to.clone(),
+                            kind: edge.edge_type.clone(),
+                            evidence: edge.evidence.clone(),
+                            locations: edge.locations.clone(),
+                        });
+                        if edge.edge_type == "contract" {
+                            contracts.push(edge);
+                        }
+                    }
+                    proof = symbol_proof_edges(project, &file_rel, &symbol);
+                    unknown_breaks.extend(unknowns_for_file(project, info));
+                } else {
+                    unknown_breaks.push(unknown_unindexed_anchor(&file_rel));
+                }
+            } else if let Some(file) = project.files.get(&rel) {
+                steps.push(FlowStep {
+                    index: 0,
+                    anchor: rel.clone(),
+                    kind: "file_anchor".to_string(),
+                    evidence: "exact_file_anchor".to_string(),
+                    locations: vec![EvidenceLocation::path(&rel, "file_anchor")],
+                });
+                for edge in direct_dependency_edges(project, &rel).into_iter().take(limit) {
+                    steps.push(FlowStep {
+                        index: steps.len(),
+                        anchor: edge.to.clone(),
+                        kind: edge.edge_type.clone(),
+                        evidence: edge.evidence.clone(),
+                        locations: edge.locations.clone(),
+                    });
+                }
+                contracts = cone_contract_edges(project, &direct_dependency_edges(project, &rel));
+                proof = cone_proof_edges(project, std::slice::from_ref(&file.rel));
+                unknown_breaks.extend(unknowns_for_file(project, file));
+                side_effects = side_effect_surfaces_for_file(project, file);
+            } else {
+                unknown_breaks.push(unknown_unindexed_anchor(&rel));
+            }
+        }
     }
     if steps.len() <= 1 && unknown_breaks.is_empty() {
         unknown_breaks.push(unknown(
@@ -326,15 +401,11 @@ pub fn flow_report(
         precision: "bounded_edges_only".to_string(),
         entry,
         steps,
-        side_effects: project
-            .files
-            .get(&rel)
-            .map(|file| side_effect_surfaces_for_file(project, file))
-            .unwrap_or_default(),
+        side_effects,
         contracts,
         proof,
         unknown_breaks,
         hidden: Vec::new(),
-        expand: vec![format!("codemap cone {}", shell_quote(&rel))],
+        expand,
     }
 }

@@ -109,3 +109,96 @@ fn delete_lens_reports_package_manifest_export_blocker() {
         "delete lens checklist should point at the manifest blocker without claiming safety: {delete_map:#}"
     );
 }
+
+#[test]
+fn flow_lens_starts_from_runtime_route_anchor() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("packages/app/src/server.ts"),
+        "import { seek } from '@fixture/replay';\n\nrouter.get('/auth/login', loginHandler);\n\nexport function loginHandler() {\n  return seek(1).frame;\n}\n",
+    );
+    write(
+        &repo.path().join("packages/app/tests/e2e/auth.spec.ts"),
+        "test('auth route', async ({ page }) => {\n  await page.goto('/auth/login');\n});\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "route flow fixture"]);
+
+    let flow = run_json(repo.path(), cache.path(), &["flow", "/auth/login", "--format", "json"]);
+    assert_schema("schemas/flow.schema.json", &flow);
+    assert!(
+        flow["steps"]
+            .as_array()
+            .expect("flow steps")
+            .iter()
+            .any(|step| step["kind"] == "route_anchor"
+                && step["anchor"] == "GET /auth/login"
+                && step["locations"][0]["path"] == "packages/app/src/server.ts"),
+        "flow should start from the exact runtime route anchor: {flow:#}"
+    );
+    assert!(
+        flow["steps"]
+            .as_array()
+            .expect("flow steps")
+            .iter()
+            .any(|step| step["anchor"] == "packages/replay/src/index.ts"
+                && step["kind"] == "direct_dependency"),
+        "flow should follow structural imports from the route owner file: {flow:#}"
+    );
+    assert!(
+        flow["proof"]
+            .as_array()
+            .expect("flow proof")
+            .iter()
+            .any(|edge| edge["from"] == "packages/app/tests/e2e/auth.spec.ts"
+                && edge["type"] == "runtime_reference"
+                && edge["locations"][0]["kind"] == "route_visit"),
+        "flow should attach e2e route-visit proof to the route anchor: {flow:#}"
+    );
+}
+
+#[test]
+fn flow_bare_route_anchor_fails_closed_when_route_is_ambiguous() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("packages/app/src/auth-get.ts"),
+        "router.get('/auth/login', getLogin);\nexport function getLogin() { return true; }\n",
+    );
+    write(
+        &repo.path().join("packages/app/src/auth-post.ts"),
+        "router.post('/auth/login', postLogin);\nexport function postLogin() { return true; }\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "ambiguous route fixture"]);
+
+    let bare = run_json(repo.path(), cache.path(), &["flow", "/auth/login", "--format", "json"]);
+    assert_schema("schemas/flow.schema.json", &bare);
+    assert!(
+        bare["steps"].as_array().expect("steps").is_empty(),
+        "bare ambiguous route flow must not choose by file order: {bare:#}"
+    );
+    assert!(
+        bare["unknown_breaks"]
+            .as_array()
+            .expect("unknowns")
+            .iter()
+            .any(|unknown| unknown["kind"] == "route_anchor_ambiguous"),
+        "ambiguous route should be a typed unknown: {bare:#}"
+    );
+
+    let get = run_json(
+        repo.path(),
+        cache.path(),
+        &["flow", "GET /auth/login", "--format", "json"],
+    );
+    assert_schema("schemas/flow.schema.json", &get);
+    assert!(
+        get["steps"]
+            .as_array()
+            .expect("steps")
+            .iter()
+            .any(|step| step["anchor"] == "GET /auth/login"
+                && step["locations"][0]["path"] == "packages/app/src/auth-get.ts"),
+        "method-specific route flow should stay exact when the bare path is ambiguous: {get:#}"
+    );
+}

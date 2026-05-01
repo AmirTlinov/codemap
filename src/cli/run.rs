@@ -125,7 +125,7 @@ pub fn run() -> Result<()> {
         }
         CommandKind::Flow(args) => {
             ensure_valid_config(&project)?;
-            let path = project_relative_arg(&project, &args.path)?;
+            let path = flow_anchor_arg(&project, &args.path)?;
             let report = map::flow_report(&project, &path, args.include_hidden, args.limit);
             output(args.format, &report, || render::flow(&report))
         }

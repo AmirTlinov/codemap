@@ -1,0 +1,118 @@
+fn normalize_flow_anchor(project: &Project, anchor_path: &str) -> String {
+    let anchor = anchor_path.trim();
+    let path = Path::new(anchor);
+    if path.is_absolute()
+        && let Ok(rel) = path.strip_prefix(&project.root)
+    {
+        return repo::normalize_rel_path(&rel.to_string_lossy());
+    }
+    if route_like_anchor(anchor) {
+        anchor.to_string()
+    } else {
+        repo::normalize_rel_path(anchor)
+    }
+}
+
+fn route_like_anchor(anchor: &str) -> bool {
+    anchor.starts_with('/') || parse_route_anchor(anchor).is_some()
+}
+
+enum RouteAnchorLookup {
+    None,
+    One(RuntimeRoute),
+    Ambiguous,
+}
+
+fn route_anchor_lookup(project: &Project, anchor: &str) -> RouteAnchorLookup {
+    let (method, path) = parse_route_anchor(anchor).unwrap_or((None, anchor));
+    let mut routes = project
+        .files
+        .values()
+        .flat_map(|file| runtime_routes_for_file(project, file))
+        .filter(|route| {
+            route.path == path
+                && method.is_none_or(|method| {
+                    route
+                        .method
+                        .as_deref()
+                        .is_none_or(|route_method| route_method == "ANY" || route_method == method)
+                })
+        })
+        .take(2)
+        .collect::<Vec<_>>();
+    match routes.len() {
+        0 => RouteAnchorLookup::None,
+        1 => RouteAnchorLookup::One(routes.remove(0)),
+        _ => RouteAnchorLookup::Ambiguous,
+    }
+}
+
+fn parse_route_anchor(anchor: &str) -> Option<(Option<&str>, &str)> {
+    let trimmed = anchor.trim();
+    if trimmed.starts_with('/') {
+        return Some((None, trimmed));
+    }
+    let (method, path) = trimmed.split_once(' ')?;
+    let method = method.trim().to_ascii_uppercase();
+    let path = path.trim();
+    if !path.starts_with('/')
+        || !static_route_methods()
+            .iter()
+            .any(|known| known.eq_ignore_ascii_case(&method))
+    {
+        return None;
+    }
+    Some((
+        Some(match method.as_str() {
+            "GET" => "GET",
+            "POST" => "POST",
+            "PUT" => "PUT",
+            "PATCH" => "PATCH",
+            "DELETE" => "DELETE",
+            "ALL" => "ALL",
+            "HEAD" => "HEAD",
+            "OPTIONS" => "OPTIONS",
+            _ => return None,
+        }),
+        path,
+    ))
+}
+
+fn route_anchor_label(route: &RuntimeRoute) -> String {
+    route
+        .method
+        .as_ref()
+        .map(|method| format!("{method} {}", route.path))
+        .unwrap_or_else(|| route.path.clone())
+}
+
+fn route_reference_edges(project: &Project, route: &RuntimeRoute) -> Vec<StructuralEdge> {
+    project
+        .files
+        .values()
+        .filter(|file| file.has_role("test"))
+        .filter(|file| file.visited_route_paths.contains(&route.path))
+        .map(|file| {
+            structural_edge_with_locations(
+                file.rel.clone(),
+                route.file.clone(),
+                "runtime_reference",
+                "e2e_visited_route",
+                EvidenceStrength::High,
+                route_visit_locations(project, &file.rel, &route.path),
+            )
+        })
+        .collect()
+}
+
+fn route_visit_locations(project: &Project, rel: &str, path: &str) -> Vec<EvidenceLocation> {
+    let Ok(text) = std::fs::read_to_string(project.root.join(rel)) else {
+        return vec![EvidenceLocation::path(rel, "route_visit")];
+    };
+    for (index, line) in text.lines().enumerate() {
+        if line.contains(path) {
+            return vec![EvidenceLocation::line(rel, index + 1, "route_visit")];
+        }
+    }
+    vec![EvidenceLocation::path(rel, "route_visit")]
+}

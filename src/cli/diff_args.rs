@@ -191,6 +191,30 @@ fn project_relative_arg(project: &crate::model::Project, value: &str) -> Result<
         .map_err(|_| anyhow::anyhow!("path is outside project root: {value}"))
 }
 
+fn flow_anchor_arg(project: &crate::model::Project, value: &str) -> Result<String> {
+    let trimmed = value.trim();
+    if cli_route_anchor(project, trimmed) {
+        return Ok(trimmed.to_string());
+    }
+    project_relative_arg(project, trimmed)
+}
+
+fn cli_route_anchor(project: &crate::model::Project, value: &str) -> bool {
+    if value.starts_with('/') {
+        let root = normalize_absolute_arg(&project.root);
+        let root = root.to_string_lossy();
+        return !value.starts_with(root.as_ref());
+    }
+    let Some((method, path)) = value.split_once(' ') else {
+        return false;
+    };
+    path.trim().starts_with('/')
+        && matches!(
+            method.trim().to_ascii_uppercase().as_str(),
+            "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "ALL" | "HEAD" | "OPTIONS"
+        )
+}
+
 fn normalize_absolute_arg(path: &Path) -> PathBuf {
     if let Ok(canonical) = path.canonicalize() {
         return canonical;
