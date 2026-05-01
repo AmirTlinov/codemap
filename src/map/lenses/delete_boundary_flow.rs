@@ -179,27 +179,29 @@ pub fn boundary_map_report(
         .collect::<Vec<_>>();
     let explicit_forbidden_findings = boundary_findings(project, changed).into_iter().collect();
     let mut hidden = Vec::new();
+    let include_hidden_expand =
+        format!("codemap boundary-map {} --include-hidden", shell_quote(&scope));
     limit_edge_section(
         &mut actual_cross_edges,
         &mut hidden,
         include_hidden,
         limit,
         "actual cross-boundary edges hidden by limit",
-        &format!("codemap boundary-map {} --include-hidden", shell_quote(&scope)),
+        &include_hidden_expand,
     );
     truncate_with_hidden(
         &mut public_boundary_files,
         limit,
         &mut hidden,
         "public boundary files hidden by limit",
-        "codemap boundary-map <scope> --include-hidden",
+        &include_hidden_expand,
     );
     truncate_with_hidden(
         &mut package_edges,
         limit,
         &mut hidden,
         "package edges hidden by limit",
-        "codemap boundary-map <scope> --include-hidden",
+        &include_hidden_expand,
     );
     BoundaryMapReport {
         kind: "boundary_map_report",

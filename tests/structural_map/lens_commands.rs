@@ -109,6 +109,47 @@ fn new_lenses_return_deterministic_structural_maps() {
 }
 
 #[test]
+fn lens_hidden_expands_use_concrete_scope_commands() {
+    let (repo, cache) = fixture();
+
+    let siblings = run_json(
+        repo.path(),
+        cache.path(),
+        &["siblings", ".", "--limit", "1", "--format", "json"],
+    );
+    assert_schema("schemas/siblings.schema.json", &siblings);
+    let sibling_hidden = siblings["hidden"].as_array().expect("sibling hidden");
+    assert!(
+        !sibling_hidden.is_empty(),
+        "fixture should force hidden sibling groups: {siblings:#}"
+    );
+    assert!(
+        sibling_hidden.iter().all(|group| group["expand"]
+            .as_str()
+            .is_some_and(|expand| expand == "codemap siblings . --include-hidden")),
+        "siblings hidden expands must be concrete runnable commands: {siblings:#}"
+    );
+
+    let boundary_map = run_json(
+        repo.path(),
+        cache.path(),
+        &["boundary-map", ".", "--limit", "1", "--format", "json"],
+    );
+    assert_schema("schemas/boundary-map.schema.json", &boundary_map);
+    let boundary_hidden = boundary_map["hidden"].as_array().expect("boundary hidden");
+    assert!(
+        !boundary_hidden.is_empty(),
+        "fixture should force hidden boundary-map groups: {boundary_map:#}"
+    );
+    assert!(
+        boundary_hidden.iter().all(|group| group["expand"]
+            .as_str()
+            .is_some_and(|expand| expand == "codemap boundary-map . --include-hidden")),
+        "boundary-map hidden expands must be concrete runnable commands: {boundary_map:#}"
+    );
+}
+
+#[test]
 fn edge_locations_and_typed_unknowns_are_first_class() {
     let (repo, cache) = fixture();
 

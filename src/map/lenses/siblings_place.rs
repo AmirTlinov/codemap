@@ -35,12 +35,13 @@ pub fn siblings_report(
         .collect::<Vec<_>>();
     same_kind.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.kind.cmp(&b.kind)));
     let mut hidden = Vec::new();
+    let include_hidden_expand = format!("codemap siblings {} --include-hidden", shell_quote(&scope));
     truncate_with_hidden(
         &mut same_kind,
         limit,
         &mut hidden,
         "sibling groups hidden by limit",
-        "codemap siblings <scope> --include-hidden",
+        &include_hidden_expand,
     );
     let shared_helpers = directory_edges(project, &scope, include_hidden)
         .into_iter()
@@ -65,7 +66,7 @@ pub fn siblings_report(
         limit,
         &mut hidden,
         "route/service/test triplets hidden by limit",
-        "codemap siblings <scope> --include-hidden",
+        &include_hidden_expand,
     );
     SiblingsReport {
         kind: "siblings_report",
