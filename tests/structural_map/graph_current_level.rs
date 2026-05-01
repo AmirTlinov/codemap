@@ -96,3 +96,56 @@ fn graph_causal_file_edges_carry_import_evidence_locations() {
         "file causal graph import edges should point at the import statement: {graph:#}"
     );
 }
+
+#[test]
+fn cache_graph_edges_preserve_evidence_locations() {
+    let (repo, cache) = fixture();
+    let _graph = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "graph",
+            "--path",
+            "packages/replay/src/session.ts",
+            "--lens",
+            "causal",
+            "--format",
+            "json",
+        ],
+    );
+    let cache_repo_dir = fs::read_dir(cache.path())
+        .expect("cache root")
+        .next()
+        .expect("cache repo entry")
+        .expect("cache repo dir")
+        .path();
+    let cached_graph: Value = serde_json::from_str(
+        &fs::read_to_string(cache_repo_dir.join("graph.json")).expect("cache graph"),
+    )
+    .expect("cache graph json");
+    let edges = cached_graph["edges"].as_array().expect("cache graph edges");
+    assert!(
+        edges.iter().all(|edge| {
+            edge.get("kind").is_none()
+                && edge.get("provenance").is_none()
+                && edge.get("type").is_some()
+                && edge.get("evidence").is_some()
+                && edge.get("strength").is_some()
+                && edge.get("locations").is_some()
+        }),
+        "cache graph should use the same structural edge vocabulary as graph lenses: {cached_graph:#}"
+    );
+    assert!(
+        edges.iter().any(|edge| {
+            edge["from"] == "packages/replay/src/session.ts"
+                && edge["to"] == "packages/replay/src/timeline.ts"
+                && edge["type"] == "imports"
+                && edge["evidence"] == "resolved_import"
+                && edge["strength"] == "high"
+                && edge["locations"][0]["path"] == "packages/replay/src/session.ts"
+                && edge["locations"][0]["line_start"] == 1
+                && edge["locations"][0]["kind"] == "import_statement"
+        }),
+        "cache graph import edge should preserve exact evidence locations: {cached_graph:#}"
+    );
+}

@@ -4,6 +4,7 @@ use std::path::Path;
 use serde::Serialize;
 
 use crate::cache;
+use crate::evidence::{import_statement_locations, line_looks_like_import_or_reexport};
 use crate::model::{
     BoundaryFinding, BoundaryMapReport, BoundaryReport, ChangedSymbol, ConeReport, ContractReport,
     DeleteReport, DiffMapReport, DirectorySurface, Domain, DomainRef, EnvSurface, EvidenceLocation,

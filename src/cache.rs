@@ -7,7 +7,8 @@ use serde::Serialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-use crate::model::{CacheArtifactStatus, Project};
+use crate::evidence::{import_statement_locations, package_dependency_locations};
+use crate::model::{CacheArtifactStatus, EvidenceLocation, EvidenceStrength, Project};
 
 const CACHE_ARTIFACTS: &[&str] = &[
     "status.json",
@@ -251,8 +252,10 @@ fn write_graph(project: &Project, version: &str) -> Result<()> {
             edges.push(CachedGraphEdge {
                 from: file.rel.clone(),
                 to: target.clone(),
-                kind: "imports".to_string(),
-                provenance: "source_import".to_string(),
+                edge_type: "imports".to_string(),
+                evidence: "resolved_import".to_string(),
+                strength: EvidenceStrength::High,
+                locations: import_statement_locations(project, &file.rel, target),
             });
         }
     }
@@ -260,8 +263,10 @@ fn write_graph(project: &Project, version: &str) -> Result<()> {
         edges.push(CachedGraphEdge {
             from: edge.from_manifest.clone(),
             to: edge.to_manifest.clone().unwrap_or_else(|| edge.to.clone()),
-            kind: "package_depends".to_string(),
-            provenance: edge.source.clone(),
+            edge_type: "package_depends".to_string(),
+            evidence: edge.source.clone(),
+            strength: EvidenceStrength::Hard,
+            locations: package_dependency_locations(project, edge),
         });
     }
     let graph = CachedGraph {
@@ -352,8 +357,11 @@ struct CachedGraph<'a> {
 struct CachedGraphEdge {
     from: String,
     to: String,
-    kind: String,
-    provenance: String,
+    #[serde(rename = "type")]
+    edge_type: String,
+    evidence: String,
+    strength: EvidenceStrength,
+    locations: Vec<EvidenceLocation>,
 }
 
 #[derive(Serialize)]

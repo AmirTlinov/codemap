@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+use crate::evidence::{import_statement_locations, package_dependency_locations};
 use crate::model::{
     Domain, EvidenceLocation, EvidenceStrength, GraphEdge, GraphLens, HiddenGroup, Project,
     StructuralEdge,
@@ -7,9 +8,8 @@ use crate::model::{
 
 use super::{
     boundary_findings, direct_files_under_directory, directory_edges_at_depth, directory_has_files,
-    immediate_child_dirs, impact_report, impacted_domains, import_statement_locations,
-    is_generic_noise, is_support_artifact_path, path_under_scope, proof_report, shell_quote,
-    unique,
+    immediate_child_dirs, impact_report, impacted_domains, is_generic_noise,
+    is_support_artifact_path, path_under_scope, proof_report, shell_quote, unique,
 };
 
 pub fn graph_lens(
@@ -407,34 +407,6 @@ fn graph_surface_location(node: &str) -> Vec<EvidenceLocation> {
         "current_level_file"
     };
     vec![EvidenceLocation::path(node, kind)]
-}
-
-fn package_dependency_locations(
-    project: &Project,
-    edge: &crate::model::PackageDependency,
-) -> Vec<EvidenceLocation> {
-    let mut manifests = vec![edge.from_manifest.as_str()];
-    if let Some(workspace_manifest) = edge.workspace_manifest.as_deref() {
-        manifests.push(workspace_manifest);
-    }
-    for manifest in manifests {
-        let Ok(text) = std::fs::read_to_string(project.root.join(manifest)) else {
-            continue;
-        };
-        for (index, line) in text.lines().enumerate() {
-            if line.contains(&edge.dependency) {
-                return vec![EvidenceLocation::line(
-                    manifest,
-                    index + 1,
-                    "package_manifest_dependency",
-                )];
-            }
-        }
-    }
-    vec![EvidenceLocation::path(
-        &edge.from_manifest,
-        "package_manifest_dependency",
-    )]
 }
 
 fn boundary_finding_locations(project: &Project, from: &str, to: &str) -> Vec<EvidenceLocation> {
