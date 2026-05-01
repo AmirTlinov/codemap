@@ -33,6 +33,7 @@ include!("structural_map/next_routes.rs");
 include!("structural_map/anchors_validate_summary.rs");
 include!("structural_map/anchors_validate_details.rs");
 include!("structural_map/boundaries_graph_schema.rs");
+include!("structural_map/boundary_map_current_level.rs");
 include!("structural_map/graph_current_level.rs");
 include!("structural_map/graph_limits.rs");
 include!("structural_map/lens_commands.rs");

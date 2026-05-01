@@ -8,9 +8,9 @@ use crate::model::{
     BoundaryFinding, BoundaryMapReport, BoundaryReport, ChangedSymbol, ConeReport, ContractReport,
     DeleteReport, DiffMapReport, DirectorySurface, Domain, DomainRef, EnvSurface, EvidenceLocation,
     EvidenceStrength, FileInfo, FileSummary, FlowReport, FlowStep, HiddenGroup, ImpactCluster,
-    ImpactReport, LsReport, PlaceReport, Project, ProofMapReport, ProofReport, ProofSurface, Risk,
-    RuntimeReport, RuntimeRoute, SiblingsReport, StructuralEdge, Surface, Unknown,
-    VerificationPlan,
+    ImpactReport, LsReport, PackageDependency, PlaceReport, Project, ProofMapReport, ProofReport,
+    ProofSurface, Risk, RuntimeReport, RuntimeRoute, SiblingsReport, StructuralEdge, Surface,
+    Unknown, VerificationPlan,
 };
 use crate::repo;
 
