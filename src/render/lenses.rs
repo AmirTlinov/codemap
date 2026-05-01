@@ -86,7 +86,7 @@ pub fn proof_map(report: &ProofMapReport) {
     proof_surface_section("E2E", &report.e2e);
     proof_surface_section("Contract", &report.contract);
     surface_section("Missing Direct", &report.missing_direct);
-    proof_surface_section("Commands", &report.commands);
+    proof_command_summary_section("Commands", &report.commands);
     if !report.fallback.is_empty() {
         println!("\n## Fallback\n");
         println!("{}", code_block("bash", &report.fallback));
@@ -295,21 +295,6 @@ fn env_section(title: &str, env: &[EnvSurface]) {
     );
 }
 
-fn proof_surface_section(title: &str, proofs: &[ProofSurface]) {
-    if proofs.is_empty() {
-        return;
-    }
-    println!("\n## {title}\n");
-    let rows = proofs.iter().map(proof_row).collect::<Vec<_>>();
-    println!(
-        "{}",
-        table(
-            &["Command", "Path", "Evidence", "Strength", "Where", "Reason"],
-            rows,
-        )
-    );
-}
-
 fn render_file_summaries(title: &str, files: &[crate::model::FileSummary]) {
     if files.is_empty() {
         return;
@@ -327,22 +312,4 @@ fn render_file_summaries(title: &str, files: &[crate::model::FileSummary]) {
         })
         .collect();
     println!("{}", table(&["Path", "Kind", "Package", "Language"], rows));
-}
-
-fn hidden_section(hidden: &[crate::model::HiddenGroup]) {
-    if hidden.is_empty() {
-        return;
-    }
-    println!("\n## Hidden\n");
-    let rows = hidden
-        .iter()
-        .map(|hidden| {
-            vec![
-                hidden.reason.clone(),
-                hidden.count.to_string(),
-                code(&hidden.expand),
-            ]
-        })
-        .collect();
-    println!("{}", table(&["Reason", "Count", "Expand"], rows));
 }

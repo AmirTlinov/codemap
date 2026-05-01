@@ -50,6 +50,54 @@ fn proof_map_groups_duplicate_direct_sensors_in_directory_scope() {
 }
 
 #[test]
+fn proof_map_markdown_groups_sensors_by_command() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("packages/app/src/dual-a.ts"),
+        "export function dualA() { return true; }\n",
+    );
+    write(
+        &repo.path().join("packages/app/src/dual-b.ts"),
+        "export function dualB() { return true; }\n",
+    );
+    write(
+        &repo.path().join("packages/app/tests/dual.test.ts"),
+        "import { dualA } from '../src/dual-a';\nimport { dualB } from '../src/dual-b';\n\ntest('dual source proof', () => {\n  expect(dualA() && dualB()).toBe(true);\n});\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "proof-map markdown grouping fixture"]);
+
+    let output = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["proof-map", "packages/app/src"])
+        .output()
+        .expect("proof-map markdown should run");
+    assert!(output.status.success());
+    let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
+    assert!(
+        markdown.contains("\n### `"),
+        "proof-map markdown should group sensors under command headings: {markdown}"
+    );
+    assert!(
+        !markdown.contains("| Command | Path | Evidence | Strength | Where | Reason |"),
+        "proof-map markdown should not repeat proof command in a table row per sensor: {markdown}"
+    );
+    assert!(
+        markdown.contains("[test_import; high]") && markdown.contains("test imports anchor"),
+        "proof-map markdown should retain proof evidence and reason text: {markdown}"
+    );
+    assert!(
+        !markdown.contains("(1 sensors)"),
+        "proof-map command summary must not invent sensor counts from deduped command rows: {markdown}"
+    );
+    assert!(
+        markdown.lines().count() < 80,
+        "small proof-map markdown should stay compact: {markdown}"
+    );
+}
+
+#[test]
 fn proof_map_raw_sensors_reveals_grouped_duplicates() {
     let (repo, cache) = fixture();
     write(

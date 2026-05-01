@@ -43,6 +43,82 @@ fn unknown_section(values: &[Unknown]) {
     );
 }
 
+fn proof_surface_section(title: &str, proofs: &[ProofSurface]) {
+    if proofs.is_empty() {
+        return;
+    }
+    println!("\n## {title}");
+    let mut grouped: std::collections::BTreeMap<String, Vec<&ProofSurface>> =
+        std::collections::BTreeMap::new();
+    for proof in proofs {
+        grouped
+            .entry(
+                proof
+                    .command
+                    .clone()
+                    .unwrap_or_else(|| "no command".to_string()),
+            )
+            .or_default()
+            .push(proof);
+    }
+    for (command, proofs) in grouped {
+        println!("\n### `{command}`");
+        for proof in proofs {
+            let path = proof
+                .path
+                .as_ref()
+                .map(|path| code(path))
+                .unwrap_or_else(|| "`none`".to_string());
+            println!(
+                "- {path} [{}; {}] {} - {}",
+                proof.evidence,
+                format!("{:?}", proof.strength).to_ascii_lowercase(),
+                proof_location_summary(&proof.locations),
+                proof.reason
+            );
+        }
+    }
+}
+
+fn proof_command_summary_section(title: &str, proofs: &[ProofSurface]) {
+    if proofs.is_empty() {
+        return;
+    }
+    println!("\n## {title}\n");
+    let mut commands = std::collections::BTreeSet::new();
+    for proof in proofs {
+        let Some(command) = &proof.command else {
+            continue;
+        };
+        commands.insert(command.clone());
+    }
+    if commands.is_empty() {
+        println!("- no command inferred");
+        return;
+    }
+    for command in commands {
+        println!("- `{command}`");
+    }
+}
+
+fn hidden_section(hidden: &[crate::model::HiddenGroup]) {
+    if hidden.is_empty() {
+        return;
+    }
+    println!("\n## Hidden\n");
+    let rows = hidden
+        .iter()
+        .map(|hidden| {
+            vec![
+                hidden.reason.clone(),
+                hidden.count.to_string(),
+                code(&hidden.expand),
+            ]
+        })
+        .collect();
+    println!("{}", table(&["Reason", "Count", "Expand"], rows));
+}
+
 pub(crate) fn table(headers: &[&str], rows: Vec<Vec<String>>) -> String {
     let mut out = Vec::new();
     out.push(format!("| {} |", headers.join(" | ")));

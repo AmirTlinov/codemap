@@ -163,6 +163,10 @@ fn changed_distinguishes_visible_and_total_changed_files() {
         markdown.contains("git state rows hidden by limit"),
         "markdown should expose hidden Git State rows with expand: {markdown}"
     );
+    assert!(
+        !markdown.contains("--files "),
+        "changed markdown hidden expands should not dump long selected-file lists: {markdown}"
+    );
 }
 
 #[test]

@@ -87,55 +87,14 @@ pub fn proof(report: &ProofReport) {
         return;
     }
     if !report.proofs.is_empty() {
-        println!("\n## Proofs\n");
-        let rows = report.proofs.iter().map(proof_row).collect::<Vec<_>>();
-        println!(
-            "{}",
-            table(
-                &["Command", "Path", "Evidence", "Strength", "Where", "Reason"],
-                rows,
-            )
-        );
+        proof_surface_section("Proofs", &report.proofs);
     }
     if !report.fallback.is_empty() {
         println!("\n## Fallback\n");
         println!("{}", code_block("bash", &report.fallback));
     }
-    if !report.hidden.is_empty() {
-        println!("\n## Hidden\n");
-        let rows = report
-            .hidden
-            .iter()
-            .map(|hidden| {
-                vec![
-                    hidden.reason.clone(),
-                    hidden.count.to_string(),
-                    code(&hidden.expand),
-                ]
-            })
-            .collect();
-        println!("{}", table(&["Reason", "Count", "Expand"], rows));
-    }
+    hidden_section(&report.hidden);
     println!("\n{}", report.run_hint);
-}
-
-fn proof_row(proof: &ProofSurface) -> Vec<String> {
-    vec![
-        proof
-            .command
-            .as_ref()
-            .map(|command| code(command))
-            .unwrap_or_else(|| "none".to_string()),
-        proof
-            .path
-            .as_ref()
-            .map(|path| code(path))
-            .unwrap_or_else(|| "none".to_string()),
-        proof.evidence.clone(),
-        format!("{:?}", proof.strength).to_ascii_lowercase(),
-        proof_location_summary(&proof.locations),
-        proof.reason.clone(),
-    ]
 }
 
 fn proof_location_summary(locations: &[EvidenceLocation]) -> String {
