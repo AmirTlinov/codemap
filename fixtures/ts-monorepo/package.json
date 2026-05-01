@@ -1,0 +1,9 @@
+{
+  "name": "codemap-fixture-ts-monorepo",
+  "private": true,
+  "workspaces": ["packages/*", "tests/*"],
+  "scripts": {
+    "test": "pnpm -r test",
+    "typecheck": "tsc -b"
+  }
+}

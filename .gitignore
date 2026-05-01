@@ -3,6 +3,9 @@
 .DS_Store
 .idea/
 .vscode/
+__pycache__/
+fixtures/**/target/
+fixtures/**/Cargo.lock
 
 # Runtime cache for local experiments. The product cache lives outside repos by default.
 .cache/

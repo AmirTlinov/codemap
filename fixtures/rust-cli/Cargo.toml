@@ -1,0 +1,8 @@
+[package]
+name = "codemap-fixture-rust-cli"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "fixture-cli"
+path = "src/main.rs"

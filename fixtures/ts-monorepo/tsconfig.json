@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@fixture/contracts": ["packages/contracts/src/auth.ts"],
+      "@fixture/api/*": ["packages/api/src/*"]
+    }
+  }
+}

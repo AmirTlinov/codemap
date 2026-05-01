@@ -1,0 +1,7 @@
+{
+  "name": "@fixture/contracts",
+  "private": true,
+  "exports": {
+    ".": "./src/auth.ts"
+  }
+}

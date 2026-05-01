@@ -1,0 +1,11 @@
+{
+  "name": "codemap-fixture-node-backend",
+  "private": true,
+  "scripts": {
+    "start": "node dist/server.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "express": "latest"
+  }
+}
