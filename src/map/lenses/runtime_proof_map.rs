@@ -35,11 +35,11 @@ pub fn runtime_report(
                 EvidenceStrength::High,
             ));
         }
-        if file.rel.contains("worker") || file.rel.contains("cron") || file.rel.contains("job") {
+        if runtime_worker_or_job_convention(&file.rel) {
             workers.push(surface_from_path(
                 "worker_or_job",
                 &file.rel,
-                "path_convention",
+                "worker_job_path_convention",
                 EvidenceStrength::Medium,
             ));
         }
