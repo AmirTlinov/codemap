@@ -26,6 +26,7 @@ pub fn runtime_report(
             ));
         }
         entrypoints.extend(runtime_manifest_entrypoints(project, file));
+        entrypoints.extend(runtime_code_entrypoints(project, file));
         if file.has_role("build_ci") {
             ci.push(surface_from_path(
                 "build_ci",

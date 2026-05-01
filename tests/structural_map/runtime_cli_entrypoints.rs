@@ -139,3 +139,92 @@ fn runtime_lens_exposes_manifest_cli_entrypoints() {
         "escaped package bin target must not be normalized into a false exact src/main.rs path: {runtime:#}"
     );
 }
+
+#[test]
+fn runtime_lens_exposes_clap_subcommands_for_cli_scope() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("Cargo.toml"),
+        "[package]\nname = \"clap-command-fixture\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    );
+    write(&repo.path().join("src/main.rs"), "fn main() {}\n");
+    write(
+        &repo.path().join("src/cli/args.rs"),
+        r#"use clap::{Parser, Subcommand};
+
+#[derive(Debug, Parser)]
+pub struct Cli {
+    #[command(subcommand)]
+    command: CommandKind,
+}
+
+#[derive(Debug, Subcommand)]
+enum CommandKind {
+    #[command(about = "Show structural map changes")]
+    DiffMap(DiffMapArgs),
+    #[command(alias = "check-boundaries")]
+    #[command(about = "Check explicit forbidden boundaries")]
+    Boundaries(BoundariesArgs),
+}
+"#,
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "clap command fixture"]);
+
+    let root_runtime = run_json(repo.path(), cache.path(), &["runtime", ".", "--format", "json"]);
+    assert_schema("schemas/runtime.schema.json", &root_runtime);
+    assert!(
+        root_runtime["entrypoints"]
+            .as_array()
+            .expect("root runtime entrypoints")
+            .iter()
+            .all(|surface| surface["kind"] != "cli_command"),
+        "root runtime should stay current-level and not recursively dump CLI commands: {root_runtime:#}"
+    );
+
+    let cli_runtime = run_json(
+        repo.path(),
+        cache.path(),
+        &["runtime", "src/cli", "--format", "json"],
+    );
+    assert_schema("schemas/runtime.schema.json", &cli_runtime);
+    let entrypoints = cli_runtime["entrypoints"]
+        .as_array()
+        .expect("cli runtime entrypoints");
+    assert!(
+        entrypoints.iter().any(|surface| {
+            surface["kind"] == "cli_command"
+                && surface["path"] == "src/cli/args.rs#CommandKind::DiffMap"
+                && surface["evidence"] == "clap_subcommand_enum"
+                && surface["examples"].as_array().is_some_and(|examples| {
+                    examples.iter().any(|example| {
+                        example.as_str().is_some_and(|value| {
+                            value.contains("diff-map -> src/cli/args.rs:")
+                                && value.contains("Show structural map changes")
+                        })
+                    })
+                })
+        }),
+        "runtime src/cli should expose deterministic Clap subcommand surfaces: {cli_runtime:#}"
+    );
+    assert!(
+        entrypoints.iter().any(|surface| {
+            surface["kind"] == "cli_command"
+                && surface["path"] == "src/cli/args.rs#CommandKind::Boundaries"
+                && surface["examples"].as_array().is_some_and(|examples| {
+                    examples.iter().any(|example| {
+                        example.as_str().is_some_and(|value| {
+                            value.contains("boundaries -> src/cli/args.rs:")
+                                && value.contains("alias: check-boundaries")
+                                && value.contains("Check explicit forbidden boundaries")
+                        })
+                    })
+                })
+        }),
+        "runtime src/cli should preserve Clap aliases and about text as evidence, not prose guessing: {cli_runtime:#}"
+    );
+}
