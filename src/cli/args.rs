@@ -229,6 +229,8 @@ struct ProofMapArgs {
     since: Option<String>,
     #[arg(long)]
     files: Option<String>,
+    #[arg(long, help = "Show ungrouped per-seed proof sensors")]
+    raw_sensors: bool,
     #[arg(long, default_value_t = 20)]
     limit: usize,
     #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]

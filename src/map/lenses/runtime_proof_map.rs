@@ -116,6 +116,7 @@ pub fn proof_map_report(
     scope: Option<String>,
     changed: Vec<String>,
     limit: usize,
+    raw_sensors: bool,
 ) -> ProofMapReport {
     let limit = limit.max(1);
     let scope = scope.map(|value| repo::normalize_rel_path(&value));
@@ -169,49 +170,88 @@ pub fn proof_map_report(
             }
         }
     }
-    e2e = unique_route_proof_surfaces(e2e);
     let mut hidden = Vec::new();
+    let expand_larger_limit = proof_map_larger_limit_expand(&scope, &changed);
+    let expand_raw_sensors = proof_map_raw_sensors_expand(&scope, &changed);
+    if !raw_sensors {
+        group_duplicate_proof_surfaces(
+            &mut direct,
+            &mut hidden,
+            "duplicate direct proof sensors grouped by structural key",
+            &expand_raw_sensors,
+        );
+        group_duplicate_proof_surfaces(
+            &mut indirect,
+            &mut hidden,
+            "duplicate indirect proof sensors grouped by structural key",
+            &expand_raw_sensors,
+        );
+        group_duplicate_proof_surfaces(
+            &mut e2e,
+            &mut hidden,
+            "duplicate e2e proof sensors grouped by structural key",
+            &expand_raw_sensors,
+        );
+        group_duplicate_proof_surfaces(
+            &mut contract,
+            &mut hidden,
+            "duplicate contract proof sensors grouped by structural key",
+            &expand_raw_sensors,
+        );
+        group_duplicate_missing_surfaces(
+            &mut missing_direct,
+            &mut hidden,
+            "duplicate missing direct proof surfaces grouped by path",
+            &expand_raw_sensors,
+        );
+        group_duplicate_unknowns(
+            &mut unknowns,
+            &mut hidden,
+            "duplicate proof-map unknowns grouped by structural key",
+            &expand_raw_sensors,
+        );
+    }
     truncate_with_hidden(
         &mut direct,
         limit,
         &mut hidden,
         "direct proof surfaces hidden by limit",
-        "codemap proof-map <scope> --include-hidden",
+        &expand_larger_limit,
     );
     truncate_with_hidden(
         &mut indirect,
         limit,
         &mut hidden,
         "indirect proof surfaces hidden by limit",
-        "codemap proof-map <scope> --include-hidden",
+        &expand_larger_limit,
     );
     truncate_with_hidden(
         &mut e2e,
         limit,
         &mut hidden,
         "e2e proof surfaces hidden by limit",
-        "codemap proof-map <scope> --include-hidden",
+        &expand_larger_limit,
     );
     truncate_with_hidden(
         &mut contract,
         limit,
         &mut hidden,
         "contract proof surfaces hidden by limit",
-        "codemap proof-map <scope> --include-hidden",
+        &expand_larger_limit,
     );
     truncate_with_hidden(
         &mut missing_direct,
         limit,
         &mut hidden,
         "missing direct proof surfaces hidden by limit",
-        "codemap proof-map <scope> --include-hidden",
+        &expand_larger_limit,
     );
     truncate_with_hidden(
         &mut unknowns,
         limit,
         &mut hidden,
         "proof-map unknowns hidden by limit",
-        "codemap proof-map <scope> --include-hidden",
+        &expand_larger_limit,
     );
     let commands = unique_proof_surfaces(
         direct
@@ -289,19 +329,137 @@ fn route_proof_unknowns(project: &Project, file: &FileInfo) -> Vec<Unknown> {
         .collect()
 }
 
-fn unique_route_proof_surfaces(values: Vec<ProofSurface>) -> Vec<ProofSurface> {
-    let mut seen = BTreeSet::new();
+fn group_duplicate_proof_surfaces(
+    values: &mut Vec<ProofSurface>,
+    hidden: &mut Vec<HiddenGroup>,
+    reason: &str,
+    expand: &str,
+) {
+    let mut seen = BTreeMap::new();
     let mut out = Vec::new();
-    for value in values {
-        let key = (
-            value.command.clone().unwrap_or_default(),
-            value.path.clone().unwrap_or_default(),
-            value.evidence.clone(),
-            value.reason.clone(),
-        );
-        if seen.insert(key) {
+    let mut duplicate_count = 0usize;
+    for value in values.drain(..) {
+        let key = proof_surface_group_key(&value);
+        if let Some(index) = seen.get(&key).copied() {
+            duplicate_count += 1;
+            if proof_surface_precedence(&value) > proof_surface_precedence(&out[index]) {
+                out[index] = value;
+            }
+        } else {
+            seen.insert(key, out.len());
             out.push(value);
         }
     }
-    out
+    if duplicate_count > 0 {
+        hidden.push(HiddenGroup {
+            reason: reason.to_string(),
+            count: duplicate_count,
+            expand: expand.to_string(),
+        });
+    }
+    *values = out;
+}
+
+fn proof_surface_group_key(value: &ProofSurface) -> (String, String, String) {
+    let detail = if value.evidence == "e2e_visited_route" {
+        value.reason.clone()
+    } else {
+        String::new()
+    };
+    (
+        value.command.clone().unwrap_or_default(),
+        value.path.clone().unwrap_or_default(),
+        detail,
+    )
+}
+
+fn group_duplicate_missing_surfaces(
+    values: &mut Vec<Surface>,
+    hidden: &mut Vec<HiddenGroup>,
+    reason: &str,
+    expand: &str,
+) {
+    let mut seen = BTreeSet::new();
+    let mut out = Vec::new();
+    let mut duplicate_count = 0usize;
+    for value in values.drain(..) {
+        let key = (
+            value.kind.clone(),
+            value.path.clone().unwrap_or_default(),
+            value.evidence.clone(),
+        );
+        if seen.insert(key) {
+            out.push(value);
+        } else {
+            duplicate_count += 1;
+        }
+    }
+    if duplicate_count > 0 {
+        hidden.push(HiddenGroup {
+            reason: reason.to_string(),
+            count: duplicate_count,
+            expand: expand.to_string(),
+        });
+    }
+    *values = out;
+}
+
+fn group_duplicate_unknowns(
+    values: &mut Vec<Unknown>,
+    hidden: &mut Vec<HiddenGroup>,
+    reason: &str,
+    expand: &str,
+) {
+    let mut seen = BTreeSet::new();
+    let mut out = Vec::new();
+    let mut duplicate_count = 0usize;
+    for value in values.drain(..) {
+        let key = (
+            value.kind.clone(),
+            value.path.clone().unwrap_or_default(),
+            value.line_start.unwrap_or_default(),
+            value.reason.clone(),
+            value.effect.clone(),
+        );
+        if seen.insert(key) {
+            out.push(value);
+        } else {
+            duplicate_count += 1;
+        }
+    }
+    if duplicate_count > 0 {
+        hidden.push(HiddenGroup {
+            reason: reason.to_string(),
+            count: duplicate_count,
+            expand: expand.to_string(),
+        });
+    }
+    *values = out;
+}
+
+fn proof_map_larger_limit_expand(scope: &Option<String>, changed: &[String]) -> String {
+    proof_map_expand(scope, changed, false)
+}
+
+fn proof_map_raw_sensors_expand(scope: &Option<String>, changed: &[String]) -> String {
+    proof_map_expand(scope, changed, true)
+}
+
+fn proof_map_expand(scope: &Option<String>, changed: &[String], raw_sensors: bool) -> String {
+    let raw = if raw_sensors { " --raw-sensors" } else { "" };
+    if let Some(scope) = scope {
+        return format!(
+            "codemap proof-map {}{raw} --limit <larger-number>",
+            shell_quote(scope)
+        );
+    }
+    if changed.is_empty() {
+        return format!("codemap proof-map --changed{raw} --limit <larger-number>");
+    }
+    let files = changed
+        .iter()
+        .map(|file| shell_quote(file))
+        .collect::<Vec<_>>()
+        .join(",");
+    format!("codemap proof-map --files {files}{raw} --limit <larger-number>")
 }
