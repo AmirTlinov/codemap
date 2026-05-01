@@ -149,3 +149,51 @@ fn cache_graph_edges_preserve_evidence_locations() {
         "cache graph import edge should preserve exact evidence locations: {cached_graph:#}"
     );
 }
+
+#[test]
+fn graph_default_output_is_agent_facing_markdown() {
+    let (repo, cache) = fixture();
+    let output = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["graph", "--lens", "causal", "--limit", "20"])
+        .output()
+        .expect("graph should run");
+    assert!(
+        output.status.success(),
+        "graph failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.starts_with("# Graph Lens: causal")
+            && stdout.contains("| From | Type | To | Evidence | Strength | Where |")
+            && !stdout.starts_with("graph TD"),
+        "default graph output should be readable markdown with edge evidence: {stdout}"
+    );
+
+    let mermaid = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args([
+            "graph",
+            "--lens",
+            "causal",
+            "--limit",
+            "20",
+            "--format",
+            "mermaid",
+        ])
+        .output()
+        .expect("graph mermaid should run");
+    assert!(
+        mermaid.status.success(),
+        "graph mermaid failed: {}",
+        String::from_utf8_lossy(&mermaid.stderr)
+    );
+    let mermaid_stdout = String::from_utf8_lossy(&mermaid.stdout);
+    assert!(
+        mermaid_stdout.starts_with("graph TD"),
+        "explicit mermaid output should remain available: {mermaid_stdout}"
+    );
+}

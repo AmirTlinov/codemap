@@ -309,7 +309,7 @@ struct GraphArgs {
     changed: bool,
     #[arg(long, default_value_t = 12)]
     limit: usize,
-    #[arg(long, value_enum, default_value_t = GraphOutputFormat::Mermaid)]
+    #[arg(long, value_enum, default_value_t = GraphOutputFormat::Markdown)]
     format: GraphOutputFormat,
 }
 
