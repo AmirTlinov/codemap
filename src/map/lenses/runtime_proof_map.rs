@@ -448,7 +448,7 @@ fn route_proof_unknowns_for_routes(
         .filter(|route| {
             route_can_be_proved_by_page_goto(route)
                 && route_has_page_visit_in_proof_scope_with_index(project, route, index)
-                && route_page_visit_owner_count_with_index(project, route, index) > 1
+                && route_has_ambiguous_page_visit_owner_with_index(project, route, index)
         })
         .map(|route| {
             let line = route

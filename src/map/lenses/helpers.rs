@@ -197,14 +197,10 @@ fn runtime_entrypoint_kind(file: &FileInfo) -> Option<&'static str> {
 
 fn route_from_file_convention(project: &Project, file: &FileInfo) -> Option<RuntimeRoute> {
     let rel = file.rel.as_str();
-    let route = if let Some(rest) = rel.strip_prefix("app/") {
+    let route = if let Some(rest) = next_app_route_rest(rel) {
         next_app_route(rest)
-    } else if let Some(index) = rel.find("/app/") {
-        next_app_route(&rel[index + "/app/".len()..])
-    } else if let Some(rest) = rel.strip_prefix("pages/") {
+    } else if let Some(rest) = next_pages_route_rest(rel) {
         next_pages_route(rest)
-    } else if let Some(index) = rel.find("/pages/") {
-        next_pages_route(&rel[index + "/pages/".len()..])
     } else {
         None
     }?;
@@ -345,10 +341,7 @@ fn route_from_path(rel: &str) -> bool {
 }
 
 fn next_app_route_path(rel: &str) -> bool {
-    let rest = rel
-        .strip_prefix("app/")
-        .or_else(|| rel.split_once("/app/").map(|(_, rest)| rest));
-    rest.is_some_and(|rest| {
+    next_app_route_rest(rel).is_some_and(|rest| {
         rest.ends_with("/page.tsx")
             || rest.ends_with("/page.jsx")
             || rest.ends_with("/page.ts")
@@ -358,10 +351,7 @@ fn next_app_route_path(rel: &str) -> bool {
 }
 
 fn pages_route_path(rel: &str) -> bool {
-    let rest = rel
-        .strip_prefix("pages/")
-        .or_else(|| rel.split_once("/pages/").map(|(_, rest)| rest));
-    rest.is_some_and(|rest| {
+    next_pages_route_rest(rel).is_some_and(|rest| {
         matches!(
             Path::new(rest).extension().and_then(|ext| ext.to_str()),
             Some("tsx" | "jsx" | "ts" | "js")

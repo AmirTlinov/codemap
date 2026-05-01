@@ -135,7 +135,6 @@ fn directory_proof_edges_at_depth(
     let route_seeds = seeds
         .iter()
         .filter(|seed| next_app_route_pattern(seed).is_some())
-        .filter(|seed| next_app_route_pattern_is_unique(project, seed))
         .cloned()
         .collect::<Vec<_>>();
     let scope_is_support = is_support_artifact_path(rel);
@@ -163,7 +162,7 @@ fn directory_proof_edges_at_depth(
             continue;
         }
         for seed in &route_seeds {
-            if e2e_test_visits_route(seed, test) {
+            if e2e_test_visits_unique_route(project, seed, test) {
                 edges.push(edge_with_path_location(
                     test.rel.clone(),
                     seed.clone(),

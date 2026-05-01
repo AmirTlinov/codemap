@@ -29,7 +29,7 @@ fn route_anchor_lookup_with_index(anchor: &str, index: &RuntimeFactIndex) -> Rou
         .routes
         .iter()
         .filter(|route| {
-            route.path == path
+            route_matches_path(route, path)
                 && method.is_none_or(|method| {
                     route
                         .method
@@ -91,16 +91,15 @@ fn route_reference_edges_with_index(
     route: &RuntimeRoute,
     index: &RuntimeFactIndex,
 ) -> Vec<StructuralEdge> {
-    if !route_can_be_proved_by_page_goto(route)
-        || !route_page_visit_owner_is_unique_with_index(project, route, index)
-    {
+    if !route_can_be_proved_by_page_goto(route) {
         return Vec::new();
     }
     index
         .route_visits
         .iter()
-        .filter(|visit| visit.path == route.path)
+        .filter(|visit| route_matches_path(route, &visit.path))
         .filter(|visit| route_proof_scope_matches(project, &route.file, &visit.file))
+        .filter(|visit| route_page_visit_owner_count_for_visit(project, route, &visit.path, index) == 1)
         .map(|visit| {
             structural_edge_with_locations(
                 visit.file.clone(),
@@ -121,17 +120,37 @@ fn route_can_be_proved_by_page_goto(route: &RuntimeRoute) -> bool {
     )
 }
 
-fn route_page_visit_owner_is_unique_with_index(
+fn route_has_ambiguous_page_visit_owner_with_index(
     project: &Project,
     route: &RuntimeRoute,
     index: &RuntimeFactIndex,
 ) -> bool {
-    route_page_visit_owner_count_with_index(project, route, index) == 1
+    if !route_can_be_proved_by_page_goto(route) {
+        return false;
+    }
+    index
+        .route_visits
+        .iter()
+        .filter(|visit| route_matches_path(route, &visit.path))
+        .filter(|visit| route_proof_scope_matches(project, &route.file, &visit.file))
+        .any(|visit| route_page_visit_owner_count_for_visit(project, route, &visit.path, index) > 1)
 }
 
-fn route_page_visit_owner_count_with_index(
+fn route_has_page_visit_in_proof_scope_with_index(
     project: &Project,
     route: &RuntimeRoute,
+    index: &RuntimeFactIndex,
+) -> bool {
+    index.route_visits.iter().any(|visit| {
+        route_matches_path(route, &visit.path)
+            && route_proof_scope_matches(project, &route.file, &visit.file)
+    })
+}
+
+fn route_page_visit_owner_count_for_visit(
+    project: &Project,
+    route: &RuntimeRoute,
+    visited_path: &str,
     index: &RuntimeFactIndex,
 ) -> usize {
     if !route_can_be_proved_by_page_goto(route) {
@@ -141,21 +160,19 @@ fn route_page_visit_owner_count_with_index(
         .routes
         .iter()
         .filter(|candidate| {
-            candidate.path == route.path && route_can_be_proved_by_page_goto(candidate)
+            route_can_be_proved_by_page_goto(candidate)
+                && route_matches_path(candidate, visited_path)
                 && route_proof_scope_matches(project, &route.file, &candidate.file)
         })
         .take(2)
         .count()
 }
 
-fn route_has_page_visit_in_proof_scope_with_index(
-    project: &Project,
-    route: &RuntimeRoute,
-    index: &RuntimeFactIndex,
-) -> bool {
-    index.route_visits.iter().any(|visit| {
-        visit.path == route.path && route_proof_scope_matches(project, &route.file, &visit.file)
-    })
+fn route_matches_path(route: &RuntimeRoute, path: &str) -> bool {
+    route.path == path
+        || next_app_route_pattern(&route.file)
+            .as_ref()
+            .is_some_and(|pattern| route_pattern_matches(pattern, path))
 }
 
 fn route_proof_scope_matches(project: &Project, owner_rel: &str, other_rel: &str) -> bool {
