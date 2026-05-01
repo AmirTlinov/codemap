@@ -1,11 +1,15 @@
 use std::collections::BTreeSet;
 
-use crate::model::{Domain, GraphEdge, GraphLens, HiddenGroup, Project};
+use crate::model::{
+    Domain, EvidenceLocation, EvidenceStrength, GraphEdge, GraphLens, HiddenGroup, Project,
+    StructuralEdge,
+};
 
 use super::{
     boundary_findings, direct_files_under_directory, directory_edges_at_depth, directory_has_files,
-    immediate_child_dirs, impact_report, impacted_domains, is_generic_noise,
-    is_support_artifact_path, path_under_scope, proof_report, shell_quote, unique,
+    immediate_child_dirs, impact_report, impacted_domains, import_statement_locations,
+    is_generic_noise, is_support_artifact_path, path_under_scope, proof_report, shell_quote,
+    unique,
 };
 
 pub fn graph_lens(
@@ -38,7 +42,7 @@ pub fn graph_lens(
     let domain = graph_output_domain(project, path, &nodes);
     GraphLens {
         kind: "graph_lens",
-        schema_version: "3",
+        schema_version: "4",
         domain: (&domain).into(),
         lens: lens.to_string(),
         nodes,
@@ -161,7 +165,7 @@ fn proof_graph(
     for cluster in report.clusters {
         for edge in cluster.proof {
             if node_set.contains(&edge.from) && node_set.contains(&edge.to) {
-                push_graph_edge(&mut edges, &mut seen, edge.from, edge.to, "tests");
+                push_graph_edge_from_structural(&mut edges, &mut seen, edge);
             }
         }
     }
@@ -197,7 +201,18 @@ fn proof_graph_for_path(
             && node_set.contains(&path)
             && node_set.contains(&target)
         {
-            push_graph_edge(&mut edges, &mut seen, path, target.clone(), "tests");
+            push_graph_edge(
+                &mut edges,
+                &mut seen,
+                GraphEdge {
+                    from: path,
+                    to: target.clone(),
+                    edge_type: "tests".to_string(),
+                    evidence: proof.evidence,
+                    strength: proof.strength,
+                    locations: proof.locations,
+                },
+            );
         }
     }
     (nodes, edges, hidden)
@@ -232,12 +247,18 @@ fn boundary_graph(
         {
             continue;
         }
+        let locations = boundary_finding_locations(project, &finding.from, &finding.to);
         push_graph_edge(
             &mut edges,
             &mut seen,
-            finding.from,
-            finding.to,
-            finding.status,
+            GraphEdge {
+                from: finding.from,
+                to: finding.to,
+                edge_type: finding.status,
+                evidence: finding.provenance,
+                strength: evidence_strength_from_str(&finding.strength),
+                locations,
+            },
         );
     }
     (nodes, edges, hidden)
@@ -289,9 +310,14 @@ fn structural_edges_for_nodes(project: &Project, nodes: &[String]) -> Vec<GraphE
                     push_graph_edge(
                         &mut edges,
                         &mut seen,
-                        node.clone(),
-                        target.clone(),
-                        "imports",
+                        GraphEdge {
+                            from: node.clone(),
+                            to: target.clone(),
+                            edge_type: "imports".to_string(),
+                            evidence: "resolved_import".to_string(),
+                            strength: EvidenceStrength::High,
+                            locations: import_statement_locations(project, node, target),
+                        },
                     );
                 }
             }
@@ -301,7 +327,18 @@ fn structural_edges_for_nodes(project: &Project, nodes: &[String]) -> Vec<GraphE
         let from = edge.from_manifest.clone();
         let to = edge.to_manifest.clone().unwrap_or_else(|| edge.to.clone());
         if node_set.contains(&from) && node_set.contains(&to) {
-            push_graph_edge(&mut edges, &mut seen, from, to, "package_depends");
+            push_graph_edge(
+                &mut edges,
+                &mut seen,
+                GraphEdge {
+                    from,
+                    to,
+                    edge_type: "package_depends".to_string(),
+                    evidence: edge.source.clone(),
+                    strength: EvidenceStrength::Hard,
+                    locations: package_dependency_locations(project, edge),
+                },
+            );
         }
     }
     edges
@@ -332,20 +369,94 @@ fn graph_edge_set(edges: &[GraphEdge]) -> BTreeSet<(String, String, String)> {
 fn push_graph_edge(
     edges: &mut Vec<GraphEdge>,
     seen: &mut BTreeSet<(String, String, String)>,
-    from: String,
-    to: String,
-    edge_type: impl Into<String>,
+    edge: GraphEdge,
 ) {
-    if from == to {
+    if edge.from == edge.to {
         return;
     }
-    let edge_type = edge_type.into();
-    if seen.insert((from.clone(), to.clone(), edge_type.clone())) {
-        edges.push(GraphEdge {
-            from,
-            to,
-            edge_type,
-        });
+    if seen.insert((edge.from.clone(), edge.to.clone(), edge.edge_type.clone())) {
+        edges.push(edge);
+    }
+}
+
+fn push_graph_edge_from_structural(
+    edges: &mut Vec<GraphEdge>,
+    seen: &mut BTreeSet<(String, String, String)>,
+    edge: StructuralEdge,
+) {
+    push_graph_edge(
+        edges,
+        seen,
+        GraphEdge {
+            from: edge.from,
+            to: edge.to,
+            edge_type: edge.edge_type,
+            evidence: edge.evidence,
+            strength: edge.strength,
+            locations: edge.locations,
+        },
+    );
+}
+
+fn graph_surface_location(node: &str) -> Vec<EvidenceLocation> {
+    let kind = if node == "." {
+        "current_level_scope"
+    } else if node.ends_with('/') {
+        "current_level_directory"
+    } else {
+        "current_level_file"
+    };
+    vec![EvidenceLocation::path(node, kind)]
+}
+
+fn package_dependency_locations(
+    project: &Project,
+    edge: &crate::model::PackageDependency,
+) -> Vec<EvidenceLocation> {
+    let mut manifests = vec![edge.from_manifest.as_str()];
+    if let Some(workspace_manifest) = edge.workspace_manifest.as_deref() {
+        manifests.push(workspace_manifest);
+    }
+    for manifest in manifests {
+        let Ok(text) = std::fs::read_to_string(project.root.join(manifest)) else {
+            continue;
+        };
+        for (index, line) in text.lines().enumerate() {
+            if line.contains(&edge.dependency) {
+                return vec![EvidenceLocation::line(
+                    manifest,
+                    index + 1,
+                    "package_manifest_dependency",
+                )];
+            }
+        }
+    }
+    vec![EvidenceLocation::path(
+        &edge.from_manifest,
+        "package_manifest_dependency",
+    )]
+}
+
+fn boundary_finding_locations(project: &Project, from: &str, to: &str) -> Vec<EvidenceLocation> {
+    if project
+        .files
+        .get(from)
+        .is_some_and(|file| file.resolved_imports.contains(to))
+    {
+        return import_statement_locations(project, from, to);
+    }
+    if !from.is_empty() {
+        return vec![EvidenceLocation::path(from, "boundary_finding")];
+    }
+    vec![EvidenceLocation::aggregate("boundary_finding")]
+}
+
+fn evidence_strength_from_str(value: &str) -> EvidenceStrength {
+    match value {
+        "hard" => EvidenceStrength::Hard,
+        "high" => EvidenceStrength::High,
+        "low" => EvidenceStrength::Low,
+        _ => EvidenceStrength::Medium,
     }
 }
 

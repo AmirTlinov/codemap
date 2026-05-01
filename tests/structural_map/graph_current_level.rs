@@ -46,8 +46,11 @@ fn graph_causal_root_keeps_current_level_relationships_without_import_edges() {
         assert!(
             edges.iter().any(|edge| {
                 edge["from"] == "." && edge["to"] == target && edge["type"] == "contains"
+                    && edge["evidence"] == "current_level_surface"
+                    && edge["strength"] == "medium"
+                    && edge["locations"][0]["path"] == target
             }),
-            "root causal graph should keep deterministic containment edge for {target}: {graph:#}"
+            "root causal graph should keep deterministic containment edge with evidence for {target}: {graph:#}"
         );
     }
     assert!(
@@ -55,5 +58,41 @@ fn graph_causal_root_keeps_current_level_relationships_without_import_edges() {
             .iter()
             .all(|node| node.as_str() != Some("src/index.ts")),
         "root causal graph should stay current-level instead of filling an empty import graph with file dumps: {graph:#}"
+    );
+}
+
+#[test]
+fn graph_causal_file_edges_carry_import_evidence_locations() {
+    let (repo, cache) = fixture();
+    let graph = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "graph",
+            "--path",
+            "packages/replay/src/session.ts",
+            "--lens",
+            "causal",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/graph.schema.json", &graph);
+    assert!(
+        graph["edges"]
+            .as_array()
+            .expect("edges")
+            .iter()
+            .any(|edge| {
+                edge["from"] == "packages/replay/src/session.ts"
+                    && edge["to"] == "packages/replay/src/timeline.ts"
+                    && edge["type"] == "imports"
+                    && edge["evidence"] == "resolved_import"
+                    && edge["strength"] == "high"
+                    && edge["locations"][0]["path"] == "packages/replay/src/session.ts"
+                    && edge["locations"][0]["line_start"] == 1
+                    && edge["locations"][0]["kind"] == "import_statement"
+            }),
+        "file causal graph import edges should point at the import statement: {graph:#}"
     );
 }

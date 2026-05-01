@@ -42,9 +42,24 @@ pub fn graph_markdown(graph: &GraphLens) {
         let rows = graph
             .edges
             .iter()
-            .map(|e| vec![code(&e.from), e.edge_type.clone(), code(&e.to)])
+            .map(|e| {
+                vec![
+                    code(&e.from),
+                    e.edge_type.clone(),
+                    code(&e.to),
+                    e.evidence.clone(),
+                    format!("{:?}", e.strength).to_ascii_lowercase(),
+                    graph_edge_location_summary(e),
+                ]
+            })
             .collect();
-        println!("{}", table(&["From", "Type", "To"], rows));
+        println!(
+            "{}",
+            table(
+                &["From", "Type", "To", "Evidence", "Strength", "Where"],
+                rows
+            )
+        );
     }
     if !graph.hidden.is_empty() {
         println!("\n## Hidden\n");
@@ -88,6 +103,25 @@ pub fn graph_mermaid(graph: &GraphLens) {
             mermaid_id(&edge.to)
         );
     }
+}
+
+fn graph_edge_location_summary(edge: &GraphEdge) -> String {
+    let Some(first) = edge.locations.first() else {
+        return "unknown".to_string();
+    };
+    let suffix = if edge.locations.len() > 1 {
+        format!(" +{}", edge.locations.len() - 1)
+    } else {
+        String::new()
+    };
+    let base = if first.path == "aggregate" {
+        "aggregate".to_string()
+    } else if let Some(line) = first.line_start {
+        format!("{}:{line}", first.path)
+    } else {
+        first.path.clone()
+    };
+    format!("{}{}", code(&base), suffix)
 }
 
 pub fn init_suggestion(path: Option<&str>) {

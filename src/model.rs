@@ -418,4 +418,7 @@ pub struct GraphEdge {
     pub to: String,
     #[serde(rename = "type")]
     pub edge_type: String,
+    pub evidence: String,
+    pub strength: EvidenceStrength,
+    pub locations: Vec<EvidenceLocation>,
 }

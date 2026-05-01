@@ -3,8 +3,8 @@ use serde::Serialize;
 use crate::map::StatusReport;
 use crate::model::{
     BoundaryFinding, BoundaryMapReport, ConeReport, ContractReport, DeleteReport, DiffMapReport,
-    EnvSurface, EvidenceLocation, FlowReport, GraphLens, ImpactCluster, ImpactReport, LsReport,
-    PlaceReport, ProofMapReport, ProofReport, ProofSurface, RuntimeReport, RuntimeRoute,
+    EnvSurface, EvidenceLocation, FlowReport, GraphEdge, GraphLens, ImpactCluster, ImpactReport,
+    LsReport, PlaceReport, ProofMapReport, ProofReport, ProofSurface, RuntimeReport, RuntimeRoute,
     SiblingsReport, StructuralEdge, Surface, Unknown,
 };
 

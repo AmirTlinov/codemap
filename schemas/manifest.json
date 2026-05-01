@@ -112,7 +112,7 @@
       "kind": "graph",
       "file": "schemas/graph.schema.json",
       "contract": "structural_output",
-      "schema_version": "3",
+      "schema_version": "4",
       "json_kind": "graph_lens"
     },
     {

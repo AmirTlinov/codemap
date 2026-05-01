@@ -50,13 +50,7 @@ fn directory_causal_graph(
 
     for edge in directory_edges_at_depth(project, rel, false, 1) {
         push_unique_nodes(&mut nodes, [edge.from.clone(), edge.to.clone()], usize::MAX);
-        push_graph_edge(
-            &mut graph_edges,
-            &mut seen_edges,
-            edge.from,
-            edge.to,
-            edge.edge_type,
-        );
+        push_graph_edge_from_structural(&mut graph_edges, &mut seen_edges, edge);
     }
 
     let surface_nodes = directory_surface_nodes(project, rel);
@@ -64,9 +58,14 @@ fn directory_causal_graph(
         push_graph_edge(
             &mut graph_edges,
             &mut seen_edges,
-            scope_node.clone(),
-            node.clone(),
-            "contains",
+            GraphEdge {
+                from: scope_node.clone(),
+                to: node.clone(),
+                edge_type: "contains".to_string(),
+                evidence: "current_level_surface".to_string(),
+                strength: EvidenceStrength::Medium,
+                locations: graph_surface_location(node),
+            },
         );
     }
     push_unique_nodes(&mut nodes, surface_nodes, usize::MAX);

@@ -7,7 +7,7 @@
   "required": ["kind", "schema_version", "domain", "lens", "nodes", "edges", "hidden"],
   "properties": {
     "kind": { "const": "graph_lens" },
-    "schema_version": { "const": "3" },
+    "schema_version": { "const": "4" },
     "domain": { "$ref": "#/$defs/domain_ref" },
     "lens": { "type": "string" },
     "nodes": {
@@ -24,6 +24,25 @@
     }
   },
   "$defs": {
+    "evidence_strength": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "hard"]
+    },
+    "evidence_location": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "line_start", "line_end", "kind"],
+      "properties": {
+        "path": { "type": "string" },
+        "line_start": {
+          "anyOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }]
+        },
+        "line_end": {
+          "anyOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }]
+        },
+        "kind": { "type": "string" }
+      }
+    },
     "domain_ref": {
       "type": "object",
       "additionalProperties": false,
@@ -36,11 +55,17 @@
     "graph_edge": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["from", "to", "type"],
+      "required": ["from", "to", "type", "evidence", "strength", "locations"],
       "properties": {
         "from": { "type": "string" },
         "to": { "type": "string" },
-        "type": { "type": "string" }
+        "type": { "type": "string" },
+        "evidence": { "type": "string" },
+        "strength": { "$ref": "#/$defs/evidence_strength" },
+        "locations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidence_location" }
+        }
       }
     },
     "hidden_group": {
