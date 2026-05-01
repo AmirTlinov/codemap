@@ -373,6 +373,7 @@ fn file_matches_place_kind(file: &FileInfo, kind: &str) -> bool {
         "component" => file.symbols.iter().any(|symbol| symbol.kind == "component"),
         "test" => file.has_role("test"),
         "contract" => file.has_role("schema_contract") || file.has_role("public_boundary"),
+        "lens" => repo::is_source_ext(&file.ext) && file.rel.split('/').any(|part| part == "lenses"),
         other => file_kind_for_ls(file) == other,
     }
 }

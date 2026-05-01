@@ -104,7 +104,7 @@ codemap delete <file-or-symbol-anchor>
 codemap boundary-map <scope>
 codemap flow <file-or-symbol-anchor>
 codemap siblings <scope>
-codemap place <scope> --kind route|service|component|test|contract
+codemap place <scope> --kind route|service|component|test|contract|lens
 codemap graph --lens causal --format mermaid
 codemap boundaries
 codemap anchors validate
