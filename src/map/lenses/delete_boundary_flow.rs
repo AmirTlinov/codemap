@@ -179,8 +179,11 @@ pub fn boundary_map_report(
         .collect::<Vec<_>>();
     let explicit_forbidden_findings = boundary_findings(project, changed).into_iter().collect();
     let mut hidden = Vec::new();
-    let include_hidden_expand =
-        format!("codemap boundary-map {} --include-hidden", shell_quote(&scope));
+    let changed_flag = if changed.is_some() { " --changed" } else { "" };
+    let include_hidden_expand = format!(
+        "codemap boundary-map {}{changed_flag} --include-hidden",
+        shell_quote(&scope)
+    );
     limit_edge_section(
         &mut actual_cross_edges,
         &mut hidden,

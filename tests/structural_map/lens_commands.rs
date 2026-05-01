@@ -147,6 +147,31 @@ fn lens_hidden_expands_use_concrete_scope_commands() {
             .is_some_and(|expand| expand == "codemap boundary-map . --include-hidden")),
         "boundary-map hidden expands must be concrete runnable commands: {boundary_map:#}"
     );
+
+    let changed_boundary_map = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "boundary-map",
+            ".",
+            "--changed",
+            "--limit",
+            "1",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/boundary-map.schema.json", &changed_boundary_map);
+    assert!(
+        changed_boundary_map["hidden"]
+            .as_array()
+            .expect("changed boundary hidden")
+            .iter()
+            .all(|group| group["expand"].as_str().is_some_and(|expand| {
+                expand == "codemap boundary-map . --changed --include-hidden"
+            })),
+        "boundary-map changed hidden expands must preserve the changed selector: {changed_boundary_map:#}"
+    );
 }
 
 #[test]
