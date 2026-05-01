@@ -24,6 +24,7 @@ pub fn runtime_report(
                 EvidenceStrength::High,
             ));
         }
+        entrypoints.extend(runtime_manifest_entrypoints(project, file));
         if file.has_role("build_ci") {
             ci.push(surface_from_path(
                 "build_ci",
