@@ -3,9 +3,22 @@ fn help_exposes_only_map_first_commands() {
     let output = codemap().arg("--help").output().expect("help should run");
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("help utf8");
-    for command in ["ls", "cone", "impact", "proof", "graph", "boundaries"] {
+    for command in ["ls", "cone", "changed", "proof", "graph", "boundaries"] {
         assert!(stdout.contains(command), "help should expose {command}");
     }
+    let commands = stdout
+        .split("Commands:")
+        .nth(1)
+        .unwrap_or_default()
+        .lines()
+        .filter_map(|line| line.split_whitespace().next())
+        .take(5)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        commands,
+        vec!["ls", "cone", "changed", "proof", "doctor"],
+        "help should put daily commands first: {stdout}"
+    );
     for forbidden in ["start", "locate", "find", "verify", "widen", "read_first"] {
         assert!(
             !stdout.contains(forbidden),
@@ -43,11 +56,10 @@ fn bootstrap_instruction_teaches_map_lenses_not_removed_router_flow() {
 fn assert_map_bootstrap_text(text: &str) {
     for expected in [
         "codemap ls .",
-        "codemap graph --lens causal",
-        "codemap contract",
-        "codemap runtime",
-        "codemap diff-map --changed",
-        "codemap proof-map --changed",
+        "codemap ls <scope-or-file>",
+        "codemap cone <scope-or-file> --depth 1",
+        "codemap changed",
+        "codemap proof --changed",
     ] {
         assert!(
             text.contains(expected),
@@ -57,6 +69,8 @@ fn assert_map_bootstrap_text(text: &str) {
     for forbidden in [
         "codemap start",
         "codemap verify",
+        "codemap diff-map --changed",
+        "codemap proof-map --changed",
         "read_first",
         "ranking engine",
         "when that lens matches",

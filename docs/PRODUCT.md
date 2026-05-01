@@ -23,6 +23,22 @@ codemap = ls + xref + cone + impact + proof for code
 - deeper views require an explicit scope, file, depth, or changed-file input;
 - optional `.ctx.yml` supplies only hard semantic anchors code cannot reveal.
 
+## Daily Surface
+
+Primary daily commands:
+
+```bash
+codemap ls <scope>
+codemap cone <anchor>
+codemap changed
+codemap proof <scope|--changed>
+codemap doctor
+```
+
+Focused lenses remain public and supported, but they are deep map targets:
+`runtime`, `contract`, `flow`, `boundary-map`, `siblings`, `place`, `delete`,
+`diff-map`, `impact`, `proof-map`, and `graph`.
+
 ## Surfaces
 
 `codemap ls <file-or-dir>` shows what exists at that level: file symbols, package/domain surfaces, imports, incoming counts, tests, hidden generic counts, and the next useful map command.
@@ -32,6 +48,8 @@ codemap = ls + xref + cone + impact + proof for code
 `codemap impact --changed|--files` clusters changed anchors by structural blast radius. It is edge-first: reverse imports, package consumers, contract/schema/public surfaces, and proof candidates.
 
 `codemap diff-map --changed|--files` shows map-level changes: structural import/export lines, changed exported symbol surfaces, and new unknowns. It does not print textual diff.
+
+`codemap changed` is the daily after-edit overview. It combines git state, map deltas, impact clusters, proof sensors, unknowns, hidden counts, and expand targets without running commands.
 
 `codemap contract <anchor>` shows exported/schema/package/public surfaces, producers, consumers, cross-package consumers, and proof edges.
 
@@ -80,9 +98,7 @@ codemap cone <scope-or-file> --depth 1
 After edits:
 
 ```bash
-codemap impact --changed
-codemap diff-map --changed
-codemap proof-map --changed
+codemap changed
 codemap proof --changed
 ```
 

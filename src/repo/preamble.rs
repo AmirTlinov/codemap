@@ -12,7 +12,6 @@ use regex::Regex;
 
 use crate::cache;
 use crate::model::{
-    AnchorDomain, ConfigLoadError, CtxConfig, Domain, FileInfo, ImportBindingsBySpec,
+    AnchorDomain, ConfigLoadError, CtxConfig, Domain, FileInfo, GitChange, ImportBindingsBySpec,
     PackageDependency, PackageInfo, Project, ScriptInfo, SymbolInfo,
 };
-

@@ -72,6 +72,67 @@ pub struct DiffMapReport {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct ChangedReport {
+    pub kind: &'static str,
+    pub schema_version: &'static str,
+    pub selector: String,
+    #[serde(skip)]
+    pub display_limit: usize,
+    pub total_changed_count: usize,
+    pub changed: Vec<FileSummary>,
+    pub git_state: Vec<GitChange>,
+    pub map_delta: ChangedMapDelta,
+    pub impact: Vec<ImpactCluster>,
+    pub proof: ChangedProofSummary,
+    pub unknowns: Vec<Unknown>,
+    pub hidden: Vec<HiddenGroup>,
+    pub expand: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GitChange {
+    pub path: String,
+    pub old_path: Option<String>,
+    pub status: String,
+    pub staged: bool,
+    pub unstaged: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ChangedMapDelta {
+    pub added_edges: usize,
+    pub removed_edges: usize,
+    pub changed_symbols: usize,
+    pub added_exports: usize,
+    pub removed_exports: usize,
+    pub added_runtime_routes: usize,
+    pub removed_runtime_routes: usize,
+    pub added_env: usize,
+    pub removed_env: usize,
+    pub added_proof_surfaces: usize,
+    pub removed_proof_surfaces: usize,
+    pub new_unknowns: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ChangedProofSummary {
+    pub commands: Vec<ChangedProofCommand>,
+    pub fallback: Vec<String>,
+    pub direct: Vec<ProofSurface>,
+    pub indirect: Vec<ProofSurface>,
+    pub e2e: Vec<ProofSurface>,
+    pub contract: Vec<ProofSurface>,
+    pub missing_direct: Vec<Surface>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ChangedProofCommand {
+    pub command: String,
+    pub sensors: Vec<ProofSurface>,
+    pub hidden_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct ChangedSymbol {
     pub path: String,
     pub name: String,

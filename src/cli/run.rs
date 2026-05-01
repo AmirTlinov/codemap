@@ -64,6 +64,19 @@ pub fn run() -> Result<()> {
             let report = map::impact_report(&project, changed, args.depth, args.limit);
             output(args.format, &report, || render::impact(&report))
         }
+        CommandKind::Changed(args) => {
+            ensure_valid_config(&project)?;
+            let (changed, selector, mode, git_state) = changed_inputs(&project, &args)?;
+            let limit = if args.include_hidden {
+                usize::MAX / 2
+            } else {
+                args.limit
+            };
+            let report = map::changed_report(&project, changed, selector, mode, git_state, limit);
+            output(args.format, &report, || {
+                render::changed(&report, changed_section_name(args.section))
+            })
+        }
         CommandKind::DiffMap(args) => {
             ensure_valid_config(&project)?;
             let changed = changed_from_diff_map_args(&project, &args)?;

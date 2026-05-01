@@ -1,3 +1,4 @@
+include!("lenses/changed.rs");
 include!("lenses/diff_map.rs");
 include!("lenses/diff_map_unknowns.rs");
 include!("lenses/contract.rs");

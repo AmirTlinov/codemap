@@ -6,12 +6,13 @@ use serde::Serialize;
 use crate::cache;
 use crate::evidence::{import_statement_locations, line_looks_like_import_or_reexport};
 use crate::model::{
-    BoundaryFinding, BoundaryMapReport, BoundaryReport, ChangedSymbol, ConeReport, ContractReport,
-    DeleteReport, DiffMapReport, DirectorySurface, Domain, DomainRef, EnvSurface, EvidenceLocation,
-    EvidenceStrength, FileInfo, FileSummary, FlowReport, FlowStep, HiddenGroup, ImpactCluster,
-    ImpactReport, LsReport, PackageDependency, PlaceReport, Project, ProofMapReport, ProofReport,
-    ProofSurface, Risk, RuntimeReport, RuntimeRoute, SiblingsReport, StructuralEdge, Surface,
-    Unknown, VerificationPlan,
+    BoundaryFinding, BoundaryMapReport, BoundaryReport, ChangedMapDelta, ChangedProofCommand,
+    ChangedProofSummary, ChangedReport, ChangedSymbol, ConeReport, ContractReport, DeleteReport,
+    DiffMapReport, DirectorySurface, Domain, DomainRef, EnvSurface, EvidenceLocation,
+    EvidenceStrength, FileInfo, FileSummary, FlowReport, FlowStep, GitChange, HiddenGroup,
+    ImpactCluster, ImpactReport, LsReport, PackageDependency, PlaceReport, Project, ProofMapReport,
+    ProofReport, ProofSurface, Risk, RuntimeReport, RuntimeRoute, SiblingsReport, StructuralEdge,
+    Surface, Unknown, VerificationPlan,
 };
 use crate::repo;
 

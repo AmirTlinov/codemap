@@ -2,10 +2,10 @@ use serde::Serialize;
 
 use crate::map::StatusReport;
 use crate::model::{
-    BoundaryFinding, BoundaryMapReport, ConeReport, ContractReport, DeleteReport, DiffMapReport,
-    EnvSurface, EvidenceLocation, FlowReport, GraphEdge, GraphLens, ImpactCluster, ImpactReport,
-    LsReport, PlaceReport, ProofMapReport, ProofReport, ProofSurface, RuntimeReport, RuntimeRoute,
-    SiblingsReport, StructuralEdge, Surface, Unknown,
+    BoundaryFinding, BoundaryMapReport, ChangedReport, ConeReport, ContractReport, DeleteReport,
+    DiffMapReport, EnvSurface, EvidenceLocation, FlowReport, GitChange, GraphEdge, GraphLens,
+    ImpactCluster, ImpactReport, LsReport, PlaceReport, ProofMapReport, ProofReport, ProofSurface,
+    RuntimeReport, RuntimeRoute, SiblingsReport, StructuralEdge, Surface, Unknown,
 };
 
 pub fn print_json<T: Serialize>(value: &T) -> anyhow::Result<()> {

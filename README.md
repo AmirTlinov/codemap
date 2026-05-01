@@ -40,13 +40,26 @@ Windows: %LOCALAPPDATA%/codemap/
 
 Use `CODEMAP_CACHE_DIR=/path` to override and `CODEMAP_NO_CACHE=1` to disable cache writes.
 
-## Core Flow
+## Daily Flow
+
+The daily surface is intentionally small:
+
+```bash
+codemap ls <scope>
+codemap cone <anchor>
+codemap changed
+codemap proof <scope|--changed>
+codemap doctor
+```
+
+Focused lenses remain available as deterministic drill-down targets, but the
+agent should normally discover them through `expand` instead of memorizing a
+large ritual.
 
 At the repository root:
 
 ```bash
 codemap ls .
-codemap graph --lens causal
 ```
 
 This returns a bounded top-level map: domains, packages, scripts, test surfaces, and cross-scope edges. It does not print the whole project galaxy.
@@ -59,7 +72,7 @@ codemap ls packages/replay/src/session.ts
 codemap cone packages/replay/src/session.ts --depth 1
 ```
 
-Run additional map views when the intent needs a different spectrum:
+Run focused map views when the current map points at that deeper spectrum:
 
 ```bash
 codemap contract packages/replay/src/types.ts
@@ -73,9 +86,7 @@ codemap delete packages/replay/src/legacy-session.ts
 After edits:
 
 ```bash
-codemap diff-map --changed
-codemap impact --changed
-codemap proof-map --changed
+codemap changed
 codemap proof --changed
 ```
 
@@ -89,6 +100,10 @@ codemap status
 codemap files [--path <scope>]
 codemap ls <file-or-dir>
 codemap cone <file-or-dir> [--depth 1]
+codemap changed
+codemap changed --section diff
+codemap changed --section impact
+codemap changed --section proof
 codemap impact --changed
 codemap impact --staged
 codemap impact --since main
@@ -123,23 +138,18 @@ Markdown is the default agent-facing format. Use `--format json` for strict inte
 One-time global instruction:
 
 ```md
-For coding tasks, if `codemap` is available in PATH, begin with a bounded structural map:
+For coding tasks, if `codemap` is available in PATH, begin with the small daily structural map surface:
 
 `codemap ls .`
-`codemap graph --lens causal`
 `codemap ls <scope-or-file>`
 `codemap cone <scope-or-file> --depth 1`
 
-Run `codemap contract`, `codemap runtime`, `codemap flow`, `codemap siblings`, `codemap place`, or `codemap delete` only when that view matches the code you are about to touch. They are deterministic map views, not recommendations.
-
 After edits:
 
-`codemap diff-map --changed`
-`codemap impact --changed`
-`codemap proof-map --changed`
+`codemap changed`
 `codemap proof --changed`
 
-Read code lines after choosing anchors from the map. Use `codemap cone <anchor> --depth 2` only when structural edges, public/package/schema boundaries, or proof surfaces require it.
+Follow exact expand commands from the output for focused lenses such as `runtime`, `contract`, `flow`, `boundary-map`, `siblings`, `place`, `delete`, `diff-map`, `impact`, `proof-map`, or `graph`. Read code lines after choosing anchors from the map.
 ```
 
 Optional project bootloader:

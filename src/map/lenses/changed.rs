@@ -1,0 +1,238 @@
+pub fn changed_report(
+    project: &Project,
+    changed: Vec<String>,
+    selector: String,
+    mode: DiffMapMode,
+    git_state: Vec<GitChange>,
+    limit: usize,
+) -> ChangedReport {
+    let limit = limit.max(1);
+    let total_changed_count = changed
+        .iter()
+        .map(|file| repo::normalize_rel_path(file))
+        .filter(|file| file != ".")
+        .collect::<BTreeSet<_>>()
+        .len();
+    let diff = diff_map_report(project, changed.clone(), limit, mode);
+    let impact = impact_report(project, changed.clone(), 1, limit);
+    let proof_map = proof_map_report(project, None, changed, selector.clone(), limit, false);
+    let mut hidden = Vec::new();
+    hidden.extend(prefix_hidden("diff", &diff.hidden, &selector, limit));
+    hidden.extend(prefix_hidden("impact", &impact.hidden, &selector, limit));
+    hidden.extend(prefix_hidden("proof", &proof_map.hidden, &selector, limit));
+    let mut unknowns = Vec::new();
+    unknowns.extend(diff.new_unknowns.clone());
+    unknowns.extend(impact.unknowns.clone());
+    unknowns.extend(proof_map.unknowns.clone());
+    dedupe_unknowns(&mut unknowns);
+    let unknown_expand = format!(
+        "codemap changed{} --section unknowns --limit {}",
+        changed_self_selector_suffix(&selector),
+        unknowns.len()
+    );
+    truncate_with_hidden(
+        &mut unknowns,
+        limit,
+        &mut hidden,
+        "changed unknowns hidden by limit",
+        &unknown_expand,
+    );
+    ChangedReport {
+        kind: "changed_report",
+        schema_version: "1",
+        selector: selector.clone(),
+        display_limit: limit,
+        total_changed_count,
+        changed: impact.changed.clone(),
+        git_state,
+        map_delta: ChangedMapDelta {
+            added_edges: count_with_hidden(
+                diff.added_edges.len(),
+                &diff.hidden,
+                "added structural edges hidden by limit",
+            ),
+            removed_edges: count_with_hidden(
+                diff.removed_edges.len(),
+                &diff.hidden,
+                "removed structural edges hidden by limit",
+            ),
+            changed_symbols: count_with_hidden(
+                diff.changed_symbols.len(),
+                &diff.hidden,
+                "changed symbol surfaces hidden by limit",
+            ),
+            added_exports: count_with_hidden(
+                diff.added_exports.len(),
+                &diff.hidden,
+                "added export surfaces hidden by limit",
+            ),
+            removed_exports: count_with_hidden(
+                diff.removed_exports.len(),
+                &diff.hidden,
+                "removed export surfaces hidden by limit",
+            ),
+            added_runtime_routes: count_with_hidden(
+                diff.added_runtime_routes.len(),
+                &diff.hidden,
+                "added runtime routes hidden by limit",
+            ),
+            removed_runtime_routes: count_with_hidden(
+                diff.removed_runtime_routes.len(),
+                &diff.hidden,
+                "removed runtime routes hidden by limit",
+            ),
+            added_env: count_with_hidden(
+                diff.added_env.len(),
+                &diff.hidden,
+                "added env dependencies hidden by limit",
+            ),
+            removed_env: count_with_hidden(
+                diff.removed_env.len(),
+                &diff.hidden,
+                "removed env dependencies hidden by limit",
+            ),
+            added_proof_surfaces: count_with_hidden(
+                diff.added_proof_surfaces.len(),
+                &diff.hidden,
+                "added proof surfaces hidden by limit",
+            ),
+            removed_proof_surfaces: count_with_hidden(
+                diff.removed_proof_surfaces.len(),
+                &diff.hidden,
+                "removed proof surfaces hidden by limit",
+            ),
+            new_unknowns: count_with_hidden(
+                diff.new_unknowns.len(),
+                &diff.hidden,
+                "new unknowns hidden by limit",
+            ),
+        },
+        impact: impact.clusters,
+        proof: changed_proof_summary(proof_map, limit),
+        unknowns,
+        hidden,
+        expand: changed_expand(&selector),
+    }
+}
+
+fn count_with_hidden(visible: usize, hidden: &[HiddenGroup], reason: &str) -> usize {
+    visible
+        + hidden
+            .iter()
+            .filter(|group| group.reason == reason)
+            .map(|group| group.count)
+            .sum::<usize>()
+}
+
+fn changed_proof_summary(report: ProofMapReport, limit: usize) -> ChangedProofSummary {
+    let command_sensor_limit = limit.min(8);
+    let mut by_command: BTreeMap<String, Vec<ProofSurface>> = BTreeMap::new();
+    for proof in report
+        .direct
+        .iter()
+        .chain(report.indirect.iter())
+        .chain(report.e2e.iter())
+        .chain(report.contract.iter())
+        .chain(report.commands.iter())
+    {
+        if let Some(command) = &proof.command {
+            by_command
+                .entry(command.clone())
+                .or_default()
+                .push(proof.clone());
+        }
+    }
+    let commands = by_command
+        .into_iter()
+        .map(|(command, mut sensors)| {
+            sensors.sort_by(|a, b| {
+                a.path
+                    .cmp(&b.path)
+                    .then_with(|| a.evidence.cmp(&b.evidence))
+                    .then_with(|| a.reason.cmp(&b.reason))
+            });
+            sensors.dedup_by(|a, b| {
+                a.path == b.path && a.evidence == b.evidence && a.reason == b.reason
+            });
+            let hidden_count = sensors.len().saturating_sub(command_sensor_limit);
+            sensors.truncate(command_sensor_limit);
+            ChangedProofCommand {
+                command,
+                sensors,
+                hidden_count,
+            }
+        })
+        .collect();
+    ChangedProofSummary {
+        commands,
+        fallback: report.fallback,
+        direct: report.direct,
+        indirect: report.indirect,
+        e2e: report.e2e,
+        contract: report.contract,
+        missing_direct: report.missing_direct,
+    }
+}
+
+fn changed_expand(selector: &str) -> Vec<String> {
+    let changed_suffix = changed_self_selector_suffix(selector);
+    vec![
+        format!("codemap changed{changed_suffix} --section diff"),
+        format!("codemap changed{changed_suffix} --section impact"),
+        format!("codemap changed{changed_suffix} --section proof"),
+        format!("codemap diff-map {selector}"),
+        format!("codemap impact {selector}"),
+        format!("codemap proof-map {selector}"),
+        format!("codemap proof {selector}"),
+    ]
+}
+
+fn changed_self_selector_suffix(selector: &str) -> String {
+    if selector == "--changed" {
+        String::new()
+    } else {
+        format!(" {selector}")
+    }
+}
+
+fn prefix_hidden(
+    prefix: &str,
+    hidden: &[HiddenGroup],
+    selector: &str,
+    current_limit: usize,
+) -> Vec<HiddenGroup> {
+    let selector_suffix = changed_self_selector_suffix(selector);
+    hidden
+        .iter()
+        .map(|group| HiddenGroup {
+            reason: format!("{prefix}: {}", group.reason),
+            count: group.count,
+            expand: if group.expand.len() > 160 || group.expand.contains("--files ") {
+                format!(
+                    "codemap changed{selector_suffix} --section {prefix} --limit {}",
+                    current_limit + group.count
+                )
+            } else {
+                group.expand.clone()
+            },
+        })
+        .collect()
+}
+
+fn dedupe_unknowns(unknowns: &mut Vec<Unknown>) {
+    let mut seen = BTreeSet::new();
+    unknowns.retain(|unknown| {
+        seen.insert((
+            unknown.kind.clone(),
+            unknown.path.clone(),
+            unknown.line_start,
+            unknown.reason.clone(),
+        ))
+    });
+    unknowns.sort_by(|a, b| {
+        a.kind
+            .cmp(&b.kind)
+            .then_with(|| a.path.cmp(&b.path))
+            .then_with(|| a.line_start.cmp(&b.line_start))
+    });
+}

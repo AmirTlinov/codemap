@@ -97,9 +97,9 @@ fn git_show_file(project: &Project, revision: &str, rel: &str) -> Option<String>
         .arg("cat-file")
         .arg("-e")
         .arg(&object)
-        .status()
+        .output()
         .ok()?;
-    if !exists.success() {
+    if !exists.status.success() {
         return None;
     }
     let output = std::process::Command::new("git")

@@ -23,22 +23,16 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum CommandKind {
-    #[command(about = "Check environment, repo detection, cache path, and safety defaults")]
-    Doctor(FormatArgs),
-    #[command(about = "Show repo, cache, language, domain, and verification status")]
-    Status(FormatArgs),
     #[command(about = "Show structural surfaces for an exact file or directory anchor")]
     Ls(LsArgs),
     #[command(about = "Show a bounded structural edge cone around an exact anchor")]
     Cone(ConeArgs),
-    #[command(about = "List indexed project files without writing to the project")]
-    Files(FilesArgs),
-    #[command(about = "Print or explicitly write optional codemap bootloader/config files")]
-    Init(InitArgs),
-    #[command(about = "Print one-time global agent instruction text")]
-    Bootstrap(BootstrapArgs),
-    #[command(about = "Print a bundled stable JSON schema or schema manifest")]
-    Schema(SchemaArgs),
+    #[command(about = "Show one compact after-edit structural map: git state, delta, impact, proof")]
+    Changed(ChangedArgs),
+    #[command(about = "Print structural proof surfaces, or run them only with --run")]
+    Proof(ProofArgs),
+    #[command(about = "Check environment, repo detection, cache path, and safety defaults")]
+    Doctor(FormatArgs),
     #[command(about = "Report structural blast-radius clusters for a diff or explicit files")]
     Impact(ImpactArgs),
     #[command(about = "Show structural map changes for a diff without printing textual diff")]
@@ -47,8 +41,6 @@ enum CommandKind {
     Contract(ContractArgs),
     #[command(about = "Show runtime entrypoints, routes, scripts, and env surfaces for a scope")]
     Runtime(RuntimeArgs),
-    #[command(about = "Print structural proof surfaces, or run them only with --run")]
-    Proof(ProofArgs),
     #[command(about = "Show proof coverage surfaces around a scope or diff")]
     ProofMap(ProofMapArgs),
     #[command(about = "Show structural blockers and cleanup map before deleting an anchor")]
@@ -66,6 +58,16 @@ enum CommandKind {
     #[command(alias = "check-boundaries")]
     #[command(about = "Check explicit forbidden boundaries and generated-file edits")]
     Boundaries(BoundariesArgs),
+    #[command(about = "Show repo, cache, language, domain, and verification status")]
+    Status(FormatArgs),
+    #[command(about = "List indexed project files without writing to the project")]
+    Files(FilesArgs),
+    #[command(about = "Print a bundled stable JSON schema or schema manifest")]
+    Schema(SchemaArgs),
+    #[command(about = "Print one-time global agent instruction text")]
+    Bootstrap(BootstrapArgs),
+    #[command(about = "Print or explicitly write optional codemap bootloader/config files")]
+    Init(InitArgs),
     #[command(about = "Validate optional .ctx.yml semantic anchors")]
     Anchors(AnchorsArgs),
 }
@@ -172,6 +174,37 @@ struct DiffMapArgs {
     limit: usize,
     #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
     format: OutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct ChangedArgs {
+    #[arg(long)]
+    changed: bool,
+    #[arg(long)]
+    staged: bool,
+    #[arg(long)]
+    since: Option<String>,
+    #[arg(long)]
+    files: Option<String>,
+    #[arg()]
+    positional_files: Vec<String>,
+    #[arg(long, value_enum, default_value_t = ChangedSection::Overview)]
+    section: ChangedSection,
+    #[arg(long)]
+    include_hidden: bool,
+    #[arg(long, default_value_t = 30)]
+    limit: usize,
+    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
+    format: OutputFormat,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
+enum ChangedSection {
+    Overview,
+    Diff,
+    Impact,
+    Proof,
+    Unknowns,
 }
 
 #[derive(Debug, Args)]
@@ -355,6 +388,7 @@ enum SchemaKind {
     Ls,
     Cone,
     Impact,
+    Changed,
     DiffMap,
     Contract,
     Runtime,

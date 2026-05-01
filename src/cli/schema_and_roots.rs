@@ -15,6 +15,7 @@ fn schema_text(kind: SchemaKind) -> &'static str {
         SchemaKind::Ls => include_str!("../../schemas/ls.schema.json"),
         SchemaKind::Cone => include_str!("../../schemas/cone.schema.json"),
         SchemaKind::Impact => include_str!("../../schemas/impact.schema.json"),
+        SchemaKind::Changed => include_str!("../../schemas/changed.schema.json"),
         SchemaKind::DiffMap => include_str!("../../schemas/diff-map.schema.json"),
         SchemaKind::Contract => include_str!("../../schemas/contract.schema.json"),
         SchemaKind::Runtime => include_str!("../../schemas/runtime.schema.json"),
@@ -39,6 +40,9 @@ fn command_root_hint(command: &CommandKind, ambient_root: Option<&Path>) -> Opti
         CommandKind::Files(args) => absolute_path_hint(args.path.as_deref()),
         CommandKind::Init(args) => init_root_hint(args.path.as_deref(), ambient_root),
         CommandKind::Impact(args) => {
+            absolute_files_hint(args.files.as_deref(), &args.positional_files)
+        }
+        CommandKind::Changed(args) => {
             absolute_files_hint(args.files.as_deref(), &args.positional_files)
         }
         CommandKind::DiffMap(args) => {

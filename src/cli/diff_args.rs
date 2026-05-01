@@ -58,6 +58,81 @@ fn changed_from_diff_map_args(
     parse_files(project, args.files.as_deref(), &args.positional_files)
 }
 
+fn changed_inputs(
+    project: &crate::model::Project,
+    args: &ChangedArgs,
+) -> Result<(Vec<String>, String, map::DiffMapMode, Vec<crate::model::GitChange>)> {
+    ensure_single_diff_selector(
+        args.changed,
+        args.staged,
+        args.since.as_deref(),
+        args.files.as_deref(),
+        &args.positional_files,
+    )?;
+    if args.staged {
+        let changed = repo::changed_files(&project.root, true, None);
+        let git_state = repo::git_changes(&project.root, true, None);
+        return Ok((
+            changed,
+            "--staged".to_string(),
+            map::DiffMapMode::Staged,
+            git_state,
+        ));
+    }
+    if let Some(since) = &args.since {
+        let changed = repo::changed_files(&project.root, false, Some(since));
+        let git_state = repo::git_changes(&project.root, false, Some(since));
+        return Ok((
+            changed,
+            format!("--since {}", shell_quote_arg(since)),
+            map::DiffMapMode::Since(since.clone()),
+            git_state,
+        ));
+    }
+    let explicit = parse_files(project, args.files.as_deref(), &args.positional_files)?;
+    if !explicit.is_empty() {
+        let selector = explicit
+            .iter()
+            .map(|file| shell_quote_arg(file))
+            .collect::<Vec<_>>()
+            .join(",");
+        let git_state = explicit
+            .iter()
+            .map(|file| crate::model::GitChange {
+                path: file.clone(),
+                old_path: None,
+                status: "selected".to_string(),
+                staged: false,
+                unstaged: false,
+            })
+            .collect();
+        return Ok((
+            explicit,
+            format!("--files {selector}"),
+            map::DiffMapMode::WorkingTree,
+            git_state,
+        ));
+    }
+    let changed = repo::changed_files(&project.root, false, None);
+    let git_state = repo::git_changes(&project.root, false, None);
+    Ok((
+        changed,
+        "--changed".to_string(),
+        map::DiffMapMode::WorkingTree,
+        git_state,
+    ))
+}
+
+fn changed_section_name(section: ChangedSection) -> &'static str {
+    match section {
+        ChangedSection::Overview => "overview",
+        ChangedSection::Diff => "diff",
+        ChangedSection::Impact => "impact",
+        ChangedSection::Proof => "proof",
+        ChangedSection::Unknowns => "unknowns",
+    }
+}
+
 fn proof_map_inputs(
     project: &crate::model::Project,
     args: &ProofMapArgs,
