@@ -31,6 +31,7 @@ include!("structural_map/next_routes.rs");
 include!("structural_map/anchors_validate_summary.rs");
 include!("structural_map/anchors_validate_details.rs");
 include!("structural_map/boundaries_graph_schema.rs");
+include!("structural_map/lens_commands.rs");
 include!("structural_map/symbol_local_calls.rs");
 include!("structural_map/symbol_barrel_positive.rs");
 include!("structural_map/symbol_barrel_rejects.rs");

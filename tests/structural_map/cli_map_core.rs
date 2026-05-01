@@ -28,7 +28,7 @@ fn root_ls_is_a_bounded_domain_and_package_map() {
     let json = run_json(repo.path(), cache.path(), &["ls", ".", "--format", "json"]);
     assert_schema("schemas/ls.schema.json", &json);
     assert_eq!(json["kind"], "ls_report");
-    assert_eq!(json["schema_version"], "2");
+    assert_eq!(json["schema_version"], "3");
     assert_eq!(json["mode"], "directory");
     let surfaces = json["directory"].as_array().expect("directory surfaces");
     assert!(surfaces.iter().any(|surface| surface["kind"] == "domain"));
@@ -390,4 +390,3 @@ fn file_ls_exports_async_symbols_from_symbol_map() {
         "file export surface must not promote non-exported parameters or local bindings: {ls:#}"
     );
 }
-

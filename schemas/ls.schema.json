@@ -17,7 +17,7 @@
   ],
   "properties": {
     "kind": { "const": "ls_report" },
-    "schema_version": { "const": "2" },
+    "schema_version": { "const": "3" },
     "path": { "type": "string" },
     "mode": { "type": "string", "enum": ["file", "directory", "missing"] },
     "anchor": {
@@ -44,6 +44,21 @@
     "evidence_strength": {
       "type": "string",
       "enum": ["low", "medium", "high", "hard"]
+    },
+    "evidence_location": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "line_start", "line_end", "kind"],
+      "properties": {
+        "path": { "type": "string" },
+        "line_start": {
+          "anyOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }]
+        },
+        "line_end": {
+          "anyOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }]
+        },
+        "kind": { "type": "string" }
+      }
     },
     "symbol": {
       "type": "object",
@@ -102,26 +117,50 @@
     "directory_surface": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "count", "examples"],
+      "required": [
+        "id",
+        "kind",
+        "path",
+        "role",
+        "evidence",
+        "strength",
+        "count",
+        "examples",
+        "hidden_count"
+      ],
       "properties": {
+        "id": { "type": "string" },
         "kind": { "type": "string" },
+        "path": {
+          "anyOf": [{ "type": "string" }, { "type": "null" }]
+        },
+        "role": {
+          "anyOf": [{ "type": "string" }, { "type": "null" }]
+        },
+        "evidence": { "type": "string" },
+        "strength": { "$ref": "#/$defs/evidence_strength" },
         "count": { "type": "integer", "minimum": 0 },
         "examples": {
           "type": "array",
           "items": { "type": "string" }
-        }
+        },
+        "hidden_count": { "type": "integer", "minimum": 0 }
       }
     },
     "structural_edge": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["from", "to", "type", "evidence", "strength"],
+      "required": ["from", "to", "type", "evidence", "strength", "locations"],
       "properties": {
         "from": { "type": "string" },
         "to": { "type": "string" },
         "type": { "type": "string" },
         "evidence": { "type": "string" },
-        "strength": { "$ref": "#/$defs/evidence_strength" }
+        "strength": { "$ref": "#/$defs/evidence_strength" },
+        "locations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidence_location" }
+        }
       }
     },
     "hidden_group": {

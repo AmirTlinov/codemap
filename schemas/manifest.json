@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "structural_schema_version": "2",
+  "structural_schema_version": "3",
   "anchor_config_version": 1,
   "schemas": [
     {
@@ -21,22 +21,43 @@
       "kind": "ls",
       "file": "schemas/ls.schema.json",
       "contract": "structural_output",
-      "schema_version": "2",
+      "schema_version": "3",
       "json_kind": "ls_report"
     },
     {
       "kind": "cone",
       "file": "schemas/cone.schema.json",
       "contract": "structural_output",
-      "schema_version": "2",
+      "schema_version": "3",
       "json_kind": "cone_report"
     },
     {
       "kind": "impact",
       "file": "schemas/impact.schema.json",
       "contract": "structural_output",
-      "schema_version": "2",
+      "schema_version": "3",
       "json_kind": "impact_report"
+    },
+    {
+      "kind": "diff-map",
+      "file": "schemas/diff-map.schema.json",
+      "contract": "structural_output",
+      "schema_version": "1",
+      "json_kind": "diff_map_report"
+    },
+    {
+      "kind": "contract",
+      "file": "schemas/contract.schema.json",
+      "contract": "structural_output",
+      "schema_version": "1",
+      "json_kind": "contract_report"
+    },
+    {
+      "kind": "runtime",
+      "file": "schemas/runtime.schema.json",
+      "contract": "structural_output",
+      "schema_version": "1",
+      "json_kind": "runtime_report"
     },
     {
       "kind": "proof",
@@ -44,6 +65,48 @@
       "contract": "structural_output",
       "schema_version": "2",
       "json_kind": "proof_plan"
+    },
+    {
+      "kind": "proof-map",
+      "file": "schemas/proof-map.schema.json",
+      "contract": "structural_output",
+      "schema_version": "1",
+      "json_kind": "proof_map_report"
+    },
+    {
+      "kind": "delete",
+      "file": "schemas/delete.schema.json",
+      "contract": "structural_output",
+      "schema_version": "1",
+      "json_kind": "delete_report"
+    },
+    {
+      "kind": "boundary-map",
+      "file": "schemas/boundary-map.schema.json",
+      "contract": "structural_output",
+      "schema_version": "1",
+      "json_kind": "boundary_map_report"
+    },
+    {
+      "kind": "flow",
+      "file": "schemas/flow.schema.json",
+      "contract": "structural_output",
+      "schema_version": "1",
+      "json_kind": "flow_report"
+    },
+    {
+      "kind": "siblings",
+      "file": "schemas/siblings.schema.json",
+      "contract": "structural_output",
+      "schema_version": "1",
+      "json_kind": "siblings_report"
+    },
+    {
+      "kind": "place",
+      "file": "schemas/place.schema.json",
+      "contract": "structural_output",
+      "schema_version": "1",
+      "json_kind": "place_report"
     },
     {
       "kind": "graph",

@@ -13,15 +13,18 @@ There is no task router. Commands either inspect an exact anchor, a directory le
 ```txt
 src/main.rs
 src/cli.rs
+src/cli/*
 src/model.rs
 src/repo.rs
+src/repo/*
 src/map.rs
-src/map/graph_lens.rs
+src/map/*
 src/render.rs
+src/render/*
 src/cache.rs
 ```
 
-Keep this flat until a module is hard to change safely.
+Keep new implementation under the existing owner folders. Do not create a second router/search layer beside the structural map engine.
 
 ## Implemented Surfaces
 
@@ -44,8 +47,17 @@ Keep this flat until a module is hard to change safely.
 - root/directory `ls` surfaces with bounded domain/package/script/test map;
 - file `ls` with symbols, exports, imports, incoming count, adjacent tests, and next command;
 - `cone` with outgoing, incoming, proof, contract, boundary, hidden, unknown, and expand sections;
+- first-class edge evidence locations and typed unknowns;
 - structural `impact` by changed anchors, direct consumers, cross-boundary consumers, contract risks, and proof edges;
+- `diff-map` for map-level changed structural lines, exported symbol surfaces, and new unknowns;
+- `contract` for exported/schema/package/public surfaces and their consumers/proof;
+- `runtime` for deterministic entrypoints, route file conventions, scripts, env references, workers/jobs, CI, and proof;
 - structural `proof` from adjacent/importing tests and package-local commands;
+- `proof-map` for direct/indirect/e2e/contract proof coverage around a scope or diff;
+- `delete` for deletion blockers and cleanup hints without safety claims;
+- `boundary-map` as read-only package/domain crossing map separate from boundary checks;
+- `flow` as bounded structural steps that stop at unknowns;
+- `siblings` and `place` for local structural conventions without semantic ranking;
 - boundary checks from explicit `.ctx.yml` forbidden rules plus resolved imports/package edges;
 - anchor validation with resolved domain/concept/boundary/verification details;
 - graph lenses for causal, impact, proof, and boundaries;

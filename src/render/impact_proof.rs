@@ -38,7 +38,7 @@ pub fn impact(report: &ImpactReport) {
             .collect();
         println!("{}", table(&["Reason", "Count", "Expand"], rows));
     }
-    section("Unknown", &report.unknowns);
+    unknown_section(&report.unknowns);
     section("Expand", &report.expand);
 }
 

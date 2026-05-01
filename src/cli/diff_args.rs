@@ -35,6 +35,66 @@ fn changed_from_args(project: &crate::model::Project, args: &ImpactArgs) -> Resu
     parse_files(project, args.files.as_deref(), &args.positional_files)
 }
 
+fn changed_from_diff_map_args(
+    project: &crate::model::Project,
+    args: &DiffMapArgs,
+) -> Result<Vec<String>> {
+    ensure_single_diff_selector(
+        args.changed,
+        args.staged,
+        args.since.as_deref(),
+        args.files.as_deref(),
+        &args.positional_files,
+    )?;
+    if args.changed {
+        return Ok(repo::changed_files(&project.root, false, None));
+    }
+    if args.staged {
+        return Ok(repo::changed_files(&project.root, true, None));
+    }
+    if let Some(since) = &args.since {
+        return Ok(repo::changed_files(&project.root, false, Some(since)));
+    }
+    parse_files(project, args.files.as_deref(), &args.positional_files)
+}
+
+fn proof_map_inputs(
+    project: &crate::model::Project,
+    args: &ProofMapArgs,
+) -> Result<(Option<String>, Vec<String>)> {
+    let explicit_files = args
+        .files
+        .as_deref()
+        .map(|value| !value.trim().is_empty())
+        .unwrap_or(false);
+    let count = [
+        args.target.is_some(),
+        args.changed,
+        args.staged,
+        args.since.is_some(),
+        explicit_files,
+    ]
+    .into_iter()
+    .filter(|enabled| *enabled)
+    .count();
+    if count > 1 {
+        bail!("choose only one proof-map selector: target, --changed, --staged, --since, or --files");
+    }
+    if let Some(target) = args.target.as_deref() {
+        return Ok((Some(project_relative_arg(project, target)?), Vec::new()));
+    }
+    if args.changed {
+        return Ok((None, repo::changed_files(&project.root, false, None)));
+    }
+    if args.staged {
+        return Ok((None, repo::changed_files(&project.root, true, None)));
+    }
+    if let Some(since) = &args.since {
+        return Ok((None, repo::changed_files(&project.root, false, Some(since))));
+    }
+    Ok((None, parse_files(project, args.files.as_deref(), &[])?))
+}
+
 fn proof_inputs(
     project: &crate::model::Project,
     args: &ProofArgs,
@@ -182,4 +242,3 @@ fn scoped_project_path(project: &crate::model::Project, value: &str) -> Result<P
         .map(|rel| project.root.join(rel))
         .map_err(|_| anyhow::anyhow!("refusing to write outside project root: {value}"))
 }
-

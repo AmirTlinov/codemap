@@ -1,0 +1,68 @@
+fn unknown(
+    kind: impl Into<String>,
+    path: Option<impl Into<String>>,
+    line_start: Option<usize>,
+    reason: impl Into<String>,
+    effect: impl Into<String>,
+    expand: Option<impl Into<String>>,
+) -> Unknown {
+    Unknown {
+        kind: kind.into(),
+        path: path.map(Into::into),
+        line_start,
+        reason: reason.into(),
+        effect: effect.into(),
+        expand: expand.map(Into::into),
+    }
+}
+
+fn unknown_unindexed_anchor(path: &str) -> Unknown {
+    unknown(
+        "unindexed_anchor",
+        Some(path),
+        None,
+        "anchor is not indexed as a file or directory",
+        "structural edges cannot be resolved for this anchor",
+        Some(format!(
+            "codemap ls {}",
+            shell_quote(&parent_anchor_for_missing(path))
+        )),
+    )
+}
+
+fn unknown_symbol_outgoing(path: &str) -> Unknown {
+    unknown(
+        "unsupported_symbol_flow",
+        Some(path),
+        None,
+        "symbol-level outgoing call/dataflow is not inferred without structural evidence",
+        "use file or import edges when symbol body references are not structurally visible",
+        Some(format!("codemap ls {}", shell_quote(path))),
+    )
+}
+
+fn unknown_missing_symbol_anchor(file: &str, symbol: &str) -> Unknown {
+    unknown(
+        "missing_symbol_anchor",
+        Some(file),
+        None,
+        format!("symbol `{symbol}` was not found in the indexed file"),
+        "symbol-level structural map cannot be resolved; the file is not treated as the requested symbol",
+        Some(format!("codemap ls {}", shell_quote(file))),
+    )
+}
+
+fn unknown_directory_aggregate(path: &str, depth: usize) -> Unknown {
+    unknown(
+        "directory_aggregate",
+        Some(path),
+        None,
+        "directory cone is aggregated at this level",
+        "use a deeper anchor for file-level edges and exact evidence locations",
+        Some(format!(
+            "codemap cone {} --depth {}",
+            shell_quote(path),
+            depth + 1
+        )),
+    )
+}

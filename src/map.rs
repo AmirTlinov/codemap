@@ -5,15 +5,20 @@ use serde::Serialize;
 
 use crate::cache;
 use crate::model::{
-    BoundaryFinding, BoundaryReport, ConeReport, DirectorySurface, Domain, EvidenceStrength,
-    FileInfo, FileSummary, HiddenGroup, ImpactCluster, ImpactReport, LsReport, Project,
-    ProofReport, ProofSurface, Risk, StructuralEdge, VerificationPlan,
+    BoundaryFinding, BoundaryMapReport, BoundaryReport, ChangedSymbol, ConeReport, ContractReport,
+    DeleteReport, DiffMapReport, DirectorySurface, Domain, DomainRef, EnvSurface, EvidenceLocation,
+    EvidenceStrength, FileInfo, FileSummary, FlowReport, FlowStep, HiddenGroup, ImpactCluster,
+    ImpactReport, LsReport, PlaceReport, Project, ProofMapReport, ProofReport, ProofSurface, Risk,
+    RuntimeReport, RuntimeRoute, SiblingsReport, StructuralEdge, Surface, Unknown,
+    VerificationPlan,
 };
 use crate::repo;
 
 mod graph_lens;
 pub use graph_lens::graph_lens;
 
+include!("map/edges.rs");
+include!("map/unknowns.rs");
 include!("map/status.rs");
 include!("map/entry.rs");
 include!("map/ls.rs");
@@ -35,6 +40,7 @@ include!("map/proof_entry.rs");
 include!("map/proof_surfaces.rs");
 include!("map/proof_commands.rs");
 include!("map/impact.rs");
+include!("map/lenses.rs");
 include!("map/boundary.rs");
 include!("map/package_consumers.rs");
 include!("map/command_inference.rs");

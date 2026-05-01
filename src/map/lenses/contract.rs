@@ -1,0 +1,120 @@
+pub fn contract_report(
+    project: &Project,
+    anchor_path: &str,
+    include_hidden: bool,
+    limit: usize,
+) -> ContractReport {
+    let limit = limit.max(1);
+    let rel = repo::normalize_rel_path(anchor_path);
+    let anchor = project
+        .files
+        .get(&rel)
+        .map(|file| file_summary(project, file, include_hidden, 20))
+        .unwrap_or_else(|| missing_file_summary(project, &rel));
+    let mut producers = direct_dependency_edges(project, &rel);
+    let mut consumers = direct_consumer_edges(project, &rel);
+    let mut cross_package_consumers = consumers
+        .iter()
+        .filter(|edge| {
+            package_for_rel(project, &edge.from).map(|package| package.path.as_str())
+                != package_for_rel(project, &rel).map(|package| package.path.as_str())
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let mut proof = cone_proof_edges_with_direct_consumers(project, std::slice::from_ref(&rel));
+    let exported_contracts = project
+        .files
+        .get(&rel)
+        .map(|file| {
+            file.exports
+                .iter()
+                .take(limit)
+                .map(|export| Surface {
+                    id: format!("surface:export:{rel}#{export}"),
+                    kind: "exported_symbol".to_string(),
+                    path: Some(symbol_anchor_path(&rel, export)),
+                    role: Some("contract".to_string()),
+                    evidence: "exported_symbol".to_string(),
+                    strength: EvidenceStrength::High,
+                    count: Some(1),
+                    examples: vec![symbol_anchor_path(&rel, export)],
+                    hidden_count: 0,
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let public_surface = project
+        .files
+        .get(&rel)
+        .map(|file| {
+            file.has_role("public_boundary")
+                || package_for_rel(project, &rel).is_some_and(|package| package.manifest == rel)
+                || !cross_package_consumers.is_empty()
+        })
+        .unwrap_or(false);
+    let contract_kind = project
+        .files
+        .get(&rel)
+        .and_then(contract_evidence)
+        .unwrap_or_else(|| {
+            if anchor.kind == "missing" {
+                "missing".to_string()
+            } else if !anchor.exports.is_empty() {
+                "export_surface".to_string()
+            } else {
+                "internal_surface".to_string()
+            }
+        });
+    let mut hidden = Vec::new();
+    limit_edge_section(
+        &mut producers,
+        &mut hidden,
+        include_hidden,
+        limit,
+        "contract producer edges hidden by limit",
+        &format!("codemap contract {} --include-hidden", shell_quote(&rel)),
+    );
+    limit_edge_section(
+        &mut consumers,
+        &mut hidden,
+        include_hidden,
+        limit,
+        "contract consumer edges hidden by limit",
+        &format!("codemap contract {} --include-hidden", shell_quote(&rel)),
+    );
+    limit_edge_section(
+        &mut cross_package_consumers,
+        &mut hidden,
+        include_hidden,
+        limit,
+        "cross-package consumer edges hidden by limit",
+        &format!("codemap contract {} --include-hidden", shell_quote(&rel)),
+    );
+    limit_edge_section(
+        &mut proof,
+        &mut hidden,
+        include_hidden,
+        limit,
+        "contract proof edges hidden by limit",
+        &format!("codemap contract {} --include-hidden", shell_quote(&rel)),
+    );
+    ContractReport {
+        kind: "contract_report",
+        schema_version: "1",
+        anchor,
+        contract_kind,
+        public_surface,
+        exported_contracts,
+        producers,
+        consumers,
+        cross_package_consumers,
+        proof,
+        unknowns: Vec::new(),
+        hidden,
+        expand: vec![
+            format!("codemap cone {}", shell_quote(&rel)),
+            format!("codemap impact --files {}", shell_quote(&rel)),
+        ],
+    }
+}
+

@@ -6,6 +6,43 @@ fn section(title: &str, values: &[String]) {
     println!("{}", bullet(values, true, Some(20)));
 }
 
+fn unknown_section(values: &[Unknown]) {
+    if values.is_empty() {
+        return;
+    }
+    println!("\n## Unknown\n");
+    let rows = values
+        .iter()
+        .map(|unknown| {
+            vec![
+                unknown.kind.clone(),
+                unknown
+                    .path
+                    .as_ref()
+                    .map(|path| {
+                        if let Some(line) = unknown.line_start {
+                            code(&format!("{path}:{line}"))
+                        } else {
+                            code(path)
+                        }
+                    })
+                    .unwrap_or_else(|| "none".to_string()),
+                unknown.reason.clone(),
+                unknown.effect.clone(),
+                unknown
+                    .expand
+                    .as_ref()
+                    .map(|expand| code(expand))
+                    .unwrap_or_else(|| "none".to_string()),
+            ]
+        })
+        .collect();
+    println!(
+        "{}",
+        table(&["Kind", "Where", "Reason", "Effect", "Expand"], rows)
+    );
+}
+
 pub(crate) fn table(headers: &[&str], rows: Vec<Vec<String>>) -> String {
     let mut out = Vec::new();
     out.push(format!("| {} |", headers.join(" | ")));

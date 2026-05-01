@@ -81,7 +81,7 @@ fn cone_directory_report(
 
     ConeReport {
         kind: "cone_report",
-        schema_version: "2",
+        schema_version: "3",
         anchor,
         depth,
         outgoing,
@@ -90,10 +90,7 @@ fn cone_directory_report(
         contracts,
         boundary,
         hidden,
-        unknowns: vec![
-            "directory cone is aggregated at this level; use a deeper anchor for file-level edges"
-                .to_string(),
-        ],
+        unknowns: vec![unknown_directory_aggregate(rel, depth)],
         expand: vec![
             format!("codemap cone {} --depth {}", shell_quote(rel), depth + 1),
             format!("codemap ls {} --include-hidden", shell_quote(rel)),
@@ -154,13 +151,14 @@ fn directory_contract_edges_at_depth(
             file.resolved_imports.iter().filter_map(move |target| {
                 let target_file = project.files.get(target)?;
                 let evidence = contract_evidence(target_file)?;
-                Some(StructuralEdge {
-                    from: file.rel.clone(),
-                    to: target.clone(),
-                    edge_type: "contract".to_string(),
+                Some(import_edge(
+                    project,
+                    file.rel.clone(),
+                    target.clone(),
+                    "contract",
                     evidence,
-                    strength: EvidenceStrength::High,
-                })
+                    EvidenceStrength::High,
+                ))
             })
         })
         .collect::<Vec<_>>();
@@ -181,16 +179,20 @@ fn directory_boundary_edges_at_depth(
                 .map(|prefix| finding.from.starts_with(prefix) || finding.to.starts_with(prefix))
                 .unwrap_or(true)
         })
-        .map(|finding| StructuralEdge {
-            from: finding.from,
-            to: finding.to,
-            edge_type: "boundary".to_string(),
-            evidence: finding.provenance,
-            strength: if finding.strength == "hard" {
-                EvidenceStrength::Hard
-            } else {
-                EvidenceStrength::High
-            },
+        .map(|finding| {
+            edge_with_path_location(
+                finding.from.clone(),
+                finding.to,
+                "boundary",
+                finding.provenance,
+                if finding.strength == "hard" {
+                    EvidenceStrength::Hard
+                } else {
+                    EvidenceStrength::High
+                },
+                finding.from,
+                "boundary_rule_match",
+            )
         })
         .collect::<Vec<_>>();
     aggregate_edges_at_directory_depth(project, edges, rel, endpoint_depth)
@@ -217,18 +219,20 @@ fn aggregate_edges_at_directory_depth(
     grouped
         .into_iter()
         .map(
-            |((from, to, edge_type, evidence, strength), count)| StructuralEdge {
-                from,
-                to,
-                edge_type,
-                evidence: if count > 1 {
-                    format!("{evidence}:{count}")
-                } else {
-                    evidence
-                },
-                strength,
+            |((from, to, edge_type, evidence, strength), count)| {
+                edge_with_aggregate_location(
+                    from,
+                    to,
+                    edge_type,
+                    if count > 1 {
+                        format!("{evidence}:{count}")
+                    } else {
+                        evidence
+                    },
+                    strength,
+                    "directory_edge_aggregate",
+                )
             },
         )
         .collect()
 }
-

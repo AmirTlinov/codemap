@@ -54,14 +54,11 @@ fn cone_symbol_report(
     );
     let mut unknowns = Vec::new();
     if outgoing.is_empty() {
-        unknowns.push(
-            "symbol-level outgoing call/dataflow is not inferred without structural evidence"
-                .to_string(),
-        );
+        unknowns.push(unknown_symbol_outgoing(&anchor_path));
     }
     Some(ConeReport {
         kind: "cone_report",
-        schema_version: "2",
+        schema_version: "3",
         anchor,
         depth,
         outgoing,
@@ -87,7 +84,7 @@ fn cone_anchor(
     rel: &str,
     include_hidden: bool,
     limit: usize,
-) -> (FileSummary, Vec<String>, Vec<String>, Vec<HiddenGroup>) {
+) -> (FileSummary, Vec<String>, Vec<Unknown>, Vec<HiddenGroup>) {
     if let Some(info) = project.files.get(rel) {
         let summary = file_summary(project, info, include_hidden, limit);
         let mut hidden = Vec::new();
@@ -135,7 +132,14 @@ fn cone_anchor(
                 imported_by_count: 0,
             },
             files,
-            vec!["directory anchor summarizes indexed files under this path".to_string()],
+            vec![unknown(
+                "directory_anchor_summary",
+                Some(rel),
+                None,
+                "directory anchor summarizes indexed files under this path",
+                "use file anchors for exact line-level edges",
+                Some(format!("codemap ls {}", shell_quote(rel))),
+            )],
             hidden,
         );
     }
@@ -216,13 +220,14 @@ fn cone_outgoing_edges(
         };
         for target in &file.resolved_imports {
             if project.files.contains_key(target) {
-                edges.push(StructuralEdge {
-                    from: file.rel.clone(),
-                    to: target.clone(),
-                    edge_type: "imports".to_string(),
-                    evidence: "resolved_import".to_string(),
-                    strength: EvidenceStrength::High,
-                });
+                edges.push(import_edge(
+                    project,
+                    file.rel.clone(),
+                    target.clone(),
+                    "imports",
+                    "resolved_import",
+                    EvidenceStrength::High,
+                ));
             }
         }
     }
@@ -244,13 +249,14 @@ fn cone_incoming_edges(project: &Project, seeds: &[String]) -> Vec<StructuralEdg
                     continue;
                 }
                 if !seed_set.contains(importer) {
-                    edges.push(StructuralEdge {
-                        from: importer.clone(),
-                        to: seed.clone(),
-                        edge_type: "imported_by".to_string(),
-                        evidence: "reverse_import".to_string(),
-                        strength: EvidenceStrength::High,
-                    });
+                    edges.push(import_edge(
+                        project,
+                        importer.clone(),
+                        seed.clone(),
+                        "imported_by",
+                        "reverse_import",
+                        EvidenceStrength::High,
+                    ));
                 }
             }
         }

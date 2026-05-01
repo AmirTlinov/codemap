@@ -195,7 +195,7 @@ domain:
   path: src
 concepts:
   app.entry:
-    role: source_of_truth
+    role: state_model
     files:
       - src/app.ts
     invariants:
@@ -293,4 +293,3 @@ verification:
         "verification defaults should be visible in details: {validation:#}"
     );
 }
-

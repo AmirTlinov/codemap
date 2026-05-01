@@ -41,8 +41,26 @@ enum CommandKind {
     Schema(SchemaArgs),
     #[command(about = "Report structural blast-radius clusters for a diff or explicit files")]
     Impact(ImpactArgs),
+    #[command(about = "Show structural map changes for a diff without printing textual diff")]
+    DiffMap(DiffMapArgs),
+    #[command(about = "Show public/schema/export contract surface for an exact anchor")]
+    Contract(ContractArgs),
+    #[command(about = "Show runtime entrypoints, routes, scripts, and env surfaces for a scope")]
+    Runtime(RuntimeArgs),
     #[command(about = "Print structural proof surfaces, or run them only with --run")]
     Proof(ProofArgs),
+    #[command(about = "Show proof coverage surfaces around a scope or diff")]
+    ProofMap(ProofMapArgs),
+    #[command(about = "Show structural blockers and cleanup map before deleting an anchor")]
+    Delete(DeleteArgs),
+    #[command(about = "Show read-only package/domain boundary crossings for a scope")]
+    BoundaryMap(BoundaryMapArgs),
+    #[command(about = "Show a bounded structural flow from an exact anchor")]
+    Flow(FlowArgs),
+    #[command(about = "Show same-scope structural siblings and local conventions")]
+    Siblings(SiblingsArgs),
+    #[command(about = "Show existing placement conventions for a scope and kind")]
+    Place(PlaceArgs),
     #[command(about = "Render a small graph lens as Mermaid, Markdown, or JSON")]
     Graph(GraphArgs),
     #[command(alias = "check-boundaries")]
@@ -139,6 +157,47 @@ struct ImpactArgs {
 }
 
 #[derive(Debug, Args)]
+struct DiffMapArgs {
+    #[arg(long)]
+    changed: bool,
+    #[arg(long)]
+    staged: bool,
+    #[arg(long)]
+    since: Option<String>,
+    #[arg(long)]
+    files: Option<String>,
+    #[arg()]
+    positional_files: Vec<String>,
+    #[arg(long, default_value_t = 30)]
+    limit: usize,
+    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
+    format: OutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct ContractArgs {
+    path: String,
+    #[arg(long)]
+    include_hidden: bool,
+    #[arg(long, default_value_t = 20)]
+    limit: usize,
+    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
+    format: OutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct RuntimeArgs {
+    #[arg(default_value = ".")]
+    scope: String,
+    #[arg(long)]
+    include_hidden: bool,
+    #[arg(long, default_value_t = 20)]
+    limit: usize,
+    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
+    format: OutputFormat,
+}
+
+#[derive(Debug, Args)]
 struct ProofArgs {
     target: Option<String>,
     #[arg(long)]
@@ -155,6 +214,85 @@ struct ProofArgs {
     limit: usize,
     #[arg(long)]
     run: bool,
+    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
+    format: OutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct ProofMapArgs {
+    target: Option<String>,
+    #[arg(long)]
+    changed: bool,
+    #[arg(long)]
+    staged: bool,
+    #[arg(long)]
+    since: Option<String>,
+    #[arg(long)]
+    files: Option<String>,
+    #[arg(long, default_value_t = 20)]
+    limit: usize,
+    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
+    format: OutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct DeleteArgs {
+    path: String,
+    #[arg(long)]
+    include_hidden: bool,
+    #[arg(long, default_value_t = 20)]
+    limit: usize,
+    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
+    format: OutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct BoundaryMapArgs {
+    #[arg(default_value = ".")]
+    scope: String,
+    #[arg(long)]
+    changed: bool,
+    #[arg(long)]
+    include_hidden: bool,
+    #[arg(long, default_value_t = 20)]
+    limit: usize,
+    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
+    format: OutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct FlowArgs {
+    path: String,
+    #[arg(long)]
+    include_hidden: bool,
+    #[arg(long, default_value_t = 20)]
+    limit: usize,
+    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
+    format: OutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct SiblingsArgs {
+    #[arg(default_value = ".")]
+    scope: String,
+    #[arg(long)]
+    include_hidden: bool,
+    #[arg(long, default_value_t = 20)]
+    limit: usize,
+    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
+    format: OutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct PlaceArgs {
+    #[arg(default_value = ".")]
+    scope: String,
+    #[arg(long)]
+    kind: String,
+    #[arg(long)]
+    include_hidden: bool,
+    #[arg(long, default_value_t = 20)]
+    limit: usize,
     #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
     format: OutputFormat,
 }
@@ -215,7 +353,16 @@ enum SchemaKind {
     Ls,
     Cone,
     Impact,
+    DiffMap,
+    Contract,
+    Runtime,
     Proof,
+    ProofMap,
+    Delete,
+    BoundaryMap,
+    Flow,
+    Siblings,
+    Place,
     Anchors,
     AnchorValidation,
     Graph,

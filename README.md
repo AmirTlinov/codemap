@@ -58,10 +58,23 @@ codemap ls packages/replay/src/session.ts
 codemap cone packages/replay/src/session.ts --depth 1
 ```
 
+Use additional lenses when the intent needs a different map spectrum:
+
+```bash
+codemap contract packages/replay/src/types.ts
+codemap runtime apps/web
+codemap flow apps/web/app/api/login/route.ts
+codemap siblings packages/replay/src
+codemap place packages/replay --kind test
+codemap delete packages/replay/src/legacy-session.ts
+```
+
 After edits:
 
 ```bash
+codemap diff-map --changed
 codemap impact --changed
+codemap proof-map --changed
 codemap proof --changed
 ```
 
@@ -79,9 +92,18 @@ codemap impact --changed
 codemap impact --staged
 codemap impact --since main
 codemap impact --files path/a.ts,path/b.ts
+codemap diff-map --changed
+codemap contract <file-or-manifest>
+codemap runtime <scope>
 codemap proof <file-or-dir>
 codemap proof --changed
 codemap proof --changed --run
+codemap proof-map <scope>
+codemap delete <file-or-symbol-anchor>
+codemap boundary-map <scope>
+codemap flow <file-or-symbol-anchor>
+codemap siblings <scope>
+codemap place <scope> --kind route|service|component|test|contract
 codemap graph --lens causal --format mermaid
 codemap boundaries
 codemap anchors validate
@@ -106,9 +128,13 @@ For coding tasks, if `codemap` is available in PATH, begin with a bounded struct
 `codemap ls <scope-or-file>`
 `codemap cone <scope-or-file> --depth 1`
 
+Use `contract`, `runtime`, `flow`, `siblings`, `place`, or `delete` only when that lens matches the work. They are deterministic map views, not recommendations.
+
 After edits:
 
+`codemap diff-map --changed`
 `codemap impact --changed`
+`codemap proof-map --changed`
 `codemap proof --changed`
 
 Read code lines after choosing anchors from the map. Use `codemap cone <anchor> --depth 2` only when structural edges, public/package/schema boundaries, or proof surfaces require it.

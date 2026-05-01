@@ -1,0 +1,730 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AmirTlinov/codemap/schemas/runtime.schema.json",
+  "title": "codemap runtime report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "schema_version",
+    "scope",
+    "entrypoints",
+    "routes",
+    "scripts",
+    "env",
+    "workers",
+    "ci",
+    "proof",
+    "unknowns",
+    "hidden",
+    "expand"
+  ],
+  "properties": {
+    "kind": {
+      "const": "runtime_report"
+    },
+    "schema_version": {
+      "const": "1"
+    },
+    "scope": {
+      "type": "string"
+    },
+    "entrypoints": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/surface"
+      }
+    },
+    "routes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/runtime_route"
+      }
+    },
+    "scripts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/surface"
+      }
+    },
+    "env": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/env_surface"
+      }
+    },
+    "workers": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/surface"
+      }
+    },
+    "ci": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/surface"
+      }
+    },
+    "proof": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/structural_edge"
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/unknown"
+      }
+    },
+    "hidden": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/hidden_group"
+      }
+    },
+    "expand": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$defs": {
+    "evidence_strength": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "hard"
+      ]
+    },
+    "evidence_location": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "line_start",
+        "line_end",
+        "kind"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "line_start": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "line_end": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "type": "string"
+        }
+      }
+    },
+    "symbol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "kind",
+        "exported",
+        "line_start",
+        "line_end"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "exported": {
+          "type": "boolean"
+        },
+        "line_start": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "line_end": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "file_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "kind",
+        "package",
+        "language",
+        "lines",
+        "roles",
+        "symbols",
+        "exports",
+        "imports",
+        "imported_by_count"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "package": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "language": {
+          "type": "string"
+        },
+        "lines": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "symbols": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/symbol"
+          }
+        },
+        "exports": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "imports": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "imported_by_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "surface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "path",
+        "role",
+        "evidence",
+        "strength",
+        "count",
+        "examples",
+        "hidden_count"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "role": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence": {
+          "type": "string"
+        },
+        "strength": {
+          "$ref": "#/$defs/evidence_strength"
+        },
+        "count": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "examples": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "hidden_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "structural_edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "to",
+        "type",
+        "evidence",
+        "strength",
+        "locations"
+      ],
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "evidence": {
+          "type": "string"
+        },
+        "strength": {
+          "$ref": "#/$defs/evidence_strength"
+        },
+        "locations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence_location"
+          }
+        }
+      }
+    },
+    "hidden_group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reason",
+        "count",
+        "expand"
+      ],
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expand": {
+          "type": "string"
+        }
+      }
+    },
+    "unknown": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "path",
+        "line_start",
+        "reason",
+        "effect",
+        "expand"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "line_start": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "effect": {
+          "type": "string"
+        },
+        "expand": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "proof_surface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "command",
+        "path",
+        "evidence",
+        "strength",
+        "reason"
+      ],
+      "properties": {
+        "command": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence": {
+          "type": "string"
+        },
+        "strength": {
+          "$ref": "#/$defs/evidence_strength"
+        },
+        "reason": {
+          "type": "string"
+        }
+      }
+    },
+    "package_dependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "from_manifest",
+        "to",
+        "to_manifest",
+        "workspace_manifest",
+        "dependency",
+        "source"
+      ],
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "from_manifest": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        },
+        "to_manifest": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "workspace_manifest": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dependency": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        }
+      }
+    },
+    "domain_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "path"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      }
+    },
+    "boundary_finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "to",
+        "status",
+        "reason",
+        "recovery",
+        "provenance",
+        "strength"
+      ],
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "recovery": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "provenance": {
+          "type": "string"
+        },
+        "strength": {
+          "type": "string"
+        }
+      }
+    },
+    "changed_symbol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "name",
+        "change",
+        "line_start",
+        "line_end"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "change": {
+          "type": "string"
+        },
+        "line_start": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "line_end": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "runtime_route": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "path",
+        "file",
+        "evidence",
+        "strength",
+        "locations"
+      ],
+      "properties": {
+        "method": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "evidence": {
+          "type": "string"
+        },
+        "strength": {
+          "$ref": "#/$defs/evidence_strength"
+        },
+        "locations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence_location"
+          }
+        }
+      }
+    },
+    "env_surface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "used_by",
+        "declaration",
+        "evidence",
+        "strength",
+        "locations"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "used_by": {
+          "type": "string"
+        },
+        "declaration": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence": {
+          "type": "string"
+        },
+        "strength": {
+          "$ref": "#/$defs/evidence_strength"
+        },
+        "locations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence_location"
+          }
+        }
+      }
+    },
+    "flow_step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "anchor",
+        "kind",
+        "evidence",
+        "locations"
+      ],
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "anchor": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "evidence": {
+          "type": "string"
+        },
+        "locations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence_location"
+          }
+        }
+      }
+    }
+  }
+}

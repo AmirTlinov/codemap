@@ -22,12 +22,16 @@ pub fn ls(report: &LsReport) {
                     code(&edge.to),
                     edge.evidence.clone(),
                     format!("{:?}", edge.strength).to_ascii_lowercase(),
+                    edge_location_summary(edge),
                 ]
             })
             .collect();
         println!(
             "{}",
-            table(&["From", "Type", "To", "Evidence", "Strength"], rows)
+            table(
+                &["From", "Type", "To", "Evidence", "Strength", "Where"],
+                rows
+            )
         );
     }
     if !report.hidden.is_empty() {
@@ -102,7 +106,7 @@ pub fn cone(report: &ConeReport) {
             .collect();
         println!("{}", table(&["Reason", "Count", "Expand"], rows));
     }
-    section("Unknown", &report.unknowns);
+    unknown_section(&report.unknowns);
     section("Expand", &report.expand);
 }
 
@@ -120,13 +124,36 @@ fn cone_section(title: &str, edges: &[StructuralEdge]) {
                 code(&edge.to),
                 edge.evidence.clone(),
                 format!("{:?}", edge.strength).to_ascii_lowercase(),
+                edge_location_summary(edge),
             ]
         })
         .collect();
     println!(
         "{}",
-        table(&["From", "Type", "To", "Evidence", "Strength"], rows)
+        table(
+            &["From", "Type", "To", "Evidence", "Strength", "Where"],
+            rows
+        )
     );
+}
+
+fn edge_location_summary(edge: &StructuralEdge) -> String {
+    let Some(first) = edge.locations.first() else {
+        return "unknown".to_string();
+    };
+    let suffix = if edge.locations.len() > 1 {
+        format!(" +{}", edge.locations.len() - 1)
+    } else {
+        String::new()
+    };
+    let base = if first.path == "aggregate" {
+        "aggregate".to_string()
+    } else if let Some(line) = first.line_start {
+        format!("{}:{line}", first.path)
+    } else {
+        first.path.clone()
+    };
+    format!("{}{}", code(&base), suffix)
 }
 
 fn render_ls_file(report: &LsReport) {
@@ -193,7 +220,13 @@ fn render_ls_directory(report: &LsReport) {
         .map(|surface| {
             vec![
                 surface.kind.clone(),
+                surface
+                    .role
+                    .clone()
+                    .unwrap_or_else(|| "none".to_string()),
                 surface.count.to_string(),
+                surface.evidence.clone(),
+                format!("{:?}", surface.strength).to_ascii_lowercase(),
                 surface
                     .examples
                     .iter()
@@ -203,5 +236,11 @@ fn render_ls_directory(report: &LsReport) {
             ]
         })
         .collect();
-    println!("{}", table(&["Kind", "Count", "Examples"], rows));
+    println!(
+        "{}",
+        table(
+            &["Kind", "Role", "Count", "Evidence", "Strength", "Examples"],
+            rows
+        )
+    );
 }

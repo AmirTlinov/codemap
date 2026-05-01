@@ -13,7 +13,7 @@ pub fn ls_report(project: &Project, path: &str, include_hidden: bool, limit: usi
     }
     LsReport {
         kind: "ls_report",
-        schema_version: "2",
+        schema_version: "3",
         path: rel.clone(),
         mode: "missing".to_string(),
         anchor: None,
@@ -121,11 +121,11 @@ pub fn cone_report(
         ),
     );
     if seed_files.is_empty() {
-        unknowns.push("anchor is not indexed as a file or directory".to_string());
+        unknowns.push(unknown_unindexed_anchor(&rel));
     }
     ConeReport {
         kind: "cone_report",
-        schema_version: "2",
+        schema_version: "3",
         anchor,
         depth,
         outgoing,
@@ -141,4 +141,3 @@ pub fn cone_report(
         ],
     }
 }
-

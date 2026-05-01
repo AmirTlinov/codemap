@@ -51,13 +51,14 @@ fn symbol_contract_edges(
     if !exported {
         return Vec::new();
     }
-    vec![StructuralEdge {
-        from: symbol_anchor_path(file_rel, symbol_name),
-        to: file_rel.to_string(),
-        edge_type: "contract".to_string(),
-        evidence: "exported_symbol".to_string(),
-        strength: EvidenceStrength::High,
-    }]
+    vec![structural_edge_with_locations(
+        symbol_anchor_path(file_rel, symbol_name),
+        file_rel.to_string(),
+        "contract",
+        "exported_symbol",
+        EvidenceStrength::High,
+        symbol_definition_location(project, file_rel, symbol_name, "exported_symbol"),
+    )]
 }
 
 fn file_imported_symbol_reference_kind(

@@ -9,7 +9,7 @@ fn ls_symbol_report(
     let Some(anchor) = symbol_file_summary(project, info, symbol_name) else {
         return LsReport {
             kind: "ls_report",
-            schema_version: "2",
+            schema_version: "3",
             path: anchor_path.clone(),
             mode: "missing".to_string(),
             anchor: None,
@@ -39,7 +39,7 @@ fn ls_symbol_report(
     }
     LsReport {
         kind: "ls_report",
-        schema_version: "2",
+        schema_version: "3",
         path: anchor_path.clone(),
         mode: "file".to_string(),
         anchor: Some(anchor),
@@ -58,33 +58,37 @@ fn ls_file_report(
 ) -> LsReport {
     let mut edges = Vec::new();
     for target in &info.resolved_imports {
-        edges.push(StructuralEdge {
-            from: info.rel.clone(),
-            to: target.clone(),
-            edge_type: "imports".to_string(),
-            evidence: "resolved_import".to_string(),
-            strength: EvidenceStrength::High,
-        });
+        edges.push(import_edge(
+            project,
+            info.rel.clone(),
+            target.clone(),
+            "imports",
+            "resolved_import",
+            EvidenceStrength::High,
+        ));
     }
     if let Some(importers) = project.reverse_imports.get(&info.rel) {
         for importer in importers {
-            edges.push(StructuralEdge {
-                from: importer.clone(),
-                to: info.rel.clone(),
-                edge_type: "imported_by".to_string(),
-                evidence: "reverse_import".to_string(),
-                strength: EvidenceStrength::High,
-            });
+            edges.push(import_edge(
+                project,
+                importer.clone(),
+                info.rel.clone(),
+                "imported_by",
+                "reverse_import",
+                EvidenceStrength::High,
+            ));
         }
     }
     for (test, evidence, strength) in strict_test_edges_for_file(project, &info.rel, 4) {
-        edges.push(StructuralEdge {
-            from: test,
-            to: info.rel.clone(),
-            edge_type: "tests".to_string(),
+        let locations = import_statement_locations(project, &test, &info.rel);
+        edges.push(structural_edge_with_locations(
+            test,
+            info.rel.clone(),
+            "tests",
             evidence,
             strength,
-        });
+            locations,
+        ));
     }
     edges.sort_by(|a, b| {
         a.edge_type
@@ -115,7 +119,7 @@ fn ls_file_report(
     );
     LsReport {
         kind: "ls_report",
-        schema_version: "2",
+        schema_version: "3",
         path: info.rel.clone(),
         mode: "file".to_string(),
         anchor: Some(anchor),
@@ -219,10 +223,18 @@ fn ls_directory_report(
         .into_iter()
         .map(|(kind, mut files)| {
             files.sort();
+            let count = files.len();
+            let examples = files.into_iter().take(5).collect::<Vec<_>>();
             DirectorySurface {
+                id: directory_surface_id(rel, &kind, &examples),
+                path: directory_surface_path(&examples),
+                role: directory_surface_role(&kind),
+                evidence: directory_surface_evidence(&kind),
+                strength: directory_surface_strength(&kind),
                 kind,
-                count: files.len(),
-                examples: files.into_iter().take(5).collect(),
+                count,
+                examples,
+                hidden_count: count.saturating_sub(5),
             }
         })
         .collect::<Vec<_>>();
@@ -284,7 +296,7 @@ fn ls_directory_report(
     }
     LsReport {
         kind: "ls_report",
-        schema_version: "2",
+        schema_version: "3",
         path: rel.to_string(),
         mode: "directory".to_string(),
         anchor: None,
@@ -295,3 +307,67 @@ fn ls_directory_report(
     }
 }
 
+fn directory_surface_id(scope: &str, kind: &str, examples: &[String]) -> String {
+    let anchor = examples
+        .first()
+        .map(String::as_str)
+        .unwrap_or(scope)
+        .trim_end_matches('/');
+    format!("surface:{kind}:{anchor}")
+}
+
+fn directory_surface_path(examples: &[String]) -> Option<String> {
+    (examples.len() == 1).then(|| examples[0].clone())
+}
+
+fn directory_surface_role(kind: &str) -> Option<String> {
+    if kind == "domain" {
+        Some("domain".to_string())
+    } else if kind == "script" {
+        Some("script".to_string())
+    } else if kind.starts_with("package:") || kind.starts_with("support_package:") {
+        Some("package".to_string())
+    } else if matches!(
+        kind,
+        "test"
+            | "e2e_test"
+            | "test_support"
+            | "source"
+            | "config"
+            | "schema_contract"
+            | "public_boundary"
+            | "build_ci"
+    ) {
+        Some(kind.to_string())
+    } else {
+        None
+    }
+}
+
+fn directory_surface_evidence(kind: &str) -> String {
+    if kind == "domain" {
+        "domain_boundary".to_string()
+    } else if kind == "script" {
+        "package_script".to_string()
+    } else if kind.starts_with("package:") || kind.starts_with("support_package:") {
+        "package_manifest".to_string()
+    } else if kind.starts_with("recursive:") {
+        "recursive_inventory".to_string()
+    } else {
+        "file_role_or_extension".to_string()
+    }
+}
+
+fn directory_surface_strength(kind: &str) -> EvidenceStrength {
+    if kind == "script" || kind.starts_with("package:") || kind.starts_with("support_package:") {
+        EvidenceStrength::Hard
+    } else if kind == "domain"
+        || kind == "schema_contract"
+        || kind == "public_boundary"
+        || kind == "build_ci"
+    {
+        EvidenceStrength::High
+    } else {
+        EvidenceStrength::Medium
+    }
+}

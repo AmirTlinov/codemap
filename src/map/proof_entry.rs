@@ -32,7 +32,7 @@ pub fn impact_report(
             hidden.extend(cluster_hidden);
             clusters.push(cluster);
         } else {
-            unknowns.push(format!("changed anchor `{rel}` is not indexed"));
+            unknowns.push(unknown_unindexed_anchor(rel));
             changed_summaries.push(missing_file_summary(project, rel));
             clusters.push(ImpactCluster {
                 id: format!("changed:{rel}"),
@@ -55,7 +55,7 @@ pub fn impact_report(
     }
     ImpactReport {
         kind: "impact_report",
-        schema_version: "2",
+        schema_version: "3",
         changed: changed_summaries,
         clusters,
         hidden,
@@ -153,4 +153,3 @@ fn risk_from_str(value: &str) -> Risk {
         _ => Risk::Low,
     }
 }
-

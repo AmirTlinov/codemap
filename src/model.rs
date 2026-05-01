@@ -84,6 +84,44 @@ pub enum EvidenceStrength {
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Serialize)]
+pub struct EvidenceLocation {
+    pub path: String,
+    pub line_start: Option<usize>,
+    pub line_end: Option<usize>,
+    pub kind: String,
+}
+
+impl EvidenceLocation {
+    pub fn aggregate(kind: impl Into<String>) -> Self {
+        Self {
+            path: "aggregate".to_string(),
+            line_start: None,
+            line_end: None,
+            kind: kind.into(),
+        }
+    }
+
+    pub fn path(path: impl Into<String>, kind: impl Into<String>) -> Self {
+        Self {
+            path: path.into(),
+            line_start: None,
+            line_end: None,
+            kind: kind.into(),
+        }
+    }
+
+    pub fn line(path: impl Into<String>, line: usize, kind: impl Into<String>) -> Self {
+        Self {
+            path: path.into(),
+            line_start: Some(line),
+            line_end: Some(line),
+            kind: kind.into(),
+        }
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, Serialize)]
 pub struct StructuralEdge {
     pub from: String,
     pub to: String,
@@ -91,6 +129,7 @@ pub struct StructuralEdge {
     pub edge_type: String,
     pub evidence: String,
     pub strength: EvidenceStrength,
+    pub locations: Vec<EvidenceLocation>,
 }
 
 #[allow(dead_code)]
@@ -99,6 +138,16 @@ pub struct HiddenGroup {
     pub reason: String,
     pub count: usize,
     pub expand: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Unknown {
+    pub kind: String,
+    pub path: Option<String>,
+    pub line_start: Option<usize>,
+    pub reason: String,
+    pub effect: String,
+    pub expand: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -130,49 +179,18 @@ pub struct FileSummary {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DirectorySurface {
+    pub id: String,
     pub kind: String,
+    pub path: Option<String>,
+    pub role: Option<String>,
+    pub evidence: String,
+    pub strength: EvidenceStrength,
     pub count: usize,
     pub examples: Vec<String>,
+    pub hidden_count: usize,
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct ConeReport {
-    pub kind: &'static str,
-    pub schema_version: &'static str,
-    pub anchor: FileSummary,
-    pub depth: usize,
-    pub outgoing: Vec<StructuralEdge>,
-    pub incoming: Vec<StructuralEdge>,
-    pub proof: Vec<StructuralEdge>,
-    pub contracts: Vec<StructuralEdge>,
-    pub boundary: Vec<StructuralEdge>,
-    pub hidden: Vec<HiddenGroup>,
-    pub unknowns: Vec<String>,
-    pub expand: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ImpactReport {
-    pub kind: &'static str,
-    pub schema_version: &'static str,
-    pub changed: Vec<FileSummary>,
-    pub clusters: Vec<ImpactCluster>,
-    pub hidden: Vec<HiddenGroup>,
-    pub unknowns: Vec<String>,
-    pub expand: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ImpactCluster {
-    pub id: String,
-    pub risk: String,
-    pub changed: Vec<String>,
-    pub direct_consumers: Vec<StructuralEdge>,
-    pub cross_boundary_consumers: Vec<StructuralEdge>,
-    pub contract_risks: Vec<StructuralEdge>,
-    pub proof: Vec<StructuralEdge>,
-    pub reasons: Vec<String>,
-}
+include!("model/lens_reports.rs");
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ProofReport {

@@ -101,16 +101,19 @@ fn directory_edges_at_depth(
     let mut edges = grouped
         .into_iter()
         .map(
-            |((from, to, edge_type, evidence, strength), count)| StructuralEdge {
-                from,
-                to,
-                edge_type,
-                evidence: if count > 1 {
-                    format!("{evidence}:{count}")
-                } else {
-                    evidence
-                },
-                strength,
+            |((from, to, edge_type, evidence, strength), count)| {
+                edge_with_aggregate_location(
+                    from,
+                    to,
+                    edge_type,
+                    if count > 1 {
+                        format!("{evidence}:{count}")
+                    } else {
+                        evidence
+                    },
+                    strength,
+                    "directory_edge_aggregate",
+                )
             },
         )
         .collect::<Vec<_>>();
@@ -245,4 +248,3 @@ fn path_under_scope(path: &str, scope: &str) -> bool {
     let scope = repo::normalize_rel_path(scope);
     scope == "." || path == scope || path.starts_with(&format!("{}/", scope.trim_end_matches('/')))
 }
-

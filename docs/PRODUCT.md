@@ -31,7 +31,23 @@ codemap = ls + xref + cone + impact + proof for code
 
 `codemap impact --changed|--files` clusters changed anchors by structural blast radius. It is edge-first: reverse imports, package consumers, contract/schema/public surfaces, and proof candidates.
 
+`codemap diff-map --changed|--files` shows map-level changes: structural import/export lines, changed exported symbol surfaces, and new unknowns. It does not print textual diff.
+
+`codemap contract <anchor>` shows exported/schema/package/public surfaces, producers, consumers, cross-package consumers, and proof edges.
+
+`codemap runtime <scope>` shows deterministic runtime surfaces: entrypoints, file-convention routes, scripts, env references, workers/jobs, CI, and nearby proof.
+
 `codemap proof <anchor>|--changed` returns the smallest structural proof surfaces it can justify. It prefers adjacent/importing tests and package-local commands before broad fallbacks. It never runs by default.
+
+`codemap proof-map <scope>|--changed` shows proof coverage surfaces around an area: direct, indirect, e2e, contract, missing direct proof for important surfaces, and commands.
+
+`codemap delete <anchor>` shows deletion blockers and mechanical cleanup hints from references, reexports, package exports, tests, and runtime refs. It must not say “safe to delete”.
+
+`codemap boundary-map <scope>` is a read-only map of actual package/domain crossings. `codemap boundaries` remains the explicit rule checker.
+
+`codemap flow <anchor>` shows bounded structural steps only. It must stop at unknowns instead of claiming full callgraph or dataflow.
+
+`codemap siblings <scope>` and `codemap place <scope> --kind <kind>` show local structural conventions from same directory/kind/proof patterns. They are not semantic search or ranking.
 
 `codemap graph` is a small lens renderer for humans. It is not the primary product surface and must stay bounded.
 
@@ -65,6 +81,8 @@ After edits:
 
 ```bash
 codemap impact --changed
+codemap diff-map --changed
+codemap proof-map --changed
 codemap proof --changed
 ```
 

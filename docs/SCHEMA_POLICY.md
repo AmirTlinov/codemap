@@ -11,15 +11,16 @@ codemap schema <kind>
 codemap schema manifest
 ```
 
-Most structural output contracts currently use:
+Core edge-based structural outputs currently use:
 
 ```json
-"schema_version": "2"
+"schema_version": "3"
 ```
 
 Each manifest entry is the authority for that output's exact version. Individual
 outputs may advance independently when their emitted JSON contract changes; for
-example, `anchor-validation` is versioned separately from map/proof outputs.
+example, new lens outputs start at version `1`, `proof` remains version `2`,
+and `anchor-validation` is versioned separately from map/proof outputs.
 
 Semantic anchor config uses:
 

@@ -64,7 +64,89 @@ pub fn run() -> Result<()> {
             let report = map::impact_report(&project, changed, args.depth, args.limit);
             output(args.format, &report, || render::impact(&report))
         }
+        CommandKind::DiffMap(args) => {
+            ensure_valid_config(&project)?;
+            let changed = changed_from_diff_map_args(&project, &args)?;
+            let mode = if args.staged {
+                map::DiffMapMode::Staged
+            } else if let Some(since) = args.since.clone() {
+                map::DiffMapMode::Since(since)
+            } else {
+                map::DiffMapMode::WorkingTree
+            };
+            let report = map::diff_map_report(&project, changed, args.limit, mode);
+            output(args.format, &report, || render::diff_map(&report))
+        }
+        CommandKind::Contract(args) => {
+            ensure_valid_config(&project)?;
+            let path = project_relative_arg(&project, &args.path)?;
+            let report = map::contract_report(&project, &path, args.include_hidden, args.limit);
+            output(args.format, &report, || render::contract(&report))
+        }
+        CommandKind::Runtime(args) => {
+            ensure_valid_config(&project)?;
+            let scope = project_relative_arg(&project, &args.scope)?;
+            let report = map::runtime_report(&project, &scope, args.include_hidden, args.limit);
+            output(args.format, &report, || render::runtime(&report))
+        }
         CommandKind::Proof(args) => proof(&project, args),
+        CommandKind::ProofMap(args) => {
+            ensure_valid_config(&project)?;
+            let (target, changed) = proof_map_inputs(&project, &args)?;
+            let report = map::proof_map_report(&project, target, changed, args.limit);
+            output(args.format, &report, || render::proof_map(&report))
+        }
+        CommandKind::Delete(args) => {
+            ensure_valid_config(&project)?;
+            let path = project_relative_arg(&project, &args.path)?;
+            let report = map::delete_report(&project, &path, args.include_hidden, args.limit);
+            output(args.format, &report, || render::delete(&report))
+        }
+        CommandKind::BoundaryMap(args) => {
+            ensure_valid_config(&project)?;
+            let scope = project_relative_arg(&project, &args.scope)?;
+            let changed = if args.changed {
+                Some(
+                    repo::changed_files(&project.root, false, None)
+                        .into_iter()
+                        .collect::<BTreeSet<_>>(),
+                )
+            } else {
+                None
+            };
+            let report = map::boundary_map_report(
+                &project,
+                &scope,
+                changed.as_ref(),
+                args.include_hidden,
+                args.limit,
+            );
+            output(args.format, &report, || render::boundary_map(&report))
+        }
+        CommandKind::Flow(args) => {
+            ensure_valid_config(&project)?;
+            let path = project_relative_arg(&project, &args.path)?;
+            let report = map::flow_report(&project, &path, args.include_hidden, args.limit);
+            output(args.format, &report, || render::flow(&report))
+        }
+        CommandKind::Siblings(args) => {
+            ensure_valid_config(&project)?;
+            let scope = project_relative_arg(&project, &args.scope)?;
+            let report = map::siblings_report(&project, &scope, args.include_hidden, args.limit);
+            output(args.format, &report, || render::siblings(&report))
+        }
+        CommandKind::Place(args) => {
+            ensure_valid_config(&project)?;
+            let scope = project_relative_arg(&project, &args.scope)?;
+            let report = map::place_report(
+                &project,
+                &scope,
+                &args.kind,
+                args.include_hidden,
+                args.limit,
+            );
+            output(args.format, &report, || render::place(&report))
+        }
         CommandKind::Graph(args) => {
             ensure_valid_config(&project)?;
             ensure_graph_lens(&args.lens)?;
@@ -133,4 +215,3 @@ pub fn run() -> Result<()> {
         },
     }
 }
-

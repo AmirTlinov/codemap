@@ -2,13 +2,15 @@ fn cone_proof_edges(project: &Project, seeds: &[String]) -> Vec<StructuralEdge> 
     let mut edges = Vec::new();
     for seed in seeds {
         for (test, evidence, strength) in strict_test_edges_for_file(project, seed, 4) {
-            edges.push(StructuralEdge {
-                from: test,
-                to: seed.clone(),
-                edge_type: "tests".to_string(),
+            let locations = import_statement_locations(project, &test, seed);
+            edges.push(structural_edge_with_locations(
+                test,
+                seed.clone(),
+                "tests",
                 evidence,
                 strength,
-            });
+                locations,
+            ));
         }
     }
     edges
@@ -32,13 +34,15 @@ fn cone_proof_edges_with_direct_consumers(
                 if !test_mentions_anchor(project, seed, test_file) {
                     continue;
                 }
-                edges.push(StructuralEdge {
-                    from: test,
-                    to: seed.clone(),
-                    edge_type: "tests".to_string(),
-                    evidence: format!("{evidence}_via_direct_consumer"),
+                let locations = import_statement_locations(project, &test, &consumer.from);
+                edges.push(structural_edge_with_locations(
+                    test,
+                    seed.clone(),
+                    "tests",
+                    format!("{evidence}_via_direct_consumer"),
                     strength,
-                });
+                    locations,
+                ));
             }
         }
     }
@@ -74,13 +78,15 @@ fn proof_edges_via_direct_dependencies(
             .into_iter()
             .filter(|(_, evidence, _)| dependency_proof_can_transfer(evidence))
         {
-            edges.push(StructuralEdge {
-                from: test,
-                to: seed.to_string(),
-                edge_type: "tests".to_string(),
-                evidence: format!("{evidence}_via_direct_dependency"),
+            let locations = import_statement_locations(project, &test, &dependency.to);
+            edges.push(structural_edge_with_locations(
+                test,
+                seed.to_string(),
+                "tests",
+                format!("{evidence}_via_direct_dependency"),
                 strength,
-            });
+                locations,
+            ));
         }
     }
     edges
@@ -201,13 +207,14 @@ fn cone_contract_edges(project: &Project, outgoing: &[StructuralEdge]) -> Vec<St
             continue;
         };
         if let Some(evidence) = contract_evidence(target) {
-            edges.push(StructuralEdge {
-                from: edge.from.clone(),
-                to: edge.to.clone(),
-                edge_type: "contract".to_string(),
+            edges.push(structural_edge_with_locations(
+                edge.from.clone(),
+                edge.to.clone(),
+                "contract",
                 evidence,
-                strength: EvidenceStrength::High,
-            });
+                EvidenceStrength::High,
+                edge.locations.clone(),
+            ));
         }
     }
     edges
@@ -256,17 +263,20 @@ fn cone_boundary_edges(
                     })
                     .unwrap_or(false)
         })
-        .map(|finding| StructuralEdge {
-            from: finding.from,
-            to: finding.to,
-            edge_type: "boundary".to_string(),
-            evidence: finding.provenance,
-            strength: if finding.strength == "hard" {
-                EvidenceStrength::Hard
-            } else {
-                EvidenceStrength::Medium
-            },
+        .map(|finding| {
+            edge_with_path_location(
+                finding.from.clone(),
+                finding.to,
+                "boundary",
+                finding.provenance,
+                if finding.strength == "hard" {
+                    EvidenceStrength::Hard
+                } else {
+                    EvidenceStrength::Medium
+                },
+                finding.from,
+                "boundary_rule_match",
+            )
         })
         .collect()
 }
-

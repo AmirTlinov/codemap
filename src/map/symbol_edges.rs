@@ -39,27 +39,38 @@ fn symbol_reference_edges(
         if let Some(kind) =
             file_imported_symbol_reference_kind(project, file, file_rel, symbol_name)
         {
-            edges.push(StructuralEdge {
-                from: file.rel.clone(),
-                to: anchor_path.clone(),
-                edge_type: "symbol_reference".to_string(),
-                evidence: match kind {
+            edges.push(structural_edge_with_locations(
+                file.rel.clone(),
+                anchor_path.clone(),
+                "symbol_reference",
+                match kind {
                     ImportedSymbolReferenceKind::Direct => "imported_symbol_reference",
                     ImportedSymbolReferenceKind::Reexported => "reexported_symbol_reference",
-                }
-                .to_string(),
-                strength: EvidenceStrength::High,
-            });
+                },
+                EvidenceStrength::High,
+                first_identifier_reference_location(
+                    project,
+                    &file.rel,
+                    symbol_name,
+                    "symbol_reference",
+                ),
+            ));
             continue;
         }
         if same_scope_file_references_symbol(anchor, file, symbol_name) {
-            edges.push(StructuralEdge {
-                from: file.rel.clone(),
-                to: anchor_path.clone(),
-                edge_type: "symbol_reference".to_string(),
-                evidence: "same_scope_symbol_reference".to_string(),
-                strength: EvidenceStrength::High,
-            });
+            edges.push(structural_edge_with_locations(
+                file.rel.clone(),
+                anchor_path.clone(),
+                "symbol_reference",
+                "same_scope_symbol_reference",
+                EvidenceStrength::High,
+                first_identifier_reference_location(
+                    project,
+                    &file.rel,
+                    symbol_name,
+                    "symbol_reference",
+                ),
+            ));
         }
     }
     sort_edges(&mut edges);
@@ -92,13 +103,19 @@ fn symbol_proof_edges(project: &Project, file_rel: &str, symbol_name: &str) -> V
             None
         };
         if let Some(evidence) = evidence {
-            edges.push(StructuralEdge {
-                from: file.rel.clone(),
-                to: anchor_path.clone(),
-                edge_type: "tests".to_string(),
-                evidence: evidence.to_string(),
-                strength: EvidenceStrength::High,
-            });
+            edges.push(structural_edge_with_locations(
+                file.rel.clone(),
+                anchor_path.clone(),
+                "tests",
+                evidence,
+                EvidenceStrength::High,
+                first_identifier_reference_location(
+                    project,
+                    &file.rel,
+                    symbol_name,
+                    "test_symbol_reference",
+                ),
+            ));
         }
     }
     sort_edges(&mut edges);
@@ -148,13 +165,14 @@ fn symbol_proof_edges_via_local_consumers(
             .into_iter()
             .take(limit)
         {
-            edges.push(StructuralEdge {
-                from: proof.from,
-                to: target_anchor.clone(),
-                edge_type: "tests".to_string(),
-                evidence: format!("{}_via_local_symbol_consumer", proof.evidence),
-                strength: proof.strength.min(EvidenceStrength::Medium),
-            });
+            edges.push(structural_edge_with_locations(
+                proof.from,
+                target_anchor.clone(),
+                "tests",
+                format!("{}_via_local_symbol_consumer", proof.evidence),
+                proof.strength.min(EvidenceStrength::Medium),
+                proof.locations,
+            ));
         }
     }
     sort_edges(&mut edges);
@@ -185,12 +203,16 @@ fn symbol_owning_file_proof_edges(
         .filter(|(test, evidence, _)| {
             symbol_owning_file_proof_can_use(project, file_rel, symbol_name, test, evidence)
         })
-        .map(|(test, evidence, strength)| StructuralEdge {
-            from: test,
-            to: anchor_path.clone(),
-            edge_type: "tests".to_string(),
-            evidence: format!("{evidence}_owning_file"),
-            strength: strength.min(EvidenceStrength::Medium),
+        .map(|(test, evidence, strength)| {
+            let locations = import_statement_locations(project, &test, file_rel);
+            structural_edge_with_locations(
+                test,
+                anchor_path.clone(),
+                "tests",
+                format!("{evidence}_owning_file"),
+                strength.min(EvidenceStrength::Medium),
+                locations,
+            )
         })
         .collect()
 }
@@ -270,13 +292,19 @@ fn symbol_outgoing_edges(
             else {
                 continue;
             };
-            edges.push(StructuralEdge {
-                from: symbol_anchor_path(&info.rel, symbol_name),
-                to: symbol_anchor_path(target_rel, &target_symbol),
-                edge_type: "symbol_uses".to_string(),
-                evidence: "imported_symbol_in_symbol_body".to_string(),
-                strength: EvidenceStrength::High,
-            });
+            edges.push(structural_edge_with_locations(
+                symbol_anchor_path(&info.rel, symbol_name),
+                symbol_anchor_path(target_rel, &target_symbol),
+                "symbol_uses",
+                "imported_symbol_in_symbol_body",
+                EvidenceStrength::High,
+                first_identifier_reference_location(
+                    project,
+                    &info.rel,
+                    local,
+                    "symbol_body_reference",
+                ),
+            ));
         }
     }
     edges.extend(symbol_local_outgoing_edges(
@@ -309,13 +337,19 @@ fn symbol_local_outgoing_edges(
         if !symbol_body_references_imported_local(body, &target.name, &info.ext) {
             continue;
         }
-        edges.push(StructuralEdge {
-            from: symbol_anchor_path(&info.rel, symbol_name),
-            to: symbol_anchor_path(&info.rel, &target.name),
-            edge_type: "symbol_uses".to_string(),
-            evidence: "local_symbol_in_symbol_body".to_string(),
-            strength: EvidenceStrength::High,
-        });
+        edges.push(structural_edge_with_locations(
+            symbol_anchor_path(&info.rel, symbol_name),
+            symbol_anchor_path(&info.rel, &target.name),
+            "symbol_uses",
+            "local_symbol_in_symbol_body",
+            EvidenceStrength::High,
+            first_identifier_reference_location(
+                project,
+                &info.rel,
+                &target.name,
+                "symbol_body_reference",
+            ),
+        ));
     }
     edges
 }
@@ -348,13 +382,19 @@ fn symbol_local_incoming_edges(
         if !symbol_body_references_imported_local(&body, symbol_name, &info.ext) {
             continue;
         }
-        edges.push(StructuralEdge {
-            from: symbol_anchor_path(&info.rel, &source.name),
-            to: symbol_anchor_path(&info.rel, symbol_name),
-            edge_type: "symbol_uses".to_string(),
-            evidence: "local_symbol_in_symbol_body".to_string(),
-            strength: EvidenceStrength::High,
-        });
+        edges.push(structural_edge_with_locations(
+            symbol_anchor_path(&info.rel, &source.name),
+            symbol_anchor_path(&info.rel, symbol_name),
+            "symbol_uses",
+            "local_symbol_in_symbol_body",
+            EvidenceStrength::High,
+            first_identifier_reference_location(
+                project,
+                &info.rel,
+                symbol_name,
+                "symbol_body_reference",
+            ),
+        ));
     }
     sort_edges(&mut edges);
     edges.dedup_by(|a, b| {

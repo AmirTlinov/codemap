@@ -205,12 +205,15 @@ fn direct_consumer_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {
                 .map(|file| !file.has_role("test"))
                 .unwrap_or(true)
         })
-        .map(|importer| StructuralEdge {
-            from: importer.clone(),
-            to: rel.to_string(),
-            edge_type: "direct_consumer".to_string(),
-            evidence: "reverse_import".to_string(),
-            strength: EvidenceStrength::High,
+        .map(|importer| {
+            import_edge(
+                project,
+                importer.clone(),
+                rel.to_string(),
+                "direct_consumer",
+                "reverse_import",
+                EvidenceStrength::High,
+            )
         })
         .collect::<Vec<_>>();
     edges.extend(same_package_symbol_reference_consumers(project, rel));
@@ -226,12 +229,15 @@ fn direct_dependency_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> 
         .resolved_imports
         .iter()
         .filter(|dependency| project.files.contains_key(*dependency))
-        .map(|dependency| StructuralEdge {
-            from: rel.to_string(),
-            to: dependency.clone(),
-            edge_type: "direct_dependency".to_string(),
-            evidence: "resolved_import".to_string(),
-            strength: EvidenceStrength::High,
+        .map(|dependency| {
+            import_edge(
+                project,
+                rel.to_string(),
+                dependency.clone(),
+                "direct_dependency",
+                "resolved_import",
+                EvidenceStrength::High,
+            )
         })
         .collect::<Vec<_>>();
     sort_edges(&mut edges);
@@ -254,12 +260,21 @@ fn same_package_symbol_reference_consumers(project: &Project, rel: &str) -> Vec<
         .filter(|file| !file.resolved_imports.contains(rel))
         .filter(|file| same_symbol_reference_scope(anchor, file))
         .filter(|file| names.iter().any(|name| file.references.contains(name)))
-        .map(|file| StructuralEdge {
-            from: file.rel.clone(),
-            to: rel.to_string(),
-            edge_type: "direct_consumer".to_string(),
-            evidence: "same_package_symbol_reference".to_string(),
-            strength: EvidenceStrength::High,
+        .map(|file| {
+            let name = names.iter().next().map(String::as_str).unwrap_or(rel);
+            structural_edge_with_locations(
+                file.rel.clone(),
+                rel.to_string(),
+                "direct_consumer",
+                "same_package_symbol_reference",
+                EvidenceStrength::High,
+                first_identifier_reference_location(
+                    project,
+                    &file.rel,
+                    name,
+                    "symbol_reference",
+                ),
+            )
         })
         .collect()
 }
@@ -330,24 +345,27 @@ fn cross_boundary_consumer_edges(
         let consumer_package =
             package_for_rel(project, &edge.from).map(|package| package.path.clone());
         if changed_domain != consumer_domain || changed_package != consumer_package {
-            edges.push(StructuralEdge {
-                from: edge.from.clone(),
-                to: rel.to_string(),
-                edge_type: "cross_boundary_consumer".to_string(),
-                evidence: "reverse_import_cross_boundary".to_string(),
-                strength: EvidenceStrength::High,
-            });
+            edges.push(structural_edge_with_locations(
+                edge.from.clone(),
+                rel.to_string(),
+                "cross_boundary_consumer",
+                "reverse_import_cross_boundary",
+                EvidenceStrength::High,
+                edge.locations.clone(),
+            ));
         }
     }
     let package_seeds = package_consumer_seeds_for_impact(project, rel, direct_consumers);
     for manifest in package_consumer_manifests(project, &package_seeds, depth.max(1), usize::MAX) {
-        edges.push(StructuralEdge {
-            from: manifest,
-            to: rel.to_string(),
-            edge_type: "package_consumer".to_string(),
-            evidence: "package_manifest_reverse_dependency".to_string(),
-            strength: EvidenceStrength::High,
-        });
+        edges.push(edge_with_path_location(
+            manifest.clone(),
+            rel.to_string(),
+            "package_consumer",
+            "package_manifest_reverse_dependency",
+            EvidenceStrength::High,
+            manifest,
+            "package_manifest",
+        ));
     }
     edges
 }
@@ -376,25 +394,28 @@ fn contract_risk_edges(
     let mut edges = Vec::new();
     if let Some(file) = project.files.get(rel) {
         if let Some(evidence) = contract_evidence(file) {
-            edges.push(StructuralEdge {
-                from: rel.to_string(),
-                to: rel.to_string(),
-                edge_type: "contract_changed".to_string(),
+            edges.push(edge_with_path_location(
+                rel.to_string(),
+                rel.to_string(),
+                "contract_changed",
                 evidence,
-                strength: EvidenceStrength::High,
-            });
+                EvidenceStrength::High,
+                rel.to_string(),
+                "contract_file",
+            ));
         }
         for target in &file.resolved_imports {
             if let Some(target_file) = project.files.get(target)
                 && let Some(evidence) = contract_evidence(target_file)
             {
-                edges.push(StructuralEdge {
-                    from: rel.to_string(),
-                    to: target.clone(),
-                    edge_type: "contract_dependency".to_string(),
+                edges.push(import_edge(
+                    project,
+                    rel.to_string(),
+                    target.clone(),
+                    "contract_dependency",
                     evidence,
-                    strength: EvidenceStrength::High,
-                });
+                    EvidenceStrength::High,
+                ));
             }
         }
     }
@@ -402,13 +423,14 @@ fn contract_risk_edges(
         if let Some(consumer_file) = project.files.get(&consumer.from)
             && let Some(evidence) = contract_evidence(consumer_file)
         {
-            edges.push(StructuralEdge {
-                from: consumer.from.clone(),
-                to: rel.to_string(),
-                edge_type: "contract_consumer".to_string(),
+            edges.push(structural_edge_with_locations(
+                consumer.from.clone(),
+                rel.to_string(),
+                "contract_consumer",
                 evidence,
-                strength: EvidenceStrength::High,
-            });
+                EvidenceStrength::High,
+                consumer.locations.clone(),
+            ));
         }
     }
     edges
@@ -473,4 +495,3 @@ fn structural_impact_risk(
     }
     (risk, unique(reasons))
 }
-
