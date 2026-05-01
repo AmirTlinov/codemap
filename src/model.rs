@@ -355,7 +355,7 @@ impl Risk {
 #[derive(Debug, Clone, Serialize)]
 pub struct VerificationPlan {
     pub minimal: Vec<String>,
-    pub recommended: Vec<String>,
+    pub supplemental: Vec<String>,
     pub full_only_if_triggered: Vec<String>,
 }
 

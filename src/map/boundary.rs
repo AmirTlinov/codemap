@@ -38,14 +38,14 @@ pub fn verification_plan(
     if minimal.is_empty() {
         minimal = infer_minimal_commands(project, &domains, &all_files, changed);
     }
-    let mut recommended = Vec::new();
+    let mut supplemental = Vec::new();
     if matches!(max_risk, Risk::MediumHigh | Risk::High | Risk::Critical)
         && let Some(typecheck) = find_script(project, &["typecheck", "tsc", "check"])
     {
-        recommended.push(typecheck);
+        supplemental.push(typecheck);
     }
     if matches!(max_risk, Risk::High | Risk::Critical) {
-        recommended.push("codemap boundaries --changed".to_string());
+        supplemental.push("codemap boundaries --changed".to_string());
     }
     let mut full = Vec::new();
     if matches!(max_risk, Risk::Critical)
@@ -55,7 +55,7 @@ pub fn verification_plan(
     }
     VerificationPlan {
         minimal: unique(minimal).into_iter().take(3).collect(),
-        recommended: unique(recommended).into_iter().take(3).collect(),
+        supplemental: unique(supplemental).into_iter().take(3).collect(),
         full_only_if_triggered: unique(full).into_iter().take(3).collect(),
     }
 }
@@ -484,4 +484,3 @@ fn risk_for_file(project: &Project, rel: &str) -> (Risk, Vec<String>) {
     }
     (risk, unique(reasons))
 }
-

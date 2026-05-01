@@ -70,14 +70,14 @@ mod tests {
     use super::{planned_run_commands, resolve_run_command};
 
     #[test]
-    fn run_plan_dedupes_minimal_and_recommended_commands() {
+    fn run_plan_dedupes_minimal_and_supplemental_commands() {
         let plan = VerificationPlan {
             minimal: vec![
                 "cargo test".to_string(),
                 " cargo test ".to_string(),
                 "cargo clippy".to_string(),
             ],
-            recommended: vec![
+            supplemental: vec![
                 "cargo clippy".to_string(),
                 "codemap boundaries --changed".to_string(),
             ],
@@ -96,7 +96,7 @@ mod tests {
     fn run_plan_rejects_placeholder_before_running_any_command() {
         let plan = VerificationPlan {
             minimal: vec!["run the nearest domain tests for the changed files".to_string()],
-            recommended: vec!["cargo test".to_string()],
+            supplemental: vec!["cargo test".to_string()],
             full_only_if_triggered: Vec::new(),
         };
 

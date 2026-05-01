@@ -25,7 +25,7 @@ fn run_proof_plan(
     };
     let plan = crate::model::VerificationPlan {
         minimal: commands,
-        recommended: Vec::new(),
+        supplemental: Vec::new(),
         full_only_if_triggered: Vec::new(),
     };
     run_plan(project, &plan, false)
@@ -34,9 +34,9 @@ fn run_proof_plan(
 fn run_plan(
     project: &crate::model::Project,
     plan: &crate::model::VerificationPlan,
-    include_recommended: bool,
+    include_supplemental: bool,
 ) -> Result<()> {
-    for command in planned_run_commands(plan, include_recommended)? {
+    for command in planned_run_commands(plan, include_supplemental)? {
         let command = resolve_run_command(&command)?;
         println!("\n$ {command}");
         let status = Command::new("sh")
@@ -53,11 +53,11 @@ fn run_plan(
 
 fn planned_run_commands(
     plan: &crate::model::VerificationPlan,
-    include_recommended: bool,
+    include_supplemental: bool,
 ) -> Result<Vec<String>> {
     let mut commands = plan.minimal.clone();
-    if include_recommended {
-        commands.extend(plan.recommended.clone());
+    if include_supplemental {
+        commands.extend(plan.supplemental.clone());
     }
     commands = commands
         .into_iter()
