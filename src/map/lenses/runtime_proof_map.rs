@@ -141,6 +141,7 @@ pub fn proof_map_report(
         if let Some(file) = project.files.get(seed) {
             unknowns.extend(unknowns_for_file(project, file));
             e2e.extend(route_proof_surfaces(project, file));
+            unknowns.extend(route_proof_unknowns(project, file));
         }
         let proofs = proof_surfaces_for_anchor(project, seed, 1, limit);
         if proofs.is_empty() && proof_missing_should_surface(project, seed) {
@@ -256,6 +257,34 @@ fn route_proof_surfaces(project: &Project, file: &FileInfo) -> Vec<ProofSurface>
                     reason: format!("e2e visits runtime route {label}"),
                     locations: edge.locations,
                 })
+        })
+        .collect()
+}
+
+fn route_proof_unknowns(project: &Project, file: &FileInfo) -> Vec<Unknown> {
+    runtime_routes_for_file(project, file)
+        .into_iter()
+        .filter(|route| {
+            route_can_be_proved_by_page_goto(route)
+                && route_has_page_visit_in_proof_scope(project, route)
+                && route_page_visit_owner_count(project, route) > 1
+        })
+        .map(|route| {
+            let line = route
+                .locations
+                .first()
+                .and_then(|location| location.line_start);
+            unknown(
+                "ambiguous_route_visit_owner",
+                Some(route.file.clone()),
+                line,
+                format!(
+                    "runtime route `{}` has multiple method-compatible owners in this proof scope",
+                    route_anchor_label(&route)
+                ),
+                "page.goto route visits are not attached as e2e proof because the owner is ambiguous",
+                Some(format!("codemap runtime {}", shell_quote(&route.file))),
+            )
         })
         .collect()
 }

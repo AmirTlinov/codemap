@@ -118,8 +118,12 @@ fn route_can_be_proved_by_page_goto(route: &RuntimeRoute) -> bool {
 }
 
 fn route_page_visit_owner_is_unique(project: &Project, route: &RuntimeRoute) -> bool {
+    route_page_visit_owner_count(project, route) == 1
+}
+
+fn route_page_visit_owner_count(project: &Project, route: &RuntimeRoute) -> usize {
     if !route_can_be_proved_by_page_goto(route) {
-        return false;
+        return 0;
     }
     project
         .files
@@ -131,7 +135,14 @@ fn route_page_visit_owner_is_unique(project: &Project, route: &RuntimeRoute) -> 
         })
         .take(2)
         .count()
-        == 1
+}
+
+fn route_has_page_visit_in_proof_scope(project: &Project, route: &RuntimeRoute) -> bool {
+    project.files.values().any(|file| {
+        file.has_role("test")
+            && route_proof_scope_matches(project, &route.file, &file.rel)
+            && file.visited_route_paths.contains(&route.path)
+    })
 }
 
 fn route_proof_scope_matches(project: &Project, owner_rel: &str, other_rel: &str) -> bool {

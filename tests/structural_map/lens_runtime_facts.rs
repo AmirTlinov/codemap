@@ -407,6 +407,15 @@ fn proof_map_page_navigation_does_not_choose_between_duplicate_get_routes() {
                 .contains("GET /auth/login")),
         "ambiguous duplicate GET route owners must fail closed instead of selecting by path: {proof_map:#}"
     );
+    assert!(
+        proof_map["unknowns"]
+            .as_array()
+            .expect("unknowns")
+            .iter()
+            .any(|unknown| unknown["kind"] == "ambiguous_route_visit_owner"
+                && unknown["path"] == "packages/app/src/auth-b.ts"),
+        "ambiguous route owner should be visible as a typed unknown, not silent missing proof: {proof_map:#}"
+    );
 }
 
 #[test]
@@ -449,5 +458,39 @@ fn proof_map_page_navigation_does_not_cross_package_runtime_scope() {
             .iter()
             .all(|proof| proof["path"] != "packages/admin/tests/e2e/auth.spec.ts"),
         "same URL path in another package must not become proof for this route owner: {proof_map:#}"
+    );
+}
+
+#[test]
+fn proof_map_duplicate_routes_without_page_visit_do_not_emit_route_visit_unknown() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("packages/app/src/auth-a.ts"),
+        "router.get('/auth/login', firstLogin);\nexport function firstLogin() { return true; }\n",
+    );
+    write(
+        &repo.path().join("packages/app/src/auth-b.ts"),
+        "router.get('/auth/login', secondLogin);\nexport function secondLogin() { return true; }\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "duplicate get routes without e2e"]);
+    write(
+        &repo.path().join("packages/app/src/auth-b.ts"),
+        "router.get('/auth/login', secondLogin);\nexport function secondLogin() { return false; }\n",
+    );
+
+    let proof_map = run_json(
+        repo.path(),
+        cache.path(),
+        &["proof-map", "--changed", "--format", "json"],
+    );
+    assert_schema("schemas/proof-map.schema.json", &proof_map);
+    assert!(
+        proof_map["unknowns"]
+            .as_array()
+            .expect("unknowns")
+            .iter()
+            .all(|unknown| unknown["kind"] != "ambiguous_route_visit_owner"),
+        "duplicate routes alone are not a proof-map blind spot unless an in-scope page.goto visits them: {proof_map:#}"
     );
 }
