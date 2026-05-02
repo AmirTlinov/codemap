@@ -34,13 +34,18 @@ fn cached_index_cache_delta(
     cache_dir: &Path,
     version: &str,
 ) -> Option<cache::fingerprints::CacheFileDelta> {
-    let (changed_or_added, removed) = git_status_cache_change_sets(root)?;
+    let empty = BTreeSet::new();
+    let status_changes = git_status_cache_change_sets(root);
+    let (changed_or_added, removed) = status_changes
+        .as_ref()
+        .map(|(changed_or_added, removed)| (changed_or_added, removed))
+        .unwrap_or((&empty, &empty));
     cache::file_delta_by_rechecking_cached_files(
         root,
         cache_dir,
         version,
-        &changed_or_added,
-        &removed,
+        changed_or_added,
+        removed,
     )
 }
 

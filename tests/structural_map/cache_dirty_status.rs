@@ -159,3 +159,49 @@ fn conflict_cache_without_status_probe_falls_back_to_file_fingerprints() {
         "conflict-only symbol must not survive status-probe fallback: {clean:#}"
     );
 }
+
+#[test]
+fn active_conflict_cache_scans_only_fingerprint_mismatches() {
+    let (repo, cache) = fixture();
+    let rel = "packages/app/src/useReplay.ts";
+    let path = repo.path().join(rel);
+    let changed_rel = "packages/replay/src/internal.ts";
+
+    let _ = run_json(repo.path(), cache.path(), &["ls", ".", "--format", "json"]);
+    git(repo.path(), &["checkout", "-q", "-b", "other"]);
+    write(
+        &path,
+        "import { seek } from '@fixture/replay';\n\nexport const otherFrame = seek(51).frame;\n",
+    );
+    git(repo.path(), &["add", rel]);
+    git(repo.path(), &["commit", "-qm", "other frame"]);
+    git(repo.path(), &["checkout", "-q", "main"]);
+    write(
+        &path,
+        "import { seek } from '@fixture/replay';\n\nexport const mainFrame = seek(52).frame;\n",
+    );
+    git(repo.path(), &["add", rel]);
+    git(repo.path(), &["commit", "-qm", "main frame"]);
+
+    let merge = Command::new("git")
+        .args(["merge", "other"])
+        .current_dir(repo.path())
+        .output()
+        .expect("git merge should run");
+    assert!(!merge.status.success(), "fixture should create a merge conflict");
+    let _ = run_json(repo.path(), cache.path(), &["ls", rel, "--format", "json"]);
+
+    write(
+        &repo.path().join(changed_rel),
+        "export const internalValue = 2;\n",
+    );
+    let doctor = run_json(repo.path(), cache.path(), &["doctor", "--format", "json"]);
+    assert_schema("schemas/status.schema.json", &doctor);
+    assert_eq!(doctor["cache_strategy"], "partial_rescan");
+    assert_eq!(
+        doctor["scanner"]["files_scanned"], 1,
+        "when git status is unavailable, cache fallback should rescan only fingerprint mismatches: {doctor:#}"
+    );
+
+    git(repo.path(), &["merge", "--abort"]);
+}
