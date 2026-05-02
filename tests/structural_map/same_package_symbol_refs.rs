@@ -69,7 +69,9 @@ fn proof_and_impact_link_same_package_symbol_references_without_imports() {
             .iter()
             .any(|surface| surface["path"] == "session/surface_test.go"
                 && surface["evidence"] == "test_symbol_reference"
-                && surface["strength"] == "high"),
+                && surface["strength"] == "high"
+                && surface["locations"][0]["kind"] == "symbol_reference"
+                && surface["locations"][0]["line_start"] == 6),
         "same-package test symbol references should become structural proof, not fallback: {proof:#}"
     );
     assert!(
@@ -220,4 +222,3 @@ fn proof_and_impact_link_same_package_symbol_references_without_imports() {
         "same-name methods on unrelated receivers must not inflate impact: {method_impact:#}"
     );
 }
-

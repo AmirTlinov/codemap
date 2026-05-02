@@ -154,7 +154,63 @@ fn proof_surface_locations_for_target(
     if matches!(base, "test_import" | "test_imported_symbol_reference") {
         return import_statement_locations(project, test, target);
     }
+    if base == "test_symbol_reference" {
+        return symbol_reference_locations_for_test(project, target, test);
+    }
     proof_surface_locations_for_test(test, evidence)
+}
+
+fn symbol_reference_locations_for_test(
+    project: &Project,
+    target: &str,
+    test: &str,
+) -> Vec<EvidenceLocation> {
+    let Some(target_file) = project.files.get(target) else {
+        return proof_surface_locations_for_test(test, "test_symbol_reference");
+    };
+    let names = anchor_symbol_reference_names(target_file);
+    if names.is_empty() {
+        return proof_surface_locations_for_test(test, "test_symbol_reference");
+    }
+    let Ok(text) = std::fs::read_to_string(project.root.join(test)) else {
+        return proof_surface_locations_for_test(test, "test_symbol_reference");
+    };
+    let mut locations = Vec::new();
+    for (index, line) in text.lines().enumerate() {
+        let code = code_shape_without_literal_content(line);
+        if names
+            .iter()
+            .any(|name| identifier_reference_on_line(&code, name))
+        {
+            locations.push(EvidenceLocation::line(
+                test,
+                index + 1,
+                "symbol_reference",
+            ));
+            if locations.len() >= 3 {
+                break;
+            }
+        }
+    }
+    if locations.is_empty() {
+        proof_surface_locations_for_test(test, "test_symbol_reference")
+    } else {
+        locations
+    }
+}
+
+fn identifier_reference_on_line(code: &str, name: &str) -> bool {
+    code.match_indices(name).any(|(start, _)| {
+        let before = code[..start].chars().next_back();
+        let end = start + name.len();
+        let after = code[end..].chars().next();
+        before.is_none_or(|ch| !proof_identifier_char(ch))
+            && after.is_none_or(|ch| !proof_identifier_char(ch))
+    })
+}
+
+fn proof_identifier_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || ch == '_' || ch == '$'
 }
 
 fn proof_base_evidence(evidence: &str) -> &str {
