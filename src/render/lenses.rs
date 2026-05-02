@@ -214,35 +214,33 @@ fn surface_section(title: &str, surfaces: &[Surface]) {
         return;
     }
     println!("\n## {title}\n");
-    let rows = surfaces
-        .iter()
-        .map(|surface| {
-            vec![
-                surface.kind.clone(),
-                surface
-                    .role
-                    .clone()
-                    .unwrap_or_else(|| "none".to_string()),
-                surface
-                    .path
-                    .as_ref()
-                    .map(|path| code(path))
-                    .unwrap_or_else(|| "aggregate".to_string()),
-                surface.evidence.clone(),
-                format!("{:?}", surface.strength).to_ascii_lowercase(),
-                surface
-                    .examples
-                    .iter()
-                    .map(|example| code(example))
-                    .collect::<Vec<_>>()
-                    .join(", "),
-            ]
-        })
-        .collect();
-    println!(
-        "{}",
-        table(&["Kind", "Role", "Path", "Evidence", "Strength", "Examples"], rows)
-    );
+    for surface in surfaces {
+        let label = surface
+            .path
+            .as_ref()
+            .map(|path| code(path))
+            .unwrap_or_else(|| "aggregate".to_string());
+        let role = surface.role.as_deref().unwrap_or("none");
+        println!(
+            "- {label} [{}; {}; {}; {}]",
+            surface.kind,
+            role,
+            surface.evidence,
+            format!("{:?}", surface.strength).to_ascii_lowercase()
+        );
+        if !surface.examples.is_empty() {
+            let examples = surface
+                .examples
+                .iter()
+                .map(|example| code(example))
+                .collect::<Vec<_>>()
+                .join(", ");
+            println!("  examples: {examples}");
+        }
+        if surface.hidden_count > 0 {
+            println!("  hidden: {} examples", surface.hidden_count);
+        }
+    }
 }
 
 fn runtime_routes_section(title: &str, routes: &[RuntimeRoute]) {
