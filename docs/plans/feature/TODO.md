@@ -219,7 +219,7 @@ or misleading map.
 | 19 Delete lens | todo | focused | Deletion blockers are mapped without `safe`/`probably unused` claims. |
 | 20 Boundary-map lens | todo | focused/live | Crossings are read-only facts; forbidden findings require explicit config. |
 | 21 Flow lens | closed first boundary | focused/live | Rust CLI runtime entrypoints stitch to manifest provenance and exact `main` symbols. |
-| 22 Siblings and place lenses | todo | focused | Local conventions are shown without ranking or recommendations. |
+| 22 Siblings and place lenses | closed first boundary | focused | `place` expand preserves required kind arguments. |
 | 23 Non-code, assets, data, events, generated ownership | closed first boundary | focused/live | CSS @import barrels create deterministic style edges with line evidence. |
 | 24 Unknown taxonomy, scope repair, fail-closed traversal | closed first boundary | full | Empty proof/test scopes point to nearest parent proof scope with typed unknowns. |
 | 25 Performance, path stability, cognitive gates | todo | live | Warm path, stable ordering, path normalization, and output budgets are guarded. |
@@ -454,6 +454,19 @@ export target and package manifest; changed overview fixture proves the daily
 review: required before commit because this changes public lens semantics.
 live: not required; controlled package export fixture proves the false-negative
 directly.
+```
+
+### Slice 22: Siblings And Place Lenses
+
+```txt
+closed: `place <scope> --kind <kind>` now emits executable expand commands that
+preserve the required `--kind` argument, including include-hidden drill-downs.
+excluded: full siblings/place convention taxonomy, semantic similarity, and
+recommendation behavior remain out of scope.
+proof: focused place fixture validates the expand command; schema remains
+unchanged because this is command content, not report shape.
+review: not required; this is a narrow expand reproducibility fix.
+live: not required; a fixture catches the exact invalid-command regression.
 ```
 
 ## Live Probe Set

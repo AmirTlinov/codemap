@@ -231,7 +231,11 @@ pub fn place_report(
         }]
     };
     let local_conventions = placement_conventions(&scope, &requested_kind, &existing_surfaces);
-    let include_hidden_expand = format!("codemap place {} --include-hidden", shell_quote(&scope));
+    let include_hidden_expand = format!(
+        "codemap place {} --kind {} --include-hidden",
+        shell_quote(&scope),
+        shell_quote(&requested_kind)
+    );
     let mut shared_contracts =
         directory_contract_edges_at_depth(project, &scope, include_hidden, 1);
     truncate_with_hidden(
@@ -242,7 +246,10 @@ pub fn place_report(
         &include_hidden_expand,
     );
     let mut unknowns = Vec::new();
-    let mut expand = vec![format!("codemap siblings {}", shell_quote(&scope))];
+    let mut expand = vec![
+        format!("codemap siblings {}", shell_quote(&scope)),
+        include_hidden_expand.clone(),
+    ];
     if requested_kind == "test"
         && existing_surfaces.is_empty()
         && paired_proof_pattern.is_empty()

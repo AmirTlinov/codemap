@@ -45,4 +45,26 @@ fn place_lens_kind_maps_existing_lens_files_without_semantic_search() {
         "place --kind lens should expose local lens files by path convention only: {place:#}"
     );
     assert_eq!(place["requested_kind"], "lens");
+    assert!(
+        place["expand"]
+            .as_array()
+            .expect("expand")
+            .iter()
+            .any(|command| command == "codemap place src/map --kind lens --include-hidden"),
+        "place expand should preserve the required --kind argument: {place:#}"
+    );
+
+    let output = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["place", "src/map", "--kind", "lens"])
+        .output()
+        .expect("place markdown should run");
+    assert!(output.status.success());
+    let markdown = String::from_utf8(output.stdout).expect("place markdown utf8");
+    assert!(
+        markdown.contains("- lens surfaces already exist under `src/map`")
+            && !markdown.contains("- `lens surfaces already exist under `src/map`"),
+        "place local conventions should not be wrapped as one nested code literal: {markdown}"
+    );
 }

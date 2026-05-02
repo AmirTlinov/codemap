@@ -180,7 +180,7 @@ pub fn place(report: &PlaceReport) {
     println!("Scope: `{}`", report.scope);
     println!("Kind: `{}`", report.requested_kind);
     surface_section("Existing Surfaces", &report.existing_surfaces);
-    section("Local Conventions", &report.local_conventions);
+    plain_section("Local Conventions", &report.local_conventions);
     proof_surface_section("Paired Proof Pattern", &report.paired_proof_pattern);
     cone_section("Shared Contracts", &report.shared_contracts);
     unknown_section(&report.unknowns);

@@ -10,6 +10,14 @@ fn section(title: &str, values: &[String]) {
     println!("{}", bullet(&values, true, Some(20)));
 }
 
+fn plain_section(title: &str, values: &[String]) {
+    if values.is_empty() {
+        return;
+    }
+    println!("\n## {title}\n");
+    println!("{}", bullet(values, false, Some(20)));
+}
+
 fn unknown_section(values: &[Unknown]) {
     if values.is_empty() {
         return;
