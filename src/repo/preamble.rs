@@ -3,7 +3,7 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::OnceLock;
+use std::sync::{Arc, Mutex, OnceLock};
 
 use anyhow::{Context, Result};
 use globset::GlobBuilder;
@@ -13,5 +13,5 @@ use regex::Regex;
 use crate::cache;
 use crate::model::{
     AnchorDomain, ConfigLoadError, CtxConfig, Domain, FileInfo, GitChange, ImportBindingsBySpec,
-    PackageDependency, PackageInfo, Project, ScriptInfo, SymbolInfo,
+    PackageDependency, PackageInfo, Project, ScanGroup, ScanStats, ScriptInfo, SymbolInfo,
 };

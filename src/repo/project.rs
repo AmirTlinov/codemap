@@ -28,7 +28,7 @@ pub fn load_project_with_cache(
     let remote = git_remote(&root);
     let (anchors, config_path, config_errors) = load_ctx_configs(&root);
     let nearest_agents = nearest_agents(&cwd, &root);
-    let mut files = scan_files(&root)?;
+    let (mut files, scan_stats) = scan_files(&root)?;
     let packages = detect_packages(&root, &files);
     let ts_path_aliases = detect_ts_path_aliases(&root, &files);
     resolve_imports(&root, &mut files, &packages, &ts_path_aliases);
@@ -65,6 +65,7 @@ pub fn load_project_with_cache(
         anchors,
         cache_state: String::new(),
         cache_artifacts: Vec::new(),
+        scan_stats,
     };
     let fingerprint = cache::fingerprint(&project, None);
     let cache_artifacts = cache::artifact_statuses(&project, &fingerprint);

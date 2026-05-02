@@ -99,11 +99,24 @@ public JSON command or report shape appears.
 
 ### Slice 08: Fast scanner, ignore/generated/vendor detection
 
-- [ ] Slice 08 implemented
-- [ ] Slice 08 gates passed
-- [ ] Slice 08 reviewer PASS
-- [ ] Slice 08 live dogfood complete
-- [ ] Slice 08 agent satisfied
+- [x] Slice 08 implemented within closure boundary
+- [x] Slice 08 gates passed
+- [x] Slice 08 reviewer PASS
+- [x] Slice 08 live dogfood complete
+- [x] Slice 08 agent satisfied
+
+Boundary:
+
+```txt
+closed: shared scanner policy returns scan stats, common ignored dirs are
+excluded from inventory and config discovery, ignored stats count unique
+ignored roots, generated headers/path conventions mark files as generated,
+doctor/status expose scanner groups via status_report v3.
+excluded: full generated source-owner resolution, source-map pairing, codegen
+config tracing, and partial-rescan cache. Those belong to later generated/cache
+slices, not scanner-policy closure.
+next: warm cache/index freshness.
+```
 
 ### Slice 09: Warm cache, indexes, incremental freshness
 

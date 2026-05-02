@@ -91,3 +91,51 @@ performance gain is real
 Scanning is faster and less noisy without pretending generated artifacts are
 the source of truth.
 
+## Closure
+
+Status: closed within boundary.
+
+Implemented:
+
+- Repository walking policy now records scanner stats while keeping common
+  ignored dirs out of the indexed file map.
+- Config discovery uses visible candidates, so `.ctx.yml` files inside ignored
+  build/dependency dirs cannot become semantic anchor errors.
+- `doctor` / `status --format json` now expose `scanner` counters and grouped
+  ignored/generated facts through `status_report` schema v3.
+- Ignored groups count unique ignored roots, not a mixed directory + tracked
+  file total.
+- Generated path conventions and hard generated header comments mark files with
+  the `generated` role while keeping them visible as explicit surfaces.
+
+Boundary:
+
+```txt
+closed: fast scanner policy, ignore/vendor/build pruning, generated header
+detection, scanner counters, status schema v3, and load-bearing tests.
+excluded: generated source-owner tracing, source maps, codegen config ownership,
+and cache partial-rescan work.
+```
+
+Proof:
+
+```bash
+cargo fmt --check
+cargo test --quiet scanner_reports_ignored_dirs_and_generated_header_surfaces --test structural_map
+cargo test --quiet public_json_reports_validate_against_manifest_schemas --test structural_map
+cargo test --quiet
+cargo clippy --all-targets -- -D warnings
+cargo run --quiet --bin codemap -- doctor
+cargo run --quiet --bin codemap -- doctor --format json
+git diff --check
+```
+
+Live result:
+
+```txt
+spritestudio doctor: status_report v3, 1123 scanned, 135 skipped
+Sillentway-VPN doctor: status_report v3, 785 scanned, 199 skipped
+Levelly-1 ls: ls_report v3, bounded root map
+```
+
+Reviewer: PASS after fixing ignored-root double counting.

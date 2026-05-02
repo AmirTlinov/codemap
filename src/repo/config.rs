@@ -57,7 +57,7 @@ fn find_config_paths(root: &Path) -> Vec<String> {
             paths.insert(name.to_string());
         }
     }
-    let rels = git_list_files(root).unwrap_or_else(|| walk_files(root));
+    let rels = list_visible_candidate_files(root);
     for rel in rels {
         let name = Path::new(&rel).file_name().and_then(|s| s.to_str());
         if matches!(name, Some(".ctx.yml" | ".ctx.yaml" | ".ctx.json")) {
@@ -186,4 +186,3 @@ fn merge_ctx_config(merged: &mut CtxConfig, mut config: CtxConfig, base: &str) {
         .default
         .extend(config.verification.default);
 }
-

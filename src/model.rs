@@ -26,6 +26,7 @@ pub struct Project {
     pub anchors: CtxConfig,
     pub cache_state: String,
     pub cache_artifacts: Vec<CacheArtifactStatus>,
+    pub scan_stats: ScanStats,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -61,6 +62,23 @@ impl FileInfo {
     pub fn has_role(&self, role: &str) -> bool {
         self.roles.contains(role)
     }
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct ScanStats {
+    pub files_visited: usize,
+    pub files_scanned: usize,
+    pub files_skipped: usize,
+    pub bytes_scanned: u64,
+    pub ignored: Vec<ScanGroup>,
+    pub generated: Vec<ScanGroup>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ScanGroup {
+    pub reason: String,
+    pub count: usize,
+    pub examples: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]

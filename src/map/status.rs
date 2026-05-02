@@ -11,6 +11,7 @@ pub struct StatusReport {
     pub cache_dir: String,
     pub cache_state: String,
     pub cache_artifacts: Vec<crate::model::CacheArtifactStatus>,
+    pub scanner: crate::model::ScanStats,
     pub zero_footprint_default: bool,
     pub package_manager: String,
     pub languages: Vec<String>,
@@ -39,7 +40,7 @@ pub fn status_report(project: &Project) -> StatusReport {
         .collect();
     StatusReport {
         kind: "status_report",
-        schema_version: "2",
+        schema_version: "3",
         root: project.root.to_string_lossy().to_string(),
         cwd: project.cwd.to_string_lossy().to_string(),
         vcs: project.vcs.clone(),
@@ -53,6 +54,7 @@ pub fn status_report(project: &Project) -> StatusReport {
         cache_dir: project.cache_dir.to_string_lossy().to_string(),
         cache_state: project.cache_state.clone(),
         cache_artifacts: project.cache_artifacts.clone(),
+        scanner: project.scan_stats.clone(),
         zero_footprint_default: true,
         package_manager: project.package_manager.clone(),
         languages: project.languages.iter().cloned().collect(),

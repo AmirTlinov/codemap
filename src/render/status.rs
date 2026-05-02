@@ -72,6 +72,18 @@ pub fn status(report: &StatusReport, doctor: bool) {
                     "Files scanned".to_string(),
                     report.files_scanned.to_string()
                 ],
+                vec![
+                    "Files visited".to_string(),
+                    report.scanner.files_visited.to_string()
+                ],
+                vec![
+                    "Files skipped".to_string(),
+                    report.scanner.files_skipped.to_string()
+                ],
+                vec![
+                    "Bytes scanned".to_string(),
+                    report.scanner.bytes_scanned.to_string()
+                ],
                 vec!["Fingerprint".to_string(), code(&report.fingerprint)],
                 vec![
                     "Boundary findings".to_string(),
@@ -122,6 +134,27 @@ pub fn status(report: &StatusReport, doctor: bool) {
             "{}",
             table(&["Artifact", "Exists", "Bytes", "Fingerprint match"], rows)
         );
+    }
+    if !report.scanner.ignored.is_empty() || !report.scanner.generated.is_empty() {
+        println!("\n## Scanner Groups\n");
+        let mut rows = Vec::new();
+        for group in &report.scanner.ignored {
+            rows.push(vec![
+                "ignored".to_string(),
+                code(&group.reason),
+                group.count.to_string(),
+                group.examples.join(", "),
+            ]);
+        }
+        for group in &report.scanner.generated {
+            rows.push(vec![
+                "generated".to_string(),
+                code(&group.reason),
+                group.count.to_string(),
+                group.examples.join(", "),
+            ]);
+        }
+        println!("{}", table(&["Kind", "Reason", "Count", "Examples"], rows));
     }
     if !report.config_errors.is_empty() {
         println!("\n## Anchor Config Errors\n");

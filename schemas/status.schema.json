@@ -16,6 +16,7 @@
     "cache_dir",
     "cache_state",
     "cache_artifacts",
+    "scanner",
     "zero_footprint_default",
     "package_manager",
     "languages",
@@ -29,7 +30,7 @@
   ],
   "properties": {
     "kind": { "const": "status_report" },
-    "schema_version": { "const": "2" },
+    "schema_version": { "const": "3" },
     "root": { "type": "string" },
     "cwd": { "type": "string" },
     "vcs": { "type": ["string", "null"] },
@@ -48,6 +49,7 @@
       "type": "array",
       "items": { "$ref": "#/$defs/cache_artifact" }
     },
+    "scanner": { "$ref": "#/$defs/scan_stats" },
     "zero_footprint_default": { "type": "boolean" },
     "package_manager": { "type": "string" },
     "languages": {
@@ -100,6 +102,45 @@
         "id": { "type": "string" },
         "path": { "type": "string" },
         "config": { "type": ["string", "null"] }
+      }
+    },
+    "scan_stats": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "files_visited",
+        "files_scanned",
+        "files_skipped",
+        "bytes_scanned",
+        "ignored",
+        "generated"
+      ],
+      "properties": {
+        "files_visited": { "type": "integer", "minimum": 0 },
+        "files_scanned": { "type": "integer", "minimum": 0 },
+        "files_skipped": { "type": "integer", "minimum": 0 },
+        "bytes_scanned": { "type": "integer", "minimum": 0 },
+        "ignored": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/scan_group" }
+        },
+        "generated": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/scan_group" }
+        }
+      }
+    },
+    "scan_group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reason", "count", "examples"],
+      "properties": {
+        "reason": { "type": "string" },
+        "count": { "type": "integer", "minimum": 0 },
+        "examples": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
       }
     }
   }
