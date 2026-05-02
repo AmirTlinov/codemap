@@ -11,36 +11,22 @@ fn unknown_section(values: &[Unknown]) {
         return;
     }
     println!("\n## Unknown\n");
-    let rows = values
-        .iter()
-        .map(|unknown| {
-            vec![
-                unknown.kind.clone(),
-                unknown
-                    .path
-                    .as_ref()
-                    .map(|path| {
-                        if let Some(line) = unknown.line_start {
-                            code(&format!("{path}:{line}"))
-                        } else {
-                            code(path)
-                        }
-                    })
-                    .unwrap_or_else(|| "none".to_string()),
-                unknown.reason.clone(),
-                unknown.effect.clone(),
-                unknown
-                    .expand
-                    .as_ref()
-                    .map(|expand| code(expand))
-                    .unwrap_or_else(|| "none".to_string()),
-            ]
-        })
-        .collect();
-    println!(
-        "{}",
-        table(&["Kind", "Where", "Reason", "Effect", "Expand"], rows)
-    );
+    let mut grouped: std::collections::BTreeMap<&str, Vec<&Unknown>> =
+        std::collections::BTreeMap::new();
+    for unknown in values {
+        grouped.entry(unknown.kind.as_str()).or_default().push(unknown);
+    }
+    for (kind, unknowns) in grouped {
+        println!("- `{kind}`");
+        for unknown in unknowns {
+            println!("  - where: {}", unknown_where(unknown));
+            println!("    reason: {}", unknown.reason);
+            println!("    effect: {}", unknown.effect);
+            if let Some(expand) = &unknown.expand {
+                println!("    expand: `{expand}`");
+            }
+        }
+    }
 }
 
 fn proof_surface_section(title: &str, proofs: &[ProofSurface]) {
@@ -145,17 +131,24 @@ fn hidden_section(hidden: &[crate::model::HiddenGroup]) {
         return;
     }
     println!("\n## Hidden\n");
-    let rows = hidden
-        .iter()
-        .map(|hidden| {
-            vec![
-                hidden.reason.clone(),
-                hidden.count.to_string(),
-                code(&hidden.expand),
-            ]
+    for hidden in hidden {
+        println!("- {}: {}", hidden.reason, hidden.count);
+        println!("  expand: `{}`", hidden.expand);
+    }
+}
+
+fn unknown_where(unknown: &Unknown) -> String {
+    unknown
+        .path
+        .as_ref()
+        .map(|path| {
+            if let Some(line) = unknown.line_start {
+                code(&format!("{path}:{line}"))
+            } else {
+                code(path)
+            }
         })
-        .collect();
-    println!("{}", table(&["Reason", "Count", "Expand"], rows));
+        .unwrap_or_else(|| "none".to_string())
 }
 
 fn grouped_edge_list(title: &str, edges: &[StructuralEdge], limit: usize) {
