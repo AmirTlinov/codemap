@@ -178,6 +178,46 @@ fn source_paths_with_ci_or_build_tokens_do_not_become_ci_surfaces() {
 }
 
 #[test]
+fn workflow_paths_with_runtime_tokens_stay_ci_surfaces() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join(".github/workflows/session-manager-ci.yml"),
+        "name: session manager ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: cargo test\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "workflow with runtime tokens"]);
+
+    let ls = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "ls",
+            ".github/workflows/session-manager-ci.yml",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/ls.schema.json", &ls);
+    assert_eq!(
+        ls["anchor"]["kind"], "build_ci",
+        "workflow path tokens like session/manager must not override CI kind: {ls:#}"
+    );
+    let roles = ls["anchor"]["roles"].as_array().expect("roles");
+    assert!(
+        roles.iter().any(|role| role == "build_ci"),
+        "workflow should keep build_ci role: {ls:#}"
+    );
+    assert!(
+        !roles.iter().any(|role| role == "runtime_state"),
+        "non-source workflow must not inherit broad runtime_state role: {ls:#}"
+    );
+}
+
+#[test]
 fn large_lockfiles_are_indexed_as_first_class_surfaces() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");

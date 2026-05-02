@@ -93,29 +93,31 @@ fn classify_roles(root: &Path, info: &mut FileInfo) {
     if is_entrypoint_surface(&rel, &name, &info.ext) {
         info.roles.insert("entrypoint".to_string());
     }
-    add_role_if(
-        &mut info.roles,
-        &rel,
-        &[
-            "state",
-            "store",
-            "model",
-            "entity",
-            "timeline",
-            "reducer",
-            "machine",
-            "registry",
-            "repository",
-            "aggregate",
-        ],
-        "state_model",
-    );
-    add_role_if(
-        &mut info.roles,
-        &rel,
-        &["session", "cursor", "clock", "controller", "manager"],
-        "runtime_state",
-    );
+    if is_source_ext(&info.ext) {
+        add_role_if(
+            &mut info.roles,
+            &rel,
+            &[
+                "state",
+                "store",
+                "model",
+                "entity",
+                "timeline",
+                "reducer",
+                "machine",
+                "registry",
+                "repository",
+                "aggregate",
+            ],
+            "state_model",
+        );
+        add_role_if(
+            &mut info.roles,
+            &rel,
+            &["session", "cursor", "clock", "controller", "manager"],
+            "runtime_state",
+        );
+    }
     if !info.roles.contains("manifest") && is_schema_contract_surface(&rel, &name, &info.ext) {
         info.roles.insert("schema_contract".to_string());
         info.roles.insert("schema".to_string());
