@@ -40,6 +40,23 @@ Windows: %LOCALAPPDATA%/codemap/
 
 Use `CODEMAP_CACHE_DIR=/path` to override and `CODEMAP_NO_CACHE=1` to disable cache writes.
 
+## Local Install
+
+For daily use, install the binary once so agents can call `codemap` from any
+repository without paying the `cargo run` tax:
+
+```bash
+cargo install --path .
+codemap doctor
+```
+
+For local dogfooding before installing, point the harness at a built binary:
+
+```bash
+cargo build --bin codemap
+CODEMAP_BIN=./target/debug/codemap scripts/dogfood-codemap.sh /path/to/repo
+```
+
 ## Daily Flow
 
 The daily surface is intentionally small:

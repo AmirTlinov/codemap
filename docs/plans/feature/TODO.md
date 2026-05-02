@@ -120,8 +120,9 @@ Slice 27 first boundary is closed:
 
 ```txt
 closed: `scripts/dogfood-codemap.sh` is now a real read-only live adoption
-harness for daily plus focused probes. It supports `CODEMAP_BIN` for local
-binary dogfood, auto-discovers one source anchor and one contract anchor, runs
+harness for daily plus focused probes, and README documents the local
+`cargo install --path .` path plus `CODEMAP_BIN` dogfood override. The harness
+auto-discovers one source anchor and one contract anchor, runs
 cone/flow/delete/siblings/place/contract where possible, records elapsed time,
 line count, line budget, and budget status in JSONL, and keeps target repos
 clean.
