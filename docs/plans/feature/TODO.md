@@ -83,6 +83,39 @@ next: keep cache parked unless daily use shows stale derived facts, config
 dependency invalidation gaps, or path-normalization cases outside git diff.
 ```
 
+Slice 09 fifth boundary is closed:
+
+```txt
+closed: when git status cannot provide a reliable mismatch set, such as an
+active conflict cache written without a valid status probe, the fallback
+rechecks cached file fingerprints and rescans only mismatched files instead of
+falling through to broad parser work.
+proof: active conflict cache regression plus focused dirty/status/head/delete
+cache tests and full gate.
+review: not required; narrow fallback correction inside the existing cache
+delta model with a direct regression.
+live: spritestudio and Sillentway-VPN read-only doctor probes stayed warm_load
+with files_visited=0 and files_scanned=0.
+next: keep cache parked unless daily use exposes stale derived facts or config
+dependency invalidation gaps.
+```
+
+Slice 25 first boundary is closed:
+
+```txt
+closed: primary daily markdown now has an executable cognitive regression
+gate. The guard runs `ls .`, `cone <anchor>`, `changed`, and
+`proof --changed` on the fixture, enforcing line budgets, no table spam, no
+forbidden product language, hidden sections with executable expand, and proof
+command grouping.
+proof: focused daily workflow cognitive gate plus line-budget test.
+review: not required; test-only guard over existing public behavior.
+live: not required for this boundary; the fixture captures daily workflow
+shape without adding live-repo noise.
+next: add live perf smoke only when changing runtime/cache behavior or before
+final adoption closure.
+```
+
 Slice 02 first boundary is closed:
 
 ```txt
@@ -237,7 +270,7 @@ or misleading map.
 | 22 Siblings and place lenses | closed first boundary | focused | `place` expand preserves required kind arguments. |
 | 23 Non-code, assets, data, events, generated ownership | closed first boundary | focused/live | CSS @import barrels create deterministic style edges with line evidence. |
 | 24 Unknown taxonomy, scope repair, fail-closed traversal | closed first boundary | full | Empty proof/test scopes point to nearest parent proof scope with typed unknowns. |
-| 25 Performance, path stability, cognitive gates | todo | live | Warm path, stable ordering, path normalization, and output budgets are guarded. |
+| 25 Performance, path stability, cognitive gates | closed first boundary | live | Daily workflow cognitive budgets are guarded. |
 | 26 Fixture matrix across stacks | todo | full | Fixtures cover supported stacks and public lenses without overfitting. |
 | 27 Live adoption harness and PATH ergonomics | todo | live | Read-only live probes and local install/PATH ergonomics are usable. |
 | 28 Final audit, cleanup, TODO closure | todo | final | Full system audit passes; TODO is honestly closed. |
