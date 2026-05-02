@@ -89,7 +89,9 @@ pub fn diff_map_report(
             {
                 new_unknowns.push(unknown);
             }
-            added_runtime_routes.extend(runtime_routes_from_diff_line(rel, *line, code));
+            added_runtime_routes.extend(added_runtime_routes_from_diff_line(
+                project, rel, *line, code,
+            ));
             added_env.extend(env_surfaces_from_diff_line(
                 project,
                 rel,
@@ -348,6 +350,33 @@ fn runtime_routes_from_diff_line(rel: &str, line_number: usize, code: &str) -> V
     } else {
         Vec::new()
     }
+}
+
+fn added_runtime_routes_from_diff_line(
+    project: &Project,
+    rel: &str,
+    line_number: usize,
+    code: &str,
+) -> Vec<RuntimeRoute> {
+    let ext = std::path::Path::new(rel)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or_default();
+    if ext != "rs" {
+        return runtime_routes_from_diff_line(rel, line_number, code);
+    }
+    let Some(file) = project.files.get(rel) else {
+        return Vec::new();
+    };
+    runtime_routes_for_file(project, file)
+        .into_iter()
+        .filter(|route| {
+            route
+                .locations
+                .iter()
+                .any(|location| location.line_start == Some(line_number))
+        })
+        .collect()
 }
 
 fn env_surfaces_from_diff_line(
