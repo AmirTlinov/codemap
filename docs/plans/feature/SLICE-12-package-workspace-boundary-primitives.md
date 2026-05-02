@@ -97,3 +97,51 @@ boundary primitives reusable
 Package and workspace structure becomes part of the shared map, not per-lens
 heuristics.
 
+## First Closure Boundary
+
+This slice is intentionally closing in smaller fact boundaries, not waiting for
+the full workspace/boundary world to be perfect.
+
+Current candidate boundary:
+
+```txt
+closed: PackageDependency carries dependency_kind, populated from deterministic
+manifest sections for JavaScript and Cargo package edges:
+runtime, dev, build, peer, optional.
+closed: boundary-map JSON schema v2 requires dependency_kind on package_edges.
+closed: boundary-map markdown shows dependency kind as compact provenance.
+```
+
+Excluded from this boundary:
+
+```txt
+full package/workspace graph closure
+test-only crossing separation improvements
+external dependency surfacing
+Go/Python/Swift dev/build equivalent classification beyond runtime
+live repo adoption proof
+```
+
+Proof for this boundary:
+
+```txt
+cargo test --quiet boundary_map_package_edges_classify_js_dependency_kinds --test structural_map
+cargo test --quiet boundary_map_package_edges_classify_cargo_dependency_kinds --test structural_map
+cargo test --quiet public_json_reports_validate_against_manifest_schemas --test structural_map
+cargo fmt --check
+cargo test --quiet
+cargo clippy --all-targets -- -D warnings
+cargo run --quiet --bin codemap -- doctor
+git diff --check
+```
+
+Review:
+
+```txt
+reviewer PASS
+```
+
+Live dogfood is not required for this first boundary. Controlled manifest
+fixtures prove the kind-classification contract more directly than dirty live
+repositories, and rendered live behavior did not change beyond adding compact
+`kind=...` provenance to existing package-edge lines.

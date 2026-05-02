@@ -53,6 +53,17 @@ fn unique_pairs(items: Vec<(String, String)>) -> Vec<(String, String)> {
     out
 }
 
+fn unique_triples(items: Vec<(String, String, String)>) -> Vec<(String, String, String)> {
+    let mut seen = BTreeSet::new();
+    let mut out = Vec::new();
+    for item in items {
+        if seen.insert(item.clone()) {
+            out.push(item);
+        }
+    }
+    out
+}
+
 pub fn is_source_ext(ext: &str) -> bool {
     SOURCE_EXTS.iter().any(|x| x == &ext)
 }

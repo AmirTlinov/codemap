@@ -23,6 +23,7 @@ fn go_package_edges(
                     to_manifest: Some(target.manifest.clone()),
                     workspace_manifest: None,
                     dependency: dep,
+                    dependency_kind: "runtime".to_string(),
                     source: "go.mod replace".to_string(),
                 });
                 continue;
@@ -37,6 +38,7 @@ fn go_package_edges(
                     to_manifest: Some(target.manifest.clone()),
                     workspace_manifest: None,
                     dependency: dep,
+                    dependency_kind: "runtime".to_string(),
                     source: "go.mod local replace".to_string(),
                 });
                 continue;
@@ -50,6 +52,7 @@ fn go_package_edges(
                 to_manifest: Some(target.manifest.clone()),
                 workspace_manifest: None,
                 dependency: dep,
+                dependency_kind: "runtime".to_string(),
                 source: "go.mod require".to_string(),
             });
         }
@@ -81,6 +84,7 @@ fn python_package_edges(
                 to_manifest: Some(target.manifest.clone()),
                 workspace_manifest: None,
                 dependency: dep,
+                dependency_kind: "runtime".to_string(),
                 source: "pyproject local path dependency".to_string(),
             });
         }
@@ -112,6 +116,7 @@ fn swift_package_edges(
                 to_manifest: Some(target.manifest.clone()),
                 workspace_manifest: None,
                 dependency: package_name_from_path(&target.path),
+                dependency_kind: "runtime".to_string(),
                 source: "Package.swift local path dependency".to_string(),
             });
         }
@@ -148,15 +153,15 @@ fn cargo_package_name(text: &str) -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
-fn cargo_path_dependencies(text: &str) -> Vec<(String, String)> {
+fn cargo_path_dependencies(text: &str) -> Vec<(String, String, String)> {
     let Some(value) = parse_toml_value(text) else {
         return Vec::new();
     };
     let mut deps = Vec::new();
-    for table in cargo_dependency_tables(&value) {
-        deps.extend(cargo_table_path_dependencies(table));
+    for (table, kind) in cargo_dependency_tables(&value) {
+        deps.extend(cargo_table_path_dependencies(table, kind));
     }
-    unique_pairs(deps)
+    unique_triples(deps)
 }
 
 fn cargo_workspace_path_dependencies(text: &str) -> BTreeMap<String, String> {
@@ -178,25 +183,23 @@ fn cargo_workspace_path_dependencies(text: &str) -> BTreeMap<String, String> {
     deps
 }
 
-fn cargo_workspace_dependency_names(text: &str) -> Vec<String> {
+fn cargo_workspace_dependency_names(text: &str) -> Vec<(String, String)> {
     let Some(value) = parse_toml_value(text) else {
         return Vec::new();
     };
     let mut deps = Vec::new();
-    for table in cargo_dependency_tables(&value) {
+    for (table, kind) in cargo_dependency_tables(&value) {
         for (name, dependency) in table {
             if toml_workspace_field(dependency) == Some(true) {
-                deps.push(name.to_string());
+                deps.push((name.to_string(), kind.to_string()));
             }
         }
     }
-    unique_strings(deps)
+    unique_pairs(deps)
 }
 
 fn cargo_workspace_declared(text: &str) -> bool {
-    parse_toml_value(text)
-        .and_then(|value| value.get("workspace").cloned())
-        .is_some()
+    parse_toml_value(text).is_some_and(|value| value.get("workspace").is_some())
 }
 
 fn cargo_workspace_array_values(text: &str, key: &str) -> Vec<String> {
@@ -211,7 +214,7 @@ fn parse_toml_value(text: &str) -> Option<toml::Value> {
     toml::from_str::<toml::Value>(text).ok()
 }
 
-fn cargo_dependency_tables(value: &toml::Value) -> Vec<&toml::Table> {
+fn cargo_dependency_tables(value: &toml::Value) -> Vec<(&toml::Table, &'static str)> {
     let mut tables = Vec::new();
     collect_cargo_dependency_tables(value, &mut tables);
     if let Some(targets) = value.get("target").and_then(toml::Value::as_table) {
@@ -222,19 +225,29 @@ fn cargo_dependency_tables(value: &toml::Value) -> Vec<&toml::Table> {
     tables
 }
 
-fn collect_cargo_dependency_tables<'a>(value: &'a toml::Value, out: &mut Vec<&'a toml::Table>) {
-    for section in ["dependencies", "dev-dependencies", "build-dependencies"] {
+fn collect_cargo_dependency_tables<'a>(
+    value: &'a toml::Value,
+    out: &mut Vec<(&'a toml::Table, &'static str)>,
+) {
+    for (section, kind) in [
+        ("dependencies", "runtime"),
+        ("dev-dependencies", "dev"),
+        ("build-dependencies", "build"),
+    ] {
         if let Some(table) = value.get(section).and_then(toml::Value::as_table) {
-            out.push(table);
+            out.push((table, kind));
         }
     }
 }
 
-fn cargo_table_path_dependencies(table: &toml::Table) -> Vec<(String, String)> {
+fn cargo_table_path_dependencies(
+    table: &toml::Table,
+    kind: &str,
+) -> Vec<(String, String, String)> {
     table
         .iter()
         .filter_map(|(name, dependency)| {
-            toml_path_field(dependency).map(|path| (name.to_string(), path))
+            toml_path_field(dependency).map(|path| (name.to_string(), path, kind.to_string()))
         })
         .collect()
 }
@@ -484,4 +497,3 @@ fn unquote(value: &str) -> Option<String> {
         })
         .map(str::to_string)
 }
-

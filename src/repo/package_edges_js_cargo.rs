@@ -44,9 +44,14 @@ fn detect_package_edges(
             .cmp(&b.from)
             .then_with(|| a.to.cmp(&b.to))
             .then_with(|| a.dependency.cmp(&b.dependency))
+            .then_with(|| a.dependency_kind.cmp(&b.dependency_kind))
     });
     edges.dedup_by(|a, b| {
-        a.from == b.from && a.to == b.to && a.dependency == b.dependency && a.source == b.source
+        a.from == b.from
+            && a.to == b.to
+            && a.dependency == b.dependency
+            && a.dependency_kind == b.dependency_kind
+            && a.source == b.source
     });
     edges
 }
@@ -90,6 +95,7 @@ fn js_package_edges(
                             to_manifest: Some(target.manifest.clone()),
                             workspace_manifest: None,
                             dependency: dep.clone(),
+                            dependency_kind: js_dependency_kind(section).to_string(),
                             source: format!("package.json {section} local path"),
                         });
                     }
@@ -107,12 +113,22 @@ fn js_package_edges(
                     to_manifest: Some(target.manifest.clone()),
                     workspace_manifest: None,
                     dependency: dep.clone(),
+                    dependency_kind: js_dependency_kind(section).to_string(),
                     source: format!("package.json {section}"),
                 });
             }
         }
     }
     edges
+}
+
+fn js_dependency_kind(section: &str) -> &str {
+    match section {
+        "devDependencies" => "dev",
+        "peerDependencies" => "peer",
+        "optionalDependencies" => "optional",
+        _ => "runtime",
+    }
 }
 
 fn js_local_dependency_path(spec: &str) -> Option<String> {
@@ -162,7 +178,7 @@ fn cargo_package_edges(
         .unwrap_or_else(|| Path::new("."));
     let mut edges: Vec<PackageDependency> = cargo_path_dependencies(&text)
         .into_iter()
-        .filter_map(|(name, path)| {
+        .filter_map(|(name, path, kind)| {
             let target_path = resolve_repo_relative_path(base, &path)?;
             let target = by_path.get(&target_path)?;
             Some(PackageDependency {
@@ -172,6 +188,7 @@ fn cargo_package_edges(
                 to_manifest: Some(target.manifest.clone()),
                 workspace_manifest: None,
                 dependency: name,
+                dependency_kind: kind,
                 source: "Cargo.toml path dependency".to_string(),
             })
         })
@@ -182,7 +199,7 @@ fn cargo_package_edges(
         .cloned()
         .unwrap_or_default();
     let workspace_manifest = workspace.map(|workspace| workspace.manifest.clone());
-    for name in cargo_workspace_dependency_names(&text) {
+    for (name, kind) in cargo_workspace_dependency_names(&text) {
         let Some(path) = workspace_dependencies.get(&name) else {
             continue;
         };
@@ -196,6 +213,7 @@ fn cargo_package_edges(
             to_manifest: Some(target.manifest.clone()),
             workspace_manifest: workspace_manifest.clone(),
             dependency: name,
+            dependency_kind: kind,
             source: "Cargo.toml workspace dependency".to_string(),
         });
     }
@@ -292,7 +310,7 @@ fn cargo_workspace_member_paths(
                 .parent()
                 .filter(|p| !p.as_os_str().is_empty())
                 .unwrap_or_else(|| Path::new("."));
-            for (_, path) in cargo_path_dependencies(&text) {
+            for (_, path, _) in cargo_path_dependencies(&text) {
                 let Some(target_path) = resolve_repo_relative_path(base, &path) else {
                     continue;
                 };
@@ -303,7 +321,7 @@ fn cargo_workspace_member_paths(
                     changed = true;
                 }
             }
-            for name in cargo_workspace_dependency_names(&text) {
+            for (name, _) in cargo_workspace_dependency_names(&text) {
                 let Some(target_path) = workspace.dependencies.get(&name) else {
                     continue;
                 };
@@ -438,4 +456,3 @@ fn path_is_absolute_like(path: &str) -> bool {
             .next()
             .is_some_and(|part| part.ends_with(':'))
 }
-

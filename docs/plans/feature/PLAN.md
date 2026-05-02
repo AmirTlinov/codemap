@@ -71,10 +71,27 @@ Do not keep a slice open until every future edge case in the roadmap is solved.
 Close the declared boundary once the load-bearing acceptance is true, record
 excluded work explicitly, then move to the next higher-value slice.
 
+Do not convert every roadmap item into five equal checkboxes. Track a slice by
+its boundary, proof tier, review decision, live decision, exclusions, and next
+move. If the proof or review does not protect the boundary, skip it and say why.
+
 Do not spawn a reviewer or run the full live dogfood harness for cosmetic
 markdown cleanup unless the cleanup changes agent-facing behavior, line-budget
 contracts, or a false claim risk. The process is here to lower future repair
 cost, not to become another product surface.
+
+When a slice starts producing mostly polish commits, stop and run a closure
+audit:
+
+```txt
+what is now true?
+what is still false or excluded?
+does another renderer tweak reduce false claims, or only taste?
+what fact/schema/cache/lens correctness issue should move next?
+```
+
+For the current feature wave, the compact renderer boundary is closed. Further
+renderer work needs a concrete confusing output or false structural claim.
 
 ## End-State Command Shape
 
@@ -119,6 +136,18 @@ then harden shared facts and deep lenses
 `changed` should exist as a vertical daily MVP early. Slice 10 later turns it
 into a complete git structural-event engine; it is not the first moment the
 command becomes visible.
+
+Once the daily surface and compact renderer have enough closure to be useful,
+prefer work that improves factual correctness over additional presentation
+polish:
+
+```txt
+package/workspace dependency facts
+git structural events that remove false deltas
+runtime-to-code stitching
+proof sensor provenance
+cache correctness and timing truth
+```
 
 ## Unified Fact Layer
 

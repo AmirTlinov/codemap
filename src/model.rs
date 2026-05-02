@@ -277,6 +277,7 @@ pub struct PackageDependency {
     pub to_manifest: Option<String>,
     pub workspace_manifest: Option<String>,
     pub dependency: String,
+    pub dependency_kind: String,
     pub source: String,
 }
 

@@ -65,6 +65,12 @@ ctx_fixture_inline = { version = "0.1, still a string", path = "crates/inline,co
 [dependencies.ctx_fixture_table]
 workspace = true
 
+[dev-dependencies]
+ctx_fixture_test = { path = "crates/test" }
+
+[build-dependencies]
+ctx_fixture_build.workspace = true
+
 [target.'cfg(unix)'.dependencies.ctx_fixture_target]
 path = "crates/target"
 
@@ -74,26 +80,26 @@ path = "crates/ignored"
         assert_eq!(
             cargo_workspace_dependency_names(package),
             vec![
-                "ctx_fixture_replay".to_string(),
-                "ctx_fixture_table".to_string(),
-                "ctx_fixture_tools".to_string()
+                ("ctx_fixture_replay".to_string(), "runtime".to_string()),
+                ("ctx_fixture_table".to_string(), "runtime".to_string()),
+                ("ctx_fixture_tools".to_string(), "runtime".to_string()),
+                ("ctx_fixture_build".to_string(), "build".to_string())
             ]
         );
         let path_deps = cargo_path_dependencies(package);
-        assert!(
-            path_deps.iter().any(|(name, path)| {
-                name == "ctx_fixture_inline" && path == "crates/inline,comma"
-            })
-        );
+        assert!(path_deps.iter().any(|(name, path, kind)| {
+            name == "ctx_fixture_inline" && path == "crates/inline,comma" && kind == "runtime"
+        }));
+        assert!(path_deps.iter().any(|(name, path, kind)| {
+            name == "ctx_fixture_test" && path == "crates/test" && kind == "dev"
+        }));
+        assert!(path_deps.iter().any(|(name, path, kind)| {
+            name == "ctx_fixture_target" && path == "crates/target" && kind == "runtime"
+        }));
         assert!(
             path_deps
                 .iter()
-                .any(|(name, path)| name == "ctx_fixture_target" && path == "crates/target")
-        );
-        assert!(
-            path_deps
-                .iter()
-                .all(|(name, _)| name != "ctx_fixture_ignored")
+                .all(|(name, _, _)| name != "ctx_fixture_ignored")
         );
         assert!(cargo_workspace_member_pattern_matches(
             "crates/renderer",
@@ -396,4 +402,3 @@ edition = "2024"
             project.package_edges
         );
     }
-

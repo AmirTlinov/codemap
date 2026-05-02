@@ -113,8 +113,8 @@ pub fn boundary_map(report: &BoundaryMapReport) {
         for edge in &report.package_edges {
             let target = edge.to_manifest.as_ref().unwrap_or(&edge.to);
             println!(
-                "- `{}` --{}--> `{}` [{}]",
-                edge.from_manifest, edge.dependency, target, edge.source
+                "- `{}` --{}--> `{}` [{}; kind={}]",
+                edge.from_manifest, edge.dependency, target, edge.source, edge.dependency_kind
             );
             if let Some(workspace_manifest) = &edge.workspace_manifest {
                 println!("  workspace: `{workspace_manifest}`");

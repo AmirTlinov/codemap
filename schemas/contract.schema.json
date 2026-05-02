@@ -472,6 +472,7 @@
         "to_manifest",
         "workspace_manifest",
         "dependency",
+        "dependency_kind",
         "source"
       ],
       "properties": {
@@ -506,6 +507,15 @@
         },
         "dependency": {
           "type": "string"
+        },
+        "dependency_kind": {
+          "enum": [
+            "runtime",
+            "dev",
+            "build",
+            "peer",
+            "optional"
+          ]
         },
         "source": {
           "type": "string"

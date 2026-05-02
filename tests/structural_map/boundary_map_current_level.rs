@@ -190,6 +190,104 @@ fn boundary_map_changed_reveals_support_workspace_manifest_package_edges() {
     );
 }
 
+#[test]
+fn boundary_map_package_edges_classify_js_dependency_kinds() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    write(
+        &repo.path().join("package.json"),
+        r#"{
+  "name": "dependency-kind-root",
+  "private": true,
+  "workspaces": ["packages/*"]
+}
+"#,
+    );
+    write(
+        &repo.path().join("packages/app/package.json"),
+        r#"{
+  "name": "@fixture/app",
+  "dependencies": { "@fixture/runtime-lib": "workspace:*" },
+  "devDependencies": { "@fixture/test-lib": "workspace:*" },
+  "peerDependencies": { "@fixture/peer-lib": "workspace:*" },
+  "optionalDependencies": { "@fixture/optional-lib": "workspace:*" }
+}
+"#,
+    );
+    for name in ["runtime-lib", "test-lib", "peer-lib", "optional-lib"] {
+        write(
+            &repo.path().join(format!("packages/{name}/package.json")),
+            &format!(r#"{{"name":"@fixture/{name}"}}"#),
+        );
+    }
+
+    let report = run_json(
+        repo.path(),
+        cache.path(),
+        &["boundary-map", ".", "--format", "json"],
+    );
+    assert_schema("schemas/boundary-map.schema.json", &report);
+    assert_package_dependency_kind(&report, "@fixture/runtime-lib", "runtime");
+    assert_package_dependency_kind(&report, "@fixture/test-lib", "dev");
+    assert_package_dependency_kind(&report, "@fixture/peer-lib", "peer");
+    assert_package_dependency_kind(&report, "@fixture/optional-lib", "optional");
+}
+
+#[test]
+fn boundary_map_package_edges_classify_cargo_dependency_kinds() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    write(
+        &repo.path().join("Cargo.toml"),
+        r#"[workspace]
+members = ["crates/app", "crates/runtime-lib", "crates/test-lib", "crates/build-lib"]
+"#,
+    );
+    write(
+        &repo.path().join("crates/app/Cargo.toml"),
+        r#"[package]
+name = "fixture-app"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+fixture-runtime-lib = { path = "../runtime-lib" }
+
+[dev-dependencies]
+fixture-test-lib = { path = "../test-lib" }
+
+[build-dependencies]
+fixture-build-lib = { path = "../build-lib" }
+"#,
+    );
+    for (path, name) in [
+        ("runtime-lib", "fixture-runtime-lib"),
+        ("test-lib", "fixture-test-lib"),
+        ("build-lib", "fixture-build-lib"),
+    ] {
+        write(
+            &repo.path().join(format!("crates/{path}/Cargo.toml")),
+            &format!(
+                r#"[package]
+name = "{name}"
+version = "0.1.0"
+edition = "2021"
+"#
+            ),
+        );
+    }
+
+    let report = run_json(
+        repo.path(),
+        cache.path(),
+        &["boundary-map", ".", "--format", "json"],
+    );
+    assert_schema("schemas/boundary-map.schema.json", &report);
+    assert_package_dependency_kind(&report, "fixture-runtime-lib", "runtime");
+    assert_package_dependency_kind(&report, "fixture-test-lib", "dev");
+    assert_package_dependency_kind(&report, "fixture-build-lib", "build");
+}
+
 fn boundary_map_paths(report: &serde_json::Value) -> Vec<String> {
     let mut paths = Vec::new();
     for section in ["actual_cross_edges", "test_only_crossings"] {
@@ -217,4 +315,15 @@ fn boundary_map_paths(report: &serde_json::Value) -> Vec<String> {
         }
     }
     paths
+}
+
+fn assert_package_dependency_kind(report: &serde_json::Value, dependency: &str, kind: &str) {
+    assert!(
+        report["package_edges"]
+            .as_array()
+            .expect("package edges")
+            .iter()
+            .any(|edge| edge["dependency"] == dependency && edge["dependency_kind"] == kind),
+        "expected package dependency {dependency} to have kind {kind}: {report:#}"
+    );
 }

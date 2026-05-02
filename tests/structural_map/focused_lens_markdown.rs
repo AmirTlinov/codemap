@@ -41,6 +41,10 @@ fn boundary_map_package_edges_render_as_compact_blocks() {
         "package edge markdown should keep from/dependency/to evidence: {markdown}"
     );
     assert!(
+        markdown.contains("kind=runtime"),
+        "package edge markdown should show deterministic dependency kind provenance: {markdown}"
+    );
+    assert!(
         !markdown.contains("| From | Dependency | To | Evidence |"),
         "package edge markdown should not return to table spam: {markdown}"
     );
