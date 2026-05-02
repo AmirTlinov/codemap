@@ -383,6 +383,7 @@ enum GraphOutputFormat {
 #[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
 enum SchemaKind {
     Manifest,
+    Doctor,
     Status,
     Files,
     Ls,

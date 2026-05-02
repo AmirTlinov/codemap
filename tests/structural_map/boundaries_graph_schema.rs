@@ -400,6 +400,31 @@ fn schema_manifest_has_no_removed_router_contracts_and_schema_command_is_side_ef
     ] {
         assert!(!kinds.iter().any(|kind| kind == forbidden));
     }
+    for required in [
+        "doctor",
+        "status",
+        "files",
+        "ls",
+        "cone",
+        "graph",
+        "runtime",
+        "contract",
+        "flow",
+        "boundary-map",
+        "siblings",
+        "place",
+        "delete",
+        "changed",
+        "diff-map",
+        "impact",
+        "proof-map",
+        "proof",
+    ] {
+        assert!(
+            kinds.iter().any(|kind| kind == required),
+            "schema manifest should list public report kind `{required}`"
+        );
+    }
 
     let actual_schema_files = fs::read_dir(root.join("schemas"))
         .expect("schemas dir")
@@ -441,4 +466,31 @@ fn schema_manifest_has_no_removed_router_contracts_and_schema_command_is_side_ef
         assert_eq!(printed, schema_json);
     }
     assert_eq!(fs::read_dir(cache.path()).expect("cache dir").count(), 0);
+}
+
+#[test]
+fn doctor_json_has_an_explicit_schema_alias() {
+    let (repo, cache) = fixture();
+    let doctor = run_json(repo.path(), cache.path(), &["doctor", "--format", "json"]);
+    assert_schema("schemas/status.schema.json", &doctor);
+    assert_eq!(doctor["kind"], "status_report");
+
+    let doctor_schema = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["schema", "doctor"])
+        .output()
+        .expect("doctor schema command should run");
+    let status_schema = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["schema", "status"])
+        .output()
+        .expect("status schema command should run");
+    assert!(doctor_schema.status.success());
+    assert!(status_schema.status.success());
+    assert_eq!(
+        doctor_schema.stdout, status_schema.stdout,
+        "doctor uses the status_report JSON shape, but should be discoverable without guessing"
+    );
 }
