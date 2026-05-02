@@ -114,3 +114,45 @@ fn source_role_classifiers_keep_doctor_unclassified_noise_low() {
         );
     }
 }
+
+#[test]
+fn source_file_extensions_do_not_become_extractor_roles() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(&repo.path().join("src/plain.js"), "export const plain = true;\n");
+    write(
+        &repo.path().join("src/plain.jsx"),
+        "export const alsoPlain = true;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "plain js sources"]);
+
+    for path in ["src/plain.js", "src/plain.jsx"] {
+        let ls = run_json(repo.path(), cache.path(), &["ls", path, "--format", "json"]);
+        assert_schema("schemas/ls.schema.json", &ls);
+        if path.ends_with(".js") {
+            assert_eq!(
+                ls["anchor"]["kind"], "source",
+                "{path} should stay source: {ls:#}"
+            );
+        }
+        assert!(
+            !ls["anchor"]["roles"]
+                .as_array()
+                .expect("roles")
+                .iter()
+                .any(|role| role == "extractor"),
+            "file extension `{path}` must not count as extractor evidence: {ls:#}"
+        );
+    }
+
+    let doctor = run_json(repo.path(), cache.path(), &["doctor", "--format", "json"]);
+    assert_schema("schemas/status.schema.json", &doctor);
+    assert_eq!(
+        doctor["unclassified_count"], 1,
+        "plain .js should remain honest unclassified source, not be hidden by extension tokens: {doctor:#}"
+    );
+}
