@@ -167,6 +167,20 @@ fn directory_role_surface(project: &Project, dir: &str) -> Option<String> {
         "test",
         "repo_discovery",
         "cache",
+        "map_surface",
+        "extractor",
+        "package_graph",
+        "role_classifier",
+        "script_catalog",
+        "cli_surface",
+        "module",
+        "service",
+        "controller",
+        "domain",
+        "repository",
+        "application",
+        "config_loader",
+        "evidence_surface",
     ] {
         if files.iter().any(|file| file.has_role(role)) {
             return Some(role.to_string());

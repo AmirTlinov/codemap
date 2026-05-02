@@ -140,6 +140,14 @@ fn source_paths_with_ci_or_build_tokens_do_not_become_ci_surfaces() {
                 .as_array()
                 .expect("roles")
                 .iter()
+                .any(|role| role == "map_surface"),
+            "source file `{path}` must not become map_surface because it contains proof/ci tokens: {ls:#}"
+        );
+        assert!(
+            !ls["anchor"]["roles"]
+                .as_array()
+                .expect("roles")
+                .iter()
                 .any(|role| role == "build_ci"),
             "source file `{path}` must not carry build_ci role: {ls:#}"
         );
@@ -174,6 +182,29 @@ fn source_paths_with_ci_or_build_tokens_do_not_become_ci_surfaces() {
     assert!(
         !markdown.contains("ci_run_step_not_found"),
         "source files with ci/build path tokens must not emit CI-surface unknowns: {markdown}"
+    );
+
+    let roles = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args([
+            "changed",
+            "--files",
+            "src/proof_owner_ci.rs,src/ci_pipeline.rs",
+            "--section",
+            "roles",
+        ])
+        .output()
+        .expect("changed roles should run");
+    assert!(
+        roles.status.success(),
+        "changed roles failed: {}",
+        String::from_utf8_lossy(&roles.stderr)
+    );
+    let roles_markdown = String::from_utf8(roles.stdout).expect("markdown utf8");
+    assert!(
+        !roles_markdown.contains("`ci`") && !roles_markdown.contains("`map_surface`"),
+        "source files with proof/ci path tokens must not become CI or map surfaces in changed roles: {roles_markdown}"
     );
 }
 

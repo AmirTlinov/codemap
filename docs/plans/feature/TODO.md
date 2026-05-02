@@ -62,9 +62,33 @@ repos would add noise instead of proof.
 
 ## Current Boundary
 
-No broad numbered slice is active after Slice 30B. Pick the next boundary from
+No broad numbered slice is active after Slice 30C. Pick the next boundary from
 the largest daily-workflow gap observed in live use, not by continuing the slice
 number ritual.
+
+Slice 30C is closed:
+
+```txt
+status: closed
+tier: focused/full
+closed: source-role classification now covers deterministic application,
+service, domain, controller, module, repository, package graph, map surface,
+extractor, script catalog, config loader, and evidence surfaces for clear path
+and file-name patterns.
+guardrails: no fallback role for every source file; files still need stable
+path/name/source evidence to get a role, and source roles do not override the
+primary `source` kind.
+excluded: richer cross-language architecture roles and per-domain quality
+thresholds remain later map-quality work. The codemap repo still has generic
+internal map files reported as unclassified by `doctor`.
+proof: focused source-role doctor regression plus current-repo doctor smoke and
+full local gate.
+review: required only if this role expansion changes public lens semantics in a
+future blocker; current boundary is deterministic role classification.
+live: current installed PATH smoke after gate.
+next: map-quality doctor warnings beyond unclassified count, especially
+fallback-only proof rate and incomplete manifest/schema/env cones.
+```
 
 Slice 30B is closed:
 
@@ -470,8 +494,23 @@ or misleading map.
 | 29C False-confidence closure: owner-surface cones | closed | full/live | Manifest, schema, env, and CI anchors expose useful deterministic neighborhoods. |
 | 30A Role-aware proof planner | closed | focused/full/live | Custom proof roles and Makefile/justfile targets beat generic fallback without task routing. |
 | 30B Receipt/witness changed map | closed | focused | Receipt JSON deltas collapse to proof-witness buckets instead of config-key spam. |
+| 30C Source-role map quality | closed | focused/full | Deterministic source roles reduce obvious unclassified noise without a catch-all source role or kind inflation. |
 
 ## Closed Boundaries
+
+### Slice 30C: Source-Role Map Quality
+
+```txt
+closed: source files now get deterministic roles for application/service/domain/
+controller/module/repository/package graph/map surface/extractor/script catalog/
+config loader/evidence surfaces when path/name/source evidence supports it.
+excluded: role thresholds for every ecosystem and broader doctor quality
+warnings beyond unclassified count; current codemap internals still have
+unclassified generic map/source files.
+proof: source-role regression fixture, current-repo doctor fresh-cache smoke,
+and full local gate.
+live: PATH smoke after install on this repo.
+```
 
 ### Slice 30B: Receipt/Witness Changed Map
 

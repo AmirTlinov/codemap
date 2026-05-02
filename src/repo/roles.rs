@@ -94,6 +94,7 @@ fn classify_roles(root: &Path, info: &mut FileInfo) {
         info.roles.insert("entrypoint".to_string());
     }
     if is_source_ext(&info.ext) {
+        classify_source_roles(root, info, &rel, &name);
         add_role_if(
             &mut info.roles,
             &rel,
@@ -107,6 +108,7 @@ fn classify_roles(root: &Path, info: &mut FileInfo) {
                 "machine",
                 "registry",
                 "repository",
+                "project",
                 "aggregate",
             ],
             "state_model",

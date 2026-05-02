@@ -7,6 +7,7 @@ include!("repo/config.rs");
 include!("repo/scan.rs");
 include!("repo/roles_structural_surfaces.rs");
 include!("repo/roles.rs");
+include!("repo/roles_source.rs");
 include!("repo/roles_build_ci.rs");
 include!("repo/roles_custom.rs");
 include!("repo/file_extract.rs");

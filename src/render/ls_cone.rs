@@ -217,6 +217,26 @@ fn canonical_roles(anchor: &crate::model::FileSummary) -> Vec<String> {
     if anchor.kind == "script" || anchor.path.starts_with("test: ") {
         roles.insert("script".to_string());
     }
+    for role in [
+        "application",
+        "service",
+        "domain",
+        "controller",
+        "module",
+        "repository",
+        "package_graph",
+        "role_classifier",
+        "script_catalog",
+        "cli_surface",
+        "map_surface",
+        "extractor",
+        "config_loader",
+        "evidence_surface",
+    ] {
+        if local.contains(&role) || anchor.kind == role {
+            roles.insert(role.to_string());
+        }
+    }
     if local.contains(&"fixture") || path.contains("/fixtures/") || path.starts_with("fixtures/") {
         roles.insert("fixture".to_string());
     }

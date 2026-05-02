@@ -351,6 +351,20 @@ fn directory_surface_role(kind: &str) -> Option<String> {
             | "schema_contract"
             | "public_boundary"
             | "build_ci"
+            | "application"
+            | "service"
+            | "domain"
+            | "controller"
+            | "module"
+            | "repository"
+            | "package_graph"
+            | "role_classifier"
+            | "script_catalog"
+            | "cli_surface"
+            | "map_surface"
+            | "extractor"
+            | "config_loader"
+            | "evidence_surface"
     ) {
         Some(kind.to_string())
     } else {

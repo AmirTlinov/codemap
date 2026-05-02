@@ -59,6 +59,12 @@ fn changed_roles_section(report: &ChangedReport, force: bool) {
 
 const CHANGED_ROLE_ORDER: &[&str] = &[
     "source",
+    "application",
+    "service",
+    "domain",
+    "controller",
+    "module",
+    "repository",
     "test",
     "schema",
     "manifest",
@@ -70,6 +76,14 @@ const CHANGED_ROLE_ORDER: &[&str] = &[
     "contract_doc",
     "ci",
     "script",
+    "package_graph",
+    "role_classifier",
+    "script_catalog",
+    "cli_surface",
+    "map_surface",
+    "extractor",
+    "config_loader",
+    "evidence_surface",
     "fixture",
     "generated",
     "archive",
@@ -173,6 +187,11 @@ fn changed_roles_for_path(path: &str) -> Vec<String> {
     }
     if lower.ends_with(".md") {
         roles.insert("docs".to_string());
+    }
+    if changed_path_looks_like_source(&lower) {
+        for role in crate::repo::source_path_roles_for_path(&lower) {
+            roles.insert(role.to_string());
+        }
     }
     if roles.is_empty() && changed_path_looks_like_source(&lower) {
         roles.insert("source".to_string());
