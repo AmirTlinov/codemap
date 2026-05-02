@@ -138,6 +138,40 @@ fn runtime_lens_exposes_manifest_cli_entrypoints() {
                         .is_some_and(|value| value.contains("bad-escape"))))),
         "escaped package bin target must not be normalized into a false exact src/main.rs path: {runtime:#}"
     );
+
+    let scoped_runtime = run_json(
+        repo.path(),
+        cache.path(),
+        &["runtime", "crates/worker", "--format", "json"],
+    );
+    assert_schema("schemas/runtime.schema.json", &scoped_runtime);
+    assert!(
+        scoped_runtime["expand"]
+            .as_array()
+            .expect("expand")
+            .iter()
+            .any(|command| command == "codemap flow crates/worker/src/bin/worker.rs"),
+        "scoped runtime should offer a direct deterministic flow expand for CLI entrypoints: {scoped_runtime:#}"
+    );
+
+    let flow = run_json(
+        repo.path(),
+        cache.path(),
+        &["flow", "crates/worker/src/bin/worker.rs", "--format", "json"],
+    );
+    assert_schema("schemas/flow.schema.json", &flow);
+    assert!(
+        flow["steps"]
+            .as_array()
+            .expect("steps")
+            .first()
+            .is_some_and(|step| step["kind"] == "runtime_entrypoint"
+                && step["evidence"] == "cargo_bin_target"
+                && step["anchor"]
+                    .as_str()
+                    .is_some_and(|anchor| anchor.contains("fixture-worker -> crates/worker/src/bin/worker.rs"))),
+        "flow should preserve the Cargo bin runtime origin before file dependencies: {flow:#}"
+    );
 }
 
 #[test]

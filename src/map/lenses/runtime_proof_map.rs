@@ -157,6 +157,7 @@ pub fn runtime_report(
         "runtime proof edges hidden by limit",
         &include_hidden_expand,
     );
+    let expand = runtime_expand_commands(&scope, &root_containers, &entrypoints);
     RuntimeReport {
         kind: "runtime_report",
         schema_version: "1",
@@ -170,22 +171,8 @@ pub fn runtime_report(
         proof,
         unknowns,
         hidden,
-        expand: runtime_expand_commands(&scope, &root_containers),
+        expand,
     }
-}
-
-fn runtime_expand_commands(scope: &str, root_containers: &[Surface]) -> Vec<String> {
-    let mut expand = vec![
-        format!("codemap cone {}", shell_quote(scope)),
-        format!("codemap proof-map {}", shell_quote(scope)),
-    ];
-    if scope == "." {
-        expand.extend(root_containers.iter().take(5).filter_map(|surface| {
-            let path = surface.path.as_deref()?;
-            Some(format!("codemap runtime {}", shell_quote(path)))
-        }));
-    }
-    expand
 }
 
 pub fn proof_map_report(

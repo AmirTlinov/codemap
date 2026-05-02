@@ -36,3 +36,29 @@ fn root_runtime_containers(project: &Project) -> Vec<Surface> {
     });
     out
 }
+
+fn runtime_expand_commands(
+    scope: &str,
+    root_containers: &[Surface],
+    entrypoints: &[Surface],
+) -> Vec<String> {
+    let mut expand = vec![
+        format!("codemap cone {}", shell_quote(scope)),
+        format!("codemap proof-map {}", shell_quote(scope)),
+    ];
+    if scope == "." {
+        expand.extend(root_containers.iter().take(5).filter_map(|surface| {
+            let path = surface.path.as_deref()?;
+            Some(format!("codemap runtime {}", shell_quote(path)))
+        }));
+    } else {
+        expand.extend(entrypoints.iter().take(3).filter_map(|surface| {
+            if surface.kind != "cli_entrypoint" && surface.kind != "runtime_entrypoint" {
+                return None;
+            }
+            let path = surface.path.as_deref()?;
+            Some(format!("codemap flow {}", shell_quote(path)))
+        }));
+    }
+    expand
+}

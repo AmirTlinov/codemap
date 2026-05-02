@@ -273,8 +273,21 @@ pub fn flow_report(
                     unknown_breaks.push(unknown_unindexed_anchor(&file_rel));
                 }
             } else if let Some(file) = project.files.get(&rel) {
+                if let Some(surface) = runtime_entrypoint_surface_for_file(project, &rel) {
+                    steps.push(FlowStep {
+                        index: 0,
+                        anchor: surface
+                            .examples
+                            .first()
+                            .cloned()
+                            .unwrap_or_else(|| rel.clone()),
+                        kind: "runtime_entrypoint".to_string(),
+                        evidence: surface.evidence,
+                        locations: vec![EvidenceLocation::path(&rel, "runtime_entrypoint")],
+                    });
+                }
                 steps.push(FlowStep {
-                    index: 0,
+                    index: steps.len(),
                     anchor: rel.clone(),
                     kind: "file_anchor".to_string(),
                     evidence: "exact_file_anchor".to_string(),
@@ -362,4 +375,17 @@ pub fn flow_report(
         hidden,
         expand,
     }
+}
+
+fn runtime_entrypoint_surface_for_file(project: &Project, rel: &str) -> Option<Surface> {
+    let mut surfaces = Vec::new();
+    for package in &project.packages {
+        let Some(manifest) = project.files.get(&package.manifest) else {
+            continue;
+        };
+        surfaces.extend(runtime_manifest_entrypoints(project, manifest));
+    }
+    surfaces
+        .into_iter()
+        .find(|surface| surface.path.as_deref() == Some(rel))
 }
