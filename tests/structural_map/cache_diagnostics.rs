@@ -66,6 +66,134 @@ fn doctor_incrementally_rescans_only_changed_files() {
 }
 
 #[test]
+fn doctor_uses_git_status_mismatch_set_for_committed_repos() {
+    let (repo, cache) = fixture();
+
+    let _ = run_json(repo.path(), cache.path(), &["ls", ".", "--format", "json"]);
+    write(
+        &repo.path().join("packages/app/src/useReplay.ts"),
+        "import { seek } from '@fixture/replay';\n\nexport const changedFrame = seek(21).frame;\n",
+    );
+
+    let doctor = run_json(repo.path(), cache.path(), &["doctor", "--format", "json"]);
+    assert_schema("schemas/status.schema.json", &doctor);
+    assert_eq!(doctor["cache_strategy"], "partial_rescan");
+    assert!(
+        doctor["files_reused"].as_u64().unwrap_or(0) > 0,
+        "git status fast path should reuse cached file facts: {doctor:#}"
+    );
+    assert_eq!(
+        doctor["scanner"]["files_scanned"], 1,
+        "git status fast path should scan only the mismatched tracked file: {doctor:#}"
+    );
+}
+
+#[test]
+fn doctor_falls_back_when_cached_index_contains_untracked_files() {
+    let (repo, cache) = fixture();
+    let untracked = repo.path().join("packages/app/src/localDraft.ts");
+    write(
+        &untracked,
+        "export const localDraft = 'untracked cache candidate';\n",
+    );
+
+    let _ = run_json(repo.path(), cache.path(), &["ls", ".", "--format", "json"]);
+    std::fs::remove_file(&untracked).expect("delete cached untracked source file");
+
+    let doctor = run_json(repo.path(), cache.path(), &["doctor", "--format", "json"]);
+    assert_schema("schemas/status.schema.json", &doctor);
+    assert_eq!(doctor["cache_strategy"], "partial_rescan");
+    assert_eq!(
+        doctor["scanner"]["files_scanned"], 0,
+        "untracked cached files need fallback candidate delta so deletions do not survive: {doctor:#}"
+    );
+
+    let ls = run_json(
+        repo.path(),
+        cache.path(),
+        &["ls", "packages/app/src/localDraft.ts", "--format", "json"],
+    );
+    assert_schema("schemas/ls.schema.json", &ls);
+    assert_eq!(ls["mode"], "missing");
+}
+
+#[test]
+fn doctor_falls_back_and_rescans_modified_cached_untracked_files() {
+    let (repo, cache) = fixture();
+    let untracked = repo.path().join("packages/app/src/localDraft.ts");
+    write(
+        &untracked,
+        "export const localDraft = 'first untracked body';\n",
+    );
+
+    let _ = run_json(repo.path(), cache.path(), &["ls", ".", "--format", "json"]);
+    write(
+        &untracked,
+        "export function localDraft() {\n  return 'changed untracked body';\n}\n",
+    );
+
+    let doctor = run_json(repo.path(), cache.path(), &["doctor", "--format", "json"]);
+    assert_schema("schemas/status.schema.json", &doctor);
+    assert_eq!(doctor["cache_strategy"], "partial_rescan");
+    assert_eq!(
+        doctor["scanner"]["files_scanned"], 1,
+        "modified cached untracked files need fallback candidate delta and rescan: {doctor:#}"
+    );
+
+    let ls = run_json(
+        repo.path(),
+        cache.path(),
+        &["ls", "packages/app/src/localDraft.ts", "--format", "json"],
+    );
+    assert_schema("schemas/ls.schema.json", &ls);
+    assert!(
+        ls["anchor"]["symbols"]
+            .as_array()
+            .expect("symbols")
+            .iter()
+            .any(|symbol| symbol["name"] == "localDraft"),
+        "changed cached untracked file should be rescanned with new symbol facts: {ls:#}"
+    );
+}
+
+#[test]
+fn doctor_removes_cached_source_renamed_into_ignored_directory() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("packages/app/src/live.ts"),
+        "export const live = true;\n",
+    );
+    git(repo.path(), &["add", "packages/app/src/live.ts"]);
+    git(repo.path(), &["commit", "-qm", "add live source"]);
+
+    let _ = run_json(repo.path(), cache.path(), &["ls", ".", "--format", "json"]);
+    std::fs::create_dir_all(repo.path().join("dist")).expect("create ignored dist");
+    git(
+        repo.path(),
+        &["mv", "packages/app/src/live.ts", "dist/live.ts"],
+    );
+
+    let doctor = run_json(repo.path(), cache.path(), &["doctor", "--format", "json"]);
+    assert_schema("schemas/status.schema.json", &doctor);
+    assert_eq!(doctor["cache_strategy"], "partial_rescan");
+    assert_eq!(
+        doctor["scanner"]["files_scanned"], 0,
+        "rename into ignored dir should remove old cached facts without scanning ignored target: {doctor:#}"
+    );
+
+    let ls = run_json(
+        repo.path(),
+        cache.path(),
+        &["ls", "packages/app/src/live.ts", "--format", "json"],
+    );
+    assert_schema("schemas/ls.schema.json", &ls);
+    assert_eq!(
+        ls["mode"], "missing",
+        "old source path must not survive after rename into ignored dir: {ls:#}"
+    );
+}
+
+#[test]
 fn doctor_skips_rescan_when_only_metadata_changed_for_same_content() {
     let (repo, cache) = fixture();
 

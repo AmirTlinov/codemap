@@ -65,20 +65,22 @@ repos would add noise instead of proof.
 Slice 06 compact renderer is closed. Do not continue renderer micro-polish
 unless a specific output still confuses the agent or creates a false claim.
 
-Slice 09 second boundary is closed:
+Slice 09 third boundary is closed:
 
 ```txt
-closed: cache now reuses unchanged cached FileInfo facts, rescans only changed
-or added candidate files, removes deleted files from cached facts, and rebuilds
-derived packages/imports/reverse-imports/domains over the mixed cached plus
-rescanned map. Warm exact hits report scan_ms=0 and scanner.files_visited=0.
-proof: incremental changed/added/deleted/reverse-import fixtures, full local
-gate, and live warm probes on ctx, spritestudio, Sillentway-VPN, and Levelly-1.
-review: not run for this continuation; full gate plus live cache probes covered
-the boundary.
-live: warm_load with scan_ms=0 on all four probed repos.
-next: keep cache work parked until stale-cache or dependency-invalidation bugs
-appear in daily use.
+closed: tracked git repos avoid a full candidate walk when cached HEAD is
+the same and `git status` gives an exact mismatch set. The parser should scan
+only mismatched cache candidates, reuse cached facts for the rest, and fall back
+to the older full candidate delta when untracked cached files make deletion
+freshness impossible to prove from status alone.
+proof: focused cache diagnostics for committed tracked mismatch,
+cached-untracked deletion/modification fallback, and rename-into-ignored-dir
+removal; full gate; live warm sanity on ctx, spritestudio, and Sillentway-VPN.
+review: PASS after fixing rename into ignored directory stale-cache risk.
+live: ctx, spritestudio, and Sillentway-VPN reported warm_load with
+files_scanned=0 and files_visited=0 after external-cache warmup.
+next: keep cache parked unless daily use shows stale derived facts or config
+dependency invalidation gaps.
 ```
 
 Slice 12 first boundary is closed:
@@ -132,14 +134,14 @@ or misleading map.
 | 06 Compact markdown grammar and renderer | closed | live | Daily/focused markdown was compacted within the declared boundary. |
 | 07 Schema rail and golden validation | closed | full | Public JSON reports validate against manifest-selected schemas. |
 | 08 Fast scanner, ignore/generated/vendor detection | closed | live | Shared scanner policy and generated/ignored stats are visible. |
-| 09 Warm cache, indexes, incremental freshness | closed | live | Warm load reuses cached file facts; partial rescan touches only changed/added files. |
+| 09 Warm cache, indexes, incremental freshness | closed | live | Git-tracked warm path uses status mismatch set, not a full candidate walk. |
 | 10 Git structural events, changed, diff-map | closed | full | Comment-only edits no longer create false structural deltas. |
 | 11 Symbol/import/export extraction matrix | closed | full | Exact file cones surface unresolved local imports as typed unknowns. |
 | 12 Package/workspace graph and boundaries | closed first boundary | full | Deterministic dependency kind on package edges. |
 | 13 `ls`, `graph --lens causal`, root map quality | closed first boundary | focused | Root causal graph normalizes workspace package coordinates. |
 | 14 `cone` exact anchors and directory aggregation | closed first boundary | focused | Missing symbol anchors fail closed without whole-file fallback. |
 | 15 Runtime lens | closed first boundary | focused/live | Static JS/Go/Next routes stitch to handler symbols where deterministic. |
-| 16 Contract lens | todo | focused/live | Public/schema/API surfaces are separated from implementation names. |
+| 16 Contract lens | closed first boundary | full | Package manifest exports are first-class contract evidence. |
 | 17 Proof-map and proof safety | closed first boundary | focused | `proof --run` refuses deploy/migrate/unknown shell commands by default. |
 | 18 Impact lens | todo | focused/live | Blast radius is derived from structural edges and grouped compactly. |
 | 19 Delete lens | todo | focused | Deletion blockers are mapped without `safe`/`probably unused` claims. |
@@ -219,6 +221,35 @@ next: decide whether to make a safe warm load for selected commands or move to
 git structural events if timing diagnostics show changed/doctor pain first.
 ```
 
+```txt
+closed next boundary: cache now reuses unchanged cached FileInfo facts, rescans
+only changed or added candidate files, removes deleted files from cached facts,
+and rebuilds derived packages/imports/reverse-imports/domains over the mixed
+cached plus rescanned map. Warm exact hits report scan_ms=0 and
+scanner.files_visited=0.
+proof next: incremental changed/added/deleted/reverse-import fixtures, full
+local gate, and live warm probes on ctx, spritestudio, Sillentway-VPN, and
+Levelly-1.
+review next: not run for this continuation; full gate plus live cache probes
+covered the boundary.
+live next: warm_load with scan_ms=0 on all four probed repos.
+```
+
+```txt
+closed third boundary: for committed git repos with matching cached HEAD and no
+cached untracked files, cache freshness now uses `git status` as the mismatch
+set before parser work. If the cached index contains untracked files, the fast
+path fails closed to the full candidate delta because status alone cannot prove
+removed untracked files.
+proof third: `doctor_uses_git_status_mismatch_set_for_committed_repos`,
+`doctor_falls_back_when_cached_index_contains_untracked_files`,
+`doctor_falls_back_and_rescans_modified_cached_untracked_files`,
+`doctor_removes_cached_source_renamed_into_ignored_directory`, full gate, and
+live warm sanity on ctx/spritestudio/Sillentway-VPN.
+review third: PASS after the cache-specific status parser preserved old-path
+removals for renames into ignored directories.
+```
+
 ### Slice 10: Git Structural Events, `changed`, And `diff-map`
 
 ```txt
@@ -293,6 +324,23 @@ this changes command execution behavior.
 review: PASS.
 live: not required; controlled non-execution tests prove the safety boundary
 without touching live repos.
+```
+
+### Slice 16: Contract Lens
+
+```txt
+closed: `contract <anchor>` now exposes package manifest exports as
+`package_exports` structural edges with `package_manifest` evidence, and
+`public_surface` is true when a package export points at the anchor. The contract
+schema is bumped to v2 for the new public JSON field.
+excluded: full public/schema/API taxonomy, cross-language public entry surfaces,
+and contract-proof taxonomy closure.
+proof: package export fixture validates delete and contract lenses share the
+same package export fact; schema manifest/schema command parity fixture.
+review: not required for this narrow shared-fact/schema boundary unless the
+contract taxonomy expands further.
+live: not required; controlled package manifest fixture proves the public export
+edge directly.
 ```
 
 ## Live Probe Set

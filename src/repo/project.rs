@@ -40,9 +40,7 @@ pub fn load_project_with_cache(
 
     if cache::cache_enabled() {
         let cache_artifact_started = Instant::now();
-        let current_files = cache_candidate_files(&root);
-        if let Some(delta) =
-            cache::file_delta(&root, &cache_dir, VERSION, &current_files, config_path.as_deref())
+        if let Some(delta) = incremental_file_delta(&root, &cache_dir, VERSION, config_path.as_deref())
             && let Some(mut cached) =
                 cache::read_cached_project(&cache_dir, VERSION, &delta.cached_fingerprint)
         {
@@ -62,7 +60,7 @@ pub fn load_project_with_cache(
                     scan_selected_files(&root, &delta.changed_or_added);
                 let scan_ms = scan_started.elapsed().as_millis();
                 files.extend(rescanned);
-                if files.len() == current_files.len() {
+                if files.len() == delta.current_file_count() {
                     let scan_stats = cached_scan_stats(&cached.scan_stats, rescanned_stats, &files);
                     let mut project = build_project_from_files(ProjectBuildInput {
                         root,
@@ -168,6 +166,18 @@ pub fn load_project_with_cache(
         total_ms: total_started.elapsed().as_millis(),
     };
     Ok(project)
+}
+
+fn incremental_file_delta(
+    root: &Path,
+    cache_dir: &Path,
+    version: &str,
+    config_path: Option<&str>,
+) -> Option<cache::fingerprints::CacheFileDelta> {
+    git_status_cache_delta(root, cache_dir, version).or_else(|| {
+        let current_files = cache_candidate_files(root);
+        cache::file_delta(root, cache_dir, version, &current_files, config_path)
+    })
 }
 
 struct ProjectBuildInput {

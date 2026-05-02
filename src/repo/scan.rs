@@ -30,6 +30,73 @@ fn scan_selected_files(root: &Path, rels: &BTreeSet<String>) -> (BTreeMap<String
     (files, stats.finish())
 }
 
+fn git_status_cache_delta(
+    root: &Path,
+    cache_dir: &Path,
+    version: &str,
+) -> Option<cache::fingerprints::CacheFileDelta> {
+    if cache::cached_git_head_matches(root, cache_dir, version) != Some(true) {
+        return None;
+    }
+    let (changed_or_added, removed) = git_status_cache_change_sets(root)?;
+    cache::file_delta_for_known_changes(root, cache_dir, version, &changed_or_added, &removed)
+}
+
+fn git_status_cache_change_sets(root: &Path) -> Option<(BTreeSet<String>, BTreeSet<String>)> {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["status", "--porcelain", "-uall", "--", "."])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let root_prefix = git_status_root_prefix(root);
+    let mut changed_or_added = BTreeSet::new();
+    let mut removed = BTreeSet::new();
+    for line in String::from_utf8_lossy(&output.stdout).lines() {
+        if line.len() < 4 {
+            continue;
+        }
+        let index_status = line.chars().next().unwrap_or(' ');
+        let worktree_status = line.chars().nth(1).unwrap_or(' ');
+        let status = porcelain_status(index_status, worktree_status);
+        if matches!(status, "conflicted" | "typechanged" | "untracked") {
+            return None;
+        }
+        let raw = line[3..].trim();
+        let (old_path, path) = if let Some((old_path, new_path)) = raw.split_once(" -> ") {
+            (
+                normalize_status_path(old_path, root_prefix.as_deref()),
+                normalize_status_path(new_path, root_prefix.as_deref()),
+            )
+        } else {
+            (None, normalize_status_path(raw, root_prefix.as_deref()))
+        };
+        if let Some(old_path) = old_path
+            && !should_ignore_rel(&old_path)
+        {
+            removed.insert(old_path);
+        }
+        let Some(path) = path else {
+            continue;
+        };
+        if status == "deleted" {
+            if !should_ignore_rel(&path) {
+                removed.insert(path);
+            }
+        } else if should_ignore_rel(&path) {
+            continue;
+        } else if is_cache_candidate_file(root, &path) {
+            changed_or_added.insert(path);
+        } else {
+            removed.insert(path);
+        }
+    }
+    Some((changed_or_added, removed))
+}
+
 fn scan_file(root: &Path, rel: &str, stats: &mut ScanStatsBuilder) -> Option<FileInfo> {
     stats.files_visited += 1;
     let path = root.join(rel);
@@ -87,16 +154,21 @@ fn cache_candidate_files(root: &Path) -> Vec<String> {
         git_cache_candidate_files(root).unwrap_or_else(|| list_visible_candidate_files(root));
     let mut files = candidates
         .into_iter()
-        .filter(|rel| {
-            let path = root.join(rel);
-            fs::symlink_metadata(&path)
-                .ok()
-                .filter(|meta| !meta.file_type().is_symlink() && meta.is_file())
-                .is_some_and(|meta| scan_file_rejection(&path, meta.len()).is_none())
-        })
+        .filter(|rel| is_cache_candidate_file(root, rel))
         .collect::<Vec<_>>();
     files.sort();
     files
+}
+
+fn is_cache_candidate_file(root: &Path, rel: &str) -> bool {
+    if should_ignore_rel(rel) {
+        return false;
+    }
+    let path = root.join(rel);
+    fs::symlink_metadata(&path)
+        .ok()
+        .filter(|meta| !meta.file_type().is_symlink() && meta.is_file())
+        .is_some_and(|meta| scan_file_rejection(&path, meta.len()).is_none())
 }
 
 fn git_cache_candidate_files(root: &Path) -> Option<Vec<String>> {

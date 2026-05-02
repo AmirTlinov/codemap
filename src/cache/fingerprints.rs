@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
+use std::process::Command;
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -8,7 +9,7 @@ use sha2::{Digest, Sha256};
 
 use crate::model::Project;
 
-const FINGERPRINT_CACHE_FORMAT: u32 = 2;
+const FINGERPRINT_CACHE_FORMAT: u32 = 3;
 
 pub struct CacheFileDelta {
     pub cached_fingerprint: String,
@@ -21,6 +22,10 @@ impl CacheFileDelta {
     pub fn is_exact_hit(&self) -> bool {
         self.changed_or_added.is_empty() && self.removed.is_empty()
     }
+
+    pub fn current_file_count(&self) -> usize {
+        self.unchanged.len() + self.changed_or_added.len()
+    }
 }
 
 pub fn file_delta(
@@ -30,13 +35,7 @@ pub fn file_delta(
     current_files: &[String],
     _config_path: Option<&str>,
 ) -> Option<CacheFileDelta> {
-    let cached = read_cached_fingerprints(cache_dir)?;
-    if cached.format_version != FINGERPRINT_CACHE_FORMAT {
-        return None;
-    }
-    if cached.version != version || cached.root != root.to_string_lossy() {
-        return None;
-    }
+    let cached = read_valid_cached_fingerprints(root, cache_dir, version)?;
     let cached_by_path = cached
         .files
         .iter()
@@ -53,25 +52,11 @@ pub fn file_delta(
             changed_or_added.insert(rel.clone());
             continue;
         };
-        let meta = fs::metadata(root.join(rel)).ok()?;
-        if meta.len() != cached.size {
+        if !cached_file_matches(root, rel, cached) {
             changed_or_added.insert(rel.clone());
             continue;
         }
-        let (modified_secs, modified_nanos) = file_modified_parts_from_meta(&meta);
-        if modified_secs != cached.modified_secs || modified_nanos != cached.modified_nanos {
-            if cached
-                .content_hash
-                .as_deref()
-                .is_some_and(|hash| current_content_hash(root.join(rel)).as_deref() == Some(hash))
-            {
-                unchanged.insert(rel.clone());
-            } else {
-                changed_or_added.insert(rel.clone());
-            }
-        } else {
-            unchanged.insert(rel.clone());
-        }
+        unchanged.insert(rel.clone());
     }
     let removed = cached_by_path
         .keys()
@@ -86,11 +71,77 @@ pub fn file_delta(
     })
 }
 
+pub fn file_delta_for_known_changes(
+    root: &Path,
+    cache_dir: &Path,
+    version: &str,
+    changed_or_added_candidates: &BTreeSet<String>,
+    removed_candidates: &BTreeSet<String>,
+) -> Option<CacheFileDelta> {
+    let cached = read_valid_cached_fingerprints(root, cache_dir, version)?;
+    if cached.git_head != current_git_head(root) {
+        return None;
+    }
+    if cached.has_untracked {
+        return None;
+    }
+    let cached_by_path = cached
+        .files
+        .iter()
+        .map(|file| (file.path.as_str(), file))
+        .collect::<BTreeMap<_, _>>();
+    let mut unchanged = cached_by_path
+        .keys()
+        .filter(|path| !removed_candidates.contains(**path))
+        .map(|path| (*path).to_string())
+        .collect::<BTreeSet<_>>();
+    let mut changed_or_added = BTreeSet::new();
+    let mut removed = removed_candidates
+        .iter()
+        .filter(|path| cached_by_path.contains_key(path.as_str()))
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    for rel in changed_or_added_candidates {
+        unchanged.remove(rel);
+        let Some(cached) = cached_by_path.get(rel.as_str()) else {
+            changed_or_added.insert(rel.clone());
+            continue;
+        };
+        if cached_file_matches(root, rel, cached) {
+            unchanged.insert(rel.clone());
+        } else {
+            changed_or_added.insert(rel.clone());
+        }
+    }
+    for rel in changed_or_added_candidates {
+        if !root.join(rel).exists() {
+            changed_or_added.remove(rel);
+            unchanged.remove(rel);
+            if cached_by_path.contains_key(rel.as_str()) {
+                removed.insert(rel.clone());
+            }
+        }
+    }
+    Some(CacheFileDelta {
+        cached_fingerprint: cached.fingerprint,
+        unchanged,
+        changed_or_added,
+        removed,
+    })
+}
+
+pub fn cached_git_head_matches(root: &Path, cache_dir: &Path, version: &str) -> Option<bool> {
+    let cached = read_valid_cached_fingerprints(root, cache_dir, version)?;
+    Some(cached.git_head.is_some() && cached.git_head == current_git_head(root))
+}
+
 pub(super) fn write_fingerprints(project: &Project, version: &str) -> Result<()> {
     let fingerprints = CachedFingerprints {
         format_version: FINGERPRINT_CACHE_FORMAT,
         version: version.to_string(),
         root: project.root.to_string_lossy().to_string(),
+        git_head: current_git_head(&project.root),
+        has_untracked: current_git_status_has_untracked(&project.root),
         fingerprint: super::fingerprint(project, None),
         files: project
             .files
@@ -120,12 +171,31 @@ fn read_cached_fingerprints(cache_dir: &Path) -> Option<CachedFingerprints> {
     serde_json::from_str(&text).ok()
 }
 
+fn read_valid_cached_fingerprints(
+    root: &Path,
+    cache_dir: &Path,
+    version: &str,
+) -> Option<CachedFingerprints> {
+    let cached = read_cached_fingerprints(cache_dir)?;
+    if cached.format_version != FINGERPRINT_CACHE_FORMAT {
+        return None;
+    }
+    if cached.version != version || cached.root != root.to_string_lossy() {
+        return None;
+    }
+    Some(cached)
+}
+
 #[derive(Deserialize, Serialize)]
 struct CachedFingerprints {
     #[serde(default)]
     format_version: u32,
     version: String,
     root: String,
+    #[serde(default)]
+    git_head: Option<String>,
+    #[serde(default)]
+    has_untracked: bool,
     fingerprint: String,
     files: Vec<CachedFileFingerprint>,
 }
@@ -144,6 +214,54 @@ fn current_content_hash(path: impl AsRef<Path>) -> Option<String> {
     let bytes = fs::read(path).ok()?;
     let hash = Sha256::digest(&bytes);
     Some(super::hex_prefix(&hash, 16))
+}
+
+fn cached_file_matches(root: &Path, rel: &str, cached: &CachedFileFingerprint) -> bool {
+    let Ok(meta) = fs::metadata(root.join(rel)) else {
+        return false;
+    };
+    if meta.len() != cached.size {
+        return false;
+    }
+    let (modified_secs, modified_nanos) = file_modified_parts_from_meta(&meta);
+    if modified_secs == cached.modified_secs && modified_nanos == cached.modified_nanos {
+        return true;
+    }
+    cached
+        .content_hash
+        .as_deref()
+        .is_some_and(|hash| current_content_hash(root.join(rel)).as_deref() == Some(hash))
+}
+
+fn current_git_head(root: &Path) -> Option<String> {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["rev-parse", "--verify", "HEAD"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let head = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    (!head.is_empty()).then_some(head)
+}
+
+fn current_git_status_has_untracked(root: &Path) -> bool {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["status", "--porcelain", "-uall", "--", "."])
+        .output();
+    let Ok(output) = output else {
+        return true;
+    };
+    if !output.status.success() {
+        return true;
+    }
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .any(|line| line.starts_with("?? "))
 }
 
 fn file_modified_parts(project: &Project, file: &crate::model::FileInfo) -> Option<(u64, u32)> {
