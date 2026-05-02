@@ -29,17 +29,7 @@ pub fn contract_report(
         .map(|file| {
             file.exports
                 .iter()
-                .map(|export| Surface {
-                    id: format!("surface:export:{rel}#{export}"),
-                    kind: "exported_symbol".to_string(),
-                    path: Some(symbol_anchor_path(&rel, export)),
-                    role: Some("contract".to_string()),
-                    evidence: "exported_symbol".to_string(),
-                    strength: EvidenceStrength::High,
-                    count: Some(1),
-                    examples: vec![symbol_anchor_path(&rel, export)],
-                    hidden_count: 0,
-                })
+                .map(|export| exported_symbol_surface(&rel, export))
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();

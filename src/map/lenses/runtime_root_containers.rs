@@ -16,7 +16,7 @@ fn root_runtime_containers(project: &Project) -> Vec<Surface> {
             .flat_map(|surface| surface.examples.iter().cloned())
             .take(3)
             .collect::<Vec<_>>();
-        out.push(Surface {
+        out.push(surface(SurfaceFact {
             id: format!("surface:runtime_container:{}", package.path),
             kind: "runtime_container".to_string(),
             path: Some(package.path.clone()),
@@ -26,7 +26,7 @@ fn root_runtime_containers(project: &Project) -> Vec<Surface> {
             count: Some(entrypoints.len()),
             examples,
             hidden_count: entrypoints.len().saturating_sub(3),
-        });
+        }));
     }
     out.sort_by(|a, b| {
         a.path

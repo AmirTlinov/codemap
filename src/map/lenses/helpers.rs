@@ -170,25 +170,6 @@ fn structural_line_target(line: &str) -> String {
     "unknown_target".to_string()
 }
 
-fn surface_from_path(
-    kind: &str,
-    path: &str,
-    evidence: &str,
-    strength: EvidenceStrength,
-) -> Surface {
-    Surface {
-        id: format!("surface:{kind}:{path}"),
-        kind: kind.to_string(),
-        path: Some(path.to_string()),
-        role: directory_surface_role(kind),
-        evidence: evidence.to_string(),
-        strength,
-        count: Some(1),
-        examples: vec![path.to_string()],
-        hidden_count: 0,
-    }
-}
-
 fn truncate_with_hidden<T>(
     values: &mut Vec<T>,
     limit: usize,

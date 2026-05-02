@@ -139,6 +139,23 @@ next: do not add another live script; use this harness for final adoption and
 future perf/cache work.
 ```
 
+Slice 03 first boundary is closed:
+
+```txt
+closed: shared fact constructors now exist for `Surface` and `ProofSurface`.
+The first migrated lens families are contract exported symbols, root runtime
+containers, current-level proof containers, and existing path-derived surfaces.
+This reduces ad-hoc fact construction without changing public JSON shape.
+proof: constructor guard plus focused contract/runtime/proof-map tests and
+line-budget test.
+review: not required for this boundary; narrow internal refactor with behavior
+fixtures and no schema change.
+live: not required; this boundary is constructor ownership, not live repo
+behavior.
+next: continue only where direct `Surface`/`ProofSurface` construction causes
+duplication or false evidence; do not chase every literal mechanically.
+```
+
 Slice 02 first boundary is closed:
 
 ```txt
@@ -271,7 +288,7 @@ or misleading map.
 | --- | --- | --- | --- |
 | 01 Product lock, baseline inventory, invariant guards | closed first boundary | focused | Public JSON outputs reject router/trust fields. |
 | 02 Daily command surface and alias cleanup | closed first boundary | focused | Root help exposes daily workflow before focused lenses and diagnostics. |
-| 03 Unified fact model and constructors | todo | full | Shared constructors prevent lenses from inventing separate fact logic. |
+| 03 Unified fact model and constructors | closed first boundary | full | Shared constructors cover the first migrated surface/proof families. |
 | 04 Evidence locations and typed unknowns | todo | full | Important claims carry provenance; blind spots are typed. |
 | 05 Scope model, root maps, expand protocol | todo | focused/live | Root is current-level; exact anchors drill down; expand is reproducible. |
 | 06 Compact markdown grammar and renderer | closed | live | Daily/focused markdown was compacted within the declared boundary. |

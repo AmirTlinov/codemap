@@ -20,6 +20,7 @@ mod graph_lens;
 pub use graph_lens::graph_lens;
 
 include!("map/edges.rs");
+include!("map/facts.rs");
 include!("map/unknowns.rs");
 include!("map/status.rs");
 include!("map/entry.rs");

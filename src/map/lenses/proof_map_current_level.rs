@@ -45,12 +45,12 @@ fn proof_container_surface(
     } else {
         "test container"
     };
-    ProofSurface {
-        command: None,
-        path: Some(dir.to_string()),
-        evidence: "current_level_proof_container".to_string(),
-        strength: EvidenceStrength::Medium,
-        reason: format!("{kind} with {} indexed test files", test_files.len()),
-        locations: vec![EvidenceLocation::path(dir, "proof_container")],
-    }
+    proof_surface(
+        None,
+        Some(dir.to_string()),
+        "current_level_proof_container",
+        EvidenceStrength::Medium,
+        format!("{kind} with {} indexed test files", test_files.len()),
+        vec![EvidenceLocation::path(dir, "proof_container")],
+    )
 }
