@@ -49,8 +49,8 @@ fn public_json_outputs_do_not_reintroduce_router_or_trust_fields() {
 fn codemap_format_json_applies_to_hidden_structural_outputs() {
     let (repo, cache) = fixture();
     let cases = [
-        (&["graph", "--lens", "causal"][..], "graph"),
-        (&["boundaries"][..], "boundaries"),
+        (&["graph", "--lens", "causal"][..], "graph_lens"),
+        (&["boundaries"][..], "boundary_report"),
     ];
 
     for (args, kind) in cases {
