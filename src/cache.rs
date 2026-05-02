@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 use std::env;
 use std::fs;
+use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
@@ -198,12 +199,30 @@ pub fn cache_state(artifacts: &[CacheArtifactStatus]) -> String {
 }
 
 fn cached_fingerprint(path: &Path) -> Option<String> {
+    if let Some(fingerprint) = cached_fingerprint_from_header(path) {
+        return Some(fingerprint);
+    }
     let text = fs::read_to_string(path).ok()?;
     let value: Value = serde_json::from_str(&text).ok()?;
     value
         .get("fingerprint")
         .and_then(Value::as_str)
         .map(str::to_string)
+}
+
+fn cached_fingerprint_from_header(path: &Path) -> Option<String> {
+    let file = fs::File::open(path).ok()?;
+    for line in BufReader::new(file).lines().take(64) {
+        let line = line.ok()?;
+        let trimmed = line.trim();
+        let Some(rest) = trimmed.strip_prefix("\"fingerprint\"") else {
+            continue;
+        };
+        let (_, value) = rest.split_once(':')?;
+        let value = value.trim().trim_end_matches(',');
+        return serde_json::from_str(value).ok();
+    }
+    None
 }
 
 pub(super) fn cached_status_fingerprint(cache_dir: &Path) -> Option<String> {
