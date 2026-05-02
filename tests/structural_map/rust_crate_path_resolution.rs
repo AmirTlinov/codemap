@@ -41,6 +41,10 @@ fn cone_resolves_rust_crate_super_and_symbol_path_imports_inside_packages() {
         &repo.path().join("crates/core/src/client/routing.rs"),
         "use crate::network_guard::DnsRestoreMethod;\nuse crate::network_guard::NetworkStateGuard;\nuse crate::tun::setup_routing;\nuse crate::vpn_config::VpnConfig;\nuse super::args::Args;\n\npub fn setup_client_routing(_args: Args) {\n    setup_routing();\n}\n\n#[cfg(test)]\nmod tests {\n    use super::*;\n}\n",
     );
+    write(
+        &repo.path().join("crates/core/src/bin/server.rs"),
+        "use core_fixture::network_guard::DnsRestoreMethod;\nuse core_fixture::tun::setup_routing;\n\nfn main() {\n    let _ = core::mem::size_of::<DnsRestoreMethod>();\n    setup_routing();\n}\n",
+    );
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["commit", "-qm", "rust crate path fixture"]);
 
@@ -72,6 +76,29 @@ fn cone_resolves_rust_crate_super_and_symbol_path_imports_inside_packages() {
                         && edge["evidence"] == "resolved_import"
                 }),
             "Rust crate/super import should resolve to {target}: {cone:#}"
+        );
+    }
+    let bin_cone = run_json(
+        repo.path(),
+        cache.path(),
+        &["cone", "crates/core/src/bin/server.rs", "--format", "json"],
+    );
+    assert_schema("schemas/cone.schema.json", &bin_cone);
+    for target in [
+        "crates/core/src/network_guard.rs",
+        "crates/core/src/tun.rs",
+    ] {
+        assert!(
+            bin_cone["outgoing"]
+                .as_array()
+                .expect("outgoing")
+                .iter()
+                .any(|edge| {
+                    edge["to"] == target
+                        && edge["type"] == "imports"
+                        && edge["evidence"] == "resolved_import"
+                }),
+            "Rust package crate import should resolve to {target}: {bin_cone:#}"
         );
     }
     assert!(

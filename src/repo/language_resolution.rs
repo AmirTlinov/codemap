@@ -96,6 +96,9 @@ fn resolve_rust(
             .collect::<Vec<_>>();
         return resolve_rust_module_segments(&base, &rest_segments, paths);
     }
+    if let Some(target) = resolve_rust_package_crate_segments(&segments, paths, packages) {
+        return Some(target);
+    }
     let base_dir = Path::new(from)
         .parent()
         .map(|p| normalize_rel_path(&p.to_string_lossy()))
@@ -103,6 +106,46 @@ fn resolve_rust(
     let module_dir = rust_module_dir(from);
     resolve_rust_module_segments(&module_dir, &segments, paths)
         .or_else(|| resolve_rust_module_segments(&base_dir, &segments, paths))
+}
+
+fn resolve_rust_package_crate_segments(
+    segments: &[&str],
+    paths: &BTreeSet<String>,
+    packages: &[PackageInfo],
+) -> Option<String> {
+    let crate_name = segments.first()?;
+    let package = packages
+        .iter()
+        .filter(|package| package.ecosystem == "rust")
+        .find(|package| rust_package_crate_name(&package.name) == *crate_name)?;
+    let crate_root = rust_package_src_dir(&package.path);
+    let rest = &segments[1..];
+    if rest.is_empty() {
+        return rust_package_root_file(&crate_root, paths);
+    }
+    resolve_rust_module_segments(&crate_root, rest, paths)
+        .or_else(|| rust_package_root_file(&crate_root, paths))
+}
+
+fn rust_package_crate_name(package_name: &str) -> String {
+    package_name.replace('-', "_")
+}
+
+fn rust_package_src_dir(package_path: &str) -> String {
+    match package_path {
+        "." | "" => "src".to_string(),
+        path => normalize_rel_path(&format!("{path}/src")),
+    }
+}
+
+fn rust_package_root_file(crate_root: &str, paths: &BTreeSet<String>) -> Option<String> {
+    for candidate in [format!("{crate_root}/lib.rs"), format!("{crate_root}/main.rs")] {
+        let candidate = normalize_rel_path(&candidate);
+        if paths.contains(&candidate) {
+            return Some(candidate);
+        }
+    }
+    None
 }
 
 fn resolve_rust_module_segments(
