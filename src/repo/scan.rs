@@ -10,57 +10,90 @@ fn scan_files(root: &Path) -> Result<(BTreeMap<String, FileInfo>, ScanStats)> {
             stats.record_ignored(&reason, &rel);
             continue;
         }
-        stats.files_visited += 1;
-        let path = root.join(&rel);
-        let Ok(meta) = fs::symlink_metadata(&path) else {
-            continue;
-        };
-        if meta.file_type().is_symlink() || !meta.is_file() {
-            stats.record_skipped("not_regular_file", &rel);
-            continue;
+        if let Some(info) = scan_file(root, &rel, &mut stats) {
+            files.insert(rel, info);
         }
-        if let Some(reason) = scan_file_rejection(&path, meta.len()) {
-            stats.record_skipped(reason, &rel);
-            continue;
-        }
-        stats.bytes_scanned += meta.len();
-        let ext = path
-            .extension()
-            .and_then(|s| s.to_str())
-            .unwrap_or("")
-            .to_ascii_lowercase();
-        let language = language_for(&path);
-        let mut info = FileInfo {
-            rel: rel.clone(),
-            ext,
-            size: meta.len(),
-            line_count: 0,
-            language,
-            roles: BTreeSet::new(),
-            imports: BTreeSet::new(),
-            import_bindings: BTreeMap::new(),
-            resolved_imports: BTreeSet::new(),
-            unresolved_imports: BTreeSet::new(),
-            resolved_import_bindings: BTreeMap::new(),
-            exports: BTreeSet::new(),
-            symbols: Vec::new(),
-            tokens: path_tokens(&rel),
-            references: BTreeSet::new(),
-            jsx_tags: BTreeSet::new(),
-            local_bindings: BTreeSet::new(),
-            surface_tokens: BTreeSet::new(),
-            surface_phrases: BTreeSet::new(),
-            visited_route_paths: BTreeSet::new(),
-        };
-        classify_roles(root, &mut info);
-        extract_imports_exports(root, &mut info);
-        if info.has_role("generated") {
-            stats.record_generated("generated_path_or_header", &rel);
-        }
-        files.insert(rel, info);
     }
     stats.files_scanned = files.len();
     Ok((files, stats.finish()))
+}
+
+fn scan_selected_files(root: &Path, rels: &BTreeSet<String>) -> (BTreeMap<String, FileInfo>, ScanStats) {
+    let mut stats = ScanStatsBuilder::default();
+    let mut files = BTreeMap::new();
+    for rel in rels {
+        if let Some(info) = scan_file(root, rel, &mut stats) {
+            files.insert(rel.clone(), info);
+        }
+    }
+    stats.files_scanned = files.len();
+    (files, stats.finish())
+}
+
+fn scan_file(root: &Path, rel: &str, stats: &mut ScanStatsBuilder) -> Option<FileInfo> {
+    stats.files_visited += 1;
+    let path = root.join(rel);
+    let Ok(meta) = fs::symlink_metadata(&path) else {
+        return None;
+    };
+    if meta.file_type().is_symlink() || !meta.is_file() {
+        stats.record_skipped("not_regular_file", rel);
+        return None;
+    }
+    if let Some(reason) = scan_file_rejection(&path, meta.len()) {
+        stats.record_skipped(reason, rel);
+        return None;
+    }
+    stats.bytes_scanned += meta.len();
+    let ext = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    let language = language_for(&path);
+    let mut info = FileInfo {
+        rel: rel.to_string(),
+        ext,
+        size: meta.len(),
+        line_count: 0,
+        language,
+        roles: BTreeSet::new(),
+        imports: BTreeSet::new(),
+        import_bindings: BTreeMap::new(),
+        resolved_imports: BTreeSet::new(),
+        unresolved_imports: BTreeSet::new(),
+        resolved_import_bindings: BTreeMap::new(),
+        exports: BTreeSet::new(),
+        symbols: Vec::new(),
+        tokens: path_tokens(rel),
+        references: BTreeSet::new(),
+        jsx_tags: BTreeSet::new(),
+        local_bindings: BTreeSet::new(),
+        surface_tokens: BTreeSet::new(),
+        surface_phrases: BTreeSet::new(),
+        visited_route_paths: BTreeSet::new(),
+    };
+    classify_roles(root, &mut info);
+    extract_imports_exports(root, &mut info);
+    if info.has_role("generated") {
+        stats.record_generated("generated_path_or_header", rel);
+    }
+    Some(info)
+}
+
+fn cache_candidate_files(root: &Path) -> Vec<String> {
+    let mut files = list_visible_candidate_files(root)
+        .into_iter()
+        .filter(|rel| {
+            let path = root.join(rel);
+            fs::symlink_metadata(&path)
+                .ok()
+                .filter(|meta| !meta.file_type().is_symlink() && meta.is_file())
+                .is_some_and(|meta| scan_file_rejection(&path, meta.len()).is_none())
+        })
+        .collect::<Vec<_>>();
+    files.sort();
+    files
 }
 
 fn list_candidate_files(root: &Path) -> Vec<String> {

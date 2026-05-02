@@ -3,12 +3,19 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use serde::Serialize;
+
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use crate::evidence::{import_statement_locations, package_dependency_locations};
 use crate::model::{CacheArtifactStatus, EvidenceStrength, GraphEdge, Project};
+
+pub(crate) mod cached_project;
+pub(crate) mod fingerprints;
+
+pub use cached_project::read_cached_project;
+pub use fingerprints::file_delta;
 
 const CACHE_ARTIFACTS: &[&str] = &[
     "status.json",
@@ -70,6 +77,7 @@ pub fn fingerprint(project: &Project, domain_path: Option<&str>) -> String {
             && let Ok(duration) = modified.duration_since(std::time::UNIX_EPOCH)
         {
             hasher.update(duration.as_secs().to_string().as_bytes());
+            hasher.update(duration.subsec_nanos().to_string().as_bytes());
         }
     }
     if let Some(path) = &project.config_path {
@@ -102,9 +110,9 @@ pub fn write_status(project: &Project, version: &str) -> Result<()> {
     };
     let body = serde_json::to_string_pretty(&status)?;
     fs::write(project.cache_dir.join("status.json"), format!("{body}\n"))?;
-    write_inventory(project, version)?;
+    cached_project::write_inventory(project, version)?;
     write_graph(project, version)?;
-    write_fingerprints(project, version)?;
+    fingerprints::write_fingerprints(project, version)?;
     Ok(())
 }
 
@@ -166,84 +174,11 @@ struct CacheStatus<'a> {
     artifacts: &'static [&'static str],
 }
 
-#[derive(Serialize)]
-struct CachedDomain {
+#[derive(Deserialize, Serialize)]
+pub(super) struct CachedDomain {
     id: String,
     path: String,
     config: Option<String>,
-}
-
-fn write_inventory(project: &Project, version: &str) -> Result<()> {
-    let inventory = CachedInventory {
-        version,
-        root: project.root.to_string_lossy().to_string(),
-        fingerprint: fingerprint(project, None),
-        files: project
-            .files
-            .values()
-            .map(|file| CachedFile {
-                path: file.rel.clone(),
-                language: file.language.clone(),
-                ext: file.ext.clone(),
-                size: file.size,
-                line_count: file.line_count,
-                roles: file.roles.iter().cloned().collect(),
-                import_bindings: file
-                    .import_bindings
-                    .iter()
-                    .map(|(spec, bindings)| CachedImportBindings {
-                        spec: spec.clone(),
-                        bindings: bindings
-                            .iter()
-                            .map(|(local, imported)| CachedImportBinding {
-                                local: local.clone(),
-                                imported: imported.clone(),
-                            })
-                            .collect(),
-                    })
-                    .collect(),
-                unresolved_imports: file.unresolved_imports.iter().cloned().collect(),
-                resolved_import_bindings: file
-                    .resolved_import_bindings
-                    .iter()
-                    .map(|(target, bindings)| CachedImportBindings {
-                        spec: target.clone(),
-                        bindings: bindings
-                            .iter()
-                            .map(|(local, imported)| CachedImportBinding {
-                                local: local.clone(),
-                                imported: imported.clone(),
-                            })
-                            .collect(),
-                    })
-                    .collect(),
-                symbols: file.symbols.clone(),
-                jsx_tags: file.jsx_tags.iter().cloned().collect(),
-                local_bindings: file.local_bindings.iter().cloned().collect(),
-                surface_tokens: file.surface_tokens.iter().cloned().collect(),
-                surface_phrases: file.surface_phrases.iter().cloned().collect(),
-                visited_route_paths: file.visited_route_paths.iter().cloned().collect(),
-            })
-            .collect(),
-        packages: project.packages.clone(),
-        domains: project
-            .domains
-            .iter()
-            .map(|domain| CachedDomain {
-                id: domain.id.clone(),
-                path: domain.path.clone(),
-                config: domain.config_path.clone(),
-            })
-            .collect(),
-        scripts: project.scripts.clone(),
-        languages: project.languages.iter().cloned().collect(),
-    };
-    let body = serde_json::to_string_pretty(&inventory)?;
-    fs::write(
-        project.cache_dir.join("inventory.json"),
-        format!("{body}\n"),
-    )?;
-    Ok(())
 }
 
 fn write_graph(project: &Project, version: &str) -> Result<()> {
@@ -281,100 +216,12 @@ fn write_graph(project: &Project, version: &str) -> Result<()> {
     Ok(())
 }
 
-fn write_fingerprints(project: &Project, version: &str) -> Result<()> {
-    let fingerprints = CachedFingerprints {
-        version,
-        root: project.root.to_string_lossy().to_string(),
-        fingerprint: fingerprint(project, None),
-        files: project
-            .files
-            .values()
-            .map(|file| CachedFileFingerprint {
-                path: file.rel.clone(),
-                size: file.size,
-                modified_secs: file_modified_secs(project, file),
-            })
-            .collect(),
-    };
-    let body = serde_json::to_string_pretty(&fingerprints)?;
-    fs::write(
-        project.cache_dir.join("fingerprints.json"),
-        format!("{body}\n"),
-    )?;
-    Ok(())
-}
-
-#[derive(Serialize)]
-struct CachedInventory<'a> {
-    version: &'a str,
-    root: String,
-    fingerprint: String,
-    files: Vec<CachedFile>,
-    packages: Vec<crate::model::PackageInfo>,
-    domains: Vec<CachedDomain>,
-    scripts: Vec<crate::model::ScriptInfo>,
-    languages: Vec<String>,
-}
-
-#[derive(Serialize)]
-struct CachedFile {
-    path: String,
-    language: String,
-    ext: String,
-    size: u64,
-    line_count: usize,
-    roles: Vec<String>,
-    import_bindings: Vec<CachedImportBindings>,
-    unresolved_imports: Vec<String>,
-    resolved_import_bindings: Vec<CachedImportBindings>,
-    symbols: Vec<crate::model::SymbolInfo>,
-    jsx_tags: Vec<String>,
-    local_bindings: Vec<String>,
-    surface_tokens: Vec<String>,
-    surface_phrases: Vec<String>,
-    visited_route_paths: Vec<String>,
-}
-
-#[derive(Serialize)]
-struct CachedImportBindings {
-    spec: String,
-    bindings: Vec<CachedImportBinding>,
-}
-
-#[derive(Serialize)]
-struct CachedImportBinding {
-    local: String,
-    imported: String,
-}
-
 #[derive(Serialize)]
 struct CachedGraph<'a> {
     version: &'a str,
     root: String,
     fingerprint: String,
     edges: Vec<GraphEdge>,
-}
-
-#[derive(Serialize)]
-struct CachedFingerprints<'a> {
-    version: &'a str,
-    root: String,
-    fingerprint: String,
-    files: Vec<CachedFileFingerprint>,
-}
-
-#[derive(Serialize)]
-struct CachedFileFingerprint {
-    path: String,
-    size: u64,
-    modified_secs: Option<u64>,
-}
-
-fn file_modified_secs(project: &Project, file: &crate::model::FileInfo) -> Option<u64> {
-    let meta = fs::metadata(file.rel_path(project)).ok()?;
-    let modified = meta.modified().ok()?;
-    let duration = modified.duration_since(std::time::UNIX_EPOCH).ok()?;
-    Some(duration.as_secs())
 }
 
 fn hex_prefix(bytes: &[u8], chars: usize) -> String {

@@ -38,7 +38,7 @@ pub struct ConfigLoadError {
     pub error: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FileInfo {
     pub rel: String,
     pub ext: String,
@@ -68,7 +68,7 @@ impl FileInfo {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct ScanStats {
     pub files_visited: usize,
     pub files_scanned: usize,
@@ -78,7 +78,7 @@ pub struct ScanStats {
     pub generated: Vec<ScanGroup>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ScanGroup {
     pub reason: String,
     pub count: usize,
@@ -95,7 +95,7 @@ pub struct ProjectTimings {
     pub total_ms: u128,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct SymbolInfo {
     pub name: String,
     pub kind: String,
@@ -254,14 +254,14 @@ pub struct Domain {
     pub config_path: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ScriptInfo {
     pub name: String,
     pub command: String,
     pub reason: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PackageInfo {
     pub name: String,
     pub path: String,
@@ -269,7 +269,7 @@ pub struct PackageInfo {
     pub ecosystem: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PackageDependency {
     pub from: String,
     pub from_manifest: String,
