@@ -94,7 +94,8 @@
             "status.json",
             "inventory.json",
             "graph.json",
-            "fingerprints.json"
+            "fingerprints.json",
+            "runtime-root.json"
           ]
         },
         "path": { "type": "string" },

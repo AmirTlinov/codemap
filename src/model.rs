@@ -107,7 +107,7 @@ pub struct SymbolInfo {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "snake_case")]
 pub enum EvidenceStrength {
     Low,
@@ -117,7 +117,7 @@ pub enum EvidenceStrength {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct EvidenceLocation {
     pub path: String,
     pub line_start: Option<usize>,
@@ -155,7 +155,7 @@ impl EvidenceLocation {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct StructuralEdge {
     pub from: String,
     pub to: String,
@@ -167,14 +167,14 @@ pub struct StructuralEdge {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct HiddenGroup {
     pub reason: String,
     pub count: usize,
     pub expand: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Unknown {
     pub kind: String,
     pub path: Option<String>,

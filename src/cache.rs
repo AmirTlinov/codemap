@@ -10,7 +10,10 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use crate::evidence::{import_statement_locations, package_dependency_locations};
-use crate::model::{CacheArtifactStatus, EvidenceStrength, GraphEdge, Project};
+use crate::model::{
+    CacheArtifactStatus, EnvSurface, EvidenceStrength, GraphEdge, HiddenGroup, Project,
+    RuntimeReport, RuntimeRoute, StructuralEdge, Surface, Unknown,
+};
 
 pub(crate) mod cached_project;
 pub(crate) mod fingerprint_delta;
@@ -27,6 +30,7 @@ const CACHE_ARTIFACTS: &[&str] = &[
     "inventory.json",
     "graph.json",
     "fingerprints.json",
+    "runtime-root.json",
 ];
 
 pub fn cache_base_dir() -> PathBuf {
@@ -125,8 +129,28 @@ pub fn write_status_with_change_sets(
     fs::write(project.cache_dir.join("status.json"), format!("{body}\n"))?;
     cached_project::write_inventory(project, version)?;
     write_graph(project, version)?;
+    write_runtime_root(project, version)?;
     fingerprints::write_fingerprints(project, version, git_status_change_sets)?;
     Ok(())
+}
+
+pub fn read_runtime_root_report(
+    cache_dir: &Path,
+    version: &str,
+    root: &Path,
+) -> Option<RuntimeReport> {
+    let text = fs::read_to_string(cache_dir.join("runtime-root.json")).ok()?;
+    let cached: CachedRuntimeRoot = serde_json::from_str(&text).ok()?;
+    if cached.version != version {
+        return None;
+    }
+    if cached.root != root.to_string_lossy() {
+        return None;
+    }
+    if cached.fingerprint != cached_status_fingerprint(cache_dir)? {
+        return None;
+    }
+    Some(cached.report.into_report())
 }
 
 pub fn artifact_statuses(project: &Project, fingerprint: &str) -> Vec<CacheArtifactStatus> {
@@ -175,6 +199,10 @@ fn cached_fingerprint(path: &Path) -> Option<String> {
         .get("fingerprint")
         .and_then(Value::as_str)
         .map(str::to_string)
+}
+
+fn cached_status_fingerprint(cache_dir: &Path) -> Option<String> {
+    cached_fingerprint(&cache_dir.join("status.json"))
 }
 
 #[derive(Serialize)]
@@ -227,6 +255,85 @@ fn write_graph(project: &Project, version: &str) -> Result<()> {
     let body = serde_json::to_string_pretty(&graph)?;
     fs::write(project.cache_dir.join("graph.json"), format!("{body}\n"))?;
     Ok(())
+}
+
+fn write_runtime_root(project: &Project, version: &str) -> Result<()> {
+    let report = crate::map::runtime_report(project, ".", false, 20);
+    let cached = CachedRuntimeRoot {
+        version: version.to_string(),
+        root: project.root.to_string_lossy().to_string(),
+        fingerprint: fingerprint(project, None),
+        report: CachedRuntimeReport::from_report(report),
+    };
+    let body = serde_json::to_string_pretty(&cached)?;
+    fs::write(
+        project.cache_dir.join("runtime-root.json"),
+        format!("{body}\n"),
+    )?;
+    Ok(())
+}
+
+#[derive(Deserialize, Serialize)]
+struct CachedRuntimeRoot {
+    version: String,
+    root: String,
+    fingerprint: String,
+    report: CachedRuntimeReport,
+}
+
+#[derive(Deserialize, Serialize)]
+struct CachedRuntimeReport {
+    kind: String,
+    schema_version: String,
+    scope: String,
+    entrypoints: Vec<Surface>,
+    routes: Vec<RuntimeRoute>,
+    scripts: Vec<Surface>,
+    env: Vec<EnvSurface>,
+    workers: Vec<Surface>,
+    ci: Vec<Surface>,
+    proof: Vec<StructuralEdge>,
+    unknowns: Vec<Unknown>,
+    hidden: Vec<HiddenGroup>,
+    expand: Vec<String>,
+}
+
+impl CachedRuntimeReport {
+    fn from_report(report: RuntimeReport) -> Self {
+        Self {
+            kind: report.kind.to_string(),
+            schema_version: report.schema_version.to_string(),
+            scope: report.scope,
+            entrypoints: report.entrypoints,
+            routes: report.routes,
+            scripts: report.scripts,
+            env: report.env,
+            workers: report.workers,
+            ci: report.ci,
+            proof: report.proof,
+            unknowns: report.unknowns,
+            hidden: report.hidden,
+            expand: report.expand,
+        }
+    }
+
+    fn into_report(self) -> RuntimeReport {
+        RuntimeReport {
+            kind: "runtime_report",
+            schema_version: "1",
+            scope: self.scope,
+            entrypoints: self.entrypoints,
+            routes: self.routes,
+            scripts: self.scripts,
+            env: self.env,
+            workers: self.workers,
+            ci: self.ci,
+            proof: self.proof,
+            unknowns: self.unknowns,
+            hidden: self.hidden,
+            expand: self.expand,
+        }
+    }
 }
 
 #[derive(Serialize)]

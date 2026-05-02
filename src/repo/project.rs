@@ -88,8 +88,12 @@ pub fn load_project_with_cache(
                 project.cache_artifacts = cache_artifacts;
                 let cache_artifact_ms = cache_artifact_started.elapsed().as_millis();
                 let cache_write_started = Instant::now();
+                let cache_needs_refresh = project
+                    .cache_artifacts
+                    .iter()
+                    .any(|artifact| artifact.fingerprint_match != Some(true));
                 if cache_write == CacheWriteMode::Enabled
-                    && (!scan_candidates.is_empty() || !delta.is_exact_hit())
+                    && (!scan_candidates.is_empty() || !delta.is_exact_hit() || cache_needs_refresh)
                 {
                     let git_status_change_sets = git_status_cache_change_sets(&project.root);
                     cache::write_status_with_change_sets(
@@ -99,6 +103,10 @@ pub fn load_project_with_cache(
                             .as_ref()
                             .map(|(changed_or_added, removed)| (changed_or_added, removed)),
                     )?;
+                    let fingerprint = cache::fingerprint(&project, None);
+                    let cache_artifacts = cache::artifact_statuses(&project, &fingerprint);
+                    project.cache_state = cache::cache_state(&cache_artifacts);
+                    project.cache_artifacts = cache_artifacts;
                 }
                 let cache_write_ms = cache_write_started.elapsed().as_millis();
                 project.timings.root_ms = root_ms;

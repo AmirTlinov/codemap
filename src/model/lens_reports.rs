@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Surface {
     pub id: String,
     pub kind: String,
@@ -188,7 +188,7 @@ pub struct RuntimeReport {
     pub expand: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RuntimeRoute {
     pub method: Option<String>,
     pub path: String,
@@ -199,7 +199,7 @@ pub struct RuntimeRoute {
     pub locations: Vec<EvidenceLocation>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct EnvSurface {
     pub name: String,
     pub used_by: String,

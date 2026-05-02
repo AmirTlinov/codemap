@@ -1,4 +1,4 @@
-fn resolve_root(root_selection: &RootSelection, cwd: &Path) -> Result<PathBuf> {
+pub fn resolve_root(root_selection: &RootSelection, cwd: &Path) -> Result<PathBuf> {
     match root_selection {
         RootSelection::Exact(path) => {
             Ok(path.canonicalize().unwrap_or_else(|_| path.to_path_buf()))
@@ -42,7 +42,7 @@ fn git_root(start: &Path) -> Option<PathBuf> {
     }
 }
 
-fn git_remote(root: &Path) -> Option<String> {
+pub fn git_remote(root: &Path) -> Option<String> {
     let output = Command::new("git")
         .arg("-C")
         .arg(root)
@@ -91,4 +91,3 @@ fn nearest_agents(cwd: &Path, root: &Path) -> Option<String> {
     }
     None
 }
-

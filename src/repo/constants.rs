@@ -1,4 +1,4 @@
-const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const ROOT_MARKERS: &[&str] = &[
     ".ctx.yml",

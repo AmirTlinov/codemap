@@ -156,6 +156,46 @@ pub fn changed_report(
     }
 }
 
+pub fn clean_changed_report(selector: String, limit: usize) -> ChangedReport {
+    ChangedReport {
+        kind: "changed_report",
+        schema_version: "2",
+        selector: selector.clone(),
+        display_limit: limit.max(1),
+        total_changed_count: 0,
+        changed: Vec::new(),
+        git_state: Vec::new(),
+        structural_events: Vec::new(),
+        map_delta: ChangedMapDelta {
+            added_edges: 0,
+            removed_edges: 0,
+            changed_symbols: 0,
+            added_exports: 0,
+            removed_exports: 0,
+            added_runtime_routes: 0,
+            removed_runtime_routes: 0,
+            added_env: 0,
+            removed_env: 0,
+            added_proof_surfaces: 0,
+            removed_proof_surfaces: 0,
+            new_unknowns: 0,
+        },
+        impact: Vec::new(),
+        proof: ChangedProofSummary {
+            commands: Vec::new(),
+            fallback: Vec::new(),
+            direct: Vec::new(),
+            indirect: Vec::new(),
+            e2e: Vec::new(),
+            contract: Vec::new(),
+            missing_direct: Vec::new(),
+        },
+        unknowns: Vec::new(),
+        hidden: Vec::new(),
+        expand: changed_expand(&selector),
+    }
+}
+
 fn changed_structural_events(
     git_state: &[GitChange],
     selector: &str,
