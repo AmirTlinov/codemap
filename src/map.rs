@@ -51,6 +51,7 @@ include!("map/impact.rs");
 include!("map/lenses.rs");
 include!("map/boundary.rs");
 include!("map/package_consumers.rs");
+include!("map/command_inference_roles.rs");
 include!("map/command_inference.rs");
 include!("map/resolve.rs");
 include!("map/tests.rs");

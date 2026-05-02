@@ -286,23 +286,55 @@ fn package_json_scripts(project: &Project, manifest: &str) -> Vec<(String, Strin
 }
 
 fn manifest_script_is_proof_relevant(name: &str, command: &str) -> bool {
-    let hay = format!(
-        "{} {}",
-        name.to_ascii_lowercase(),
-        command.to_ascii_lowercase()
-    );
-    [
-        "test",
-        "lint",
-        "typecheck",
-        "type-check",
-        "check",
-        "build",
-        "verify",
-        "e2e",
-    ]
-    .iter()
-    .any(|needle| hay.contains(needle))
+    manifest_script_name_is_proof_relevant(name)
+        || manifest_script_command_is_proof_relevant(command)
+}
+
+fn manifest_script_name_is_proof_relevant(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    if matches!(
+        lower.as_str(),
+        "test" | "tests" | "lint" | "typecheck" | "type-check" | "type_check" | "check"
+            | "build" | "verify" | "e2e"
+    ) {
+        return true;
+    }
+    lower
+        .split([':', '-', '_', '.', ' '])
+        .filter(|part| !part.is_empty())
+        .any(|part| {
+            matches!(
+                part,
+                "test" | "tests" | "lint" | "typecheck" | "check" | "build" | "verify" | "e2e"
+            )
+        })
+}
+
+fn manifest_script_command_is_proof_relevant(command: &str) -> bool {
+    let tokens = command_tokens(command);
+    if tokens.iter().any(|token| {
+        matches!(
+            token.as_str(),
+            "vitest"
+                | "jest"
+                | "mocha"
+                | "uvu"
+                | "playwright"
+                | "cypress"
+                | "eslint"
+                | "biome"
+                | "tsc"
+                | "svelte-check"
+        )
+    }) {
+        return true;
+    }
+    tokens.iter().any(|token| {
+        matches!(
+            token.as_str(),
+            "test" | "lint" | "typecheck" | "check" | "build" | "verify" | "e2e"
+        )
+    })
 }
 
 fn schema_script_is_proof_relevant(name: &str, command: &str, rel: &str) -> bool {

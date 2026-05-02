@@ -100,6 +100,172 @@ fn manifest_ci_reference_requires_package_specific_evidence() {
 }
 
 #[test]
+fn manifest_ci_reference_uses_package_reference_boundaries() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{"name":"boundary-fixture","private":true,"workspaces":["apps/*"]}"#,
+    );
+    write(
+        &repo.path().join("apps/api/package.json"),
+        r#"{"name":"api","scripts":{"test":"vitest run"}}"#,
+    );
+    write(
+        &repo.path().join(".github/workflows/ci.yml"),
+        "name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pnpm --filter capitan test\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "ci package boundary"]);
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &["proof", "apps/api/package.json", "--format", "json"],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        !proof["proofs"]
+            .as_array()
+            .expect("proofs")
+            .iter()
+            .any(|proof| proof["evidence"] == "manifest_ci_reference"
+                && proof["command"]
+                    .as_str()
+                    .is_some_and(|command| command.contains("capitan"))),
+        "`api` must not match substring inside unrelated package selector `capitan`: {proof:#}"
+    );
+
+    let output = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args([
+            "changed",
+            "--files",
+            "apps/api/package.json",
+            "--section",
+            "unknown",
+        ])
+        .output()
+        .expect("changed unknown should run");
+    assert!(
+        output.status.success(),
+        "changed unknown failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
+    assert!(
+        markdown.contains("ci_reference_not_found"),
+        "substring package selector should keep CI reference Unknown open: {markdown}"
+    );
+}
+
+#[test]
+fn manifest_script_substrings_do_not_become_hard_proof() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{"name":"manifest-substring-fixture","private":true,"scripts":{"contest":"echo not validation"}}"#,
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "manifest substring"]);
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &["proof", "package.json", "--format", "json"],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        !proof["proofs"]
+            .as_array()
+            .expect("proofs")
+            .iter()
+            .any(|proof| proof["evidence"] == "manifest_script"
+                && proof["command"]
+                    .as_str()
+                    .is_some_and(|command| command.contains("contest"))),
+        "`contest` must not become manifest_script proof through substring matching: {proof:#}"
+    );
+
+    let output = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["changed", "--files", "package.json", "--section", "unknown"])
+        .output()
+        .expect("changed unknown should run");
+    assert!(
+        output.status.success(),
+        "changed unknown failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
+    assert!(
+        markdown.contains("package_local_script_not_found"),
+        "substring-only script names should keep package-local script Unknown open: {markdown}"
+    );
+}
+
+#[test]
+fn cargo_version_ci_step_does_not_become_manifest_ci_reference() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("Cargo.toml"),
+        "[package]\nname = \"cargo-version-fixture\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    write(
+        &repo.path().join(".github/workflows/ci.yml"),
+        "name: ci\non: [push]\njobs:\n  probe:\n    runs-on: ubuntu-latest\n    steps:\n      - run: cargo --version\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "cargo version ci"]);
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &["proof", "Cargo.toml", "--format", "json"],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        !proof["proofs"]
+            .as_array()
+            .expect("proofs")
+            .iter()
+            .any(|proof| proof["evidence"] == "manifest_ci_reference"
+                && proof["command"] == "cargo --version"),
+        "`cargo --version` must not become manifest_ci_reference proof: {proof:#}"
+    );
+
+    let output = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["changed", "--files", "Cargo.toml", "--section", "unknown"])
+        .output()
+        .expect("changed unknown should run");
+    assert!(
+        output.status.success(),
+        "changed unknown failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
+    assert!(
+        markdown.contains("ci_reference_not_found"),
+        "`cargo --version` should keep manifest CI reference Unknown open: {markdown}"
+    );
+}
+
+#[test]
 fn env_ci_reference_ignores_comment_only_mentions() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");

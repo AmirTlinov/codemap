@@ -72,6 +72,27 @@ fn classify_roles(root: &Path, info: &mut FileInfo) {
     if is_docs_surface(&rel, &name, &info.ext) {
         info.roles.insert("docs".to_string());
     }
+    if is_receipt_surface(&rel, &name, &info.ext) {
+        info.roles.insert("receipt".to_string());
+    }
+    if is_witness_surface(&rel, &name, &info.ext) {
+        info.roles.insert("witness".to_string());
+    }
+    if is_owner_doc_surface(&rel, &name, &info.ext) {
+        info.roles.insert("owner_doc".to_string());
+    }
+    if is_proof_runner_surface(&rel, &name, &info.ext, &info.tokens) {
+        info.roles.insert("proof_runner".to_string());
+    }
+    if is_migration_surface(&rel, &name, &info.ext) {
+        info.roles.insert("migration".to_string());
+    }
+    if is_deploy_surface(&rel, &name, &info.ext) {
+        info.roles.insert("deploy".to_string());
+    }
+    if is_entrypoint_surface(&rel, &name, &info.ext) {
+        info.roles.insert("entrypoint".to_string());
+    }
     add_role_if(
         &mut info.roles,
         &rel,
@@ -97,6 +118,7 @@ fn classify_roles(root: &Path, info: &mut FileInfo) {
     );
     if !info.roles.contains("manifest") && is_schema_contract_surface(&rel, &name, &info.ext) {
         info.roles.insert("schema_contract".to_string());
+        info.roles.insert("schema".to_string());
     }
     add_role_if(
         &mut info.roles,
@@ -134,6 +156,18 @@ fn classify_roles(root: &Path, info: &mut FileInfo) {
     if is_runtime_config_surface(&rel, &name) {
         info.roles.insert("runtime_config".to_string());
     }
+    if is_runtime_surface(info) {
+        info.roles.insert("runtime_surface".to_string());
+    }
+    if info.roles.contains("public_boundary") {
+        info.roles.insert("public_api".to_string());
+    }
+    if is_internal_api_surface(&rel, &name, &info.ext) {
+        info.roles.insert("internal_api".to_string());
+    }
+    if is_doctor_surface(&rel, &name, &info.ext) {
+        info.roles.insert("doctor".to_string());
+    }
     if name == "agents.md" {
         info.roles.insert("agent_bootstrap".to_string());
     }
@@ -154,6 +188,12 @@ fn classify_roles(root: &Path, info: &mut FileInfo) {
             "cache",
             "cli_surface",
             "build_ci",
+            "proof_runner",
+            "entrypoint",
+            "runtime_surface",
+            "public_api",
+            "internal_api",
+            "doctor",
         ] {
             info.roles.remove(role);
         }
@@ -180,91 +220,6 @@ fn add_renderer_ui_role_if(
     {
         roles.insert("renderer_ui".to_string());
     }
-}
-
-fn is_package_manifest_name(name: &str) -> bool {
-    matches!(
-        name,
-        "package.json"
-            | "cargo.toml"
-            | "go.mod"
-            | "go.work"
-            | "pyproject.toml"
-            | "requirements.txt"
-            | "package.swift"
-            | "pnpm-workspace.yaml"
-            | "pnpm-workspace.yml"
-    )
-}
-
-fn is_env_surface_name(name: &str) -> bool {
-    name == ".env" || name.starts_with(".env.")
-}
-
-fn is_lockfile_name(name: &str) -> bool {
-    matches!(
-        name,
-        "package-lock.json"
-            | "npm-shrinkwrap.json"
-            | "pnpm-lock.yaml"
-            | "pnpm-lock.yml"
-            | "yarn.lock"
-            | "bun.lock"
-            | "bun.lockb"
-            | "cargo.lock"
-            | "poetry.lock"
-            | "pdm.lock"
-            | "uv.lock"
-            | "gemfile.lock"
-            | "composer.lock"
-    ) || name.ends_with(".lock")
-}
-
-fn is_docs_surface(rel: &str, name: &str, ext: &str) -> bool {
-    ext == "md"
-        && (name == "readme.md"
-            || name == "agents.md"
-            || rel.starts_with("docs/")
-            || rel.contains("/docs/")
-            || rel.starts_with("contracts/")
-            || rel.contains("/contracts/"))
-}
-
-fn is_runtime_config_surface(rel: &str, name: &str) -> bool {
-    is_env_surface_name(name)
-        || matches!(
-            name,
-            "dockerfile"
-                | "docker-compose.yml"
-                | "docker-compose.yaml"
-                | "compose.yml"
-                | "compose.yaml"
-                | "kustomization.yaml"
-                | "kustomization.yml"
-        )
-        || rel.starts_with("deploy/")
-        || rel.starts_with("deployment/")
-        || rel.starts_with("infra/")
-        || rel.contains("/deploy/")
-        || rel.contains("/deployment/")
-        || rel.contains("/k8s/")
-}
-
-fn is_snapshot_surface(rel: &str, name: &str, ext: &str) -> bool {
-    is_snapshot_ext(ext)
-        || rel.contains("/__snapshots__/")
-        || rel.starts_with("__snapshots__/")
-        || name.ends_with(".snap")
-        || name.ends_with(".snapshot")
-}
-
-fn is_golden_surface(rel: &str) -> bool {
-    rel.starts_with("golden/")
-        || rel.contains("/golden/")
-        || rel.starts_with("goldens/")
-        || rel.contains("/goldens/")
-        || rel.starts_with("baselines/")
-        || rel.contains("/baselines/")
 }
 
 fn is_schema_contract_surface(rel: &str, name: &str, ext: &str) -> bool {

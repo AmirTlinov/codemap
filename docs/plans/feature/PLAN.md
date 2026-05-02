@@ -151,6 +151,22 @@ proof sensor provenance
 cache correctness and timing truth
 ```
 
+The next proof-quality direction is role-aware proof planning, not task
+routing. `codemap` may learn repo-local proof runners, receipts, witnesses,
+owner docs, Makefile/justfile targets, and CI command surfaces as facts. It
+must not turn those facts into `start`, `read_first`, `likely edit`, or
+recommendation language. Output should say what commands and surfaces exist,
+why they are structurally connected, and where certainty stops.
+
+Role-aware proof planning must obey these extra constraints:
+
+- no `codemap start` or task prompt router;
+- no global `confidence`; use evidence strength, reason, and locations instead;
+- README/AGENTS command blocks are soft hints only unless backed by manifests,
+  scripts, Makefile/justfile, CI, or explicit `.ctx.yml`;
+- optional repo dialect stays tiny and non-required;
+- custom roles improve map clarity but do not create semantic ownership claims.
+
 ## Unified Fact Layer
 
 All lenses must be projections over one indexed structural fact layer:

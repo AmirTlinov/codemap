@@ -18,6 +18,10 @@ fn infer_minimal_commands(
     changed: &[String],
 ) -> Vec<String> {
     let root_test = find_script(project, &["test"]);
+    let role_aware = role_aware_minimal_commands(project, files, changed);
+    if !role_aware.is_empty() {
+        return role_aware;
+    }
     let changed_source_package = single_source_package_for_files(project, changed);
     let changed_domains = impacted_domains(project, changed);
     if let Some(package) = changed_source_package

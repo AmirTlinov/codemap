@@ -105,7 +105,9 @@ fn manifest_ci_run_match_reason(
     match package.ecosystem.as_str() {
         "javascript" => javascript_manifest_ci_run_match_reason(package, scripts, command),
         "rust" => rust_manifest_ci_run_match_reason(package, command),
-        "python" => generic_manifest_ci_run_match_reason(package, command, &["pytest", "python"]),
+        "python" => {
+            generic_manifest_ci_run_match_reason(package, command, &["pytest", "python -m pytest"])
+        }
         "go" => generic_manifest_ci_run_match_reason(package, command, &["go test"]),
         "swift" => generic_manifest_ci_run_match_reason(package, command, &["swift test"]),
         _ => None,
@@ -119,14 +121,14 @@ fn javascript_manifest_ci_run_match_reason(
 ) -> Option<String> {
     let script = scripts
         .iter()
-        .find(|(name, _, _)| command_invokes_script(command, name));
+        .find(|(name, script_command, _)| {
+            manifest_script_is_proof_relevant(name, script_command)
+                && command_invokes_script(command, name)
+        });
     let package_ref = command_references_package(package, command);
     if package.path == "." {
         if let Some((name, _, _)) = script {
             return Some(format!("CI run step invokes root package script `{name}`"));
-        }
-        if command_uses_any(command, &["pnpm", "npm", "yarn", "bun"]) {
-            return Some("CI run step uses root package manager".to_string());
         }
         return None;
     }
@@ -139,9 +141,6 @@ fn javascript_manifest_ci_run_match_reason(
             package.name
         ));
     }
-    if command_uses_any(command, &["pnpm", "npm", "yarn", "bun"]) {
-        return Some(format!("CI run step references package `{}`", package.name));
-    }
     None
 }
 
@@ -149,7 +148,7 @@ fn rust_manifest_ci_run_match_reason(
     package: &crate::model::PackageInfo,
     command: &str,
 ) -> Option<String> {
-    if !command_uses_any(command, &["cargo"]) {
+    if !rust_cargo_ci_command_is_validation(package, command) {
         return None;
     }
     if package.path == "." {
@@ -159,6 +158,35 @@ fn rust_manifest_ci_run_match_reason(
         return Some(format!("CI run step references Cargo package `{}`", package.name));
     }
     None
+}
+
+fn rust_cargo_ci_command_is_validation(package: &crate::model::PackageInfo, command: &str) -> bool {
+    let tokens = command_tokens(command);
+    if !tokens
+        .iter()
+        .any(|token| token == "cargo" || token.ends_with("/cargo"))
+    {
+        return false;
+    }
+    if tokens.iter().any(|token| {
+        matches!(
+            token.as_str(),
+            "test" | "check" | "build" | "clippy" | "fmt" | "nextest"
+        )
+    }) {
+        return true;
+    }
+    if !tokens.iter().any(|token| token == "run") {
+        return false;
+    }
+    if tokens.iter().any(|token| token == "doctor") {
+        return true;
+    }
+    let package_name = package.name.to_ascii_lowercase();
+    !package_name.is_empty()
+        && tokens
+            .windows(2)
+            .any(|window| window[0] == "--bin" && window[1] == package_name)
 }
 
 fn generic_manifest_ci_run_match_reason(
@@ -215,11 +243,64 @@ fn schema_ci_command_is_relevant(rel: &str, command: &str) -> bool {
 }
 
 fn command_references_package(package: &crate::model::PackageInfo, command: &str) -> bool {
-    let lower = command.to_ascii_lowercase();
     let name = package.name.to_ascii_lowercase();
-    let path = package.path.to_ascii_lowercase();
-    (!name.is_empty() && lower.contains(&name))
-        || (package.path != "." && !path.is_empty() && lower.contains(&path))
+    let path = repo::normalize_rel_path(&package.path).to_ascii_lowercase();
+    let tokens = command_tokens(command);
+    let name_tail = name.rsplit('/').next().unwrap_or(&name);
+    tokens.iter().any(|token| {
+        package_reference_token_matches(token, &name, name_tail, &path, false)
+            || package_selector_token_matches(token, &name, name_tail, &path)
+    }) || tokens.windows(2).any(|window| {
+        package_selector_flag(&window[0])
+            && package_reference_token_matches(&window[1], &name, name_tail, &path, true)
+    })
+}
+
+fn package_selector_flag(token: &str) -> bool {
+    matches!(
+        token,
+        "--filter" | "-f" | "--workspace" | "-w" | "--package" | "-p" | "workspace"
+    )
+}
+
+fn package_selector_token_matches(token: &str, name: &str, name_tail: &str, path: &str) -> bool {
+    let Some((flag, value)) = token.split_once('=') else {
+        return false;
+    };
+    package_selector_flag(flag) && package_reference_token_matches(value, name, name_tail, path, true)
+}
+
+fn package_reference_token_matches(
+    token: &str,
+    name: &str,
+    name_tail: &str,
+    path: &str,
+    selector_value: bool,
+) -> bool {
+    let normalized = token
+        .trim_matches(|ch| matches!(ch, '"' | '\''))
+        .trim_start_matches("./")
+        .trim_end_matches('/')
+        .to_ascii_lowercase();
+    if normalized.is_empty() {
+        return false;
+    }
+    if !name.is_empty() && normalized == name {
+        return true;
+    }
+    if selector_value && !name_tail.is_empty() && normalized == name_tail {
+        return true;
+    }
+    package_path_token_matches(&normalized, path)
+}
+
+fn package_path_token_matches(token: &str, path: &str) -> bool {
+    path != "."
+        && !path.is_empty()
+        && (token == path
+            || token.starts_with(&format!("{path}/"))
+            || token.ends_with(&format!("/{path}"))
+            || token.contains(&format!("/{path}/")))
 }
 
 fn command_uses_any(command: &str, needles: &[&str]) -> bool {

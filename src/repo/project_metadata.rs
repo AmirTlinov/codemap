@@ -85,13 +85,8 @@ fn detect_scripts(root: &Path) -> Vec<ScriptInfo> {
             reason: "Package.swift detected".to_string(),
         });
     }
-    if root.join("Makefile").exists() {
-        scripts.push(ScriptInfo {
-            name: "test".to_string(),
-            command: "make test".to_string(),
-            reason: "Makefile detected".to_string(),
-        });
-    }
+    scripts.extend(makefile_scripts(root));
+    scripts.extend(justfile_scripts(root));
     scripts.sort_by(|a, b| a.command.cmp(&b.command));
     scripts.dedup_by(|a, b| a.command == b.command);
     scripts
@@ -374,4 +369,3 @@ fn go_work_uses(text: &str) -> Vec<String> {
     }
     out
 }
-

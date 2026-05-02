@@ -62,6 +62,33 @@ repos would add noise instead of proof.
 
 ## Current Boundary
 
+No broad numbered slice is active after Slice 30A. Pick the next boundary from
+the largest daily-workflow gap observed in live use, not by continuing the slice
+number ritual.
+
+Slice 30A is closed:
+
+```txt
+status: closed
+tier: focused/full
+closed: deterministic custom roles and root Makefile/justfile targets now feed
+the proof planner before generic pytest/cargo fallback. Exact file/script token
+matches can select repo-specific Makefile proof targets without task text,
+ranking, embeddings, or recommendation language.
+guardrails: no `codemap start`, no task router, no global `confidence`, no
+README/AGENTS hard proof. Use evidence strength, reasons, locations, and typed
+unknowns instead.
+excluded: optional repo dialect, `codemap status` discovery expansion,
+command-safety taxonomy upgrades, and README/AGENTS soft proof blocks remain
+later work.
+proof: role-aware custom fixture, full cargo test, clippy, doctor, diff-check.
+review: not required; no public JSON schema shape changed and no broad proof
+claim was added.
+live: read-only probes on `main_cluster`, `Sillentway-VPN`, and `cyber-llm`.
+next: choose the next product gap after using `ls -> cone -> changed -> proof`
+on a real task.
+```
+
 Post-final repair wave is active:
 
 ```txt
@@ -422,8 +449,26 @@ or misleading map.
 | 29A False-confidence closure: indexing and public roles | closed | full/live | `.prisma`, `.env*`, manifests, docs, and CI surfaces stay first-class across scanner, kind, cone roles, and changed roles. |
 | 29B False-confidence closure: proof and unknown truth | closed | full/live | Soft token proof and fallback commands do not hide missing deterministic proof sensors. |
 | 29C False-confidence closure: owner-surface cones | closed | full/live | Manifest, schema, env, and CI anchors expose useful deterministic neighborhoods. |
+| 30A Role-aware proof planner | closed | focused/full/live | Custom proof roles and Makefile/justfile targets beat generic fallback without task routing. |
 
 ## Closed Boundaries
+
+### Slice 30A: Role-Aware Proof Planner
+
+```txt
+closed: `receipt`, `witness`, `proof_runner`, `owner_doc`, `migration`,
+`deploy`, `entrypoint`, runtime/public/internal API, schema, and doctor roles
+are first-class map roles. Root Makefile/justfile targets are indexed as script
+facts. `proof` and `changed --section proof` can select structurally matching
+repo-local commands before generic fallback.
+excluded: no `codemap start`; no task prompt routing; no global confidence; no
+mandatory repo dialect; README/AGENTS command blocks remain soft context.
+proof: `cargo fmt --check`; `cargo test --quiet`; `cargo clippy --all-targets
+-- -D warnings`; `cargo run --quiet --bin codemap -- doctor`; `git diff
+--check`.
+live: `main_cluster changed/proof`, `Sillentway-VPN changed/proof`,
+`cyber-llm proof tools/internal_economy/compute_conductance_bridge_v0_13b.py`.
+```
 
 ### Slice 29A: False-Confidence Closure, Indexing And Public Roles
 
