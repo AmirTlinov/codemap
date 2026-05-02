@@ -114,7 +114,7 @@ fn directory_surface_nodes(project: &Project, rel: &str) -> Vec<String> {
                     && path_under_scope(&domain.path, rel)
                     && (scope_is_support || !is_support_artifact_path(&domain.path))
             })
-            .map(|domain| domain.path.clone()),
+            .map(|domain| directory_scope_node(&domain.path)),
         usize::MAX,
     );
 

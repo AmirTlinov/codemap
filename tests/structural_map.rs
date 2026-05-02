@@ -47,6 +47,7 @@ include!("structural_map/cache_diagnostics.rs");
 include!("structural_map/unresolved_import_unknowns.rs");
 include!("structural_map/boundary_map_current_level.rs");
 include!("structural_map/graph_current_level.rs");
+include!("structural_map/graph_workspace_coordinates.rs");
 include!("structural_map/graph_limits.rs");
 include!("structural_map/lens_commands.rs");
 include!("structural_map/impact_limits.rs");

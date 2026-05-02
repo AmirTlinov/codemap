@@ -79,6 +79,19 @@ next: move to the next boundary instead of expanding this slice into full
 package/workspace perfection.
 ```
 
+Slice 13 first boundary is closed:
+
+```txt
+closed: root causal graph uses one directory coordinate for workspace package
+nodes and package-internal edges, avoiding slash/no-slash duplicate anchors.
+proof: controlled workspace graph fixture plus full local gate.
+review: not required unless the fix expands beyond coordinate normalization.
+live: not required; a controlled workspace fixture proves the coordinate bug
+more directly than live repo output.
+next: stop graph cleanup unless a remaining root-map claim is false or
+confusing.
+```
+
 ## Slice Status
 
 | Slice | Status | Tier | Boundary |
@@ -95,7 +108,7 @@ package/workspace perfection.
 | 10 Git structural events, changed, diff-map | closed | full | Comment-only edits no longer create false structural deltas. |
 | 11 Symbol/import/export extraction matrix | closed | full | Exact file cones surface unresolved local imports as typed unknowns. |
 | 12 Package/workspace graph and boundaries | closed first boundary | full | Deterministic dependency kind on package edges. |
-| 13 `ls`, `graph --lens causal`, root map quality | todo | focused/live | Root maps stay bounded and current-level. |
+| 13 `ls`, `graph --lens causal`, root map quality | closed first boundary | focused | Root causal graph normalizes workspace package coordinates. |
 | 14 `cone` exact anchors and directory aggregation | todo | focused/live | File/symbol/dir cones expose useful local detail without file galaxies. |
 | 15 Runtime lens | todo | focused/live | Deterministic execution entrypoints stitch to code where known. |
 | 16 Contract lens | todo | focused/live | Public/schema/API surfaces are separated from implementation names. |
