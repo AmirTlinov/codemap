@@ -133,7 +133,10 @@ fn proof_links_next_route_files_to_e2e_route_visits() {
             .iter()
             .any(|proof| proof["path"] == "tests/e2e/studio.spec.ts"
                 && proof["evidence"] == "e2e_route"
-                && proof["strength"] == "high"),
+                && proof["strength"] == "high"
+                && proof["locations"][0]["path"] == "tests/e2e/studio.spec.ts"
+                && proof["locations"][0]["line_start"] == 4
+                && proof["locations"][0]["kind"] == "route_visit"),
         "Next route file should map to exact e2e page.goto route proof: {route_proof:#}"
     );
     for false_proof in [
@@ -171,7 +174,10 @@ fn proof_links_next_route_files_to_e2e_route_visits() {
             .expect("shell proofs")
             .iter()
             .any(|proof| proof["path"] == "tests/e2e/studio.spec.ts"
-                && proof["evidence"] == "e2e_route"),
+                && proof["evidence"] == "e2e_route"
+                && proof["locations"][0]["path"] == "tests/e2e/studio.spec.ts"
+                && proof["locations"][0]["line_start"] == 4
+                && proof["locations"][0]["kind"] == "route_visit"),
         "route e2e proof should be available to the shell through its direct route consumer: {shell_proof:#}"
     );
 
@@ -346,4 +352,3 @@ fn proof_does_not_link_ambiguous_duplicate_next_routes() {
         "root e2e route proof must not cross domains when two app roots expose the same route: {proof:#}"
     );
 }
-

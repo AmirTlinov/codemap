@@ -174,6 +174,22 @@ next: continue only where direct `Surface`/`ProofSurface` construction causes
 duplication or false evidence; do not chase every literal mechanically.
 ```
 
+Slice 04 first boundary is closed:
+
+```txt
+closed: `proof <Next route file>` and route-proof transfers now preserve
+deterministic `page.goto(...)` line locations for `e2e_route` proof surfaces.
+This removes a daily proof-map inconsistency where runtime route proof had
+`route_visit` provenance but the direct proof lens only pointed at the test
+file.
+proof: focused Next route proof fixture plus full gate.
+review: not required; narrow provenance enrichment with a direct regression and
+no schema change.
+live: not required; controlled fixture proves the location gap exactly.
+next: continue evidence-location work only where a high/medium proof claim still
+falls back to path-only despite deterministic line evidence.
+```
+
 Slice 02 first boundary is closed:
 
 ```txt
@@ -307,7 +323,7 @@ or misleading map.
 | 01 Product lock, baseline inventory, invariant guards | closed first boundary | focused | Public JSON outputs reject router/trust fields. |
 | 02 Daily command surface and alias cleanup | closed first boundary | focused | Root help exposes daily workflow before focused lenses and diagnostics. |
 | 03 Unified fact model and constructors | closed first boundary | full | Shared constructors cover the first migrated surface/proof families. |
-| 04 Evidence locations and typed unknowns | todo | full | Important claims carry provenance; blind spots are typed. |
+| 04 Evidence locations and typed unknowns | closed first boundary | full | Next route e2e proof surfaces carry route_visit line provenance. |
 | 05 Scope model, root maps, expand protocol | todo | focused/live | Root is current-level; exact anchors drill down; expand is reproducible. |
 | 06 Compact markdown grammar and renderer | closed | live | Daily/focused markdown was compacted within the declared boundary. |
 | 07 Schema rail and golden validation | closed | full | Public JSON reports validate against manifest-selected schemas. |

@@ -192,6 +192,11 @@ fn route_visit_locations(project: &Project, rel: &str, path: &str) -> Vec<Eviden
         return vec![EvidenceLocation::path(rel, "route_visit")];
     };
     for (index, line) in text.lines().enumerate() {
+        if line.contains("page.goto") && line.contains(path) {
+            return vec![EvidenceLocation::line(rel, index + 1, "route_visit")];
+        }
+    }
+    for (index, line) in text.lines().enumerate() {
         if line.contains(path) {
             return vec![EvidenceLocation::line(rel, index + 1, "route_visit")];
         }

@@ -157,7 +157,45 @@ fn proof_surface_locations_for_target(
     if base == "test_symbol_reference" {
         return symbol_reference_locations_for_test(project, target, test);
     }
+    if base == "e2e_route" {
+        return e2e_route_locations_for_test(project, target, test);
+    }
     proof_surface_locations_for_test(test, evidence)
+}
+
+fn e2e_route_locations_for_test(
+    project: &Project,
+    target: &str,
+    test: &str,
+) -> Vec<EvidenceLocation> {
+    let Some(route_pattern) = next_app_route_pattern(target) else {
+        return proof_surface_locations_for_test(test, "e2e_route");
+    };
+    let Some(test_file) = project.files.get(test) else {
+        return proof_surface_locations_for_test(test, "e2e_route");
+    };
+    let mut locations = Vec::new();
+    let mut seen = BTreeSet::new();
+    for visited in &test_file.visited_route_paths {
+        if !route_pattern_matches(&route_pattern, visited) {
+            continue;
+        }
+        for location in route_visit_locations(project, test, visited) {
+            let key = (
+                location.path.clone(),
+                location.line_start.unwrap_or_default(),
+                location.kind.clone(),
+            );
+            if seen.insert(key) {
+                locations.push(location);
+            }
+        }
+    }
+    if locations.is_empty() {
+        proof_surface_locations_for_test(test, "e2e_route")
+    } else {
+        locations
+    }
 }
 
 fn symbol_reference_locations_for_test(
