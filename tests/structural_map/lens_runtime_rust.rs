@@ -130,3 +130,34 @@ fn diff_map_rust_axum_added_route_uses_runtime_facts() {
         "diff-map should reuse runtime facts for added Rust axum route lines: {diff:#}"
     );
 }
+
+#[test]
+fn diff_map_rust_axum_removed_route_uses_base_runtime_facts() {
+    let (repo, cache) = fixture();
+    let path = repo.path().join("packages/app/src/main.rs");
+    write(
+        &path,
+        "use axum::{routing::get, Router};\n\nfn app() -> Router {\n    Router::new()\n        .route(\"/removed-rust-route\", get(handler))\n}\n\nasync fn handler() {}\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "rust axum removed route baseline"]);
+    write(
+        &path,
+        "use axum::{routing::get, Router};\n\nfn app() -> Router {\n    Router::new()\n}\n\nasync fn handler() {}\n",
+    );
+
+    let diff = run_json(repo.path(), cache.path(), &["diff-map", "--changed", "--format", "json"]);
+    assert_schema("schemas/diff-map.schema.json", &diff);
+    assert!(
+        diff["removed_runtime_routes"]
+            .as_array()
+            .expect("removed runtime routes")
+            .iter()
+            .any(|route| route["method"] == "GET"
+                && route["path"] == "/removed-rust-route"
+                && route["file"] == "packages/app/src/main.rs"
+                && route["handler_symbol"] == "handler"
+                && route["evidence"] == "rust_axum_route_registration"),
+        "diff-map should reuse base runtime facts for removed Rust axum route lines: {diff:#}"
+    );
+}

@@ -1,3 +1,27 @@
+fn rust_axum_routes_from_text(rel: &str, text: &str) -> Vec<RuntimeRoute> {
+    if !rust_axum_route_context(text) {
+        return Vec::new();
+    }
+    let mut routes = Vec::new();
+    let mut rust_axum_chain_continuation = false;
+    for (line_number, line) in runtime_code_lines(text) {
+        let (line_routes, chain_continues) = rust_axum_route_registrations(
+            rel,
+            &line,
+            line_number,
+            rust_axum_chain_continuation,
+        );
+        routes.extend(line_routes);
+        rust_axum_chain_continuation =
+            chain_continues || rust_axum_router_new_on_line(&line);
+    }
+    routes
+}
+
+fn rust_axum_route_context(text: &str) -> bool {
+    text.contains("use axum") || text.contains("axum::") || text.contains("Router::new()")
+}
+
 fn rust_axum_route_registrations(
     rel: &str,
     line: &str,
