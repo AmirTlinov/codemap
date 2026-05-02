@@ -239,6 +239,30 @@ fn named_fixture_matrix_covers_public_lenses() {
             "impact should see changed fixture file for {}: {impact:#}",
             case.name
         );
+
+        let changed = run_json(repo.path(), cache.path(), &["changed", "--format", "json"]);
+        assert_schema("schemas/changed.schema.json", &changed);
+        assert!(
+            changed["changed"]
+                .as_array()
+                .expect("changed anchors")
+                .iter()
+                .any(|file| file["path"] == case.dirty_file),
+            "changed should expose the dirty fixture file for {}: {changed:#}",
+            case.name
+        );
+
+        let proof = run_json(repo.path(), cache.path(), &["proof", "--changed", "--format", "json"]);
+        assert_schema("schemas/proof.schema.json", &proof);
+        assert!(
+            proof["changed"]
+                .as_array()
+                .expect("proof changed anchors")
+                .iter()
+                .any(|path| path == case.dirty_file),
+            "proof --changed should keep the dirty fixture anchor for {}: {proof:#}",
+            case.name
+        );
     }
 }
 

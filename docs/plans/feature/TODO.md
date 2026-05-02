@@ -157,6 +157,22 @@ next: do not add another live script; use this harness for final adoption and
 future perf/cache work.
 ```
 
+Slice 26 first boundary is closed:
+
+```txt
+closed: the named cross-stack fixture matrix now covers the primary after-edit
+daily workflow, not only focused deep lenses. Each stack fixture dirties a real
+file and validates `diff-map --changed`, `impact --changed`, `changed`, and
+`proof --changed` against public schemas while preserving the dirty anchor.
+proof: fixture matrix regression plus full gate.
+review: not required; test coverage expansion over existing behavior with no
+public schema or lens implementation change.
+live: not required; Slice 27 owns live adoption and this boundary is fixture
+matrix parity.
+next: extend fixture assertions only for uncovered public claims, not as a
+ritual list.
+```
+
 Slice 03 first boundary is closed:
 
 ```txt
@@ -345,7 +361,7 @@ or misleading map.
 | 23 Non-code, assets, data, events, generated ownership | closed first boundary | focused/live | CSS @import barrels create deterministic style edges with line evidence. |
 | 24 Unknown taxonomy, scope repair, fail-closed traversal | closed first boundary | full | Empty proof/test scopes point to nearest parent proof scope with typed unknowns. |
 | 25 Performance, path stability, cognitive gates | closed first boundary | live | Daily workflow cognitive budgets are guarded. |
-| 26 Fixture matrix across stacks | todo | full | Fixtures cover supported stacks and public lenses without overfitting. |
+| 26 Fixture matrix across stacks | closed first boundary | full | Cross-stack fixtures cover daily after-edit workflow plus focused lenses. |
 | 27 Live adoption harness and PATH ergonomics | closed first boundary | live | Read-only daily/focused live harness is usable and records budgets. |
 | 28 Final audit, cleanup, TODO closure | todo | final | Full system audit passes; TODO is honestly closed. |
 
