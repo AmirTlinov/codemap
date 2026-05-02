@@ -83,6 +83,7 @@ include!("structural_map/proof_map_limits.rs");
 include!("structural_map/runtime_env_grouping.rs");
 include!("structural_map/scope_repair.rs");
 include!("structural_map/fixture_matrix.rs");
+include!("structural_map/dogfood_harness.rs");
 include!("structural_map/root_aware_expand.rs");
 include!("structural_map/symbol_local_calls.rs");
 include!("structural_map/symbol_barrel_positive.rs");

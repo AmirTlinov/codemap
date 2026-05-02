@@ -116,6 +116,28 @@ next: add live perf smoke only when changing runtime/cache behavior or before
 final adoption closure.
 ```
 
+Slice 27 first boundary is closed:
+
+```txt
+closed: `scripts/dogfood-codemap.sh` is now a real read-only live adoption
+harness for daily plus focused probes. It supports `CODEMAP_BIN` for local
+binary dogfood, auto-discovers one source anchor and one contract anchor, runs
+cone/flow/delete/siblings/place/contract where possible, records elapsed time,
+line count, line budget, and budget status in JSONL, and keeps target repos
+clean.
+proof: harness unit fixture verifies daily/focused labels, timing/budget
+summary fields, and clean target `git status`; existing unsafe-output tests
+remain green.
+review: not required; script behavior is guarded by focused tests and does not
+change public report semantics.
+live: spritestudio, Sillentway-VPN, and Levelly-1 all ran read-only with zero
+command failures and zero line-budget failures. Warm ls/cone/proof are
+daily-fast; runtime/proof-map/changed/flow/delete/siblings still show ~1s+
+latency on some live repos and remain the next performance gap.
+next: do not add another live script; use this harness for final adoption and
+future perf/cache work.
+```
+
 Slice 02 first boundary is closed:
 
 ```txt
@@ -272,7 +294,7 @@ or misleading map.
 | 24 Unknown taxonomy, scope repair, fail-closed traversal | closed first boundary | full | Empty proof/test scopes point to nearest parent proof scope with typed unknowns. |
 | 25 Performance, path stability, cognitive gates | closed first boundary | live | Daily workflow cognitive budgets are guarded. |
 | 26 Fixture matrix across stacks | todo | full | Fixtures cover supported stacks and public lenses without overfitting. |
-| 27 Live adoption harness and PATH ergonomics | todo | live | Read-only live probes and local install/PATH ergonomics are usable. |
+| 27 Live adoption harness and PATH ergonomics | closed first boundary | live | Read-only daily/focused live harness is usable and records budgets. |
 | 28 Final audit, cleanup, TODO closure | todo | final | Full system audit passes; TODO is honestly closed. |
 
 ## Closed Boundaries
