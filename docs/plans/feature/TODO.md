@@ -133,6 +133,22 @@ next: keep scope repair parked unless real daily probes still produce an empty
 proof dead-end.
 ```
 
+Slice 23 first boundary is closed:
+
+```txt
+closed: CSS-family files now extract static `@import` dependencies as
+deterministic style edges, so CSS barrels connect to imported CSS anchors in
+`ls`/`cone` instead of appearing as isolated non-code files. Commented
+`@import` text is ignored.
+proof: focused CSS import fixture with line evidence and comment-negative
+case; live read-only SpriteStudio probe with fresh cache showed
+`app/landing-shell.css -> app/landing-hero.css` at line 4.
+review: required before commit because parser/cache semantics changed.
+live: SpriteStudio exact CSS anchor was the motivating live case.
+next: keep non-code work bounded to deterministic imports/references; do not
+guess CSS class ownership from names.
+```
+
 Slice 13 first boundary is closed:
 
 ```txt
@@ -184,7 +200,7 @@ or misleading map.
 | 20 Boundary-map lens | todo | focused/live | Crossings are read-only facts; forbidden findings require explicit config. |
 | 21 Flow lens | todo | focused/live | Bounded structural paths stop at typed unknowns. |
 | 22 Siblings and place lenses | todo | focused | Local conventions are shown without ranking or recommendations. |
-| 23 Non-code, assets, data, events, generated ownership | todo | focused/live | CSS/assets/config/data/events/generated files become first-class surfaces. |
+| 23 Non-code, assets, data, events, generated ownership | closed first boundary | focused/live | CSS @import barrels create deterministic style edges with line evidence. |
 | 24 Unknown taxonomy, scope repair, fail-closed traversal | closed first boundary | full | Empty proof/test scopes point to nearest parent proof scope with typed unknowns. |
 | 25 Performance, path stability, cognitive gates | todo | live | Warm path, stable ordering, path normalization, and output budgets are guarded. |
 | 26 Fixture matrix across stacks | todo | full | Fixtures cover supported stacks and public lenses without overfitting. |

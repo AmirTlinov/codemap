@@ -53,6 +53,78 @@ fn ls_and_cone_treat_stylesheets_as_first_class_non_code_anchors() {
 }
 
 #[test]
+fn css_imports_create_deterministic_style_edges() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("packages/app/src/landing-shell.css"),
+        "/* @import url('./commented.css'); */\n/* @import './landing-hero.css'; */\n@import url('./landing-hero.css');\n@import './landing-footer.css';\n",
+    );
+    write(
+        &repo.path().join("packages/app/src/landing-hero.css"),
+        ".hero {\n  color: red;\n}\n",
+    );
+    write(
+        &repo.path().join("packages/app/src/landing-footer.css"),
+        ".footer {\n  color: blue;\n}\n",
+    );
+    write(
+        &repo.path().join("packages/app/src/commented.css"),
+        ".commented {\n  color: black;\n}\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "css import fixture"]);
+
+    let cone = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "cone",
+            "packages/app/src/landing-hero.css",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/cone.schema.json", &cone);
+    let incoming = cone["incoming"].as_array().expect("incoming");
+    let shell_edge = incoming
+        .iter()
+        .find(|edge| {
+            edge["from"] == "packages/app/src/landing-shell.css"
+                && edge["to"] == "packages/app/src/landing-hero.css"
+                && edge["type"] == "imported_by"
+                && edge["evidence"] == "reverse_import"
+        })
+        .unwrap_or_else(|| {
+            panic!("CSS @import should create an exact style reverse edge: {cone:#}")
+        });
+    let location_lines = shell_edge["locations"]
+        .as_array()
+        .expect("locations")
+        .iter()
+        .map(|location| location["line_start"].as_u64())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        location_lines,
+        vec![Some(3)],
+        "CSS @import line evidence must ignore commented imports for the same target: {cone:#}"
+    );
+
+    let commented = run_json(
+        repo.path(),
+        cache.path(),
+        &["cone", "packages/app/src/commented.css", "--format", "json"],
+    );
+    assert_schema("schemas/cone.schema.json", &commented);
+    assert!(
+        commented["incoming"]
+            .as_array()
+            .expect("incoming")
+            .is_empty(),
+        "commented CSS @import must not become a hard style edge: {commented:#}"
+    );
+}
+
+#[test]
 fn ls_and_cone_treat_imported_assets_as_first_class_non_code_anchors() {
     let (repo, cache) = fixture();
     std::fs::write(

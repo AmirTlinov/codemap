@@ -28,7 +28,15 @@ pub(crate) fn import_statement_locations(
         return vec![EvidenceLocation::path(from, "import_source_file")];
     };
     let mut locations = Vec::new();
+    let mut css_block_comment = false;
     for (index, line) in text.lines().enumerate() {
+        let visible;
+        let line = if matches!(info.ext.as_str(), "css" | "scss" | "sass" | "less") {
+            visible = crate::repo::css_line_without_block_comments(line, &mut css_block_comment);
+            visible.as_str()
+        } else {
+            line
+        };
         let trimmed = line.trim_start();
         if !line_looks_like_import_or_reexport(trimmed) {
             continue;
@@ -141,4 +149,5 @@ pub(crate) fn line_looks_like_import_or_reexport(trimmed: &str) -> bool {
         || trimmed.starts_with("pub mod ")
         || trimmed.starts_with("#[path")
         || trimmed.starts_with("include!(")
+        || trimmed.starts_with("@import ")
 }

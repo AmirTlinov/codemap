@@ -180,6 +180,14 @@ fn js_export_re() -> &'static Regex {
     })
 }
 
+fn css_import_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"^\s*@import\s+(?:url\(\s*)?['"](?P<spec>[^'"]+)['"]"#)
+            .expect("valid css import regex")
+    })
+}
+
 fn js_symbol_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {

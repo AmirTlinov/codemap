@@ -43,6 +43,47 @@ fn doctor_uses_warm_index_when_cached_fingerprints_match() {
 }
 
 #[test]
+fn doctor_invalidates_warm_index_when_fingerprint_format_changes() {
+    let (repo, cache) = fixture();
+
+    let _ = run_json(repo.path(), cache.path(), &["ls", ".", "--format", "json"]);
+    let fingerprint_path = std::fs::read_dir(cache.path())
+        .expect("cache dir")
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path().join("fingerprints.json"))
+        .find(|path| path.exists())
+        .expect("fingerprints json path");
+    let mut fingerprints: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(&fingerprint_path).expect("fingerprints json"),
+    )
+    .expect("fingerprints value");
+    fingerprints["format_version"] = serde_json::json!(4);
+    std::fs::write(
+        &fingerprint_path,
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&fingerprints).expect("fingerprints serialize")
+        ),
+    )
+    .expect("write downgraded fingerprints");
+
+    let doctor = run_json(repo.path(), cache.path(), &["doctor", "--format", "json"]);
+    assert_schema("schemas/status.schema.json", &doctor);
+    assert_eq!(
+        doctor["cache_strategy"], "full_scan",
+        "stale parser/index cache format must not be reused after extractor changes: {doctor:#}"
+    );
+    assert_eq!(
+        doctor["files_reused"], 0,
+        "format mismatch should prevent cached FileInfo reuse: {doctor:#}"
+    );
+    assert!(
+        doctor["scanner"]["files_scanned"].as_u64().unwrap_or_default() > 1,
+        "format mismatch should force a real scan instead of status-only reuse: {doctor:#}"
+    );
+}
+
+#[test]
 fn doctor_incrementally_rescans_only_changed_files() {
     let (repo, cache) = fixture();
 

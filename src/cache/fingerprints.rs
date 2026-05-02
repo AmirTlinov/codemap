@@ -9,7 +9,7 @@ use sha2::{Digest, Sha256};
 
 use crate::model::Project;
 
-const FINGERPRINT_CACHE_FORMAT: u32 = 4;
+const FINGERPRINT_CACHE_FORMAT: u32 = 5;
 
 pub struct CacheFileDelta {
     pub cached_fingerprint: String,
