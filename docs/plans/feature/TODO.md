@@ -90,9 +90,12 @@ warning; reviewer noted only the publication hygiene point that the new
 regression file must be committed with the include.
 live: current-repo `doctor` first surfaced an old `changed-current.json (format
 missing)` warning, then the artifact was rebuilt by `changed --section hidden`
-and the next `doctor` returned warm cache without stale-lens warnings.
-next: install the updated binary into PATH and repeat read-only live smoke on
-Levelly owner surfaces.
+and the next `doctor` returned warm cache without stale-lens warnings. Installed
+PATH smoke on Levelly confirmed `/Users/amir/.cargo/bin/codemap`, `codemap
+0.2.0`, `cone pnpm-workspace.yaml --section links`, `proof pnpm-workspace.yaml
+--format json`, and warm `doctor --format json` without stale-lens warnings.
+next: tune output budget for large workspace script/proof lists or continue with
+the next live blind spot found by `ls -> cone -> changed -> proof`.
 ```
 
 Slice 30K is closed:
