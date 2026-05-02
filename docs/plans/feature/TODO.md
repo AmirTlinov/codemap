@@ -87,7 +87,7 @@ current-repo `cargo run --quiet --bin codemap -- doctor --format json`; live
 Levelly `cargo run --quiet --manifest-path ... -- --root ... doctor --format
 json`.
 review: first independent reviewer BLOCK found root `migrations/...` warning
-gap; final review required after the ledger correction.
+gap; final reviewer GOOD after migration coverage and ledger proof correction.
 live: current repo `map_quality` drops the noisy 21 JSON schema warning; Levelly
 drops the noisy TypeScript type-contract schema warning while keeping manifest
 and env warnings.
