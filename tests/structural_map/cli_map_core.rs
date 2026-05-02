@@ -82,7 +82,6 @@ fn assert_map_bootstrap_text(text: &str) {
     }
 }
 
-
 #[test]
 fn root_ls_is_a_bounded_domain_and_package_map() {
     let (repo, cache) = fixture();

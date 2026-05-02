@@ -4,6 +4,7 @@ include!("structural_map/support_assertions.rs");
 include!("structural_map/support_js_symbol_fixture.rs");
 include!("structural_map/support_barrel_negative_fixture.rs");
 include!("structural_map/cli_map_core.rs");
+include!("structural_map/product_invariants.rs");
 include!("structural_map/proof_core.rs");
 include!("structural_map/proof_budget.rs");
 include!("structural_map/proof_markdown_compact.rs");

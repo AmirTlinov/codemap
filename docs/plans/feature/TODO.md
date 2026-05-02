@@ -198,7 +198,7 @@ or misleading map.
 
 | Slice | Status | Tier | Boundary |
 | --- | --- | --- | --- |
-| 01 Product lock, baseline inventory, invariant guards | todo | focused | Product invariant guards and baseline truth are explicit. |
+| 01 Product lock, baseline inventory, invariant guards | closed first boundary | focused | Public JSON outputs reject router/trust fields. |
 | 02 Daily command surface and alias cleanup | todo | focused/live | Daily surface is `ls`, `cone`, `changed`, `proof`, `doctor`; focused lenses remain discoverable. |
 | 03 Unified fact model and constructors | todo | full | Shared constructors prevent lenses from inventing separate fact logic. |
 | 04 Evidence locations and typed unknowns | todo | full | Important claims carry provenance; blind spots are typed. |
@@ -228,6 +228,19 @@ or misleading map.
 | 28 Final audit, cleanup, TODO closure | todo | final | Full system audit passes; TODO is honestly closed. |
 
 ## Closed Boundaries
+
+### Slice 01: Product Lock, Baseline Inventory, Invariant Guards
+
+```txt
+closed: public JSON outputs across the daily/high-risk reports are guarded
+against legacy router/trust fields such as `read_first`, `source_of_truth`,
+`confidence`, `score`, `rank`, and `safe_to_delete`.
+excluded: full docs wording audit and final product-contract audit remain
+later work.
+proof: focused invariant test plus existing help/bootstrap router guards.
+review: not required; test-only product invariant guard.
+live: not required; invariant is contract-level and fixture-backed.
+```
 
 ### Slice 06: Compact Markdown Grammar And Renderer
 
