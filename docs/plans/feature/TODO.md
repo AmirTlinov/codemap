@@ -216,7 +216,7 @@ or misleading map.
 | 16 Contract lens | closed first boundary | full | Package manifest exports are first-class contract evidence. |
 | 17 Proof-map and proof safety | closed first boundary | focused | `proof --run` refuses deploy/migrate/unknown shell commands by default. |
 | 18 Impact lens | closed first boundary | focused | Package export surfaces participate in contract impact risk. |
-| 19 Delete lens | todo | focused | Deletion blockers are mapped without `safe`/`probably unused` claims. |
+| 19 Delete lens | closed first boundary | focused | Direct-user blockers feed mechanical cleanup without deletion-safety claims. |
 | 20 Boundary-map lens | todo | focused/live | Crossings are read-only facts; forbidden findings require explicit config. |
 | 21 Flow lens | closed first boundary | focused/live | Rust CLI runtime entrypoints stitch to manifest provenance and exact `main` symbols. |
 | 22 Siblings and place lenses | closed first boundary | focused | `place` expand preserves required kind arguments. |
@@ -454,6 +454,20 @@ export target and package manifest; changed overview fixture proves the daily
 review: required before commit because this changes public lens semantics.
 live: not required; controlled package export fixture proves the false-negative
 directly.
+```
+
+### Slice 19: Delete Lens
+
+```txt
+closed: delete checklist now includes direct-user cleanup when direct consumer
+edges exist, so the blocker map does not omit the first mechanical deletion
+step. The lens still avoids `safe` / `probably unused` language.
+excluded: full symbol-user checklist fixtures, generated ownership, and
+dynamic-reference closure remain later work.
+proof: focused delete fixture validates direct users and checklist item; schema
+unchanged.
+review: not required; narrow checklist content derived from existing evidence.
+live: not required; controlled fixture proves the missing checklist case.
 ```
 
 ### Slice 22: Siblings And Place Lenses

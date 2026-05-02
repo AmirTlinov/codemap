@@ -96,6 +96,12 @@ pub fn delete_report(
         );
     }
     let mut checklist = Vec::new();
+    if !direct_users.is_empty() {
+        checklist.push("update direct users shown above".to_string());
+    }
+    if !symbol_users.is_empty() {
+        checklist.push("update symbol references shown above".to_string());
+    }
     if !reexports.is_empty() {
         checklist.push("remove or update barrel reexports shown above".to_string());
     }
