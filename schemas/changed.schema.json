@@ -11,6 +11,7 @@
     "total_changed_count",
     "changed",
     "git_state",
+    "structural_events",
     "map_delta",
     "impact",
     "proof",
@@ -20,7 +21,7 @@
   ],
   "properties": {
     "kind": { "const": "changed_report" },
-    "schema_version": { "const": "1" },
+    "schema_version": { "const": "2" },
     "selector": { "type": "string" },
     "total_changed_count": { "type": "integer", "minimum": 0 },
     "changed": {
@@ -30,6 +31,10 @@
     "git_state": {
       "type": "array",
       "items": { "$ref": "#/$defs/git_change" }
+    },
+    "structural_events": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/changed_structural_event" }
     },
     "map_delta": { "$ref": "#/$defs/map_delta" },
     "impact": {
@@ -120,6 +125,20 @@
         "status": { "type": "string" },
         "staged": { "type": "boolean" },
         "unstaged": { "type": "boolean" }
+      }
+    },
+    "changed_structural_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "path", "old_path", "evidence", "effect", "locations", "expand"],
+      "properties": {
+        "kind": { "type": "string" },
+        "path": { "type": "string" },
+        "old_path": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "evidence": { "type": "string" },
+        "effect": { "type": "string" },
+        "locations": { "type": "array", "items": { "$ref": "#/$defs/evidence_location" } },
+        "expand": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
       }
     },
     "map_delta": {

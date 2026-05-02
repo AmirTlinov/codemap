@@ -42,6 +42,17 @@ pub fn changed(report: &ChangedReport, section_filter: &str) {
             ),
         });
     }
+    if report.structural_events.len() > report.display_limit {
+        hidden.push(crate::model::HiddenGroup {
+            reason: "structural events hidden by limit".to_string(),
+            count: report.structural_events.len() - report.display_limit,
+            expand: format!(
+                "codemap changed{} --limit {}",
+                changed_selector_suffix(&report.selector),
+                report.structural_events.len()
+            ),
+        });
+    }
     hidden_section(&hidden);
     section("Expand", &report.expand);
 }
@@ -74,6 +85,7 @@ fn changed_summary(report: &ChangedReport) {
             }
         }
     }
+    changed_structural_events_section(report);
     changed_anchor_section(&report.changed);
 }
 
@@ -86,6 +98,30 @@ fn changed_selector_suffix(selector: &str) -> String {
         String::new()
     } else {
         format!(" {selector}")
+    }
+}
+
+fn changed_structural_events_section(report: &ChangedReport) {
+    if report.structural_events.is_empty() {
+        return;
+    }
+    println!("\n## Structural Events\n");
+    for event in report
+        .structural_events
+        .iter()
+        .take(report.display_limit)
+    {
+        println!(
+            "- `{}` [{}; evidence={}]",
+            event.path, event.kind, event.evidence
+        );
+        if let Some(old_path) = &event.old_path {
+            println!("  old: `{old_path}`");
+        }
+        println!("  effect: {}", event.effect);
+        if let Some(expand) = &event.expand {
+            println!("  expand: `{}`", root_aware_expand(expand));
+        }
     }
 }
 

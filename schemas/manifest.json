@@ -49,7 +49,7 @@
       "kind": "changed",
       "file": "schemas/changed.schema.json",
       "contract": "structural_output",
-      "schema_version": "1",
+      "schema_version": "2",
       "json_kind": "changed_report"
     },
     {

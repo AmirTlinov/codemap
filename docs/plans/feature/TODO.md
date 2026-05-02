@@ -340,6 +340,29 @@ live: not required for this boundary; controlled fixture proves the false-claim
 case more directly than dirty live repos.
 ```
 
+```txt
+closed next boundary: `changed` now exposes deterministic git structural events
+for deleted and renamed paths, with parser support for typechanged/conflicted
+events but no full closure claim for those states. Deleted files surface as
+`removed_anchor` and expand to `diff-map` for removed edges/exports; renamed
+files preserve `old_path -> path` as `renamed_anchor`; each event carries
+`git_status` evidence, provenance location, effect text, and an exact expand
+command. Dirty git-state parsing now uses NUL-delimited porcelain output so
+paths with spaces are preserved. Renames into ignored directories degrade to a
+removed old source anchor instead of a false clean changed report. The changed
+JSON schema is bumped to v2 for the new public `structural_events` field.
+excluded next: lockfile/generated ownership, base-symbol removed-line analysis,
+and committed typechanged/conflicted regression coverage remain later work.
+proof next: controlled deletion+rename dirty fixture, rename-with-spaces
+fixture, dirty and staged rename-into-ignored-dir fixtures, changed schema
+validation, schema manifest parity, line budget, and full gate.
+review next: PASS after fixing porcelain path quoting, deleted-file expand, and
+staged/since rename-into-ignored false-clean behavior.
+live next: read-only changed probes on ctx, spritestudio, and Sillentway-VPN
+confirmed shape without mutating live repos; deletion/rename truth is proven by
+controlled dirty/staged fixtures.
+```
+
 ### Slice 11: Symbol, Import, And Export Extraction Matrix
 
 ```txt

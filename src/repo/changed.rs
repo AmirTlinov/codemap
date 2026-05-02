@@ -1,46 +1,19 @@
 pub fn changed_files(root: &Path, staged: bool, since: Option<&str>) -> Vec<String> {
-    if let Some(since) = since
-        && let Some(files) = git_name_only(root, &["diff", "--name-only", "--relative", since])
-    {
-        return files;
+    if let Some(since) = since {
+        return changed_paths(git_name_status(
+            root,
+            &["diff", "--name-status", "--relative", since],
+        ));
     }
     if staged {
-        return git_name_only(root, &["diff", "--name-only", "--relative", "--cached"])
-            .unwrap_or_default();
+        return changed_paths(git_name_status(
+            root,
+            &["diff", "--name-status", "--relative", "--cached"],
+        ));
     }
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(["status", "--porcelain", "-uall", "--", "."])
-        .output();
-    let Ok(output) = output else {
-        return Vec::new();
-    };
-    if !output.status.success() {
-        return Vec::new();
-    }
-    let root_prefix = git_status_root_prefix(root);
     let mut files = BTreeSet::new();
-    for line in String::from_utf8_lossy(&output.stdout).lines() {
-        if line.len() < 4 {
-            continue;
-        }
-        let mut path = line[3..].trim().to_string();
-        if let Some((_, new_path)) = path.split_once(" -> ") {
-            path = new_path.to_string();
-        }
-        let rel = normalize_rel_path(&path);
-        let rel = if let Some(prefix) = root_prefix.as_deref() {
-            let Some(stripped) = rel.strip_prefix(prefix) else {
-                continue;
-            };
-            normalize_rel_path(stripped)
-        } else {
-            rel
-        };
-        if !rel.is_empty() && !should_ignore_rel(&rel) {
-            files.insert(rel);
-        }
+    for change in git_status_changes(root) {
+        files.insert(change.path);
     }
     files.into_iter().collect()
 }
@@ -52,10 +25,14 @@ pub fn git_changes(root: &Path, staged_only: bool, since: Option<&str>) -> Vec<G
     if staged_only {
         return git_name_status(root, &["diff", "--name-status", "--relative", "--cached"]);
     }
+    git_status_changes(root)
+}
+
+fn git_status_changes(root: &Path) -> Vec<GitChange> {
     let output = Command::new("git")
         .arg("-C")
         .arg(root)
-        .args(["status", "--porcelain", "-uall", "--", "."])
+        .args(["status", "--porcelain=v1", "-z", "-uall", "--", "."])
         .output();
     let Ok(output) = output else {
         return Vec::new();
@@ -65,27 +42,40 @@ pub fn git_changes(root: &Path, staged_only: bool, since: Option<&str>) -> Vec<G
     }
     let root_prefix = git_status_root_prefix(root);
     let mut out = Vec::new();
-    for line in String::from_utf8_lossy(&output.stdout).lines() {
-        if line.len() < 4 {
+    let mut entries = output.stdout.split(|byte| *byte == 0).filter(|entry| !entry.is_empty());
+    while let Some(entry) = entries.next() {
+        if entry.len() < 4 {
             continue;
         }
-        let index_status = line.chars().next().unwrap_or(' ');
-        let worktree_status = line.chars().nth(1).unwrap_or(' ');
-        let raw = line[3..].trim();
-        let (old_path, path) = if let Some((old_path, new_path)) = raw.split_once(" -> ") {
-            (Some(old_path.to_string()), new_path.to_string())
+        let record = String::from_utf8_lossy(entry);
+        let index_status = record.chars().next().unwrap_or(' ');
+        let worktree_status = record.chars().nth(1).unwrap_or(' ');
+        let raw_path = &record[3..];
+        let old_path = if index_status == 'R' || index_status == 'C' {
+            entries.next().and_then(|entry| {
+                normalize_status_path(&String::from_utf8_lossy(entry), root_prefix.as_deref())
+            })
         } else {
-            (None, raw.to_string())
+            None
         };
-        let Some(path) = normalize_status_path(&path, root_prefix.as_deref()) else {
+        let Some(path) = normalize_status_path(raw_path, root_prefix.as_deref()) else {
             continue;
         };
         if should_ignore_rel(&path) {
+            if matches!(index_status, 'R' | 'C')
+                && let Some(old_path) = old_path
+                && !should_ignore_rel(&old_path)
+            {
+                out.push(GitChange {
+                    path: old_path,
+                    old_path: None,
+                    status: "deleted".to_string(),
+                    staged: index_status != ' ' && index_status != '?',
+                    unstaged: worktree_status != ' ' || index_status == '?',
+                });
+            }
             continue;
         }
-        let old_path = old_path
-            .as_deref()
-            .and_then(|old| normalize_status_path(old, root_prefix.as_deref()));
         out.push(GitChange {
             path,
             old_path,
@@ -110,11 +100,46 @@ fn git_name_status(root: &Path, args: &[&str]) -> Vec<GitChange> {
     if !output.status.success() {
         return Vec::new();
     }
-    String::from_utf8_lossy(&output.stdout)
+    let mut changes = String::from_utf8_lossy(&output.stdout)
         .lines()
         .filter_map(name_status_line)
-        .filter(|change| !should_ignore_rel(&change.path))
+        .filter_map(visible_or_degraded_change)
+        .collect::<Vec<_>>();
+    changes.sort_by(|a, b| {
+        a.path
+            .cmp(&b.path)
+            .then_with(|| a.status.cmp(&b.status))
+            .then_with(|| a.old_path.cmp(&b.old_path))
+    });
+    changes
+}
+
+fn changed_paths(changes: Vec<GitChange>) -> Vec<String> {
+    changes
+        .into_iter()
+        .map(|change| change.path)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
         .collect()
+}
+
+fn visible_or_degraded_change(change: GitChange) -> Option<GitChange> {
+    if !should_ignore_rel(&change.path) {
+        return Some(change);
+    }
+    if change.status == "renamed"
+        && let Some(old_path) = change.old_path.as_deref()
+        && !should_ignore_rel(old_path)
+    {
+        return Some(GitChange {
+            path: old_path.to_string(),
+            old_path: None,
+            status: "deleted".to_string(),
+            staged: change.staged,
+            unstaged: change.unstaged,
+        });
+    }
+    None
 }
 
 fn name_status_line(line: &str) -> Option<GitChange> {
@@ -183,23 +208,4 @@ fn git_status_root_prefix(root: &Path) -> Option<String> {
     let rel = root.strip_prefix(git_root).ok()?;
     let rel = normalize_rel_path(&rel.to_string_lossy());
     (!rel.is_empty()).then(|| format!("{}/", rel.trim_end_matches('/')))
-}
-
-fn git_name_only(root: &Path, args: &[&str]) -> Option<Vec<String>> {
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(args)
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    Some(
-        String::from_utf8_lossy(&output.stdout)
-            .lines()
-            .map(normalize_rel_path)
-            .filter(|rel| !rel.is_empty() && !should_ignore_rel(rel))
-            .collect(),
-    )
 }

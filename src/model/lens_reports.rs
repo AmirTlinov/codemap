@@ -81,6 +81,7 @@ pub struct ChangedReport {
     pub total_changed_count: usize,
     pub changed: Vec<FileSummary>,
     pub git_state: Vec<GitChange>,
+    pub structural_events: Vec<ChangedStructuralEvent>,
     pub map_delta: ChangedMapDelta,
     pub impact: Vec<ImpactCluster>,
     pub proof: ChangedProofSummary,
@@ -96,6 +97,17 @@ pub struct GitChange {
     pub status: String,
     pub staged: bool,
     pub unstaged: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ChangedStructuralEvent {
+    pub kind: String,
+    pub path: String,
+    pub old_path: Option<String>,
+    pub evidence: String,
+    pub effect: String,
+    pub locations: Vec<EvidenceLocation>,
+    pub expand: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
