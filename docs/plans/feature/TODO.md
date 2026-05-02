@@ -92,6 +92,18 @@ next: stop graph cleanup unless a remaining root-map claim is false or
 confusing.
 ```
 
+Slice 14 first boundary is closed:
+
+```txt
+closed: `cone file#MissingSymbol` fails closed as `missing_symbol_anchor`
+instead of pretending the whole anchor is an unindexed/missing file path.
+proof: controlled missing-symbol cone fixture plus full local gate.
+review: PASS.
+live: not required; a synthetic exact-symbol miss proves the false-claim case.
+next: stop Slice 14 unless a concrete cone anchor still falls back to a broader
+or misleading map.
+```
+
 ## Slice Status
 
 | Slice | Status | Tier | Boundary |
@@ -109,7 +121,7 @@ confusing.
 | 11 Symbol/import/export extraction matrix | closed | full | Exact file cones surface unresolved local imports as typed unknowns. |
 | 12 Package/workspace graph and boundaries | closed first boundary | full | Deterministic dependency kind on package edges. |
 | 13 `ls`, `graph --lens causal`, root map quality | closed first boundary | focused | Root causal graph normalizes workspace package coordinates. |
-| 14 `cone` exact anchors and directory aggregation | todo | focused/live | File/symbol/dir cones expose useful local detail without file galaxies. |
+| 14 `cone` exact anchors and directory aggregation | closed first boundary | focused | Missing symbol anchors fail closed without whole-file fallback. |
 | 15 Runtime lens | todo | focused/live | Deterministic execution entrypoints stitch to code where known. |
 | 16 Contract lens | todo | focused/live | Public/schema/API surfaces are separated from implementation names. |
 | 17 Proof-map and proof safety | todo | focused/live | Proof is a sensor map; `--run` stays safe by default. |

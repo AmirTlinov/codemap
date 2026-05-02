@@ -107,3 +107,24 @@ locations and evidence
 `cone` is the reliable local relationship map for files, dirs, and supported
 symbols.
 
+## First Closure Boundary
+
+Do not hold this slice open until every anchor type is perfect. The first
+load-bearing boundary is exact symbol-anchor honesty:
+
+```txt
+closed: `cone file#MissingSymbol` returns an anchor with kind
+`missing_symbol`, emits typed unknown `missing_symbol_anchor`, and leaves
+outgoing/incoming/proof/contract/boundary sections empty instead of falling
+back to a whole-file cone or a generic unindexed path.
+excluded: package anchors, runtime route anchors, contract surface anchors,
+and broader directory/symbol depth improvements.
+proof: controlled fixture for an indexed file with a missing symbol plus local
+gate.
+review: PASS.
+live: not required; live repos add noise to an exact fail-closed case.
+```
+
+Next Slice 14 work should start only from a concrete bad cone behavior, such as
+an exact anchor being re-guessed, a directory cone leaking a file galaxy, or a
+supported symbol anchor losing evidence.

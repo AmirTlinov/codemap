@@ -38,16 +38,19 @@ pub fn cone_report(
     let depth = depth.min(4);
     let limit = limit.max(1);
     if let Some((file_rel, symbol_name)) = split_symbol_anchor(&rel)
-        && let Some(report) = cone_symbol_report(
+        && let Some(info) = project.files.get(&file_rel)
+    {
+        if let Some(report) = cone_symbol_report(
             project,
             &file_rel,
             &symbol_name,
             depth,
             include_hidden,
             limit,
-        )
-    {
-        return report;
+        ) {
+            return report;
+        }
+        return cone_missing_symbol_report(project, info, &symbol_name, depth);
     }
     if directory_has_files(project, &rel) {
         return cone_directory_report(project, &rel, depth, include_hidden, limit);

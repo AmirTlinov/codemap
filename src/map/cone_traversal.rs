@@ -79,6 +79,43 @@ fn cone_symbol_report(
     })
 }
 
+fn cone_missing_symbol_report(
+    project: &Project,
+    info: &FileInfo,
+    symbol_name: &str,
+    depth: usize,
+) -> ConeReport {
+    let anchor_path = symbol_anchor_path(&info.rel, symbol_name);
+    ConeReport {
+        kind: "cone_report",
+        schema_version: "3",
+        anchor: FileSummary {
+            path: anchor_path.clone(),
+            kind: "missing_symbol".to_string(),
+            package: package_name_for_file(project, &info.rel),
+            language: info.language.clone(),
+            lines: 0,
+            roles: structural_roles_for_ls(info),
+            symbols: Vec::new(),
+            exports: Vec::new(),
+            imports: Vec::new(),
+            imported_by_count: 0,
+        },
+        depth,
+        outgoing: Vec::new(),
+        incoming: Vec::new(),
+        proof: Vec::new(),
+        contracts: Vec::new(),
+        boundary: Vec::new(),
+        hidden: Vec::new(),
+        unknowns: vec![unknown_missing_symbol_anchor(&info.rel, symbol_name)],
+        expand: vec![
+            format!("codemap ls {}", shell_quote(&info.rel)),
+            format!("codemap cone {}", shell_quote(&info.rel)),
+        ],
+    }
+}
+
 fn cone_anchor(
     project: &Project,
     rel: &str,

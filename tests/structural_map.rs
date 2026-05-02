@@ -30,6 +30,7 @@ include!("structural_map/contract_role_precision.rs");
 include!("structural_map/contract_markdown.rs");
 include!("structural_map/directory_cone_and_tsconfig.rs");
 include!("structural_map/cone_markdown.rs");
+include!("structural_map/cone_missing_symbol_anchor.rs");
 include!("structural_map/hidden_unknown_markdown.rs");
 include!("structural_map/surface_markdown.rs");
 include!("structural_map/runtime_markdown.rs");
