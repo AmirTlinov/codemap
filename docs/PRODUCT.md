@@ -51,7 +51,7 @@ Focused lenses remain public and supported, but they are deep map targets:
 
 `codemap diff-map --changed|--files` shows map-level changes: structural import/export lines, changed exported symbol surfaces, and new unknowns. It does not print textual diff.
 
-`codemap changed` is the daily after-edit overview. It combines git state, map deltas, impact clusters, proof sensors, unknowns, hidden counts, and expand targets without running commands.
+`codemap changed` is the daily after-edit map. It uses stable readable sections: observed facts, deterministic links, mutation roles, proof sensors, unknowns, hidden counts, and expand targets without running commands.
 
 `codemap contract <anchor>` shows exported/schema/package/public surfaces, producers, consumers, cross-package consumers, and proof edges.
 

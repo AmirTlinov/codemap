@@ -1,4 +1,4 @@
-pub fn changed(report: &ChangedReport, section_filter: &str) {
+pub fn changed(report: &ChangedReport, section_filter: Option<&str>) {
     println!("# Changed Map\n");
     println!("Selector: `{}`", report.selector);
     if report.total_changed_count > report.changed.len() {
@@ -12,32 +12,41 @@ pub fn changed(report: &ChangedReport, section_filter: &str) {
     }
     if report.changed.is_empty() && report.git_state.is_empty() {
         println!("\nNo changed anchors detected.");
+        if section_filter == Some("hidden") {
+            changed_hidden_section(&changed_render_hidden(report), true);
+            return;
+        }
+        if section_filter.is_some() {
+            return;
+        }
         section("Expand", &report.expand);
         return;
     }
     let hidden = changed_render_hidden(report);
-    if section_filter == "hidden" {
-        hidden_section(&hidden);
-        section("Expand", &report.expand);
+    if section_filter == Some("hidden") {
+        changed_hidden_section(&hidden, true);
         return;
     }
-    if section_filter == "overview" {
-        changed_summary(report);
+    let show_all = section_filter.is_none();
+    if matches!(section_filter, None | Some("observed")) {
+        changed_observed_section(report, true);
     }
-    if matches!(section_filter, "overview" | "diff") {
-        changed_delta_section(report);
+    if matches!(section_filter, None | Some("roles")) {
+        changed_roles_section(report, true);
     }
-    if matches!(section_filter, "overview" | "impact") {
-        changed_impact_section(report, section_filter == "overview");
+    if matches!(section_filter, None | Some("links")) {
+        changed_links_section(report, show_all, true);
     }
-    if matches!(section_filter, "overview" | "proof") {
+    if matches!(section_filter, None | Some("proof")) {
         changed_proof_section(report);
     }
-    if matches!(section_filter, "overview" | "unknowns") {
-        unknown_section(&report.unknowns);
+    if matches!(section_filter, None | Some("unknown")) {
+        changed_unknown_section(&report.unknowns, true);
     }
-    hidden_section(&hidden);
-    section("Expand", &report.expand);
+    if show_all {
+        changed_hidden_section(&hidden, false);
+        section("Expand", &report.expand);
+    }
 }
 
 fn changed_render_hidden(report: &ChangedReport) -> Vec<crate::model::HiddenGroup> {
@@ -47,7 +56,7 @@ fn changed_render_hidden(report: &ChangedReport) -> Vec<crate::model::HiddenGrou
             reason: "git state rows hidden by limit".to_string(),
             count: report.git_state.len() - report.display_limit,
             expand: format!(
-                "codemap changed{} --limit {}",
+                "codemap changed{} --section observed --limit {}",
                 changed_selector_suffix(&report.selector),
                 report.git_state.len()
             ),
@@ -58,7 +67,7 @@ fn changed_render_hidden(report: &ChangedReport) -> Vec<crate::model::HiddenGrou
             reason: "structural events hidden by limit".to_string(),
             count: report.structural_events.len() - report.display_limit,
             expand: format!(
-                "codemap changed{} --limit {}",
+                "codemap changed{} --section observed --limit {}",
                 changed_selector_suffix(&report.selector),
                 report.structural_events.len()
             ),
@@ -67,9 +76,21 @@ fn changed_render_hidden(report: &ChangedReport) -> Vec<crate::model::HiddenGrou
     hidden
 }
 
-fn changed_summary(report: &ChangedReport) {
+fn changed_observed_section(report: &ChangedReport, force: bool) {
+    if report.git_state.is_empty()
+        && report.changed.is_empty()
+        && report.structural_events.is_empty()
+        && changed_map_delta_is_empty(&report.map_delta)
+    {
+        if force {
+            println!("\n## Observed\n");
+            println!("No observed changed surfaces.");
+        }
+        return;
+    }
+    println!("\n## Observed\n");
     if !report.git_state.is_empty() {
-        println!("\n## Git State\n");
+        println!("git state:");
         let visible_changes = report
             .git_state
             .iter()
@@ -97,6 +118,7 @@ fn changed_summary(report: &ChangedReport) {
     }
     changed_structural_events_section(report);
     changed_anchor_section(&report.changed);
+    changed_delta_section(report);
 }
 
 fn visible_git_state_count(report: &ChangedReport) -> usize {
@@ -115,7 +137,7 @@ fn changed_structural_events_section(report: &ChangedReport) {
     if report.structural_events.is_empty() {
         return;
     }
-    println!("\n## Structural Events\n");
+    println!("\nstructural events:");
     for event in report
         .structural_events
         .iter()
@@ -139,7 +161,7 @@ fn changed_anchor_section(files: &[crate::model::FileSummary]) {
     if files.is_empty() {
         return;
     }
-    println!("\n## Changed Anchors\n");
+    println!("\nchanged anchors:");
     let prefix = changed_common_dir_prefix(
         &files
             .iter()
@@ -222,7 +244,7 @@ fn changed_preview_list(values: &[String], limit: usize) -> String {
 
 fn changed_delta_section(report: &ChangedReport) {
     let delta = &report.map_delta;
-    println!("\n## Map Delta\n");
+    println!("\nmap delta:");
     for (label, count) in [
         ("added imports/exports", delta.added_edges),
         ("removed imports/exports", delta.removed_edges),
@@ -241,62 +263,21 @@ fn changed_delta_section(report: &ChangedReport) {
     }
 }
 
-fn changed_impact_section(report: &ChangedReport, compact: bool) {
-    if report.impact.is_empty() {
-        return;
-    }
-    println!("\n## Impact\n");
-    if compact {
-        changed_impact_summary_lines(&report.impact);
-        return;
-    }
-    for cluster in &report.impact {
-        println!("\n### `{}`", cluster.id);
-        if !cluster.changed.is_empty() {
-            println!("changed:");
-            println!("{}", bullet(&cluster.changed, true, Some(10)));
-        }
-        if !cluster.reasons.is_empty() {
-            println!("reasons:");
-            println!("{}", bullet(&cluster.reasons, false, Some(6)));
-        }
-        grouped_edge_list("direct consumers", &cluster.direct_consumers, 8);
-        grouped_edge_list("cross-boundary consumers", &cluster.cross_boundary_consumers, 8);
-        grouped_edge_list("contract links", &cluster.contract_links, 8);
-        if !cluster.proof.is_empty() {
-            println!("proof: {} edges (see Proof section)", cluster.proof.len());
-        }
-    }
+fn changed_map_delta_is_empty(delta: &crate::model::ChangedMapDelta) -> bool {
+    delta.added_edges == 0
+        && delta.removed_edges == 0
+        && delta.changed_symbols == 0
+        && delta.added_exports == 0
+        && delta.removed_exports == 0
+        && delta.added_runtime_routes == 0
+        && delta.removed_runtime_routes == 0
+        && delta.added_env == 0
+        && delta.removed_env == 0
+        && delta.added_proof_surfaces == 0
+        && delta.removed_proof_surfaces == 0
+        && delta.new_unknowns == 0
 }
 
-fn changed_impact_summary_lines(clusters: &[ImpactCluster]) {
-    let paths = clusters
-        .iter()
-        .filter_map(|cluster| cluster.id.strip_prefix("changed:"))
-        .collect::<Vec<_>>();
-    let prefix = changed_common_dir_prefix(&paths);
-    if let Some(prefix) = &prefix {
-        println!("prefix: `{prefix}`");
-    }
-    for cluster in clusters {
-        let label = cluster
-            .id
-            .strip_prefix("changed:")
-            .map(|path| changed_relative_path(path, prefix.as_deref()))
-            .unwrap_or_else(|| cluster.id.clone());
-        println!(
-            "- `{}` [direct={}; cross={}; contract={}; proof={}]",
-            label,
-            cluster.direct_consumers.len(),
-            cluster.cross_boundary_consumers.len(),
-            cluster.contract_links.len(),
-            cluster.proof.len()
-        );
-        if !cluster.reasons.is_empty() {
-            println!("  reasons: {}", cluster.reasons.join("; "));
-        }
-    }
-}
 
 fn changed_proof_section(report: &ChangedReport) {
     println!("\n## Proof\n");

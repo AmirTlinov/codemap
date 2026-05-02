@@ -5,6 +5,7 @@ pub fn changed_report(
     mode: DiffMapMode,
     git_state: Vec<GitChange>,
     limit: usize,
+    proof_cache_limit: usize,
 ) -> ChangedReport {
     let limit = limit.max(1);
     let total_changed_count = changed
@@ -20,6 +21,7 @@ pub fn changed_report(
             schema_version: "3",
             selector: selector.clone(),
             display_limit: limit,
+            proof_plan_cache: None,
             total_changed_count,
             changed: Vec::new(),
             git_state,
@@ -55,10 +57,19 @@ pub fn changed_report(
     }
     let diff = diff_map_report(project, changed.clone(), limit, mode);
     let impact = impact_report(project, changed.clone(), 1, limit);
+    let proof_changed = changed.clone();
+    let proof_plan_cache = proof_report(
+        project,
+        None,
+        proof_changed,
+        changed_proof_selector(&selector),
+        1,
+        proof_cache_limit,
+    );
     let proof_map = proof_map_report(project, None, changed, selector.clone(), limit, false);
     let mut hidden = Vec::new();
-    hidden.extend(prefix_hidden("diff", &diff.hidden, &selector, limit));
-    hidden.extend(prefix_hidden("impact", &impact.hidden, &selector, limit));
+    hidden.extend(prefix_hidden("observed", &diff.hidden, &selector, limit));
+    hidden.extend(prefix_hidden("links", &impact.hidden, &selector, limit));
     hidden.extend(prefix_hidden("proof", &proof_map.hidden, &selector, limit));
     let mut unknowns = Vec::new();
     unknowns.extend(diff.new_unknowns.clone());
@@ -66,7 +77,7 @@ pub fn changed_report(
     unknowns.extend(proof_map.unknowns.clone());
     dedupe_unknowns(&mut unknowns);
     let unknown_expand = format!(
-        "codemap changed{} --section unknowns --limit {}",
+        "codemap changed{} --section unknown --limit {}",
         changed_self_selector_suffix(&selector),
         unknowns.len()
     );
@@ -82,6 +93,7 @@ pub fn changed_report(
         schema_version: "3",
         selector: selector.clone(),
         display_limit: limit,
+        proof_plan_cache: Some(Box::new(proof_plan_cache)),
         total_changed_count,
         changed: impact.changed.clone(),
         git_state,
@@ -162,6 +174,7 @@ pub fn clean_changed_report(selector: String, limit: usize) -> ChangedReport {
         schema_version: "3",
         selector: selector.clone(),
         display_limit: limit.max(1),
+        proof_plan_cache: None,
         total_changed_count: 0,
         changed: Vec::new(),
         git_state: Vec::new(),
@@ -193,6 +206,14 @@ pub fn clean_changed_report(selector: String, limit: usize) -> ChangedReport {
         unknowns: Vec::new(),
         hidden: Vec::new(),
         expand: changed_expand(&selector),
+    }
+}
+
+fn changed_proof_selector(selector: &str) -> String {
+    if selector == "--changed" {
+        "changed".to_string()
+    } else {
+        selector.to_string()
     }
 }
 
@@ -322,9 +343,11 @@ fn changed_expand(selector: &str) -> Vec<String> {
         selector
     };
     vec![
-        format!("codemap changed{changed_suffix} --section diff"),
-        format!("codemap changed{changed_suffix} --section impact"),
+        format!("codemap changed{changed_suffix} --section observed"),
+        format!("codemap changed{changed_suffix} --section links"),
+        format!("codemap changed{changed_suffix} --section roles"),
         format!("codemap changed{changed_suffix} --section proof"),
+        format!("codemap changed{changed_suffix} --section unknown"),
         format!("codemap diff-map {selector}"),
         format!("codemap impact {selector}"),
         format!("codemap proof-map {selector}"),

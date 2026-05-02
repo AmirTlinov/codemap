@@ -15,6 +15,38 @@ fn dirty_daily_lens_artifacts_roundtrip_without_output_drift() {
         changed_first, changed_second,
         "cached changed artifact must preserve markdown output"
     );
+    assert!(
+        cached_lens_artifact_exists(cache.path(), "proof-changed.json"),
+        "changed command should warm the proof changed artifact from already computed proof facts"
+    );
+
+    let direct_cache = TempDir::new().expect("direct proof cache");
+    let proof_direct = run_lens_stdout(repo.path(), direct_cache.path(), &["proof", "changed"]);
+    let proof_from_changed = run_lens_stdout(repo.path(), cache.path(), &["proof", "changed"]);
+    assert_eq!(
+        proof_direct, proof_from_changed,
+        "proof changed warmed by changed must match a direct proof changed report"
+    );
+    let direct_json_cache = TempDir::new().expect("direct proof json cache");
+    let proof_direct_json = run_json(
+        repo.path(),
+        direct_json_cache.path(),
+        &["proof", "changed", "--format", "json"],
+    );
+    let proof_from_changed_json =
+        run_json(repo.path(), cache.path(), &["proof", "changed", "--format", "json"]);
+    assert_eq!(
+        proof_direct_json, proof_from_changed_json,
+        "proof changed warmed by changed must match direct proof changed JSON"
+    );
+
+    let sentinel = "__changed_warmed_proof_cache__";
+    poison_lens_report_field(cache.path(), "proof-changed.json", "run_hint", sentinel);
+    let proof_json = run_json(repo.path(), cache.path(), &["proof", "changed", "--format", "json"]);
+    assert_eq!(
+        proof_json["run_hint"], sentinel,
+        "proof changed should read the artifact warmed by changed for the exact default key"
+    );
 
     let proof_first = run_lens_stdout(repo.path(), cache.path(), &["proof", "changed"]);
     let proof_second = run_lens_stdout(repo.path(), cache.path(), &["proof", "changed"]);
@@ -45,6 +77,54 @@ fn dirty_daily_lens_artifacts_roundtrip_without_output_drift() {
     assert!(
         cached_lens_artifact_exists(cache.path(), "proof-changed.json"),
         "proof changed should write an external lens artifact"
+    );
+}
+
+#[test]
+fn changed_warmed_proof_cache_ignores_changed_display_limit() {
+    let (repo, cache) = fixture();
+    let direct_cache = TempDir::new().expect("direct proof cache");
+    for rel in [
+        "packages/replay/src/session.ts",
+        "packages/replay/src/public-only.ts",
+        "packages/replay/src/types.ts",
+    ] {
+        write(&repo.path().join(rel), &format!("// changed {rel}\n"));
+    }
+
+    let _ = run_lens_stdout(repo.path(), cache.path(), &["changed", "--limit", "1"]);
+    let warmed = run_lens_stdout(repo.path(), cache.path(), &["proof", "changed"]);
+    let direct = run_lens_stdout(repo.path(), direct_cache.path(), &["proof", "changed"]);
+    assert_eq!(
+        direct, warmed,
+        "changed --limit must not truncate the warmed default proof changed artifact"
+    );
+}
+
+#[test]
+fn changed_warmed_proof_cache_preserves_direct_proof_order_and_hidden_limit() {
+    let (repo, cache) = fixture();
+    let direct_cache = TempDir::new().expect("direct proof cache");
+    let rel = "packages/replay/src/session.ts";
+    write(
+        &repo.path().join(rel),
+        "import { Timeline } from './timeline';\n\nexport function seek(cursor: number) {\n  return { frame: new Timeline().frameAt(cursor + 1) };\n}\n",
+    );
+    for index in 0..14 {
+        write(
+            &repo
+                .path()
+                .join(format!("packages/replay/tests/session-extra-{index}.test.ts")),
+            "import { seek } from '../src/session';\n\ntest('extra seek proof', () => {\n  expect(seek(2).frame).toBeTruthy();\n});\n",
+        );
+    }
+
+    let _ = run_lens_stdout(repo.path(), cache.path(), &["changed"]);
+    let warmed = run_lens_stdout(repo.path(), cache.path(), &["proof", "changed"]);
+    let direct = run_lens_stdout(repo.path(), direct_cache.path(), &["proof", "changed"]);
+    assert_eq!(
+        direct, warmed,
+        "changed-warmed proof must preserve direct proof ordering and hidden truncation"
     );
 }
 

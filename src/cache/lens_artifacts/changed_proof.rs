@@ -172,6 +172,7 @@ impl CachedChangedReport {
             schema_version: "3",
             selector: self.selector,
             display_limit: limit,
+            proof_plan_cache: None,
             total_changed_count: self.total_changed_count,
             changed: self.changed,
             git_state: self.git_state,

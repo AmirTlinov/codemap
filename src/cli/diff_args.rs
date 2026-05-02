@@ -123,14 +123,15 @@ fn changed_inputs(
     ))
 }
 
-fn changed_section_name(section: ChangedSection) -> &'static str {
+fn changed_section_name(section: Option<ChangedSection>) -> Option<&'static str> {
     match section {
-        ChangedSection::Overview => "overview",
-        ChangedSection::Diff => "diff",
-        ChangedSection::Impact => "impact",
-        ChangedSection::Proof => "proof",
-        ChangedSection::Unknown => "unknowns",
-        ChangedSection::Hidden => "hidden",
+        Some(ChangedSection::Observed) => Some("observed"),
+        Some(ChangedSection::Links) => Some("links"),
+        Some(ChangedSection::Roles) => Some("roles"),
+        Some(ChangedSection::Proof) => Some("proof"),
+        Some(ChangedSection::Unknown) => Some("unknown"),
+        Some(ChangedSection::Hidden) => Some("hidden"),
+        None => None,
     }
 }
 

@@ -240,6 +240,34 @@ fn maybe_write_changed_lens_cache(
     );
 }
 
+fn maybe_write_proof_changed_lens_cache_from_changed(
+    project: &crate::model::Project,
+    args: &ChangedArgs,
+    report: &crate::model::ChangedReport,
+) {
+    if changed_has_explicit_files(args) {
+        return;
+    }
+    let Some(proof_report) = report.proof_plan_cache.as_deref() else {
+        return;
+    };
+    let selector = changed_selector(args);
+    let proof_selector = if selector == "--changed" {
+        "changed".to_string()
+    } else {
+        selector
+    };
+    let _ = crate::cache::write_proof_changed_report(
+        &project.cache_dir,
+        repo::VERSION,
+        &project.root,
+        &proof_selector,
+        1,
+        DEFAULT_PROOF_LIMIT,
+        proof_report,
+    );
+}
+
 fn maybe_write_ls_lens_cache(
     project: &crate::model::Project,
     path: &str,

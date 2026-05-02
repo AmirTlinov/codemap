@@ -117,8 +117,9 @@ codemap proof changed
 codemap ls [scope]
 codemap cone <file-or-dir> [--depth 1]
 codemap changed
-codemap changed --section diff
-codemap changed --section impact
+codemap changed --section observed
+codemap changed --section links
+codemap changed --section roles
 codemap changed --section proof
 codemap changed --section unknown
 codemap changed --section hidden

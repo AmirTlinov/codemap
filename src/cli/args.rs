@@ -10,6 +10,8 @@ use globset::GlobBuilder;
 
 use crate::{map, render, repo};
 
+const DEFAULT_PROOF_LIMIT: usize = 12;
+
 #[derive(Debug, Parser)]
 #[command(name = "codemap")]
 #[command(about = "Structural code map CLI for AI coding agents")]
@@ -44,7 +46,7 @@ enum CommandKind {
     Ls(LsArgs),
     #[command(about = "Show a bounded structural edge cone around an exact anchor")]
     Cone(ConeArgs),
-    #[command(about = "Show one compact after-edit structural map: git state, delta, impact, proof")]
+    #[command(about = "Show one compact after-edit structural map: observed facts, links, roles, proof, unknown gaps")]
     Changed(ChangedArgs),
     #[command(about = "Print structural proof surfaces, or run them only with --run")]
     Proof(ProofArgs),
@@ -225,8 +227,8 @@ struct ChangedArgs {
     files: Option<String>,
     #[arg(hide = true)]
     positional_files: Vec<String>,
-    #[arg(long, value_enum, default_value_t = ChangedSection::Overview)]
-    section: ChangedSection,
+    #[arg(long, value_enum)]
+    section: Option<ChangedSection>,
     #[arg(long = "all", alias = "include-hidden")]
     include_hidden: bool,
     #[arg(long, default_value_t = 30, hide = true)]
@@ -237,9 +239,11 @@ struct ChangedArgs {
 
 #[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
 enum ChangedSection {
-    Overview,
-    Diff,
-    Impact,
+    #[value(alias = "overview", alias = "diff")]
+    Observed,
+    #[value(alias = "impact")]
+    Links,
+    Roles,
     Proof,
     #[value(alias = "unknowns")]
     Unknown,
@@ -282,7 +286,7 @@ struct ProofArgs {
     files: Option<String>,
     #[arg(long, default_value_t = 1)]
     depth: usize,
-    #[arg(long, default_value_t = 12, hide = true)]
+    #[arg(long, default_value_t = DEFAULT_PROOF_LIMIT, hide = true)]
     limit: usize,
     #[arg(long)]
     run: bool,

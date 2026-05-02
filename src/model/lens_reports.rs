@@ -84,6 +84,8 @@ pub struct ChangedReport {
     pub selector: String,
     #[serde(skip)]
     pub display_limit: usize,
+    #[serde(skip)]
+    pub proof_plan_cache: Option<Box<ProofReport>>,
     pub total_changed_count: usize,
     pub changed: Vec<FileSummary>,
     pub git_state: Vec<GitChange>,

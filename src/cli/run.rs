@@ -105,8 +105,17 @@ pub fn run() -> Result<()> {
             } else {
                 args.limit
             };
-            let report = map::changed_report(&project, changed, selector, mode, git_state, limit);
+            let report = map::changed_report(
+                &project,
+                changed,
+                selector,
+                mode,
+                git_state,
+                limit,
+                DEFAULT_PROOF_LIMIT,
+            );
             maybe_write_changed_lens_cache(&project, &args, limit, &report);
+            maybe_write_proof_changed_lens_cache_from_changed(&project, &args, &report);
             output(args.format, &report, || {
                 render::changed(&report, changed_section_name(args.section))
             })

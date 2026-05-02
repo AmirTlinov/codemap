@@ -49,6 +49,72 @@ fn changed_combines_delta_impact_and_proof_without_running_commands() {
                 || command == "codemap changed --files packages/replay/src/session.ts --section proof"),
         "changed should provide deterministic proof drill-down: {changed:#}"
     );
+    for expected in [
+        "codemap changed --section observed",
+        "codemap changed --section links",
+        "codemap changed --section roles",
+        "codemap changed --section unknown",
+    ] {
+        assert!(
+            changed["expand"]
+                .as_array()
+                .expect("expand")
+                .iter()
+                .any(|command| command == expected),
+            "changed expand should expose RFC section `{expected}`: {changed:#}"
+        );
+    }
+}
+#[test]
+fn changed_section_filters_use_stable_rfc_names() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("packages/replay/src/session.ts"),
+        "import { Timeline } from './timeline';\n\nexport function seek(cursor: number) {\n  return new Timeline().frameAt(cursor + 3);\n}\n",
+    );
+
+    for (section, heading) in [
+        ("observed", "## Observed"),
+        ("links", "## Links"),
+        ("roles", "## Mutation Roles"),
+        ("proof", "## Proof"),
+        ("unknown", "## Unknown"),
+        ("hidden", "## Hidden"),
+    ] {
+        let output = codemap()
+            .current_dir(repo.path())
+            .env("CODEMAP_CACHE_DIR", cache.path())
+            .args(["changed", "--section", section])
+            .output()
+            .expect("changed section should run");
+        assert!(
+            output.status.success(),
+            "changed --section {section} failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
+        assert!(
+            markdown.contains(heading),
+            "changed --section {section} should render stable section heading `{heading}`: {markdown}"
+        );
+    }
+
+    let legacy_alias = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["changed", "--section", "diff"])
+        .output()
+        .expect("changed legacy section alias should run");
+    assert!(
+        legacy_alias.status.success(),
+        "legacy diff alias should remain accepted but hidden: {}",
+        String::from_utf8_lossy(&legacy_alias.stderr)
+    );
+    let markdown = String::from_utf8(legacy_alias.stdout).expect("markdown utf8");
+    assert!(
+        markdown.contains("## Observed"),
+        "legacy diff alias should map to observed facts: {markdown}"
+    );
 }
 
 #[test]

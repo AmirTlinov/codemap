@@ -119,6 +119,9 @@ fn structural_test_surface_match(
         .collect::<BTreeSet<_>>();
     let shared_count = shared.len();
     let core_shared_count = anchor_core_terms.intersection(&test_terms).count();
+    let source_package = package_for_rel(project, rel).map(|package| package.path.as_str());
+    let test_package = package_for_rel(project, &test.rel).map(|package| package.path.as_str());
+    let same_package = source_package.is_none() || test_package.is_none() || source_package == test_package;
     let same_parent_signal = same_parent_or_test_scope(rel, &test.rel);
     let test_path_terms = semantic_path_terms(&test.rel);
     let core_path_shared_count = anchor_core_terms.intersection(&test_path_terms).count();
@@ -139,6 +142,9 @@ fn structural_test_surface_match(
                 EvidenceStrength::Medium,
             ));
         }
+        return None;
+    }
+    if !same_package {
         return None;
     }
     if !phrase_shared.is_empty() {
@@ -163,13 +169,7 @@ fn structural_test_surface_match(
             EvidenceStrength::Medium,
         ));
     }
-    let source_package = package_for_rel(project, rel).map(|package| package.path.clone());
-    let test_package = package_for_rel(project, &test.rel).map(|package| package.path.clone());
-    if source_package.is_some()
-        && source_package == test_package
-        && core_path_shared_count >= 2
-        && core_shared_count >= 2
-    {
+    if source_package.is_some() && core_path_shared_count >= 2 && core_shared_count >= 2 {
         return Some((
             42 + shared_count.min(8) + core_shared_count.min(4) * 10,
             "test_surface_tokens".to_string(),

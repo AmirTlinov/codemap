@@ -196,3 +196,46 @@ fn impact_and_proof_are_structural_without_structural_flag() {
         "test support files are map surfaces, not runnable proof"
     );
 }
+
+#[test]
+fn proof_token_surfaces_do_not_cross_package_boundaries() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("packages/replay/src/order-route.ts"),
+        "export function createPartnerOrderRoute() {\n  return 'order-route';\n}\n",
+    );
+    write(
+        &repo.path().join("packages/replay/tests/order-route-smoke.test.ts"),
+        "test('order route smoke', () => {\n  expect('create partner order route').toBeTruthy();\n});\n",
+    );
+    write(
+        &repo.path().join("packages/app/tests/order-route-smoke.test.ts"),
+        "test('order route smoke', () => {\n  expect('create partner order route').toBeTruthy();\n});\n",
+    );
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "packages/replay/src/order-route.ts",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    let paths = proof["proofs"]
+        .as_array()
+        .expect("proofs")
+        .iter()
+        .filter_map(|proof| proof["path"].as_str())
+        .collect::<Vec<_>>();
+    assert!(
+        paths.contains(&"packages/replay/tests/order-route-smoke.test.ts"),
+        "same-package soft proof should remain visible: {proof:#}"
+    );
+    assert!(
+        !paths.contains(&"packages/app/tests/order-route-smoke.test.ts"),
+        "soft token proof must not jump to a sibling package without hard evidence: {proof:#}"
+    );
+}

@@ -43,6 +43,28 @@ fn help_exposes_only_map_first_commands() {
 }
 
 #[test]
+fn changed_help_exposes_only_stable_rfc_sections() {
+    let output = codemap()
+        .args(["changed", "--help"])
+        .output()
+        .expect("changed help should run");
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("help utf8");
+    for expected in ["observed", "links", "roles", "proof", "unknown", "hidden"] {
+        assert!(
+            stdout.contains(expected),
+            "changed help should expose RFC section `{expected}`: {stdout}"
+        );
+    }
+    for old_section in ["overview", "diff", "impact", "unknowns"] {
+        assert!(
+            !stdout.contains(old_section),
+            "changed help should hide legacy section alias `{old_section}`: {stdout}"
+        );
+    }
+}
+
+#[test]
 fn bootstrap_instruction_teaches_map_lenses_not_removed_router_flow() {
     let output = codemap()
         .args(["bootstrap", "--global-instruction"])
