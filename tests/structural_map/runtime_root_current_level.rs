@@ -3,9 +3,17 @@ fn runtime_root_scope_is_current_level_until_include_hidden() {
     let (repo, cache) = fixture();
     write(
         &repo.path().join("Cargo.toml"),
-        "[package]\nname = \"fixture-cli\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+        "[package]\nname = \"fixture-cli\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[workspace]\nmembers = [\"crates/worker\"]\n",
     );
     write(&repo.path().join("src/main.rs"), "fn main() {}\n");
+    write(
+        &repo.path().join("crates/worker/Cargo.toml"),
+        "[package]\nname = \"fixture-worker\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[[bin]]\nname = \"fixture-worker\"\npath = \"src/bin/worker.rs\"\n",
+    );
+    write(
+        &repo.path().join("crates/worker/src/bin/worker.rs"),
+        "fn main() {}\n",
+    );
     write(
         &repo.path().join("fixtures/go-workspace/apps/api/main.go"),
         "package main\n\nfunc main() {}\n",
@@ -23,6 +31,37 @@ fn runtime_root_scope_is_current_level_until_include_hidden() {
             .any(|surface| surface["kind"] == "cli_entrypoint"
                 && surface["path"] == "src/main.rs"),
         "root runtime should keep package manifest entrypoints as current-level runtime surfaces: {runtime:#}"
+    );
+    assert!(
+        runtime["entrypoints"]
+            .as_array()
+            .expect("runtime entrypoints")
+            .iter()
+            .any(|surface| surface["kind"] == "runtime_container"
+                && surface["path"] == "crates/worker"
+                && surface["count"] == 1
+                && surface["examples"]
+                    .as_array()
+                    .is_some_and(|examples| examples.iter().any(|example| example
+                        .as_str()
+                        .is_some_and(|value| value.contains("fixture-worker -> crates/worker/src/bin/worker.rs"))))),
+        "root runtime should show package-level runtime containers without dumping recursive entrypoints: {runtime:#}"
+    );
+    assert!(
+        runtime["entrypoints"]
+            .as_array()
+            .expect("runtime entrypoints")
+            .iter()
+            .all(|surface| surface["path"] != "crates/worker/src/bin/worker.rs"),
+        "root runtime should keep recursive package entrypoints behind the scoped runtime expand: {runtime:#}"
+    );
+    assert!(
+        runtime["expand"]
+            .as_array()
+            .expect("expand")
+            .iter()
+            .any(|command| command == "codemap runtime crates/worker"),
+        "root runtime should expose deterministic expand for runtime containers: {runtime:#}"
     );
     assert!(
         runtime["entrypoints"]

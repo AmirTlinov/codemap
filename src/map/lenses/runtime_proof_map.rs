@@ -16,6 +16,11 @@ pub fn runtime_report(
     let mut unknowns = Vec::new();
     let runtime_facts = runtime_fact_index(project);
     let (scope_files, hidden_scope_count) = runtime_scope_files(project, &scope, include_hidden);
+    let root_containers = if scope == "." && !include_hidden {
+        root_runtime_containers(project)
+    } else {
+        Vec::new()
+    };
     for file in scope_files {
         if runtime_entrypoint_kind(file).is_some() {
             entrypoints.push(surface_from_path(
@@ -55,6 +60,7 @@ pub fn runtime_report(
         env.extend(env_surfaces_for_file(project, file));
         unknowns.extend(unknowns_for_file(project, file));
     }
+    entrypoints.extend(root_containers.clone());
     entrypoints = dedupe_runtime_entrypoints(entrypoints);
     env = group_env_surfaces(env);
     for script in &project.scripts {
@@ -164,11 +170,22 @@ pub fn runtime_report(
         proof,
         unknowns,
         hidden,
-        expand: vec![
-            format!("codemap cone {}", shell_quote(&scope)),
-            format!("codemap proof-map {}", shell_quote(&scope)),
-        ],
+        expand: runtime_expand_commands(&scope, &root_containers),
     }
+}
+
+fn runtime_expand_commands(scope: &str, root_containers: &[Surface]) -> Vec<String> {
+    let mut expand = vec![
+        format!("codemap cone {}", shell_quote(scope)),
+        format!("codemap proof-map {}", shell_quote(scope)),
+    ];
+    if scope == "." {
+        expand.extend(root_containers.iter().take(5).filter_map(|surface| {
+            let path = surface.path.as_deref()?;
+            Some(format!("codemap runtime {}", shell_quote(path)))
+        }));
+    }
+    expand
 }
 
 pub fn proof_map_report(
