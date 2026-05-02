@@ -5,63 +5,57 @@ pub fn impact(report: &ImpactReport) {
         return;
     }
     if !report.changed.is_empty() {
-        println!("\n## Changed Anchors\n");
-        let rows = report
-            .changed
-            .iter()
-            .map(|file| {
-                vec![
-                    code(&file.path),
-                    file.kind.clone(),
-                    file.package.clone().unwrap_or_else(|| "none".to_string()),
-                    file.language.clone(),
-                ]
-            })
-            .collect();
-        println!("{}", table(&["Path", "Kind", "Package", "Language"], rows));
+        render_file_summaries("Changed Anchors", &report.changed);
     }
+    impact_summary_section(&report.clusters);
     for cluster in &report.clusters {
         render_impact_cluster(cluster);
     }
-    if !report.hidden.is_empty() {
-        println!("\n## Hidden\n");
-        let rows = report
-            .hidden
-            .iter()
-            .map(|hidden| {
-                vec![
-                    hidden.reason.clone(),
-                    hidden.count.to_string(),
-                    code(&hidden.expand),
-                ]
-            })
-            .collect();
-        println!("{}", table(&["Reason", "Count", "Expand"], rows));
-    }
+    hidden_section(&report.hidden);
     unknown_section(&report.unknowns);
     section("Expand", &report.expand);
 }
 
-fn render_impact_cluster(cluster: &ImpactCluster) {
-    println!("\n## Cluster `{}`\n", cluster.id);
-    println!(
-        "{}",
-        table(
-            &["Field", "Value"],
+fn impact_summary_section(clusters: &[ImpactCluster]) {
+    if clusters.is_empty() {
+        return;
+    }
+    println!("\n## Impact\n");
+    let rows = clusters
+        .iter()
+        .map(|cluster| {
             vec![
-                vec!["Risk".to_string(), cluster.risk.clone()],
-                vec!["Changed".to_string(), cluster.changed.join(", ")],
-                vec!["Reasons".to_string(), cluster.reasons.join("; ")],
-            ],
-        )
-    );
-    cone_section("Direct Consumers", &cluster.direct_consumers);
-    cone_section(
-        "Cross-Boundary Consumers",
-        &cluster.cross_boundary_consumers,
-    );
-    cone_section("Contract Risks", &cluster.contract_risks);
-    cone_section("Proof", &cluster.proof);
+                code(&cluster.id),
+                code(&cluster.risk),
+                cluster.reasons.join("; "),
+                format!(
+                    "direct={} cross={} contract={} proof={}",
+                    cluster.direct_consumers.len(),
+                    cluster.cross_boundary_consumers.len(),
+                    cluster.contract_risks.len(),
+                    cluster.proof.len()
+                ),
+            ]
+        })
+        .collect();
+    println!("{}", table(&["Cluster", "Risk", "Reasons", "Edges"], rows));
+}
+
+fn render_impact_cluster(cluster: &ImpactCluster) {
+    println!("\n## Cluster `{}`", cluster.id);
+    println!("risk: `{}`", cluster.risk);
+    if !cluster.changed.is_empty() {
+        println!("changed:");
+        println!("{}", bullet(&cluster.changed, true, Some(10)));
+    }
+    if !cluster.reasons.is_empty() {
+        println!("reasons:");
+        println!("{}", bullet(&cluster.reasons, false, Some(6)));
+    }
+    grouped_edge_list("direct consumers", &cluster.direct_consumers, 12);
+    grouped_edge_list("cross-boundary consumers", &cluster.cross_boundary_consumers, 12);
+    grouped_edge_list("contract risks", &cluster.contract_risks, 12);
+    grouped_edge_list("proof", &cluster.proof, 12);
 }
 
 pub fn proof(report: &ProofReport) {

@@ -119,6 +119,36 @@ fn hidden_section(hidden: &[crate::model::HiddenGroup]) {
     println!("{}", table(&["Reason", "Count", "Expand"], rows));
 }
 
+fn grouped_edge_list(title: &str, edges: &[StructuralEdge], limit: usize) {
+    if edges.is_empty() {
+        return;
+    }
+    println!("{title}:");
+    let visible_count = edges.len().min(limit);
+    let mut grouped: std::collections::BTreeMap<&str, Vec<&StructuralEdge>> =
+        std::collections::BTreeMap::new();
+    for edge in edges.iter().take(visible_count) {
+        grouped.entry(edge.from.as_str()).or_default().push(edge);
+    }
+    for (from, edges) in grouped {
+        println!("- `{from}`");
+        for edge in edges {
+            println!(
+                "  - {} -> `{}` [{}; {}] {}",
+                edge.edge_type,
+                edge.to,
+                edge.evidence,
+                format!("{:?}", edge.strength).to_ascii_lowercase(),
+                edge_location_summary(edge)
+            );
+        }
+    }
+    let hidden_count = edges.len().saturating_sub(visible_count);
+    if hidden_count > 0 {
+        println!("- hidden: {hidden_count} {title} edges");
+    }
+}
+
 pub(crate) fn table(headers: &[&str], rows: Vec<Vec<String>>) -> String {
     let mut out = Vec::new();
     out.push(format!("| {} |", headers.join(" | ")));
