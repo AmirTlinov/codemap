@@ -143,7 +143,7 @@ or misleading map.
 | 15 Runtime lens | closed first boundary | focused/live | Static JS/Go/Next routes stitch to handler symbols where deterministic. |
 | 16 Contract lens | closed first boundary | full | Package manifest exports are first-class contract evidence. |
 | 17 Proof-map and proof safety | closed first boundary | focused | `proof --run` refuses deploy/migrate/unknown shell commands by default. |
-| 18 Impact lens | todo | focused/live | Blast radius is derived from structural edges and grouped compactly. |
+| 18 Impact lens | closed first boundary | focused | Package export surfaces participate in contract impact risk. |
 | 19 Delete lens | todo | focused | Deletion blockers are mapped without `safe`/`probably unused` claims. |
 | 20 Boundary-map lens | todo | focused/live | Crossings are read-only facts; forbidden findings require explicit config. |
 | 21 Flow lens | todo | focused/live | Bounded structural paths stop at typed unknowns. |
@@ -341,6 +341,22 @@ review: not required for this narrow shared-fact/schema boundary unless the
 contract taxonomy expands further.
 live: not required; controlled package manifest fixture proves the public export
 edge directly.
+```
+
+### Slice 18: Impact Lens
+
+```txt
+closed: `impact --files <package-export-target>` now reuses package manifest
+export evidence as a contract risk, so changed/impact does not understate public
+package entrypoint edits as local implementation changes.
+excluded: full impact grouping closure, deleted/renamed structural event matrix,
+runtime/data/generated impact taxonomy, and broader live output audit.
+proof: package export fixture asserts contract impact risk and exact
+`package_export` / `package_manifest` edges in `contract_risks` for both the
+export target and package manifest.
+review: required before commit because this changes public lens semantics.
+live: not required; controlled package export fixture proves the false-negative
+directly.
 ```
 
 ## Live Probe Set

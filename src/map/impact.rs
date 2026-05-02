@@ -340,7 +340,7 @@ fn contract_risk_edges(
     rel: &str,
     direct_consumers: &[StructuralEdge],
 ) -> Vec<StructuralEdge> {
-    let mut edges = Vec::new();
+    let mut edges = package_export_edges(project, rel);
     if let Some(file) = project.files.get(rel) {
         if let Some(evidence) = contract_evidence(file) {
             edges.push(edge_with_path_location(

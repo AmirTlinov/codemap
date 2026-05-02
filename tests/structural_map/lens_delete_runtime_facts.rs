@@ -53,6 +53,58 @@ fn delete_lens_reports_package_manifest_export_blocker() {
                 && edge["evidence"] == "package_manifest"),
         "contract lens must expose package manifest exports as public contract evidence: {contract:#}"
     );
+
+    let impact = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "impact",
+            "--files",
+            "packages/replay/src/index.ts",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/impact.schema.json", &impact);
+    assert_eq!(
+        impact["clusters"][0]["risk"], "critical",
+        "package export entrypoint is also a public boundary in this fixture: {impact:#}"
+    );
+    assert!(
+        impact["clusters"][0]["contract_risks"]
+            .as_array()
+            .expect("impact contract risks")
+            .iter()
+            .any(|edge| edge["from"] == "packages/replay/package.json"
+                && edge["to"] == "packages/replay/src/index.ts"
+                && edge["type"] == "package_export"
+                && edge["evidence"] == "package_manifest"),
+        "impact lens must reuse package export evidence as contract risk: {impact:#}"
+    );
+
+    let manifest_impact = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "impact",
+            "--files",
+            "packages/replay/package.json",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/impact.schema.json", &manifest_impact);
+    assert!(
+        manifest_impact["clusters"][0]["contract_risks"]
+            .as_array()
+            .expect("manifest impact contract risks")
+            .iter()
+            .any(|edge| edge["from"] == "packages/replay/package.json"
+                && edge["to"] == "packages/replay/package.json"
+                && edge["type"] == "package_export"
+                && edge["evidence"] == "package_manifest"),
+        "impact lens must treat package manifest exports as contract risk: {manifest_impact:#}"
+    );
 }
 
 #[test]
