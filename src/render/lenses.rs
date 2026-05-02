@@ -48,7 +48,7 @@ pub fn contract(report: &ContractReport) {
             ],
         )
     );
-    surface_section("Exported Contracts", &report.exported_contracts);
+    contract_exports_section("Exported Contracts", &report.exported_contracts);
     cone_section("Producers", &report.producers);
     cone_section("Consumers", &report.consumers);
     cone_section("Cross Package Consumers", &report.cross_package_consumers);

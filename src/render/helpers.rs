@@ -101,6 +101,45 @@ fn proof_command_summary_section(title: &str, proofs: &[ProofSurface]) {
     }
 }
 
+fn contract_exports_section(title: &str, surfaces: &[Surface]) {
+    if surfaces.is_empty() {
+        return;
+    }
+    println!("\n## {title}");
+    let mut grouped: std::collections::BTreeMap<String, Vec<&Surface>> =
+        std::collections::BTreeMap::new();
+    for surface in surfaces {
+        let path = surface.path.as_deref().unwrap_or("aggregate");
+        let file = path.split_once('#').map(|(file, _)| file).unwrap_or(path);
+        grouped.entry(file.to_string()).or_default().push(surface);
+    }
+    for (file, surfaces) in grouped {
+        println!("\n- `{file}`");
+        for surface in surfaces {
+            let path = surface.path.as_deref().unwrap_or("aggregate");
+            let label = path
+                .split_once('#')
+                .map(|(_, symbol)| symbol.to_string())
+                .unwrap_or_else(|| {
+                    surface
+                        .examples
+                        .first()
+                        .cloned()
+                        .unwrap_or_else(|| surface.kind.clone())
+                });
+            println!(
+                "  - `{}` [{}; {}]",
+                label,
+                surface.evidence,
+                format!("{:?}", surface.strength).to_ascii_lowercase()
+            );
+            if surface.hidden_count > 0 {
+                println!("    - hidden: {} examples", surface.hidden_count);
+            }
+        }
+    }
+}
+
 fn hidden_section(hidden: &[crate::model::HiddenGroup]) {
     if hidden.is_empty() {
         return;
