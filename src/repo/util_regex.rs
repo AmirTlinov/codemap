@@ -68,6 +68,14 @@ pub fn is_source_ext(ext: &str) -> bool {
     SOURCE_EXTS.iter().any(|x| x == &ext)
 }
 
+pub fn is_asset_ext(ext: &str) -> bool {
+    ASSET_EXTS.iter().any(|x| x == &ext)
+}
+
+fn is_snapshot_ext(ext: &str) -> bool {
+    matches!(ext, "snap" | "snapshot")
+}
+
 fn identifier_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| Regex::new(r#"[A-Za-z_$][A-Za-z0-9_$]*"#).expect("valid identifier regex"))

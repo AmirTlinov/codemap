@@ -8,6 +8,15 @@ fn classify_roles(root: &Path, info: &mut FileInfo) {
     if is_generated(&rel) || has_generated_header(root, info) {
         info.roles.insert("generated".to_string());
     }
+    if is_asset_ext(&info.ext) {
+        info.roles.insert("asset".to_string());
+    }
+    if is_snapshot_surface(&rel, &name, &info.ext) {
+        info.roles.insert("snapshot".to_string());
+    }
+    if is_golden_surface(&rel) {
+        info.roles.insert("golden".to_string());
+    }
     if rel.starts_with("fixtures/") || rel.contains("/fixtures/") {
         info.roles.insert("fixture".to_string());
     }
@@ -144,6 +153,23 @@ fn add_role_if(roles: &mut BTreeSet<String>, haystack: &str, needles: &[&str], r
     if needles.iter().any(|needle| haystack.contains(needle)) {
         roles.insert(role.to_string());
     }
+}
+
+fn is_snapshot_surface(rel: &str, name: &str, ext: &str) -> bool {
+    is_snapshot_ext(ext)
+        || rel.contains("/__snapshots__/")
+        || rel.starts_with("__snapshots__/")
+        || name.ends_with(".snap")
+        || name.ends_with(".snapshot")
+}
+
+fn is_golden_surface(rel: &str) -> bool {
+    rel.starts_with("golden/")
+        || rel.contains("/golden/")
+        || rel.starts_with("goldens/")
+        || rel.contains("/goldens/")
+        || rel.starts_with("baselines/")
+        || rel.contains("/baselines/")
 }
 
 fn is_schema_contract_surface(rel: &str, name: &str, ext: &str) -> bool {

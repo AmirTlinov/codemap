@@ -1,4 +1,7 @@
 fn extract_imports_exports(root: &Path, info: &mut FileInfo) {
+    if is_asset_ext(&info.ext) && info.ext != "svg" {
+        return;
+    }
     let path = root.join(&info.rel);
     let Ok(text) = fs::read_to_string(path) else {
         return;

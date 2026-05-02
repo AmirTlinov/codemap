@@ -35,7 +35,7 @@ fn resolve_path_like(base: &str, paths: &BTreeSet<String>) -> Option<String> {
     let mut candidates = vec![base.clone()];
     for ext in [
         "ts", "tsx", "js", "jsx", "mjs", "cjs", "py", "rs", "go", "vue", "svelte", "css",
-        "scss", "sass", "less",
+        "scss", "sass", "less", "svg", "png", "jpg", "jpeg", "gif", "webp", "ico", "snap",
     ] {
         candidates.push(format!("{base}.{ext}"));
     }

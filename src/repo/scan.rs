@@ -161,14 +161,22 @@ fn ignore_reason(rel: &str) -> Option<String> {
 }
 
 fn scan_file_rejection(path: &Path, size: u64) -> Option<&'static str> {
-    if size > 900_000 {
-        return Some("too_large");
-    }
     let name = path
         .file_name()
         .and_then(|s| s.to_str())
         .unwrap_or("")
         .to_ascii_lowercase();
+    let ext = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if size > 900_000 && !is_asset_ext(&ext) {
+        return Some("too_large");
+    }
+    if size > 5_000_000 && is_asset_ext(&ext) {
+        return Some("too_large_asset");
+    }
     if matches!(
         name.as_str(),
         "package.json"
@@ -194,11 +202,14 @@ fn scan_file_rejection(path: &Path, size: u64) -> Option<&'static str> {
     ) {
         return None;
     }
-    let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
-    if BINARY_EXTS.iter().any(|x| x == &ext) {
+    if BINARY_EXTS.iter().any(|x| x == &ext) && !is_asset_ext(&ext) {
         return Some("binary_extension");
     }
-    if SOURCE_EXTS.iter().any(|x| x == &ext) || TEXT_EXTS.iter().any(|x| x == &ext) {
+    if SOURCE_EXTS.iter().any(|x| x == &ext)
+        || TEXT_EXTS.iter().any(|x| x == &ext)
+        || is_asset_ext(&ext)
+        || is_snapshot_ext(&ext)
+    {
         None
     } else {
         Some("unsupported_extension")
@@ -206,7 +217,12 @@ fn scan_file_rejection(path: &Path, size: u64) -> Option<&'static str> {
 }
 
 fn language_for(path: &Path) -> String {
-    match path.extension().and_then(|s| s.to_str()).unwrap_or("") {
+    let ext = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    match ext.as_str() {
         "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte" => "javascript/typescript",
         "py" => "python",
         "rs" => "rust",
@@ -214,6 +230,8 @@ fn language_for(path: &Path) -> String {
         "swift" => "swift",
         "json" | "toml" | "yaml" | "yml" => "config",
         "css" | "scss" | "sass" | "less" => "style",
+        ext if is_asset_ext(ext) => "asset",
+        ext if is_snapshot_ext(ext) => "snapshot",
         "md" => "markdown",
         _ => "unknown",
     }

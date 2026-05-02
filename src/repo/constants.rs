@@ -53,6 +53,11 @@ const BINARY_EXTS: &[&str] = &[
     "bin", "class", "jar",
 ];
 
+const ASSET_EXTS: &[&str] = &[
+    "png", "jpg", "jpeg", "gif", "webp", "ico", "svg", "woff", "woff2", "ttf", "otf", "mp3",
+    "mp4", "mov", "webm", "wav",
+];
+
 const SOURCE_EXTS: &[&str] = &[
     "ts", "tsx", "js", "jsx", "mjs", "cjs", "py", "rs", "go", "java", "kt", "kts", "swift", "c",
     "cc", "cpp", "h", "hpp", "cs", "rb", "php", "vue", "svelte",
@@ -60,7 +65,7 @@ const SOURCE_EXTS: &[&str] = &[
 
 const TEXT_EXTS: &[&str] = &[
     "json", "toml", "yaml", "yml", "md", "txt", "sql", "graphql", "proto", "css", "scss",
-    "sass", "less",
+    "sass", "less", "svg", "snap", "snapshot",
 ];
 
 const DOMAIN_HINT_DIRS: &[&str] = &[

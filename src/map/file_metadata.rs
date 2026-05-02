@@ -34,6 +34,9 @@ fn package_name_for_file(project: &Project, rel: &str) -> Option<String> {
 
 fn file_kind_for_ls(info: &FileInfo) -> String {
     for role in [
+        "snapshot",
+        "golden",
+        "asset",
         "e2e_test",
         "test_support",
         "test",
@@ -61,6 +64,10 @@ fn file_kind_for_ls(info: &FileInfo) -> String {
         "source".to_string()
     } else if info.language == "style" {
         "style".to_string()
+    } else if info.language == "asset" {
+        "asset".to_string()
+    } else if info.language == "snapshot" {
+        "snapshot".to_string()
     } else if info.language == "config" {
         "config".to_string()
     } else if info.language == "markdown" {
