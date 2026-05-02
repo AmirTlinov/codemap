@@ -59,7 +59,7 @@ fn changed_summary(report: &ChangedReport) {
             }
         }
     }
-    render_file_summaries("Changed Anchors", &report.changed);
+    changed_anchor_section(&report.changed);
 }
 
 fn visible_git_state_count(report: &ChangedReport) -> usize {
@@ -71,6 +71,49 @@ fn changed_selector_suffix(selector: &str) -> String {
         String::new()
     } else {
         format!(" {selector}")
+    }
+}
+
+fn changed_anchor_section(files: &[crate::model::FileSummary]) {
+    if files.is_empty() {
+        return;
+    }
+    println!("\n## Changed Anchors\n");
+    for file in files {
+        let package = file.package.as_deref().unwrap_or("none");
+        println!(
+            "- `{}` [{}; {}; package={}; lines={}; symbols={}; exports={}; imports={}; imported_by={}]",
+            file.path,
+            file.kind,
+            file.language,
+            package,
+            file.lines,
+            file.symbols.len(),
+            file.exports.len(),
+            file.imports.len(),
+            file.imported_by_count
+        );
+        if !file.roles.is_empty() {
+            println!("  roles: {}", file.roles.join(", "));
+        }
+        if !file.exports.is_empty() {
+            println!("  exports: {}", changed_preview_list(&file.exports, 6));
+        }
+    }
+}
+
+fn changed_preview_list(values: &[String], limit: usize) -> String {
+    let shown = values
+        .iter()
+        .take(limit)
+        .cloned()
+        .collect::<Vec<_>>()
+        .join(", ");
+    let hidden = values.len().saturating_sub(limit);
+    if hidden == 0 {
+        shown
+    } else {
+        format!("{shown} +{hidden} hidden")
     }
 }
 
