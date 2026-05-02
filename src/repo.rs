@@ -1,5 +1,6 @@
 include!("repo/preamble.rs");
 include!("repo/constants.rs");
+include!("repo/cache_delta.rs");
 include!("repo/project.rs");
 include!("repo/root.rs");
 include!("repo/config.rs");

@@ -188,10 +188,13 @@ fn incremental_file_delta(
     version: &str,
     config_path: Option<&str>,
 ) -> Option<cache::fingerprints::CacheFileDelta> {
-    git_status_cache_delta(root, cache_dir, version).or_else(|| {
-        let current_files = cache_candidate_files(root);
-        cache::file_delta(root, cache_dir, version, &current_files, config_path)
-    })
+    git_status_cache_delta(root, cache_dir, version)
+        .or_else(|| git_head_cache_delta(root, cache_dir, version))
+        .or_else(|| cached_index_cache_delta(root, cache_dir, version))
+        .or_else(|| {
+            let current_files = cache_candidate_files(root);
+            cache::file_delta(root, cache_dir, version, &current_files, config_path)
+        })
 }
 
 struct ProjectBuildInput {

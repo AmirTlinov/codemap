@@ -16,7 +16,10 @@ pub(crate) mod cached_project;
 pub(crate) mod fingerprints;
 
 pub use cached_project::read_cached_project;
-pub use fingerprints::{cached_git_head_matches, file_delta, file_delta_for_known_changes};
+pub use fingerprints::{
+    cached_git_head, cached_git_head_matches, file_delta, file_delta_by_rechecking_cached_files,
+    file_delta_for_head_change, file_delta_for_known_changes,
+};
 
 const CACHE_ARTIFACTS: &[&str] = &[
     "status.json",

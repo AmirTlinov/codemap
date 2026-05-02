@@ -357,6 +357,42 @@ fn doctor_incrementally_scans_only_added_files() {
 }
 
 #[test]
+fn doctor_uses_head_delta_after_committed_change() {
+    let (repo, cache) = fixture();
+    let rel = "packages/app/src/useReplay.ts";
+
+    let _ = run_json(repo.path(), cache.path(), &["ls", ".", "--format", "json"]);
+    write(
+        &repo.path().join(rel),
+        "import { seek } from '@fixture/replay';\n\nexport const committedFrame = seek(12).frame;\n",
+    );
+    git(repo.path(), &["add", rel]);
+    git(repo.path(), &["commit", "-qm", "change replay user"]);
+
+    let doctor = run_json(repo.path(), cache.path(), &["doctor", "--format", "json"]);
+    assert_schema("schemas/status.schema.json", &doctor);
+    assert_eq!(doctor["cache_strategy"], "partial_rescan");
+    assert_eq!(
+        doctor["scanner"]["files_visited"], 1,
+        "committed HEAD delta should visit only the changed path for parser work: {doctor:#}"
+    );
+    assert_eq!(
+        doctor["scanner"]["files_scanned"], 1,
+        "committed HEAD delta should scan only the changed source file: {doctor:#}"
+    );
+
+    let ls = run_json(repo.path(), cache.path(), &["ls", rel, "--format", "json"]);
+    assert!(
+        ls["anchor"]["symbols"]
+            .as_array()
+            .expect("symbols")
+            .iter()
+            .any(|symbol| symbol["name"] == "committedFrame"),
+        "committed changed file should be rebuilt from the HEAD delta: {ls:#}"
+    );
+}
+
+#[test]
 fn doctor_incrementally_removes_deleted_files_without_rescanning_unchanged_files() {
     let (repo, cache) = fixture();
 

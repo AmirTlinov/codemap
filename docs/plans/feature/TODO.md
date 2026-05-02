@@ -65,23 +65,22 @@ repos would add noise instead of proof.
 Slice 06 compact renderer is closed. Do not continue renderer micro-polish
 unless a specific output still confuses the agent or creates a false claim.
 
-Slice 09 third boundary is closed:
+Slice 09 fourth boundary is closed:
 
 ```txt
-closed: git repos avoid a full candidate walk when cached HEAD is the same and
-`git status` gives an exact mismatch set. The parser should scan only
-mismatched cache candidates, reuse cached facts for the rest, and probe cached
-untracked files directly so deleted/modified local files do not force a repo
-candidate delta.
-proof: focused cache diagnostics for committed tracked mismatch,
-untracked path-with-spaces status parsing, cached-untracked deletion/
-modification/ignore-transition probes, and rename-into-ignored-dir removal;
-full gate; live warm sanity on ctx, spritestudio, and Sillentway-VPN.
-review: PASS after fixing rename into ignored directory stale-cache risk.
-live: ctx, spritestudio, and Sillentway-VPN reported warm_load with
-files_scanned=0 and files_visited=0 after external-cache warmup.
-next: keep cache parked unless daily use shows stale derived facts or config
-dependency invalidation gaps.
+closed: cache avoids the full candidate-list fallback for committed HEAD
+changes when git can prove the changed/removed path set. It derives parser work
+from cached HEAD -> current HEAD `git diff --name-status`, merges live status
+mismatches, and falls back to cached-index stat/hash recheck when a prior dirty
+cache did not have a valid status probe.
+proof: committed HEAD delta fixture, exact subdir-root stale-symbol regression,
+existing dirty/untracked/delete/rename cache diagnostics, full gate.
+review: first review BLOCK found subdir-root path normalization risk; final
+review PASS after `--relative`/root-prefix normalization and regression test.
+live: spritestudio and Sillentway-VPN read-only doctor probes stayed warm_load
+with files_visited=0 and files_scanned=0.
+next: keep cache parked unless daily use shows stale derived facts, config
+dependency invalidation gaps, or path-normalization cases outside git diff.
 ```
 
 Slice 12 first boundary is closed:
@@ -334,6 +333,20 @@ proof third: `doctor_uses_git_status_mismatch_set_for_committed_repos`,
 live warm sanity on ctx/spritestudio/Sillentway-VPN.
 review third: PASS after the cache-specific status parser preserved old-path
 removals for renames into ignored directories.
+```
+
+```txt
+closed fourth boundary: when cached HEAD differs from current HEAD, cache now
+uses git's committed name-status delta instead of building the full candidate
+file list first. It rescans only changed/added cache candidates, removes deleted
+paths, merges live status mismatches, and rechecks cached fingerprints directly
+after invalid dirty-cache probes. Exact `--root <subdir>` paths are normalized
+against git top-level output to avoid stale cached symbols.
+proof fourth: `doctor_uses_head_delta_after_committed_change`,
+`head_delta_normalizes_paths_for_exact_subdir_root`, existing cache dirty status
+tests, full gate, and read-only live warm probes on spritestudio/Sillentway-VPN.
+review fourth: first reviewer BLOCK on subdir-root stale cache risk; final
+review PASS after root-aware diff normalization and regression coverage.
 ```
 
 ### Slice 10: Git Structural Events, `changed`, And `diff-map`
