@@ -45,65 +45,64 @@ pub fn load_project_with_cache(
                 cache::read_cached_project(&cache_dir, VERSION, &delta.cached_fingerprint)
         {
             let mut files = BTreeMap::new();
-            let mut cache_complete = true;
+            let mut scan_candidates = delta.changed_or_added.clone();
             for rel in &delta.unchanged {
                 if let Some(file) = cached.files.remove(rel) {
                     files.insert(rel.clone(), file);
                 } else {
-                    cache_complete = false;
-                    break;
+                    scan_candidates.insert(rel.clone());
                 }
             }
-            if cache_complete {
-                let scan_started = Instant::now();
-                let (rescanned, rescanned_stats) =
-                    scan_selected_files(&root, &delta.changed_or_added);
-                let scan_ms = scan_started.elapsed().as_millis();
-                files.extend(rescanned);
-                if files.len() == delta.current_file_count() {
-                    let scan_stats = cached_scan_stats(&cached.scan_stats, rescanned_stats, &files);
-                    let mut project = build_project_from_files(ProjectBuildInput {
-                        root,
-                        cwd,
-                        vcs,
-                        cache_dir,
-                        config_path,
-                        config_errors,
-                        nearest_agents,
-                        anchors,
-                        files,
-                        scan_stats,
-                        cache_strategy: if delta.is_exact_hit() {
-                            "warm_load".to_string()
-                        } else {
-                            "partial_rescan".to_string()
-                        },
-                        files_reused: delta.unchanged.len(),
-                    });
-                    let fingerprint = cache::fingerprint(&project, None);
-                    let cache_artifacts = cache::artifact_statuses(&project, &fingerprint);
-                    project.cache_state = cache::cache_state(&cache_artifacts);
-                    project.cache_artifacts = cache_artifacts;
-                    let cache_artifact_ms = cache_artifact_started.elapsed().as_millis();
-                    let cache_write_started = Instant::now();
-                    if cache_write == CacheWriteMode::Enabled && !delta.is_exact_hit() {
-                        let git_status_change_sets = git_status_cache_change_sets(&project.root);
-                        cache::write_status_with_change_sets(
-                            &project,
-                            VERSION,
-                            git_status_change_sets
-                                .as_ref()
-                                .map(|(changed_or_added, removed)| (changed_or_added, removed)),
-                        )?;
-                    }
-                    let cache_write_ms = cache_write_started.elapsed().as_millis();
-                    project.timings.root_ms = root_ms;
-                    project.timings.scan_ms = scan_ms;
-                    project.timings.cache_artifact_ms = cache_artifact_ms;
-                    project.timings.cache_write_ms = cache_write_ms;
-                    project.timings.total_ms = total_started.elapsed().as_millis();
-                    return Ok(project);
+            let file_reuse_count = files.len();
+            let scan_started = Instant::now();
+            let (rescanned, rescanned_stats) = scan_selected_files(&root, &scan_candidates);
+            let scan_ms = scan_started.elapsed().as_millis();
+            files.extend(rescanned);
+            if files.len() == delta.current_file_count() {
+                let scan_stats = cached_scan_stats(&cached.scan_stats, rescanned_stats, &files);
+                let mut project = build_project_from_files(ProjectBuildInput {
+                    root,
+                    cwd,
+                    vcs,
+                    cache_dir,
+                    config_path,
+                    config_errors,
+                    nearest_agents,
+                    anchors,
+                    files,
+                    scan_stats,
+                    cache_strategy: if scan_candidates.is_empty() && delta.is_exact_hit() {
+                        "warm_load".to_string()
+                    } else {
+                        "partial_rescan".to_string()
+                    },
+                    files_reused: file_reuse_count,
+                });
+                let fingerprint = cache::fingerprint(&project, None);
+                let cache_artifacts = cache::artifact_statuses(&project, &fingerprint);
+                project.cache_state = cache::cache_state(&cache_artifacts);
+                project.cache_artifacts = cache_artifacts;
+                let cache_artifact_ms = cache_artifact_started.elapsed().as_millis();
+                let cache_write_started = Instant::now();
+                if cache_write == CacheWriteMode::Enabled
+                    && (!scan_candidates.is_empty() || !delta.is_exact_hit())
+                {
+                    let git_status_change_sets = git_status_cache_change_sets(&project.root);
+                    cache::write_status_with_change_sets(
+                        &project,
+                        VERSION,
+                        git_status_change_sets
+                            .as_ref()
+                            .map(|(changed_or_added, removed)| (changed_or_added, removed)),
+                    )?;
                 }
+                let cache_write_ms = cache_write_started.elapsed().as_millis();
+                project.timings.root_ms = root_ms;
+                project.timings.scan_ms = scan_ms;
+                project.timings.cache_artifact_ms = cache_artifact_ms;
+                project.timings.cache_write_ms = cache_write_ms;
+                project.timings.total_ms = total_started.elapsed().as_millis();
+                return Ok(project);
             }
         }
     }

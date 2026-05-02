@@ -51,6 +51,7 @@ include!("structural_map/schema_rail.rs");
 include!("structural_map/scanner_ignore_generated.rs");
 include!("structural_map/cache_diagnostics.rs");
 include!("structural_map/cache_dirty_status.rs");
+include!("structural_map/cache_inventory_repair.rs");
 include!("structural_map/cache_head_delta_subdir.rs");
 include!("structural_map/unresolved_import_unknowns.rs");
 include!("structural_map/boundary_map_current_level.rs");

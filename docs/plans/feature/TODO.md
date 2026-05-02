@@ -100,6 +100,24 @@ next: keep cache parked unless daily use exposes stale derived facts or config
 dependency invalidation gaps.
 ```
 
+Slice 09 sixth boundary is closed:
+
+```txt
+closed: incremental cache repair no longer falls back to a broad scan when
+`inventory.json` is missing an otherwise valid cached file fact. The loader now
+treats missing inventory entries as scan candidates and rescans only those
+mismatched files, then rebuilds derived project facts over reused plus repaired
+FileInfo.
+proof: missing-inventory regression plus conflict/status focused cache tests
+and full gate.
+review: not required; narrow cache repair path with direct regression and no
+schema change.
+live: not required; this is cache-artifact corruption behavior, covered better
+by a controlled fixture.
+next: keep cache work tied to stale-fact failures or measured daily latency,
+not broad scanner rewrites.
+```
+
 Slice 25 first boundary is closed:
 
 ```txt
