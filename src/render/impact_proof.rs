@@ -76,7 +76,7 @@ pub fn proof(report: &ProofReport) {
         return;
     }
     if !report.proofs.is_empty() {
-        proof_surface_section("Proofs", &report.proofs);
+        proof_plan_surface_section("Proofs", report);
     }
     if !report.fallback.is_empty() {
         println!("\n## Fallback\n");
@@ -84,6 +84,130 @@ pub fn proof(report: &ProofReport) {
     }
     hidden_section(&report.hidden);
     println!("\n{}", report.run_hint);
+}
+
+fn proof_plan_surface_section(title: &str, report: &ProofReport) {
+    println!("\n## {title}");
+    let mut grouped: std::collections::BTreeMap<String, Vec<&ProofSurface>> =
+        std::collections::BTreeMap::new();
+    for proof in &report.proofs {
+        grouped
+            .entry(proof_display_command(proof))
+            .or_default()
+            .push(proof);
+    }
+    for (command, proofs) in grouped {
+        println!("\n### `{command}`");
+        println!("- sensors: `{}`", proofs.len());
+        proof_count_line("evidence", evidence_counts(&proofs));
+        proof_count_line("strength", strength_counts(&proofs));
+        let sample_limit = if proofs.len() <= 6 { proofs.len() } else { 5 };
+        if sample_limit > 0 {
+            println!("- sample:");
+            for proof in proofs.iter().take(sample_limit) {
+                let path = proof
+                    .path
+                    .as_ref()
+                    .map(|path| code(path))
+                    .unwrap_or_else(|| "`none`".to_string());
+                println!(
+                    "  - {path} [{}; {}] {} - {}",
+                    proof.evidence,
+                    format!("{:?}", proof.strength).to_ascii_lowercase(),
+                    proof_location_summary(&proof.locations),
+                    proof.reason
+                );
+            }
+        }
+        let hidden_details = proofs.len().saturating_sub(sample_limit);
+        if hidden_details > 0 {
+            println!("- hidden details: `{hidden_details}` sensors");
+            if let Some(expand) = proof_detail_expand(report, proofs.len()) {
+                println!("  expand: `{expand}`");
+            }
+        }
+    }
+}
+
+fn proof_display_command(proof: &ProofSurface) -> String {
+    let Some(command) = &proof.command else {
+        return "no command".to_string();
+    };
+    let Some(path) = proof.path.as_deref() else {
+        return command.clone();
+    };
+    let mut candidates = Vec::new();
+    candidates.push(path.to_string());
+    let parts = path.split('/').collect::<Vec<_>>();
+    for index in 1..parts.len() {
+        candidates.push(parts[index..].join("/"));
+    }
+    candidates.sort_by_key(|candidate| std::cmp::Reverse(candidate.len()));
+    for candidate in candidates {
+        for suffix in [candidate.clone(), shell_quote_for_markdown(&candidate)] {
+            let suffix = format!(" {suffix}");
+            if let Some(stripped) = command.strip_suffix(&suffix) {
+                return stripped.trim_end_matches(" --").trim_end().to_string();
+            }
+        }
+    }
+    command.clone()
+}
+
+fn evidence_counts(proofs: &[&ProofSurface]) -> Vec<(String, usize)> {
+    let mut counts = std::collections::BTreeMap::new();
+    for proof in proofs {
+        *counts.entry(proof.evidence.clone()).or_insert(0) += 1;
+    }
+    counts.into_iter().collect()
+}
+
+fn strength_counts(proofs: &[&ProofSurface]) -> Vec<(String, usize)> {
+    let mut counts = std::collections::BTreeMap::new();
+    for proof in proofs {
+        *counts
+            .entry(format!("{:?}", proof.strength).to_ascii_lowercase())
+            .or_insert(0) += 1;
+    }
+    counts.into_iter().collect()
+}
+
+fn proof_count_line(label: &str, counts: Vec<(String, usize)>) {
+    if counts.is_empty() {
+        return;
+    }
+    let values = counts
+        .into_iter()
+        .map(|(kind, count)| format!("`{kind}: {count}`"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    println!("- {label}: {values}");
+}
+
+fn proof_detail_expand(report: &ProofReport, limit: usize) -> Option<String> {
+    if let Some(target) = &report.target {
+        return Some(format!(
+            "codemap proof-map {} --raw-sensors --limit {limit}",
+            shell_quote_for_markdown(target)
+        ));
+    }
+    if !report.changed.is_empty() {
+        return Some(format!(
+            "codemap proof-map --changed --raw-sensors --limit {limit}"
+        ));
+    }
+    None
+}
+
+fn shell_quote_for_markdown(value: &str) -> String {
+    if value
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '/' | '.' | '_' | '-' | '#'))
+    {
+        value.to_string()
+    } else {
+        format!("'{}'", value.replace('\'', "'\\''"))
+    }
 }
 
 fn proof_location_summary(locations: &[EvidenceLocation]) -> String {

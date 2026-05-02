@@ -129,24 +129,66 @@ fn changed_proof_section(report: &ChangedReport) {
     if report.proof.commands.is_empty() && report.proof.fallback.is_empty() {
         println!("No proof command inferred.");
     }
+    let mut grouped: std::collections::BTreeMap<String, (Vec<&ProofSurface>, usize)> =
+        std::collections::BTreeMap::new();
     for command in &report.proof.commands {
-        println!("\n### `{}`", command.command);
         if command.sensors.is_empty() {
+            grouped
+                .entry(command.command.clone())
+                .or_insert_with(|| (Vec::new(), 0))
+                .1 += command.hidden_count;
+            continue;
+        }
+        let mut command_groups = std::collections::BTreeSet::new();
+        for sensor in &command.sensors {
+            let key = proof_display_command(sensor);
+            command_groups.insert(key.clone());
+            grouped
+                .entry(key)
+                .or_insert_with(|| (Vec::new(), 0))
+                .0
+                .push(sensor);
+        }
+        if command_groups.len() == 1
+            && let Some(key) = command_groups.first()
+        {
+            grouped
+                .entry(key.clone())
+                .or_insert_with(|| (Vec::new(), 0))
+                .1 += command.hidden_count;
+        }
+    }
+    for (command, (sensors, hidden_count)) in grouped {
+        println!("\n### `{command}`");
+        if sensors.is_empty() {
             println!("- no sensor details");
         } else {
-            for sensor in &command.sensors {
+            println!("- sensors: `{}`", sensors.len());
+            proof_count_line("evidence", evidence_counts(&sensors));
+            proof_count_line("strength", strength_counts(&sensors));
+            let sample_limit = if sensors.len() <= 6 { sensors.len() } else { 5 };
+            println!("- sample:");
+            for sensor in sensors.iter().take(sample_limit) {
                 let path = sensor.path.as_deref().unwrap_or("none");
                 println!(
-                    "- `{}` [{}; {}] {}",
+                    "  - `{}` [{}; {}] {}",
                     path,
                     sensor.evidence,
                     format!("{:?}", sensor.strength).to_ascii_lowercase(),
                     proof_location_summary(&sensor.locations)
                 );
             }
+            let hidden_details = sensors.len().saturating_sub(sample_limit);
+            if hidden_details > 0 {
+                println!("- hidden details: `{hidden_details}` sensors");
+            }
         }
-        if command.hidden_count > 0 {
-            println!("- hidden: {} sensors", command.hidden_count);
+        if hidden_count > 0 {
+            println!("- hidden: {hidden_count} sensors");
+            println!(
+                "  expand: `codemap proof-map --changed --raw-sensors --limit {}`",
+                sensors.len() + hidden_count
+            );
         }
     }
     if !report.proof.fallback.is_empty() {
