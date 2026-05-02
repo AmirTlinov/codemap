@@ -45,6 +45,10 @@ fn cone_resolves_rust_crate_super_and_symbol_path_imports_inside_packages() {
         &repo.path().join("crates/core/src/bin/server.rs"),
         "use core_fixture::network_guard::DnsRestoreMethod;\nuse core_fixture::tun::setup_routing;\n\nfn main() {\n    let _ = core::mem::size_of::<DnsRestoreMethod>();\n    setup_routing();\n}\n",
     );
+    write(
+        &repo.path().join("crates/core/tests/integration_suite.rs"),
+        "use core_fixture::*;\n\n#[test]\nfn integration_suite_links_crate_root() {}\n",
+    );
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["commit", "-qm", "rust crate path fixture"]);
 
@@ -101,6 +105,25 @@ fn cone_resolves_rust_crate_super_and_symbol_path_imports_inside_packages() {
             "Rust package crate import should resolve to {target}: {bin_cone:#}"
         );
     }
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &["proof", "crates/core/src/lib.rs", "--format", "json"],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    assert!(
+        proof["proofs"]
+            .as_array()
+            .expect("proofs")
+            .iter()
+            .any(|surface| {
+                surface["path"] == "crates/core/tests/integration_suite.rs"
+                    && surface["evidence"] == "test_import"
+                    && surface["locations"][0]["line_start"] == 1
+                    && surface["locations"][0]["kind"] == "import_statement"
+            }),
+        "Rust wildcard crate test import should keep the exact import line: {proof:#}"
+    );
     assert!(
         cone["unknowns"]
             .as_array()

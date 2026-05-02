@@ -8,7 +8,7 @@ fn proof_surfaces_for_anchor(
     for (test, evidence, strength) in strict_test_edges_for_file(project, anchor, limit) {
         out.push(ProofSurface {
             command: proof_command_for_test(project, &test),
-            locations: proof_surface_locations_for_test(&test, &evidence),
+            locations: proof_surface_locations_for_target(project, anchor, &test, &evidence),
             path: Some(test),
             reason: proof_reason_for_evidence(&evidence, "anchor"),
             evidence,
@@ -37,7 +37,7 @@ fn proof_surfaces_for_anchor(
         {
             out.push(ProofSurface {
                 command: proof_command_for_test(project, &test),
-                locations: proof_surface_locations_for_test(&test, &evidence),
+                locations: proof_surface_locations_for_target(project, &consumer.from, &test, &evidence),
                 path: Some(test),
                 reason: proof_reason_for_evidence(&evidence, "direct consumer"),
                 evidence,
@@ -59,7 +59,7 @@ fn proof_surfaces_for_anchor(
                 {
                     out.push(ProofSurface {
                         command: proof_command_for_test(project, &test),
-                        locations: proof_surface_locations_for_test(&test, &evidence),
+                        locations: proof_surface_locations_for_target(project, &second.from, &test, &evidence),
                         path: Some(test),
                         reason: proof_reason_for_evidence(&evidence, "depth-2 consumer"),
                         evidence,
@@ -129,7 +129,7 @@ fn proof_surfaces_for_symbol_anchor(
         {
             out.push(ProofSurface {
                 command: proof_command_for_test(project, &test),
-                locations: proof_surface_locations_for_test(&test, &evidence),
+                locations: proof_surface_locations_for_target(project, &consumer_file, &test, &evidence),
                 path: Some(test),
                 reason: proof_reason_for_evidence(&evidence, "symbol consumer"),
                 evidence,
@@ -142,6 +142,28 @@ fn proof_surfaces_for_symbol_anchor(
 
 fn proof_surface_locations_for_test(test: &str, evidence: &str) -> Vec<EvidenceLocation> {
     vec![EvidenceLocation::path(test, evidence)]
+}
+
+fn proof_surface_locations_for_target(
+    project: &Project,
+    target: &str,
+    test: &str,
+    evidence: &str,
+) -> Vec<EvidenceLocation> {
+    let base = proof_base_evidence(evidence);
+    if matches!(base, "test_import" | "test_imported_symbol_reference") {
+        return import_statement_locations(project, test, target);
+    }
+    proof_surface_locations_for_test(test, evidence)
+}
+
+fn proof_base_evidence(evidence: &str) -> &str {
+    evidence
+        .strip_suffix("_via_direct_consumer")
+        .or_else(|| evidence.strip_suffix("_via_direct_dependency"))
+        .or_else(|| evidence.strip_suffix("_via_local_symbol_consumer"))
+        .or_else(|| evidence.strip_suffix("_owning_file"))
+        .unwrap_or(evidence)
 }
 
 fn risk_for_directory(project: &Project, rel: &str, depth: usize) -> Risk {

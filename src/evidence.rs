@@ -44,10 +44,63 @@ pub(crate) fn import_statement_locations(
         }
     }
     if locations.is_empty() {
+        locations.extend(rust_wildcard_crate_import_locations(
+            project, from, to, &text,
+        ));
+    }
+    if locations.is_empty() {
         vec![EvidenceLocation::path(from, "import_source_file")]
     } else {
         locations
     }
+}
+
+fn rust_wildcard_crate_import_locations(
+    project: &Project,
+    from: &str,
+    to: &str,
+    text: &str,
+) -> Vec<EvidenceLocation> {
+    let Some(info) = project.files.get(from) else {
+        return Vec::new();
+    };
+    if info.ext != "rs" {
+        return Vec::new();
+    }
+    let Some(crate_name) = rust_crate_name_for_target(project, to) else {
+        return Vec::new();
+    };
+    let wildcard = format!("use {crate_name}::*");
+    text.lines()
+        .enumerate()
+        .filter_map(|(index, line)| {
+            let compact = line.split_whitespace().collect::<Vec<_>>().join(" ");
+            compact
+                .starts_with(&wildcard)
+                .then(|| EvidenceLocation::line(from, index + 1, "import_statement"))
+        })
+        .take(3)
+        .collect()
+}
+
+fn rust_crate_name_for_target(project: &Project, target: &str) -> Option<String> {
+    project
+        .packages
+        .iter()
+        .filter(|package| package.ecosystem == "rust")
+        .filter(|package| {
+            package.path == "."
+                || target == package.path
+                || target.starts_with(&format!("{}/", package.path.trim_end_matches('/')))
+        })
+        .max_by_key(|package| {
+            if package.path == "." {
+                0
+            } else {
+                package.path.len()
+            }
+        })
+        .map(|package| package.name.replace('-', "_"))
 }
 
 pub(crate) fn package_dependency_locations(
