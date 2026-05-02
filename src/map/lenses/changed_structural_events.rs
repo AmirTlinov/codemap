@@ -69,6 +69,7 @@ fn changed_diff_structural_events(
     let mut events = Vec::new();
     for rel in changed {
         events.extend(changed_env_key_events(project, rel, mode));
+        events.extend(changed_receipt_witness_events(project, rel, mode));
         events.extend(changed_config_key_events(project, rel, mode));
         events.extend(changed_package_script_events(project, rel, mode));
         events.extend(changed_schema_decl_events(project, rel, mode));
@@ -140,6 +141,9 @@ fn changed_config_key_events(
     mode: &DiffMapMode,
 ) -> Vec<crate::model::ChangedStructuralEvent> {
     if changed_map_path_is_env(rel) || !changed_map_path_is_config(rel) {
+        return Vec::new();
+    }
+    if changed_receipt_witness_surface(project, rel) {
         return Vec::new();
     }
     let current = diff_current_file_text(project, rel, mode).unwrap_or_default();

@@ -62,9 +62,28 @@ repos would add noise instead of proof.
 
 ## Current Boundary
 
-No broad numbered slice is active after Slice 30A. Pick the next boundary from
+No broad numbered slice is active after Slice 30B. Pick the next boundary from
 the largest daily-workflow gap observed in live use, not by continuing the slice
 number ritual.
+
+Slice 30B is closed:
+
+```txt
+status: closed
+tier: focused
+closed: receipt/witness JSON changes now emit compact bucket-level structural
+events for claim status, claim boundary, metrics, controls, proof command, and
+schema. Internal witness keys no longer appear as generic config-key spam.
+guardrails: no semantic summarization, no ranking, no receipt ontology beyond a
+small deterministic bucket map.
+excluded: JSONL witness parsing, repo dialect aliases, and richer receipt
+schema detection remain later work.
+proof: focused receipt changed-map regression plus local gate.
+review: not required; narrow changed-map extractor with no schema shape change.
+live: not required for this controlled noise regression.
+next: use a live dirty receipt/witness repo when one is available, then decide
+whether JSONL witness support is worth the next slice.
+```
 
 Slice 30A is closed:
 
@@ -450,8 +469,22 @@ or misleading map.
 | 29B False-confidence closure: proof and unknown truth | closed | full/live | Soft token proof and fallback commands do not hide missing deterministic proof sensors. |
 | 29C False-confidence closure: owner-surface cones | closed | full/live | Manifest, schema, env, and CI anchors expose useful deterministic neighborhoods. |
 | 30A Role-aware proof planner | closed | focused/full/live | Custom proof roles and Makefile/justfile targets beat generic fallback without task routing. |
+| 30B Receipt/witness changed map | closed | focused | Receipt JSON deltas collapse to proof-witness buckets instead of config-key spam. |
 
 ## Closed Boundaries
+
+### Slice 30B: Receipt/Witness Changed Map
+
+```txt
+closed: `changed` recognizes receipt/witness JSON as proof-witness payloads and
+reports bucket changes for claim status, boundary, metrics, controls, proof
+command, and schema instead of enumerating internal JSON keys.
+excluded: JSONL witness parsing, repo-local bucket aliases, and richer receipt
+schema inference.
+proof: `cargo test --quiet receipt`; full local gate before publication.
+live: not required; regression fixture directly models the observed noisy
+receipt case.
+```
 
 ### Slice 30A: Role-Aware Proof Planner
 
