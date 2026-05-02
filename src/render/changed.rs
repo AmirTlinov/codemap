@@ -154,20 +154,13 @@ fn changed_proof_section(report: &ChangedReport) {
         println!("{}", code_block("bash", &report.proof.fallback));
     }
     println!("\n### Sensor Counts");
-    println!(
-        "{}",
-        table(
-            &["Kind", "Count"],
-            vec![
-                vec!["direct".to_string(), report.proof.direct.len().to_string()],
-                vec!["indirect".to_string(), report.proof.indirect.len().to_string()],
-                vec!["e2e".to_string(), report.proof.e2e.len().to_string()],
-                vec!["contract".to_string(), report.proof.contract.len().to_string()],
-                vec![
-                    "missing_direct".to_string(),
-                    report.proof.missing_direct.len().to_string(),
-                ],
-            ],
-        )
-    );
+    for (kind, count) in [
+        ("direct", report.proof.direct.len()),
+        ("indirect", report.proof.indirect.len()),
+        ("e2e", report.proof.e2e.len()),
+        ("contract", report.proof.contract.len()),
+        ("missing_direct", report.proof.missing_direct.len()),
+    ] {
+        println!("- {kind}: `{count}`");
+    }
 }

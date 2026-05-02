@@ -68,13 +68,8 @@ pub fn proof(report: &ProofReport) {
         println!("{}", bullet(&report.changed, true, Some(20)));
         println!();
     }
-    println!(
-        "{}",
-        table(
-            &["Field", "Value"],
-            vec![vec!["Risk".to_string(), report.risk.clone()]]
-        )
-    );
+    println!("\n## Summary\n");
+    println!("- risk: `{}`", report.risk);
     if report.proofs.is_empty() && report.fallback.is_empty() {
         println!("\nNo proof surface found. Use `codemap cone <path>` to inspect edges first.");
         println!("\n{}", report.run_hint);

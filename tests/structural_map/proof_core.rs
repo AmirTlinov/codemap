@@ -47,6 +47,28 @@ fn proof_risk_uses_structural_edges_without_high_inflation() {
 }
 
 #[test]
+fn proof_markdown_renders_risk_as_compact_summary() {
+    let (repo, cache) = fixture();
+
+    let output = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["proof", "packages/replay/src/session.ts"])
+        .output()
+        .expect("proof markdown should run");
+    assert!(output.status.success());
+    let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
+    assert!(
+        markdown.contains("\n## Summary\n") && markdown.contains("- risk: `"),
+        "proof markdown should render risk as compact summary bullets: {markdown}"
+    );
+    assert!(
+        !markdown.contains("| Field | Value |"),
+        "proof markdown should not use Field/Value table for risk: {markdown}"
+    );
+}
+
+#[test]
 fn impact_hidden_changed_expand_preserves_explicit_files_and_depth() {
     let (repo, cache) = fixture();
 

@@ -169,8 +169,13 @@ fn changed_distinguishes_visible_and_total_changed_files() {
     );
     assert!(
         !markdown.contains("| Status | Path | Old | Staged | Unstaged |")
-            && !markdown.contains("| Surface | Count |"),
-        "changed markdown should not return to Git State or Map Delta table spam: {markdown}"
+            && !markdown.contains("| Surface | Count |")
+            && !markdown.contains("| Kind | Count |"),
+        "changed markdown should not return to Git State, Map Delta, or proof sensor table spam: {markdown}"
+    );
+    assert!(
+        markdown.contains("\n### Sensor Counts\n") && markdown.contains("- direct: `"),
+        "changed proof summary should render sensor counts as compact bullets: {markdown}"
     );
     assert!(
         markdown.contains("git state rows hidden by limit"),
