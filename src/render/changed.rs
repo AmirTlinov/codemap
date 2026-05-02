@@ -49,13 +49,15 @@ pub fn changed(report: &ChangedReport, section_filter: &str) {
 fn changed_summary(report: &ChangedReport) {
     if !report.git_state.is_empty() {
         println!("\n## Git State\n");
-        let rows = report
-            .git_state
-            .iter()
-            .take(visible_git_state_count(report))
-            .map(git_change_row)
-            .collect();
-        println!("{}", table(&["Status", "Path", "Old", "Staged", "Unstaged"], rows));
+        for change in report.git_state.iter().take(visible_git_state_count(report)) {
+            println!(
+                "- `{}` [{}; staged={}; unstaged={}]",
+                change.path, change.status, change.staged, change.unstaged
+            );
+            if let Some(old_path) = &change.old_path {
+                println!("  old: `{old_path}`");
+            }
+        }
     }
     render_file_summaries("Changed Anchors", &report.changed);
 }
@@ -72,43 +74,25 @@ fn changed_selector_suffix(selector: &str) -> String {
     }
 }
 
-fn git_change_row(change: &GitChange) -> Vec<String> {
-    vec![
-        change.status.clone(),
-        code(&change.path),
-        change
-            .old_path
-            .as_ref()
-            .map(|path| code(path))
-            .unwrap_or_else(|| "none".to_string()),
-        change.staged.to_string(),
-        change.unstaged.to_string(),
-    ]
-}
-
 fn changed_delta_section(report: &ChangedReport) {
     let delta = &report.map_delta;
     println!("\n## Map Delta\n");
-    println!(
-        "{}",
-        table(
-            &["Surface", "Count"],
-            vec![
-                vec!["added imports/exports".to_string(), delta.added_edges.to_string()],
-                vec!["removed imports/exports".to_string(), delta.removed_edges.to_string()],
-                vec!["changed symbols".to_string(), delta.changed_symbols.to_string()],
-                vec!["added exports".to_string(), delta.added_exports.to_string()],
-                vec!["removed exports".to_string(), delta.removed_exports.to_string()],
-                vec!["added runtime routes".to_string(), delta.added_runtime_routes.to_string()],
-                vec!["removed runtime routes".to_string(), delta.removed_runtime_routes.to_string()],
-                vec!["added env".to_string(), delta.added_env.to_string()],
-                vec!["removed env".to_string(), delta.removed_env.to_string()],
-                vec!["added proof sensors".to_string(), delta.added_proof_surfaces.to_string()],
-                vec!["removed proof sensors".to_string(), delta.removed_proof_surfaces.to_string()],
-                vec!["new unknowns".to_string(), delta.new_unknowns.to_string()],
-            ],
-        )
-    );
+    for (label, count) in [
+        ("added imports/exports", delta.added_edges),
+        ("removed imports/exports", delta.removed_edges),
+        ("changed symbols", delta.changed_symbols),
+        ("added exports", delta.added_exports),
+        ("removed exports", delta.removed_exports),
+        ("added runtime routes", delta.added_runtime_routes),
+        ("removed runtime routes", delta.removed_runtime_routes),
+        ("added env", delta.added_env),
+        ("removed env", delta.removed_env),
+        ("added proof sensors", delta.added_proof_surfaces),
+        ("removed proof sensors", delta.removed_proof_surfaces),
+        ("new unknowns", delta.new_unknowns),
+    ] {
+        println!("- {label}: `{count}`");
+    }
 }
 
 fn changed_impact_section(report: &ChangedReport, compact: bool) {

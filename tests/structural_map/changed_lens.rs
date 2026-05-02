@@ -155,9 +155,18 @@ fn changed_distinguishes_visible_and_total_changed_files() {
         "markdown should not under-report truncated changed anchors: {markdown}"
     );
     assert_eq!(
-        markdown.matches("| untracked |").count(),
+        markdown.matches("[untracked; staged=false; unstaged=true]").count(),
         2,
         "markdown should bound Git State rows by the changed limit: {markdown}"
+    );
+    assert!(
+        markdown.contains("- changed symbols: `5`") || markdown.contains("- added exports: `5`"),
+        "markdown should render Map Delta as compact count bullets: {markdown}"
+    );
+    assert!(
+        !markdown.contains("| Status | Path | Old | Staged | Unstaged |")
+            && !markdown.contains("| Surface | Count |"),
+        "changed markdown should not return to Git State or Map Delta table spam: {markdown}"
     );
     assert!(
         markdown.contains("git state rows hidden by limit"),
