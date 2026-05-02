@@ -83,7 +83,9 @@ fn scan_file(root: &Path, rel: &str, stats: &mut ScanStatsBuilder) -> Option<Fil
 }
 
 fn cache_candidate_files(root: &Path) -> Vec<String> {
-    let mut files = list_visible_candidate_files(root)
+    let candidates =
+        git_cache_candidate_files(root).unwrap_or_else(|| list_visible_candidate_files(root));
+    let mut files = candidates
         .into_iter()
         .filter(|rel| {
             let path = root.join(rel);
@@ -95,6 +97,25 @@ fn cache_candidate_files(root: &Path) -> Vec<String> {
         .collect::<Vec<_>>();
     files.sort();
     files
+}
+
+fn git_cache_candidate_files(root: &Path) -> Option<Vec<String>> {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["ls-files", "-c", "-o", "--exclude-standard"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    Some(
+        String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .map(normalize_rel_path)
+            .filter(|rel| !rel.is_empty() && !should_ignore_rel(rel))
+            .collect(),
+    )
 }
 
 fn list_candidate_files(root: &Path) -> Vec<String> {
