@@ -70,7 +70,11 @@ pub fn proof(report: &ProofReport) {
     }
     println!("\n## Summary\n");
     println!("- risk: `{}`", report.risk);
-    if report.proofs.is_empty() && report.fallback.is_empty() {
+    if report.proofs.is_empty()
+        && report.fallback.is_empty()
+        && report.unknowns.is_empty()
+        && report.expand.is_empty()
+    {
         println!("\nNo proof surface found. Use `codemap cone <path>` to inspect edges first.");
         println!("\n{}", report.run_hint);
         return;
@@ -82,7 +86,9 @@ pub fn proof(report: &ProofReport) {
         println!("\n## Fallback\n");
         println!("{}", code_block("bash", &report.fallback));
     }
+    unknown_section(&report.unknowns);
     hidden_section(&report.hidden);
+    section("Expand", &report.expand);
     println!("\n{}", report.run_hint);
 }
 

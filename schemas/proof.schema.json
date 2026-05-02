@@ -12,12 +12,14 @@
     "risk",
     "proofs",
     "fallback",
+    "unknowns",
     "hidden",
+    "expand",
     "run_hint"
   ],
   "properties": {
     "kind": { "const": "proof_plan" },
-    "schema_version": { "const": "4" },
+    "schema_version": { "const": "5" },
     "target": {
       "anyOf": [{ "type": "string" }, { "type": "null" }]
     },
@@ -37,9 +39,17 @@
       "type": "array",
       "items": { "type": "string" }
     },
+    "unknowns": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/unknown" }
+    },
     "hidden": {
       "type": "array",
       "items": { "$ref": "#/$defs/hidden_group" }
+    },
+    "expand": {
+      "type": "array",
+      "items": { "type": "string" }
     },
     "run_hint": { "type": "string" }
   },
@@ -98,6 +108,25 @@
         "reason": { "type": "string" },
         "count": { "type": "integer", "minimum": 0 },
         "expand": { "type": "string" }
+      }
+    },
+    "unknown": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "path", "line_start", "reason", "effect", "expand"],
+      "properties": {
+        "kind": { "type": "string" },
+        "path": {
+          "anyOf": [{ "type": "string" }, { "type": "null" }]
+        },
+        "line_start": {
+          "anyOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }]
+        },
+        "reason": { "type": "string" },
+        "effect": { "type": "string" },
+        "expand": {
+          "anyOf": [{ "type": "string" }, { "type": "null" }]
+        }
       }
     }
   }

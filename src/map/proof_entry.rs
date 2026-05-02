@@ -183,15 +183,28 @@ pub fn proof_report(
         proofs.truncate(limit);
     }
     let fallback = proof_fallback_commands(project, &anchors, &changed, &proofs);
+    let mut unknowns = Vec::new();
+    let mut expand = Vec::new();
+    if proofs.is_empty()
+        && let Some(target) = target.as_ref()
+        && (project.files.contains_key(target) || directory_has_files(project, target))
+        && let Some(nearest) = nearest_proof_scope(project, target)
+    {
+        let command = format!("codemap proof {}", shell_quote(&nearest));
+        unknowns.push(nearest_proof_scope_unknown(target, &nearest, command.clone()));
+        expand.push(command);
+    }
     ProofReport {
         kind: "proof_plan",
-        schema_version: "4",
+        schema_version: "5",
         target,
         changed,
         risk: risk.as_str().to_string(),
         proofs,
         fallback,
+        unknowns,
         hidden,
+        expand,
         run_hint: "codemap proof prints only by default; use --run to execute proof commands"
             .to_string(),
     }

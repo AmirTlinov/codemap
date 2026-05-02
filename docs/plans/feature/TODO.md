@@ -98,6 +98,23 @@ next: move to the next boundary instead of expanding this slice into full
 package/workspace perfection.
 ```
 
+Slice 24 first boundary is closed:
+
+```txt
+closed: empty but existing narrow proof/test scopes no longer look like a dead
+end. `proof <scope>` and `place <scope> --kind test` emit typed
+`nearest_proof_scope` unknowns with exact expand commands to the nearest parent
+scope that has deterministic proof sensors.
+proof: focused scope-repair fixtures for proof, place, and missing-path
+negative cases; proof schema validation bumped to v5.
+review: required before commit because this changes public proof JSON shape and
+daily proof/place semantics.
+live: not required for first boundary; controlled fixture proves the false
+"nothing here" behavior directly.
+next: extend the same repair pattern to proof-map/place parent hints only if a
+real daily workflow still leaves the agent stuck at an empty exact scope.
+```
+
 Slice 13 first boundary is closed:
 
 ```txt
@@ -150,7 +167,7 @@ or misleading map.
 | 21 Flow lens | todo | focused/live | Bounded structural paths stop at typed unknowns. |
 | 22 Siblings and place lenses | todo | focused | Local conventions are shown without ranking or recommendations. |
 | 23 Non-code, assets, data, events, generated ownership | todo | focused/live | CSS/assets/config/data/events/generated files become first-class surfaces. |
-| 24 Unknown taxonomy, scope repair, fail-closed traversal | todo | full | Empty scopes and unsupported traversal fail closed with useful expand. |
+| 24 Unknown taxonomy, scope repair, fail-closed traversal | closed first boundary | full | Empty proof/test scopes point to nearest parent proof scope with typed unknowns. |
 | 25 Performance, path stability, cognitive gates | todo | live | Warm path, stable ordering, path normalization, and output budgets are guarded. |
 | 26 Fixture matrix across stacks | todo | full | Fixtures cover supported stacks and public lenses without overfitting. |
 | 27 Live adoption harness and PATH ergonomics | todo | live | Read-only live probes and local install/PATH ergonomics are usable. |

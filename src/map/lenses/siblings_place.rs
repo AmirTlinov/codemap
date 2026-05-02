@@ -241,6 +241,22 @@ pub fn place_report(
         "shared contract edges hidden by limit",
         &include_hidden_expand,
     );
+    let mut unknowns = Vec::new();
+    let mut expand = vec![format!("codemap siblings {}", shell_quote(&scope))];
+    if requested_kind == "test"
+        && existing_surfaces.is_empty()
+        && paired_proof_pattern.is_empty()
+        && directory_has_files(project, &scope)
+        && let Some(nearest) = nearest_proof_scope(project, &scope)
+    {
+        let command = format!(
+            "codemap place {} --kind {}",
+            shell_quote(&nearest),
+            shell_quote(&requested_kind)
+        );
+        unknowns.push(nearest_proof_scope_unknown(&scope, &nearest, command.clone()));
+        expand.push(command);
+    }
     PlaceReport {
         kind: "place_report",
         schema_version: "2",
@@ -250,9 +266,9 @@ pub fn place_report(
         local_conventions,
         paired_proof_pattern,
         shared_contracts,
-        unknowns: Vec::new(),
+        unknowns,
         hidden,
-        expand: vec![format!("codemap siblings {}", shell_quote(&scope))],
+        expand,
     }
 }
 
