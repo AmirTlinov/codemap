@@ -206,6 +206,25 @@ next: continue evidence-location work only where a high/medium proof claim still
 falls back to path-only despite deterministic line evidence.
 ```
 
+Slice 05 first boundary is closed:
+
+```txt
+closed: the root/scope/expand protocol has load-bearing coverage across root
+`ls`, root causal graph, root runtime, root proof-map, hidden groups, and
+explicit `--root` output. Root views stay current-level and bounded; deeper
+details require exact scope or include-hidden/expand commands; expand commands
+are executable, preserve selectors, preserve `--root`, and shell-quote roots
+with spaces.
+proof: existing root inventory/current-level graph/runtime/proof-map,
+root-aware expand, hidden/unknown expand, lens budget, and daily cognitive gate
+tests plus the latest full gate.
+review: not required for this ledger closure; no code or public behavior
+changed in this boundary.
+live: already covered by Slice 27 harness for daily/focused probes; this
+closure is evidence audit over existing tests.
+next: reopen only for a concrete reproducible expand/root-scope false claim.
+```
+
 Slice 02 first boundary is closed:
 
 ```txt
@@ -340,7 +359,7 @@ or misleading map.
 | 02 Daily command surface and alias cleanup | closed first boundary | focused | Root help exposes daily workflow before focused lenses and diagnostics. |
 | 03 Unified fact model and constructors | closed first boundary | full | Shared constructors cover the first migrated surface/proof families. |
 | 04 Evidence locations and typed unknowns | closed first boundary | full | Next route e2e proof surfaces carry route_visit line provenance. |
-| 05 Scope model, root maps, expand protocol | todo | focused/live | Root is current-level; exact anchors drill down; expand is reproducible. |
+| 05 Scope model, root maps, expand protocol | closed first boundary | focused/live | Root current-level maps and reproducible expands are guarded. |
 | 06 Compact markdown grammar and renderer | closed | live | Daily/focused markdown was compacted within the declared boundary. |
 | 07 Schema rail and golden validation | closed | full | Public JSON reports validate against manifest-selected schemas. |
 | 08 Fast scanner, ignore/generated/vendor detection | closed | live | Shared scanner policy and generated/ignored stats are visible. |
