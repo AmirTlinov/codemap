@@ -7,26 +7,10 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+pub use super::fingerprint_delta::CacheFileDelta;
 use crate::model::Project;
 
 const FINGERPRINT_CACHE_FORMAT: u32 = 7;
-
-pub struct CacheFileDelta {
-    pub cached_fingerprint: String,
-    pub unchanged: BTreeSet<String>,
-    pub changed_or_added: BTreeSet<String>,
-    pub removed: BTreeSet<String>,
-}
-
-impl CacheFileDelta {
-    pub fn is_exact_hit(&self) -> bool {
-        self.changed_or_added.is_empty() && self.removed.is_empty()
-    }
-
-    pub fn current_file_count(&self) -> usize {
-        self.unchanged.len() + self.changed_or_added.len()
-    }
-}
 
 pub fn file_delta(
     root: &Path,
@@ -63,14 +47,11 @@ pub fn file_delta(
         .filter(|path| !current_paths.contains(**path))
         .map(|path| (*path).to_string())
         .collect();
-    Some(CacheFileDelta {
-        cached_fingerprint: cached.fingerprint,
-        unchanged,
-        changed_or_added,
-        removed,
-    })
+    Some(cache_file_delta(
+        &cached,
+        (unchanged, changed_or_added, removed),
+    ))
 }
-
 pub fn file_delta_for_known_changes(
     root: &Path,
     cache_dir: &Path,
@@ -246,12 +227,28 @@ fn file_delta_from_known_changes(
             changed_or_added.insert(cached_file.path.clone());
         }
     }
-    Some(CacheFileDelta {
+    Some(cache_file_delta(
+        cached,
+        (unchanged, changed_or_added, removed),
+    ))
+}
+
+fn cache_file_delta(
+    cached: &CachedFingerprints,
+    sets: (BTreeSet<String>, BTreeSet<String>, BTreeSet<String>),
+) -> CacheFileDelta {
+    let (unchanged, changed_or_added, removed) = sets;
+    CacheFileDelta {
         cached_fingerprint: cached.fingerprint.clone(),
+        cached_content_hashes: cached
+            .files
+            .iter()
+            .map(|file| (file.path.clone(), file.content_hash.clone()))
+            .collect(),
         unchanged,
         changed_or_added,
         removed,
-    })
+    }
 }
 
 fn recheck_cached_file(

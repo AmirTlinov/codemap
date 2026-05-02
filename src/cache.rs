@@ -13,6 +13,7 @@ use crate::evidence::{import_statement_locations, package_dependency_locations};
 use crate::model::{CacheArtifactStatus, EvidenceStrength, GraphEdge, Project};
 
 pub(crate) mod cached_project;
+pub(crate) mod fingerprint_delta;
 pub(crate) mod fingerprints;
 
 pub use cached_project::read_cached_project;

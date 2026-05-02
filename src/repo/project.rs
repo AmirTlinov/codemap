@@ -48,7 +48,11 @@ pub fn load_project_with_cache(
             let mut scan_candidates = delta.changed_or_added.clone();
             for rel in &delta.unchanged {
                 if let Some(file) = cached.files.remove(rel) {
-                    files.insert(rel.clone(), file);
+                    if cached_file_facts_match_delta(&file, &delta, rel) {
+                        files.insert(rel.clone(), file);
+                    } else {
+                        scan_candidates.insert(rel.clone());
+                    }
                 } else {
                     scan_candidates.insert(rel.clone());
                 }
@@ -194,6 +198,17 @@ fn incremental_file_delta(
             let current_files = cache_candidate_files(root);
             cache::file_delta(root, cache_dir, version, &current_files, config_path)
         })
+}
+
+fn cached_file_facts_match_delta(
+    file: &FileInfo,
+    delta: &cache::fingerprints::CacheFileDelta,
+    rel: &str,
+) -> bool {
+    delta
+        .cached_content_hashes
+        .get(rel)
+        .is_some_and(|expected| file.content_hash == *expected)
 }
 
 struct ProjectBuildInput {
