@@ -37,6 +37,61 @@ fn unique_proof_commands(values: Vec<ProofSurface>) -> Vec<ProofSurface> {
     out
 }
 
+struct ProofSurfaceBucket {
+    first_index: usize,
+    precedence: (EvidenceStrength, usize),
+    proofs: VecDeque<ProofSurface>,
+}
+
+fn balanced_proof_surface_prefix(values: &[ProofSurface], limit: usize) -> Vec<ProofSurface> {
+    if values.len() <= limit {
+        return values.to_vec();
+    }
+
+    let mut buckets: BTreeMap<String, ProofSurfaceBucket> = BTreeMap::new();
+    for (index, value) in values.iter().cloned().enumerate() {
+        let precedence = proof_surface_precedence(&value);
+        let entry = buckets
+            .entry(value.evidence.clone())
+            .or_insert_with(|| ProofSurfaceBucket {
+                first_index: index,
+                precedence,
+                proofs: VecDeque::new(),
+            });
+        entry.precedence = entry.precedence.max(precedence);
+        entry.proofs.push_back(value);
+    }
+
+    let mut buckets = buckets.into_iter().collect::<Vec<_>>();
+    buckets.sort_by(|left, right| {
+        right
+            .1
+            .precedence
+            .cmp(&left.1.precedence)
+            .then_with(|| left.1.first_index.cmp(&right.1.first_index))
+            .then_with(|| left.0.cmp(&right.0))
+    });
+
+    let mut out = Vec::with_capacity(limit);
+    while out.len() < limit && !buckets.is_empty() {
+        let mut progressed = false;
+        for bucket in &mut buckets {
+            if out.len() == limit {
+                break;
+            }
+            if let Some(value) = bucket.1.proofs.pop_front() {
+                out.push(value);
+                progressed = true;
+            }
+        }
+        buckets.retain(|bucket| !bucket.1.proofs.is_empty());
+        if !progressed {
+            break;
+        }
+    }
+    out
+}
+
 fn proof_surface_precedence(value: &ProofSurface) -> (EvidenceStrength, usize) {
     (value.strength, proof_evidence_precedence(&value.evidence))
 }

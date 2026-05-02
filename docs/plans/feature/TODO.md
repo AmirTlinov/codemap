@@ -62,9 +62,41 @@ repos would add noise instead of proof.
 
 ## Current Boundary
 
-No broad numbered slice is active after Slice 30L. Pick the next boundary from
+No broad numbered slice is active after Slice 30M. Pick the next boundary from
 the largest daily-workflow gap observed in live use, not by continuing the slice
 number ritual.
+
+Slice 30M is closed:
+
+```txt
+status: closed
+tier: focused/full/live
+closed: large workspace manifest proof output now keeps a balanced visible
+prefix across evidence kinds instead of letting root scripts crowd out CI
+references. Hidden counts and exact expand commands still use the full proof
+surface count. CI script detection no longer treats an arbitrary shell token
+matching a script name as proof: `test -n "${VAR}"` is not a package-script
+invocation, while explicit runners such as `pnpm test`, `pnpm run test`, and
+`pnpm --filter <pkg> test` remain deterministic script references.
+guardrails: this is output-budget and false-proof removal only. It does not add
+ranking, recommendation language, or a new proof verdict.
+excluded: richer shell parsing and broader package-manager dialect coverage
+remain later work unless live repos expose another false structural claim.
+proof: `cargo test workspace_manifest_ci_proof_rejects_shell_test_builtin_as_script
+-- --nocapture`; `cargo test proof_ -- --nocapture`; full `cargo fmt --check`,
+`cargo test --quiet`, clippy, warm doctor without stale warnings, diff-check,
+and installed PATH smoke.
+review: PASS. Reviewer noted no blocking findings; residual risk is that CI
+matching remains token-based rather than a full shell parser, which is accepted
+inside this bounded false-proof removal slice.
+live: Levelly `proof pnpm-workspace.yaml --format json` now shows both
+`workspace_manifest_script` and `workspace_manifest_ci_reference` in the visible
+prefix through `/Users/amir/.cargo/bin/codemap`, and no
+`workspace_manifest_ci_reference` command starts with `test -n`.
+next: continue from the next live blind spot found by the daily path
+`ls -> cone -> changed -> proof`, with preference for false-confidence removal
+over new features.
+```
 
 Slice 30L is closed:
 

@@ -310,7 +310,75 @@ fn command_uses_any(command: &str, needles: &[&str]) -> bool {
 
 fn command_invokes_script(command: &str, script: &str) -> bool {
     let script = script.to_ascii_lowercase();
-    command_tokens(command).iter().any(|token| token == &script)
+    let tokens = command_tokens(command);
+    tokens
+        .iter()
+        .enumerate()
+        .any(|(index, token)| token == &script && token_invokes_package_script(&tokens, index))
+}
+
+fn token_invokes_package_script(tokens: &[String], script_index: usize) -> bool {
+    let Some(package_index) = tokens[..script_index]
+        .iter()
+        .rposition(|token| package_script_runner(token))
+    else {
+        return false;
+    };
+    let between = &tokens[package_index + 1..script_index];
+    if between.is_empty() {
+        return true;
+    }
+    if between.iter().any(|token| {
+        matches!(
+            token.as_str(),
+            "exec" | "dlx" | "x" | "create" | "install" | "add" | "remove" | "publish"
+        )
+    }) {
+        return false;
+    }
+    if between.last().is_some_and(|token| token == "run") {
+        return package_script_selector_prefix(&between[..between.len() - 1]);
+    }
+    package_script_selector_prefix(between)
+}
+
+fn package_script_runner(token: &str) -> bool {
+    matches!(token, "npm" | "pnpm" | "yarn" | "bun" | "corepack")
+}
+
+fn package_script_selector_prefix(tokens: &[String]) -> bool {
+    let mut index = 0;
+    while index < tokens.len() {
+        let token = tokens[index].as_str();
+        if package_selector_with_value(token) {
+            if index + 1 >= tokens.len() {
+                return false;
+            }
+            index += 2;
+        } else if package_selector_inline(token) || package_selector_without_value(token) {
+            index += 1;
+        } else {
+            return false;
+        }
+    }
+    true
+}
+
+fn package_selector_with_value(token: &str) -> bool {
+    matches!(
+        token,
+        "--filter" | "-f" | "--workspace" | "--package" | "-p"
+    )
+}
+
+fn package_selector_inline(token: &str) -> bool {
+    token.starts_with("--filter=")
+        || token.starts_with("--workspace=")
+        || token.starts_with("--package=")
+}
+
+fn package_selector_without_value(token: &str) -> bool {
+    matches!(token, "--workspace-root" | "-w" | "--recursive" | "-r")
 }
 
 fn command_tokens(command: &str) -> Vec<String> {

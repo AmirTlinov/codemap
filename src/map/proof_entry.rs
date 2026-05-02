@@ -185,17 +185,17 @@ pub fn proof_report(
         ));
     }
     proofs = all_proofs;
-    if proofs.len() > limit {
+    let proof_count = proofs.len();
+    if proof_count > limit {
         hidden.push(HiddenGroup {
             reason: "proof surfaces hidden by limit".to_string(),
-            count: proofs.len() - limit,
+            count: proof_count - limit,
             expand: format!(
                 "codemap proof {} --depth {depth} --limit {}",
-                selector,
-                proofs.len()
+                selector, proof_count
             ),
         });
-        proofs.truncate(limit);
+        proofs = balanced_proof_surface_prefix(&proofs, limit);
     }
     let mut expand = Vec::new();
     if proofs.is_empty()
