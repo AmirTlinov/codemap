@@ -103,3 +103,57 @@ goldens are representative, not cosmetic
 ## Done When
 
 Schemas are a real public contract, not documentation by hope.
+
+## Closure
+
+Status: closed within boundary.
+
+Implemented:
+
+- `doctor` is a discoverable schema alias for `status_report`.
+- `schemas/manifest.json` lists every public structural report and every schema
+  file in `schemas/`.
+- `codemap schema <kind>` is tested for every manifest item and remains
+  side-effect free.
+- Public JSON report commands are exercised through real fixture outputs and
+  validated against the schema selected by the manifest entry.
+- The validation rail also checks report `kind == json_kind` and
+  `schema_version == schema_version` from the manifest.
+- Legacy/router report kinds remain absent from the manifest.
+
+Golden interpretation:
+
+```txt
+golden JSON = real representative fixture command outputs validated against
+schemas at test time.
+```
+
+No committed snapshot framework was added. That was intentional: the schema rail
+needs a public contract guard, not another artifact maintenance surface.
+
+Proof:
+
+```bash
+cargo fmt --check
+cargo test --quiet public_json_reports_validate_against_manifest_schemas --test structural_map
+cargo test --quiet
+cargo clippy --all-targets -- -D warnings
+cargo run --quiet --bin codemap -- doctor
+git diff --check
+target/debug/codemap schema ls
+target/debug/codemap schema cone
+target/debug/codemap schema changed
+target/debug/codemap --root /Users/amir/Documents/projects/spritestudio ls . --format json
+target/debug/codemap --root /Users/amir/Documents/projects/Sillentway-VPN ls . --format json
+target/debug/codemap --root /Users/amir/Documents/projects/Levelly-1 ls . --format json
+```
+
+Live result:
+
+```txt
+spritestudio: ls_report v3
+Sillentway-VPN: ls_report v3
+Levelly-1: ls_report v3
+```
+
+Reviewer: PASS.

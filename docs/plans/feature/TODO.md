@@ -76,11 +76,26 @@ next: stop renderer micro-polish and return to facts/schemas/cache/lens depth.
 
 ### Slice 07: Schema rail and golden validation
 
-- [ ] Slice 07 implemented
-- [ ] Slice 07 gates passed
-- [ ] Slice 07 reviewer PASS
-- [ ] Slice 07 live dogfood complete
-- [ ] Slice 07 agent satisfied
+- [x] Slice 07 implemented within closure boundary
+- [x] Slice 07 gates passed
+- [x] Slice 07 reviewer PASS
+- [x] Slice 07 live dogfood complete
+- [x] Slice 07 agent satisfied
+
+Boundary:
+
+```txt
+closed: manifest/schema-command parity for every listed schema, public JSON
+report validation against manifest-selected schemas, json_kind/schema_version
+parity for structural outputs, doctor schema alias, and legacy/router schema
+absence guards.
+interpreted: "golden JSON" is covered by real fixture command outputs validated
+against schemas, not committed snapshot files.
+excluded: a separate golden snapshot framework and exhaustive live lens behavior
+dogfood; those would add process without stronger schema-contract proof.
+next: move to scanner/cache/facts depth, not more schema ceremony unless a new
+public JSON command or report shape appears.
+```
 
 ### Slice 08: Fast scanner, ignore/generated/vendor detection
 
