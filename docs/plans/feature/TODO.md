@@ -266,6 +266,14 @@ review: not required for this first bounded stitching boundary unless the route
 model expands again.
 live: spritestudio `runtime app/api/health/route.ts` reports GET handler_symbol
 GET, and `flow 'GET /api/health'` reaches `app/api/health/route.ts#GET`.
+closed next boundary: Rust axum/tower single-line `.route("/path",
+get(handler).post(other))` registrations now produce exact runtime routes and
+handler_symbol where the handler is a simple local symbol.
+excluded next: imported handler ownership and multi-line route registration
+parsing.
+proof next: `rust_axum` structural tests plus live SilentWay `runtime
+src/doh-gateway/src/main.rs` and `flow 'POST /dns-query'` reaching
+`src/doh-gateway/src/main.rs#handle_post`.
 ```
 
 ## Live Probe Set

@@ -9,7 +9,9 @@ fn framework_routes_for_file(project: &Project, file: &FileInfo) -> Vec<RuntimeR
     let Ok(text) = std::fs::read_to_string(project.root.join(&file.rel)) else {
         return Vec::new();
     };
+    let rust_axum_context = file.ext == "rs" && rust_axum_route_context(&text);
     let mut routes = Vec::new();
+    let mut rust_axum_chain_continuation = false;
     for (line_number, line) in runtime_code_lines(&text) {
         if matches!(file.ext.as_str(), "js" | "jsx" | "ts" | "tsx") {
             routes.extend(javascript_route_registrations(
@@ -21,9 +23,25 @@ fn framework_routes_for_file(project: &Project, file: &FileInfo) -> Vec<RuntimeR
             routes.extend(python_route_decorators(&file.rel, &line, line_number));
         } else if file.ext == "go" {
             routes.extend(go_route_registrations(&file.rel, &line, line_number));
+        } else if rust_axum_context {
+            let (line_routes, chain_continues) = rust_axum_route_registrations(
+                &file.rel,
+                &line,
+                line_number,
+                rust_axum_chain_continuation,
+            );
+            routes.extend(line_routes);
+            rust_axum_chain_continuation =
+                chain_continues || rust_axum_router_new_on_line(&line);
         }
     }
     routes
+}
+
+fn rust_axum_route_context(text: &str) -> bool {
+    text.contains("use axum")
+        || text.contains("axum::")
+        || text.contains("Router::new()")
 }
 
 fn unknowns_for_file(project: &Project, file: &FileInfo) -> Vec<Unknown> {
