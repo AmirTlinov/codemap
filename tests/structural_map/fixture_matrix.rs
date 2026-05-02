@@ -252,7 +252,7 @@ fn named_fixture_matrix_covers_public_lenses() {
             case.name
         );
 
-        let proof = run_json(repo.path(), cache.path(), &["proof", "--changed", "--format", "json"]);
+        let proof = run_json(repo.path(), cache.path(), &["proof", "changed", "--format", "json"]);
         assert_schema("schemas/proof.schema.json", &proof);
         assert!(
             proof["changed"]
@@ -260,7 +260,7 @@ fn named_fixture_matrix_covers_public_lenses() {
                 .expect("proof changed anchors")
                 .iter()
                 .any(|path| path == case.dirty_file),
-            "proof --changed should keep the dirty fixture anchor for {}: {proof:#}",
+            "proof changed should keep the dirty fixture anchor for {}: {proof:#}",
             case.name
         );
     }

@@ -129,7 +129,8 @@ fn changed_section_name(section: ChangedSection) -> &'static str {
         ChangedSection::Diff => "diff",
         ChangedSection::Impact => "impact",
         ChangedSection::Proof => "proof",
-        ChangedSection::Unknowns => "unknowns",
+        ChangedSection::Unknown => "unknowns",
+        ChangedSection::Hidden => "hidden",
     }
 }
 
@@ -203,16 +204,16 @@ fn proof_inputs(
 ) -> Result<(Option<String>, Vec<String>, String)> {
     ensure_single_proof_selector(args)?;
     if let Some(target) = args.target.as_deref() {
+        if target == "changed" {
+            return Ok((
+                None,
+                repo::changed_files(&project.root, false, None),
+                "changed".to_string(),
+            ));
+        }
         let target = project_relative_arg(project, target)?;
         let selector = shell_quote_arg(&target);
         return Ok((Some(target), Vec::new(), selector));
-    }
-    if args.changed {
-        return Ok((
-            None,
-            repo::changed_files(&project.root, false, None),
-            "--changed".to_string(),
-        ));
     }
     if args.staged {
         return Ok((
@@ -237,10 +238,13 @@ fn proof_inputs(
             .join(",");
         return Ok((None, files, format!("--files {files_arg}")));
     }
-    bail!("codemap proof needs an exact target, --changed, --staged, --since, or --files");
+    bail!("codemap proof needs an exact target, changed, --staged, --since, or --files");
 }
 
 fn ensure_single_proof_selector(args: &ProofArgs) -> Result<()> {
+    if args.changed {
+        bail!("`codemap proof --changed` was replaced by `codemap proof changed`");
+    }
     let explicit_files = args
         .files
         .as_deref()
@@ -248,7 +252,6 @@ fn ensure_single_proof_selector(args: &ProofArgs) -> Result<()> {
         .unwrap_or(false);
     let count = [
         args.target.is_some(),
-        args.changed,
         args.staged,
         args.since.is_some(),
         explicit_files,
@@ -257,7 +260,7 @@ fn ensure_single_proof_selector(args: &ProofArgs) -> Result<()> {
     .filter(|enabled| *enabled)
     .count();
     if count > 1 {
-        bail!("choose only one proof selector: target, --changed, --staged, --since, or --files");
+        bail!("choose only one proof selector: target, changed, --staged, --since, or --files");
     }
     Ok(())
 }

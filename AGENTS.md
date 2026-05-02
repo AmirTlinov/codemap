@@ -10,7 +10,7 @@ Keep the product invariant clear:
 - root `codemap ls .` returns a bounded domain/package map, not the whole project;
 - root `codemap graph --lens causal` is the current-level map lens, not a recursive file dump;
 - exact scopes/files use `codemap ls <anchor>` and `codemap cone <anchor>`;
-- after edits use `codemap changed` first, then `codemap proof --changed`;
+- after edits use `codemap changed` first, then `codemap proof changed`;
 - use focused lenses such as `diff-map`, `impact`, and `proof-map` through
   exact `expand` commands when the changed/proof map asks for more detail;
 - optional `.ctx.yml` semantic anchors only when hard architecture truth cannot be inferred;

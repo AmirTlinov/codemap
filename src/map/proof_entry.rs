@@ -39,7 +39,7 @@ pub fn impact_report(
                 changed: vec![rel.clone()],
                 direct_consumers: Vec::new(),
                 cross_boundary_consumers: Vec::new(),
-                contract_risks: Vec::new(),
+                contract_links: Vec::new(),
                 proof: Vec::new(),
                 reasons: vec!["changed file is not indexed".to_string()],
             }, Vec::new()));
@@ -65,7 +65,7 @@ pub fn impact_report(
     }
     ImpactReport {
         kind: "impact_report",
-        schema_version: "3",
+        schema_version: "4",
         changed: changed_summaries,
         clusters,
         hidden,
@@ -113,7 +113,7 @@ pub fn proof_report(
     if target.is_none() && !changed.is_empty() {
         let impact = impact_report(project, changed.clone(), depth, limit.max(changed.len()));
         for cluster in &impact.clusters {
-            risk = risk.max(risk_from_str(&cluster.risk));
+            risk = risk.max(impact_level_from_str(&cluster.risk));
         }
         for anchor in &changed {
             proofs.extend(proof_surfaces_for_anchor(
@@ -130,7 +130,7 @@ pub fn proof_report(
                     project
                         .files
                         .get(&file_rel)
-                        .map(|_| structural_risk_for_file(project, &file_rel, depth).0)
+                        .map(|_| structural_impact_level_for_file(project, &file_rel, depth).0)
                         .unwrap_or(Risk::Medium),
                 );
                 proofs.extend(proof_surfaces_for_symbol_anchor(
@@ -142,7 +142,7 @@ pub fn proof_report(
                 ));
             } else {
                 if project.files.contains_key(anchor) {
-                    risk = risk.max(structural_risk_for_file(project, anchor, depth).0);
+                    risk = risk.max(structural_impact_level_for_file(project, anchor, depth).0);
                     proofs.extend(proof_surfaces_for_anchor(
                         project,
                         anchor,
@@ -150,7 +150,7 @@ pub fn proof_report(
                         discovery_limit,
                     ));
                 } else if anchor != "." && directory_has_files(project, anchor) {
-                    risk = risk.max(risk_for_directory(project, anchor, depth));
+                    risk = risk.max(impact_level_for_directory(project, anchor, depth));
                     proofs.extend(proof_surfaces_for_directory(
                         project,
                         anchor,
@@ -196,7 +196,7 @@ pub fn proof_report(
     }
     ProofReport {
         kind: "proof_plan",
-        schema_version: "5",
+        schema_version: "6",
         target,
         changed,
         risk: risk.as_str().to_string(),
@@ -213,7 +213,7 @@ pub fn proof_report(
 pub fn clean_proof_report(_selector: String) -> ProofReport {
     ProofReport {
         kind: "proof_plan",
-        schema_version: "5",
+        schema_version: "6",
         target: None,
         changed: Vec::new(),
         risk: "low".to_string(),
@@ -227,7 +227,7 @@ pub fn clean_proof_report(_selector: String) -> ProofReport {
     }
 }
 
-fn risk_from_str(value: &str) -> Risk {
+fn impact_level_from_str(value: &str) -> Risk {
     match value {
         "critical" => Risk::Critical,
         "high" => Risk::High,

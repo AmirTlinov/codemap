@@ -98,12 +98,14 @@ renderer work needs a concrete confusing output or false structural claim.
 The daily surface must stay small:
 
 ```txt
-codemap ls <scope>              # where am I?
+codemap ls [scope]              # what exists here?
 codemap cone <anchor>           # what touches this?
 codemap changed                 # what changed in the structural map?
-codemap proof <scope|--changed> # how can I prove this?
-codemap doctor                  # is the tool/cache healthy and fast?
+codemap proof <anchor|changed>  # what proof surfaces are nearby?
 ```
+
+`codemap doctor` remains the health diagnostic, but it is not a primary map
+command.
 
 Focused lenses remain available, but the agent should discover them from
 `expand`, not memorize a 30-command menu:

@@ -41,13 +41,19 @@ pub struct ImpactReport {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ImpactCluster {
     pub id: String,
+    #[serde(default = "default_low_risk", skip_serializing)]
     pub risk: String,
     pub changed: Vec<String>,
     pub direct_consumers: Vec<StructuralEdge>,
     pub cross_boundary_consumers: Vec<StructuralEdge>,
-    pub contract_risks: Vec<StructuralEdge>,
+    #[serde(rename = "contract_links", alias = "contract_risks")]
+    pub contract_links: Vec<StructuralEdge>,
     pub proof: Vec<StructuralEdge>,
     pub reasons: Vec<String>,
+}
+
+fn default_low_risk() -> String {
+    "low".to_string()
 }
 
 #[derive(Debug, Clone, Serialize)]

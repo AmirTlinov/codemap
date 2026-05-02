@@ -50,7 +50,7 @@ fn place_lens_kind_maps_existing_lens_files_without_semantic_search() {
             .as_array()
             .expect("expand")
             .iter()
-            .any(|command| command == "codemap place src/map --kind lens --include-hidden"),
+            .any(|command| command == "codemap place src/map --kind lens --all"),
         "place expand should preserve the required --kind argument: {place:#}"
     );
 

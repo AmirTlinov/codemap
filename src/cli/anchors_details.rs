@@ -147,7 +147,7 @@ fn semantic_anchor_details(
             message: command.clone(),
             next: validation_next(
                 can_run_map_commands,
-                vec!["codemap proof --changed".to_string()],
+                vec!["codemap proof changed".to_string()],
             ),
         });
     }
@@ -221,4 +221,3 @@ fn validation_next(can_run_map_commands: bool, commands: Vec<String>) -> Vec<Str
         vec!["codemap anchors validate".to_string()]
     }
 }
-

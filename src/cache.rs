@@ -27,9 +27,10 @@ pub use fingerprints::{
     file_delta_for_head_change, file_delta_for_known_changes,
 };
 pub use lens_artifacts::{
-    ConeLensKey, LsLensKey, read_changed_report, read_cone_report, read_ls_report,
-    read_proof_changed_report, read_proof_map_report, write_changed_report, write_cone_report,
-    write_ls_report, write_proof_changed_report, write_proof_map_report,
+    ConeLensKey, LsLensKey, PlaceLensKey, SiblingsLensKey, read_changed_report, read_cone_report,
+    read_ls_report, read_place_report, read_proof_changed_report, read_proof_map_report,
+    read_siblings_report, write_changed_report, write_cone_report, write_ls_report,
+    write_place_report, write_proof_changed_report, write_proof_map_report, write_siblings_report,
 };
 
 const CACHE_ARTIFACTS: &[&str] = &[

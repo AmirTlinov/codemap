@@ -146,7 +146,7 @@ fn lens_hidden_expands_use_concrete_scope_commands() {
     assert!(
         boundary_hidden.iter().all(|group| group["expand"]
             .as_str()
-            .is_some_and(|expand| expand.starts_with("codemap boundary-map . --include-hidden --limit ")
+            .is_some_and(|expand| expand.starts_with("codemap boundary-map . --all --limit ")
                 && !expand.contains("<larger-number>"))),
         "boundary-map hidden expands must be concrete runnable commands: {boundary_map:#}"
     );
@@ -171,7 +171,7 @@ fn lens_hidden_expands_use_concrete_scope_commands() {
             .expect("changed boundary hidden")
             .iter()
             .all(|group| group["expand"].as_str().is_some_and(|expand| {
-                expand.starts_with("codemap boundary-map . --changed --include-hidden --limit ")
+                expand.starts_with("codemap boundary-map . --changed --all --limit ")
                     && !expand.contains("<larger-number>")
             })),
         "boundary-map changed hidden expands must preserve the changed selector: {changed_boundary_map:#}"

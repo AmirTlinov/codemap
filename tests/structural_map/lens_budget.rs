@@ -34,7 +34,7 @@ fn contract_limit_reports_hidden_export_surfaces() {
             .any(|group| group["reason"] == "exported contract surfaces hidden by limit"
                 && group["count"] == 2
                 && group["expand"].as_str().is_some_and(|expand| {
-                    expand.starts_with("codemap contract packages/replay/src/many-contracts.ts --include-hidden --limit ")
+                    expand.starts_with("codemap contract packages/replay/src/many-contracts.ts --all --limit ")
                         && !expand.contains("<larger-number>")
                 })),
         "contract lens must not silently drop export surfaces behind --limit: {contract:#}"
@@ -75,7 +75,7 @@ fn runtime_limit_reports_hidden_worker_surfaces() {
             .any(|group| group["reason"] == "worker/job surfaces hidden by limit"
                 && group["count"] == 2
                 && group["expand"].as_str().is_some_and(|expand| {
-                    expand.starts_with("codemap runtime packages/app/src/jobs --include-hidden --limit ")
+                    expand.starts_with("codemap runtime packages/app/src/jobs --all --limit ")
                         && !expand.contains("<larger-number>")
                 })),
         "runtime lens must not silently drop worker/job surfaces behind --limit: {runtime:#}"
@@ -169,7 +169,7 @@ fn flow_limit_reports_hidden_dependency_steps() {
             .any(|group| group["reason"] == "flow steps hidden by limit"
                 && group["count"].as_u64().unwrap_or_default() >= 3
                 && group["expand"].as_str().is_some_and(|expand| {
-                    expand.starts_with("codemap flow /api/report --include-hidden --limit ")
+                    expand.starts_with("codemap flow /api/report --all --limit ")
                         && !expand.contains("<larger-number>")
                 })),
         "flow lens must show when dependency steps are hidden by --limit: {flow:#}"

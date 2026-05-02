@@ -85,12 +85,12 @@ fn schema_contract_role_ignores_engine_implementation_names() {
             .iter()
             .any(|reason| reason == "schema or DTO contract changed"
                 || reason == "contract surface participates"),
-        "impact should not inflate implementation contract.rs into contract risk: {impact:#}"
+        "impact should not inflate implementation contract.rs into contract link: {impact:#}"
     );
     assert!(
-        cluster["contract_risks"]
+        cluster["contract_links"]
             .as_array()
-            .expect("contract risks")
+            .expect("contract links")
             .iter()
             .all(|edge| edge["type"] != "contract_changed"),
         "implementation contract.rs must not emit a contract_changed edge: {impact:#}"
@@ -172,9 +172,9 @@ fn schema_contract_role_preserves_explicit_schema_and_contract_surfaces() {
     );
     assert_schema("schemas/impact.schema.json", &impact);
     assert!(
-        impact["clusters"][0]["contract_risks"]
+        impact["clusters"][0]["contract_links"]
             .as_array()
-            .expect("contract risks")
+            .expect("contract links")
             .iter()
             .any(|edge| edge["type"] == "contract_changed"
                 && edge["evidence"] == "role:schema_contract"),

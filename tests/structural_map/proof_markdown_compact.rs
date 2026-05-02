@@ -29,7 +29,7 @@ fn proof_changed_markdown_summarizes_sensors_by_command() {
     let output = codemap()
         .current_dir(repo.path())
         .env("CODEMAP_CACHE_DIR", cache.path())
-        .args(["proof", "--changed", "--limit", "20"])
+        .args(["proof", "changed", "--limit", "20"])
         .output()
         .expect("codemap should run");
     assert!(

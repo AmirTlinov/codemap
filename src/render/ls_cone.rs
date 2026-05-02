@@ -11,12 +11,17 @@ pub fn ls(report: &LsReport) {
         _ => {}
     }
     if !report.edges.is_empty() {
-        cone_section("Edges", &report.edges);
+        cone_section("Links", &report.edges);
     }
     hidden_section(&report.hidden);
     if !report.next.is_empty() {
-        println!("\n## Next\n");
-        println!("{}", bullet(&report.next, true, Some(5)));
+        println!("\n## Expand\n");
+        let next = report
+            .next
+            .iter()
+            .map(|command| root_aware_expand(command))
+            .collect::<Vec<_>>();
+        println!("{}", bullet(&next, true, Some(5)));
     }
 }
 
@@ -24,12 +29,16 @@ pub fn cone(report: &ConeReport) {
     println!("# Structural Cone\n");
     println!("Anchor: `{}`", report.anchor.path);
     println!("Depth: `{}`", report.depth);
-    render_anchor_summary("Anchor Summary", &report.anchor);
-    cone_section("Outgoing", &report.outgoing);
-    cone_section("Incoming", &report.incoming);
+    render_anchor_summary("Observed", &report.anchor);
+    render_roles(&report.anchor);
+    if !report.outgoing.is_empty() || !report.incoming.is_empty() || !report.contracts.is_empty() || !report.boundary.is_empty() {
+        println!("\n## Links\n");
+        grouped_edge_list("outgoing", &report.outgoing, 20);
+        grouped_edge_list("incoming", &report.incoming, 20);
+        grouped_edge_list("contracts", &report.contracts, 20);
+        grouped_edge_list("boundary", &report.boundary, 20);
+    }
     cone_section("Proof", &report.proof);
-    cone_section("Contracts", &report.contracts);
-    cone_section("Boundary", &report.boundary);
     hidden_section(&report.hidden);
     unknown_section(&report.unknowns);
     section("Expand", &report.expand);
@@ -58,9 +67,10 @@ fn render_ls_file(report: &LsReport) {
     let Some(anchor) = &report.anchor else {
         return;
     };
-    render_anchor_summary("File", anchor);
+    render_anchor_summary("Observed", anchor);
+    render_roles(anchor);
     if !anchor.symbols.is_empty() {
-        println!("\n## Symbols\n");
+        println!("\n## Observed Symbols\n");
         for symbol in anchor.symbols.iter().take(30) {
             println!(
                 "- `{}` [{}; exported={}; lines={}-{}]",
@@ -86,7 +96,7 @@ fn render_anchor_summary(title: &str, anchor: &crate::model::FileSummary) {
     println!("- language: `{}`", anchor.language);
     println!("- lines: `{}`", anchor.lines);
     if !anchor.roles.is_empty() {
-        println!("- roles: {}", anchor.roles.join(", "));
+        println!("- local tags: {}", anchor.roles.join(", "));
     }
     println!("- symbols: `{}`", anchor.symbols.len());
     println!("- imported by: `{}`", anchor.imported_by_count);
@@ -97,7 +107,7 @@ fn render_ls_directory(report: &LsReport) {
         println!("\nNo indexed files under this directory.");
         return;
     }
-    println!("\n## Surfaces\n");
+    println!("\n## Observed\n");
     for surface in &report.directory {
         let role = surface.role.as_deref().unwrap_or("none");
         let strength = format!("{:?}", surface.strength).to_ascii_lowercase();
@@ -121,4 +131,78 @@ fn render_ls_directory(report: &LsReport) {
             println!("  hidden: {} examples", surface.hidden_count);
         }
     }
+}
+
+fn render_roles(anchor: &crate::model::FileSummary) {
+    let roles = canonical_roles(anchor);
+    if roles.is_empty() {
+        return;
+    }
+    println!("\n## Roles\n");
+    println!("{}", bullet(&roles, true, None));
+}
+
+fn canonical_roles(anchor: &crate::model::FileSummary) -> Vec<String> {
+    let mut roles = std::collections::BTreeSet::new();
+    let local = anchor.roles.iter().map(String::as_str).collect::<Vec<_>>();
+    let path = anchor.path.to_ascii_lowercase();
+    if local.iter().any(|role| matches!(*role, "test" | "e2e_test" | "test_support")) {
+        roles.insert("test".to_string());
+    }
+    if local.contains(&"schema_contract") || anchor.kind == "schema_contract" {
+        roles.insert("schema".to_string());
+    }
+    if local.contains(&"build_ci") || anchor.kind == "build_ci" {
+        roles.insert("ci".to_string());
+    }
+    if anchor.kind == "script" || anchor.path.starts_with("test: ") {
+        roles.insert("script".to_string());
+    }
+    if local.contains(&"fixture") || path.contains("/fixtures/") || path.starts_with("fixtures/") {
+        roles.insert("fixture".to_string());
+    }
+    if local.contains(&"generated") {
+        roles.insert("generated".to_string());
+    }
+    if path.contains("/archive/") || path.starts_with("archive/") || path.contains("/archives/") {
+        roles.insert("archive".to_string());
+    }
+    if path.contains("/witness") || path.contains("/receipts/") || path.contains("/proof/") {
+        roles.insert("witness".to_string());
+    }
+    if path.contains("/dist/") || path.starts_with("dist/") || path.contains("/build/") || path.starts_with("build/") {
+        roles.insert("build_output".to_string());
+    }
+    if path.ends_with(".md") && (path.contains("/contracts/") || path.contains("contract")) {
+        roles.insert("contract_doc".to_string());
+    }
+    if roles.is_empty() && looks_like_source_anchor(anchor) {
+        roles.insert("source".to_string());
+    }
+    if roles.is_empty() {
+        roles.insert("unknown".to_string());
+    }
+    roles.into_iter().collect()
+}
+
+fn looks_like_source_anchor(anchor: &crate::model::FileSummary) -> bool {
+    anchor.kind == "source"
+        || !anchor.symbols.is_empty()
+        || !anchor.imports.is_empty()
+        || !anchor.exports.is_empty()
+        || matches!(
+            anchor.language.as_str(),
+            "rust"
+                | "typescript"
+                | "tsx"
+                | "javascript"
+                | "jsx"
+                | "python"
+                | "go"
+                | "swift"
+                | "kotlin"
+                | "java"
+                | "c"
+                | "cpp"
+        )
 }

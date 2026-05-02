@@ -22,7 +22,7 @@ fn impact_cluster(
     let mut direct_consumers = direct_consumer_edges(project, rel);
     let mut cross_boundary_consumers =
         cross_boundary_consumer_edges(project, rel, &direct_consumers, depth);
-    let mut contract_risks = contract_risk_edges(project, rel, &direct_consumers);
+    let mut contract_links = contract_link_edges(project, rel, &direct_consumers);
     let proof_seeds = proof_seeds_for_impact(rel, &direct_consumers);
     let mut proof = dedupe_impact_proof_edges(
         cone_proof_edges_with_direct_consumers(project, &proof_seeds),
@@ -30,14 +30,14 @@ fn impact_cluster(
     );
     sort_edges(&mut direct_consumers);
     sort_edges(&mut cross_boundary_consumers);
-    sort_edges(&mut contract_risks);
+    sort_edges(&mut contract_links);
     sort_edges(&mut proof);
-    let (risk, reasons) = structural_impact_risk(
+    let (risk, reasons) = structural_impact_level(
         project,
         rel,
         &direct_consumers,
         &cross_boundary_consumers,
-        &contract_risks,
+        &contract_links,
     );
     let mut hidden = Vec::new();
     limit_impact_edges(
@@ -57,12 +57,12 @@ fn impact_cluster(
         "cross-boundary consumer edges hidden by limit",
     );
     limit_impact_edges(
-        &mut contract_risks,
+        &mut contract_links,
         limit,
         &mut hidden,
         rel,
         depth,
-        "contract risk edges hidden by limit",
+        "contract link edges hidden by limit",
     );
     limit_impact_edges(
         &mut proof,
@@ -79,7 +79,7 @@ fn impact_cluster(
             changed: vec![rel.to_string()],
             direct_consumers,
             cross_boundary_consumers,
-            contract_risks,
+            contract_links,
             proof,
             reasons,
         },
@@ -335,7 +335,7 @@ fn package_consumer_seeds_for_impact(
     unique(seeds)
 }
 
-fn contract_risk_edges(
+fn contract_link_edges(
     project: &Project,
     rel: &str,
     direct_consumers: &[StructuralEdge],
@@ -391,12 +391,12 @@ fn proof_seeds_for_impact(rel: &str, direct_consumers: &[StructuralEdge]) -> Vec
     unique(seeds)
 }
 
-fn structural_impact_risk(
+fn structural_impact_level(
     project: &Project,
     rel: &str,
     direct_consumers: &[StructuralEdge],
     cross_boundary_consumers: &[StructuralEdge],
-    contract_risks: &[StructuralEdge],
+    contract_links: &[StructuralEdge],
 ) -> (Risk, Vec<String>) {
     let Some(file) = project.files.get(rel) else {
         return (
@@ -428,7 +428,7 @@ fn structural_impact_risk(
     if file.has_role("persistence") {
         bump(Risk::High, "persistence surface changed");
     }
-    if !contract_risks.is_empty() {
+    if !contract_links.is_empty() {
         bump(Risk::High, "contract surface participates");
     }
     if !cross_boundary_consumers.is_empty() {
@@ -438,9 +438,6 @@ fn structural_impact_risk(
         bump(Risk::High, "multiple direct consumers");
     } else if !direct_consumers.is_empty() {
         bump(Risk::Medium, "direct consumer exists");
-    }
-    if reasons.is_empty() {
-        reasons.push("bounded implementation change".to_string());
     }
     (risk, unique(reasons))
 }

@@ -1,5 +1,5 @@
 #[test]
-fn proof_risk_uses_structural_edges_without_high_inflation() {
+fn proof_and_impact_expose_structural_edges_without_scores() {
     let (repo, cache) = fixture();
     write(
         &repo.path().join("packages/replay/src/plain-value.ts"),
@@ -24,9 +24,19 @@ fn proof_risk_uses_structural_edges_without_high_inflation() {
         ],
     );
     assert_schema("schemas/impact.schema.json", &impact);
+    let cluster = &impact["clusters"][0];
     assert_eq!(
-        impact["clusters"][0]["risk"], "medium",
-        "a plain direct consumer should raise local risk without pretending to be a contract blast radius: {impact:#}"
+        cluster.get("risk"),
+        None,
+        "impact JSON must not expose score-like verdict fields: {impact:#}"
+    );
+    assert!(
+        cluster["direct_consumers"]
+            .as_array()
+            .expect("direct consumers")
+            .iter()
+            .any(|edge| edge["from"] == "packages/replay/src/plain-consumer.ts"),
+        "plain direct consumers should remain visible as source-backed edges: {impact:#}"
     );
 
     let proof = run_json(
@@ -41,13 +51,14 @@ fn proof_risk_uses_structural_edges_without_high_inflation() {
     );
     assert_schema("schemas/proof.schema.json", &proof);
     assert_eq!(
-        proof["risk"], impact["clusters"][0]["risk"],
-        "proof should share structural risk semantics with impact without high inflation: {proof:#}"
+        proof.get("risk"),
+        None,
+        "proof JSON must list proof surfaces without a score-like verdict: {proof:#}"
     );
 }
 
 #[test]
-fn proof_markdown_renders_risk_as_compact_summary() {
+fn proof_markdown_renders_compact_summary_without_scores() {
     let (repo, cache) = fixture();
 
     let output = codemap()
@@ -59,12 +70,12 @@ fn proof_markdown_renders_risk_as_compact_summary() {
     assert!(output.status.success());
     let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
     assert!(
-        markdown.contains("\n## Summary\n") && markdown.contains("- risk: `"),
-        "proof markdown should render risk as compact summary bullets: {markdown}"
+        markdown.contains("\n## Summary\n") && markdown.contains("- target anchors: `"),
+        "proof markdown should render compact summary bullets: {markdown}"
     );
     assert!(
         !markdown.contains("| Field | Value |"),
-        "proof markdown should not use Field/Value table for risk: {markdown}"
+        "proof markdown should not use Field/Value table for summary facts: {markdown}"
     );
 }
 
@@ -123,9 +134,9 @@ fn impact_and_proof_are_structural_without_structural_flag() {
     );
     assert_schema("schemas/impact.schema.json", &impact);
     assert_eq!(impact["kind"], "impact_report");
-    assert_eq!(impact["schema_version"], "3");
+    assert_eq!(impact["schema_version"], "4");
     let cluster = &impact["clusters"][0];
-    assert_eq!(cluster["risk"], "high");
+    assert_eq!(cluster.get("risk"), None);
     assert!(
         cluster["direct_consumers"]
             .as_array()

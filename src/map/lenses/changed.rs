@@ -17,7 +17,7 @@ pub fn changed_report(
     if total_changed_count == 0 && git_state.is_empty() {
         return ChangedReport {
             kind: "changed_report",
-            schema_version: "2",
+            schema_version: "3",
             selector: selector.clone(),
             display_limit: limit,
             total_changed_count,
@@ -79,7 +79,7 @@ pub fn changed_report(
     );
     ChangedReport {
         kind: "changed_report",
-        schema_version: "2",
+        schema_version: "3",
         selector: selector.clone(),
         display_limit: limit,
         total_changed_count,
@@ -159,7 +159,7 @@ pub fn changed_report(
 pub fn clean_changed_report(selector: String, limit: usize) -> ChangedReport {
     ChangedReport {
         kind: "changed_report",
-        schema_version: "2",
+        schema_version: "3",
         selector: selector.clone(),
         display_limit: limit.max(1),
         total_changed_count: 0,
@@ -316,6 +316,11 @@ fn changed_proof_summary(report: ProofMapReport, limit: usize) -> ChangedProofSu
 
 fn changed_expand(selector: &str) -> Vec<String> {
     let changed_suffix = changed_self_selector_suffix(selector);
+    let proof_selector = if selector == "--changed" {
+        "changed"
+    } else {
+        selector
+    };
     vec![
         format!("codemap changed{changed_suffix} --section diff"),
         format!("codemap changed{changed_suffix} --section impact"),
@@ -323,7 +328,7 @@ fn changed_expand(selector: &str) -> Vec<String> {
         format!("codemap diff-map {selector}"),
         format!("codemap impact {selector}"),
         format!("codemap proof-map {selector}"),
-        format!("codemap proof {selector}"),
+        format!("codemap proof {proof_selector}"),
     ]
 }
 

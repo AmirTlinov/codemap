@@ -141,7 +141,7 @@ Slice 25 first boundary is closed:
 ```txt
 closed: primary daily markdown now has an executable cognitive regression
 gate. The guard runs `ls .`, `cone <anchor>`, `changed`, and
-`proof --changed` on the fixture, enforcing line budgets, no table spam, no
+`proof changed` on the fixture, enforcing line budgets, no table spam, no
 forbidden product language, hidden sections with executable expand, and proof
 command grouping.
 proof: focused daily workflow cognitive gate plus line-budget test.
@@ -181,7 +181,7 @@ Slice 26 first boundary is closed:
 closed: the named cross-stack fixture matrix now covers the primary after-edit
 daily workflow, not only focused deep lenses. Each stack fixture dirties a real
 file and validates `diff-map --changed`, `impact --changed`, `changed`, and
-`proof --changed` against public schemas while preserving the dirty anchor.
+`proof changed` against public schemas while preserving the dirty anchor.
 proof: fixture matrix regression plus full gate.
 review: not required; test coverage expansion over existing behavior with no
 public schema or lens implementation change.
@@ -645,12 +645,12 @@ edge directly.
 
 ```txt
 closed: `impact --files <package-export-target>` now reuses package manifest
-export evidence as a contract risk, so changed/impact does not understate public
+export evidence as a contract link, so changed/impact does not understate public
 package entrypoint edits as local implementation changes.
 excluded: full impact grouping closure, deleted/renamed structural event matrix,
 runtime/data/generated impact taxonomy, and broader live output audit.
 proof: package export fixture asserts contract impact risk and exact
-`package_export` / `package_manifest` edges in `contract_risks` for both the
+`package_export` / `package_manifest` edges in `contract_links` for both the
 export target and package manifest; changed overview fixture proves the daily
 `codemap changed` path inherits the same package export contract impact.
 review: required before commit because this changes public lens semantics.
@@ -736,15 +736,15 @@ Use this only for live-relevant slices:
 ```bash
 codemap --root /Users/amir/Documents/projects/spritestudio ls .
 codemap --root /Users/amir/Documents/projects/spritestudio changed
-codemap --root /Users/amir/Documents/projects/spritestudio proof --changed
+codemap --root /Users/amir/Documents/projects/spritestudio proof changed
 
 codemap --root /Users/amir/Documents/projects/Sillentway-VPN ls .
 codemap --root /Users/amir/Documents/projects/Sillentway-VPN changed
-codemap --root /Users/amir/Documents/projects/Sillentway-VPN proof --changed
+codemap --root /Users/amir/Documents/projects/Sillentway-VPN proof changed
 
 codemap --root <third-project> ls .
 codemap --root <third-project> changed
-codemap --root <third-project> proof --changed
+codemap --root <third-project> proof changed
 ```
 
 Prefer `scripts/dogfood-codemap.sh` when the whole harness is relevant. For a

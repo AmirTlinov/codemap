@@ -30,7 +30,7 @@ fn cone_directory_report(
         limit,
         "directory outgoing edges hidden by limit",
         &format!(
-            "codemap cone {} --depth {depth} --include-hidden",
+            "codemap cone {} --depth {depth} --all",
             shell_quote(rel)
         ),
     );
@@ -41,7 +41,7 @@ fn cone_directory_report(
         limit,
         "directory incoming edges hidden by limit",
         &format!(
-            "codemap cone {} --depth {depth} --include-hidden",
+            "codemap cone {} --depth {depth} --all",
             shell_quote(rel)
         ),
     );
@@ -52,7 +52,7 @@ fn cone_directory_report(
         limit,
         "directory proof edges hidden by limit",
         &format!(
-            "codemap cone {} --depth {depth} --include-hidden",
+            "codemap cone {} --depth {depth} --all",
             shell_quote(rel)
         ),
     );
@@ -63,7 +63,7 @@ fn cone_directory_report(
         limit,
         "directory contract edges hidden by limit",
         &format!(
-            "codemap cone {} --depth {depth} --include-hidden",
+            "codemap cone {} --depth {depth} --all",
             shell_quote(rel)
         ),
     );
@@ -74,7 +74,7 @@ fn cone_directory_report(
         limit,
         "directory boundary edges hidden by limit",
         &format!(
-            "codemap cone {} --depth {depth} --include-hidden",
+            "codemap cone {} --depth {depth} --all",
             shell_quote(rel)
         ),
     );
@@ -93,7 +93,7 @@ fn cone_directory_report(
         unknowns: vec![unknown_directory_aggregate(rel, depth)],
         expand: vec![
             format!("codemap cone {} --depth {}", shell_quote(rel), depth + 1),
-            format!("codemap ls {} --include-hidden", shell_quote(rel)),
+            format!("codemap ls {} --all", shell_quote(rel)),
         ],
     }
 }

@@ -129,11 +129,11 @@ pub fn init_suggestion(path: Option<&str>) {
 }
 
 pub fn agents_bootloader() -> &'static str {
-    "# Agent Bootstrap\n\nFor coding tasks in this repository, use `codemap` as the deterministic structural map before broad manual scanning:\n\n```bash\ncodemap ls .\ncodemap ls <scope-or-file>\ncodemap cone <scope-or-file> --depth 1\n```\n\nAfter edits, use one overview first:\n\n```bash\ncodemap changed\ncodemap proof --changed\n```\n\nFollow exact expand commands from the map when you need focused lenses such as `runtime`, `contract`, `flow`, `boundary-map`, `siblings`, `place`, `delete`, `diff-map`, `impact`, `proof-map`, or `graph`.\n"
+    "# Agent Bootstrap\n\nFor coding tasks in this repository, use `codemap` as the deterministic structural map before broad manual scanning:\n\n```bash\ncodemap ls .\ncodemap ls <scope-or-file>\ncodemap cone <scope-or-file> --depth 1\n```\n\nAfter edits, use one overview first:\n\n```bash\ncodemap changed\ncodemap proof changed\n```\n\nFollow exact expand commands from the map when you need focused lenses such as `runtime`, `contract`, `flow`, `boundary-map`, `siblings`, `place`, `delete`, `diff-map`, `impact`, `proof-map`, or `graph`.\n"
 }
 
 pub fn global_instruction() -> &'static str {
-    "For coding tasks, if `codemap` is available in PATH, begin with the small daily structural map surface:\n\n```bash\ncodemap ls .\ncodemap ls <scope-or-file>\ncodemap cone <scope-or-file> --depth 1\n```\n\nAfter edits, use one changed overview and then proof:\n\n```bash\ncodemap changed\ncodemap proof --changed\n```\n\nFollow exact expand commands from the output for focused lenses such as `runtime`, `contract`, `flow`, `boundary-map`, `siblings`, `place`, `delete`, `diff-map`, `impact`, `proof-map`, or `graph`. Read code lines after choosing anchors from the map.\n"
+    "For coding tasks, if `codemap` is available in PATH, begin with the small daily structural map surface:\n\n```bash\ncodemap ls .\ncodemap ls <scope-or-file>\ncodemap cone <scope-or-file> --depth 1\n```\n\nAfter edits, use one changed overview and then proof:\n\n```bash\ncodemap changed\ncodemap proof changed\n```\n\nFollow exact expand commands from the output for focused lenses such as `runtime`, `contract`, `flow`, `boundary-map`, `siblings`, `place`, `delete`, `diff-map`, `impact`, `proof-map`, or `graph`. Read code lines after choosing anchors from the map.\n"
 }
 
 pub fn suggested_ctx_yml_for(path: Option<&str>) -> String {

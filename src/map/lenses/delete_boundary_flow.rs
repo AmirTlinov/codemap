@@ -92,7 +92,7 @@ pub fn delete_report(
             include_hidden,
             limit,
             reason,
-            &format!("codemap delete {} --include-hidden", shell_quote(&rel)),
+            &format!("codemap delete {} --all", shell_quote(&rel)),
         );
     }
     let mut checklist = Vec::new();
@@ -124,7 +124,7 @@ pub fn delete_report(
         limit,
         &mut hidden,
         "delete unknowns hidden by limit",
-        &format!("codemap delete {} --include-hidden", shell_quote(&rel)),
+        &format!("codemap delete {} --all", shell_quote(&rel)),
     );
     DeleteReport {
         kind: "delete_report",
@@ -343,7 +343,7 @@ pub fn flow_report(
         ));
     }
     let mut hidden = Vec::new();
-    let include_hidden_expand = format!("codemap flow {} --include-hidden", shell_quote(&rel));
+    let include_hidden_expand = format!("codemap flow {} --all", shell_quote(&rel));
     truncate_with_hidden(
         &mut steps,
         limit,

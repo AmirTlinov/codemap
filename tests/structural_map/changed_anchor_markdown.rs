@@ -99,7 +99,7 @@ fn changed_markdown_prints_common_prefix_once() {
         "changed markdown should not repeat the common prefix on every row: {markdown}"
     );
     assert!(
-        markdown.contains("- `one.ts` [risk=") && !markdown.contains("- `changed:src/domain/one.ts`"),
+        markdown.contains("- `one.ts` [direct=") && !markdown.contains("- `changed:src/domain/one.ts`"),
         "changed impact summary should use the same compact coordinates: {markdown}"
     );
 }

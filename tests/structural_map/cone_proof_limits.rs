@@ -36,7 +36,7 @@ fn cone_counts_hidden_proof_edges_before_limit() {
             .any(|group| group["reason"] == "proof edges hidden by limit"
                 && group["count"] == 4
                 && group["expand"]
-                    == "codemap cone packages/replay/src/multi-proof.ts --depth 1 --include-hidden --limit 5"),
+                    == "codemap cone packages/replay/src/multi-proof.ts --depth 1 --all --limit 5"),
         "cone should count all direct proof edges before truncating the proof section: {cone:#}"
     );
 }

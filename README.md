@@ -62,16 +62,18 @@ CODEMAP_BIN=./target/debug/codemap scripts/dogfood-codemap.sh /path/to/repo
 The daily surface is intentionally small:
 
 ```bash
-codemap ls <scope>
+codemap ls [scope]
 codemap cone <anchor>
 codemap changed
-codemap proof <scope|--changed>
-codemap doctor
+codemap proof <anchor|changed>
 ```
 
 Focused lenses remain available as deterministic drill-down targets, but the
 agent should normally discover them through `expand` instead of memorizing a
 large ritual.
+
+`codemap doctor` remains available for diagnostics, but it is not part of the
+primary map workflow.
 
 At the repository root:
 
@@ -104,23 +106,30 @@ After edits:
 
 ```bash
 codemap changed
-codemap proof --changed
+codemap proof changed
 ```
 
 `proof` prints a plan by default. It runs commands only with explicit `--run`.
 
-## Commands
+## Primary Commands
 
 ```bash
-codemap doctor
-codemap status
-codemap files [--path <scope>]
-codemap ls <file-or-dir>
+codemap ls [scope]
 codemap cone <file-or-dir> [--depth 1]
 codemap changed
 codemap changed --section diff
 codemap changed --section impact
 codemap changed --section proof
+codemap changed --section unknown
+codemap changed --section hidden
+codemap proof <file-or-dir>
+codemap proof changed
+codemap proof changed --run
+```
+
+Focused expand targets:
+
+```bash
 codemap impact --changed
 codemap impact --staged
 codemap impact --since main
@@ -128,9 +137,6 @@ codemap impact --files path/a.ts,path/b.ts
 codemap diff-map --changed
 codemap contract <file-or-manifest>
 codemap runtime <scope>
-codemap proof <file-or-dir>
-codemap proof --changed
-codemap proof --changed --run
 codemap proof-map <scope>
 codemap delete <file-or-symbol-anchor>
 codemap boundary-map <scope>
@@ -138,6 +144,14 @@ codemap flow <file-or-symbol-anchor>
 codemap siblings <scope>
 codemap place <scope> --kind route|service|component|test|contract|lens
 codemap graph --lens causal --format mermaid
+```
+
+Diagnostics and schema surfaces:
+
+```bash
+codemap doctor
+codemap status
+codemap files [--path <scope>]
 codemap boundaries
 codemap anchors validate
 codemap schema manifest
@@ -148,7 +162,9 @@ codemap init --write-minimal
 codemap init --agents
 ```
 
-Markdown is the default agent-facing format. Use `--format json` for strict integrations. Mermaid output is limited to `codemap graph`.
+Markdown is the default agent-facing format. Use `CODEMAP_FORMAT=json` or the
+hidden `--format json` flag for strict integrations. Mermaid output is limited
+to `codemap graph`.
 
 ## Agent Integration
 
@@ -164,7 +180,7 @@ For coding tasks, if `codemap` is available in PATH, begin with the small daily 
 After edits:
 
 `codemap changed`
-`codemap proof --changed`
+`codemap proof changed`
 
 Follow exact expand commands from the output for focused lenses such as `runtime`, `contract`, `flow`, `boundary-map`, `siblings`, `place`, `delete`, `diff-map`, `impact`, `proof-map`, or `graph`. Read code lines after choosing anchors from the map.
 ```

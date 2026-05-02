@@ -178,7 +178,7 @@ func hostViewModelRefreshes() {
         &[
             "ls",
             "Sources/HostApp/main.swift",
-            "--include-hidden",
+            "--all",
             "--format",
             "json",
         ],

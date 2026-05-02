@@ -9,7 +9,7 @@ pub fn boundary_map_report(
     let scope = repo::normalize_rel_path(scope);
     let changed_flag = if changed.is_some() { " --changed" } else { "" };
     let include_hidden_expand = format!(
-        "codemap boundary-map {}{changed_flag} --include-hidden",
+        "codemap boundary-map {}{changed_flag} --all",
         shell_quote(&scope)
     );
     let scope_is_support = is_support_artifact_path(&scope);

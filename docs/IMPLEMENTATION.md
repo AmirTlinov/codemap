@@ -48,7 +48,7 @@ Keep new implementation under the existing owner folders. Do not create a second
 - file `ls` with symbols, exports, imports, incoming count, adjacent tests, and next command;
 - `cone` with outgoing, incoming, proof, contract, boundary, hidden, unknown, and expand sections;
 - first-class edge evidence locations and typed unknowns;
-- structural `impact` by changed anchors, direct consumers, cross-boundary consumers, contract risks, and proof edges;
+- structural `impact` by changed anchors, direct consumers, cross-boundary consumers, contract links, and proof edges;
 - `diff-map` for map-level changed structural lines, exported symbol surfaces, and new unknowns;
 - `contract` for exported/schema/package/public surfaces and their consumers/proof;
 - `runtime` for deterministic entrypoints, Next file-convention routes, static JS/Python/Go route registrations, scripts, env references, workers/jobs, CI, typed runtime unknowns, and proof;

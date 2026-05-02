@@ -15,7 +15,7 @@
   ],
   "properties": {
     "kind": { "const": "impact_report" },
-    "schema_version": { "const": "3" },
+    "schema_version": { "const": "4" },
     "changed": {
       "type": "array",
       "items": { "$ref": "#/$defs/file_summary" }
@@ -38,10 +38,6 @@
     }
   },
   "$defs": {
-    "risk": {
-      "type": "string",
-      "enum": ["low", "medium", "medium-high", "high", "critical"]
-    },
     "evidence_strength": {
       "type": "string",
       "enum": ["low", "medium", "high", "hard"]
@@ -165,17 +161,15 @@
       "additionalProperties": false,
       "required": [
         "id",
-        "risk",
         "changed",
         "direct_consumers",
         "cross_boundary_consumers",
-        "contract_risks",
+        "contract_links",
         "proof",
         "reasons"
       ],
       "properties": {
         "id": { "type": "string" },
-        "risk": { "$ref": "#/$defs/risk" },
         "changed": {
           "type": "array",
           "items": { "type": "string" }
@@ -188,7 +182,7 @@
           "type": "array",
           "items": { "$ref": "#/$defs/structural_edge" }
         },
-        "contract_risks": {
+        "contract_links": {
           "type": "array",
           "items": { "$ref": "#/$defs/structural_edge" }
         },

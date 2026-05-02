@@ -30,7 +30,7 @@ pub fn verification_plan(
     };
     let max_risk = all_files
         .iter()
-        .map(|f| risk_for_file(project, f).0)
+        .map(|f| impact_level_for_file(project, f).0)
         .max()
         .unwrap_or(Risk::Low);
 
@@ -422,7 +422,7 @@ fn scoped_domain_path_for_rel(
     domain_by_rel(project, rel).map(|domain| domain.path.clone())
 }
 
-fn risk_for_file(project: &Project, rel: &str) -> (Risk, Vec<String>) {
+fn impact_level_for_file(project: &Project, rel: &str) -> (Risk, Vec<String>) {
     let Some(file) = project.files.get(rel) else {
         return (Risk::Medium, vec!["file not found in scan".to_string()]);
     };
@@ -478,9 +478,6 @@ fn risk_for_file(project: &Project, rel: &str) -> (Risk, Vec<String>) {
     }
     if file.has_role("test") {
         bump(Risk::Low, "test file");
-    }
-    if reasons.is_empty() {
-        reasons.push("isolated or low-risk implementation file".to_string());
     }
     (risk, unique(reasons))
 }

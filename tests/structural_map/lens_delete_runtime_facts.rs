@@ -67,19 +67,20 @@ fn delete_lens_reports_package_manifest_export_blocker() {
     );
     assert_schema("schemas/impact.schema.json", &impact);
     assert_eq!(
-        impact["clusters"][0]["risk"], "critical",
-        "package export entrypoint is also a public boundary in this fixture: {impact:#}"
+        impact["clusters"][0].get("risk"),
+        None,
+        "impact should expose package export evidence, not a score-like verdict: {impact:#}"
     );
     assert!(
-        impact["clusters"][0]["contract_risks"]
+        impact["clusters"][0]["contract_links"]
             .as_array()
-            .expect("impact contract risks")
+            .expect("impact contract links")
             .iter()
             .any(|edge| edge["from"] == "packages/replay/package.json"
                 && edge["to"] == "packages/replay/src/index.ts"
                 && edge["type"] == "package_export"
                 && edge["evidence"] == "package_manifest"),
-        "impact lens must reuse package export evidence as contract risk: {impact:#}"
+        "impact lens must reuse package export evidence as contract link: {impact:#}"
     );
 
     let manifest_impact = run_json(
@@ -95,15 +96,15 @@ fn delete_lens_reports_package_manifest_export_blocker() {
     );
     assert_schema("schemas/impact.schema.json", &manifest_impact);
     assert!(
-        manifest_impact["clusters"][0]["contract_risks"]
+        manifest_impact["clusters"][0]["contract_links"]
             .as_array()
-            .expect("manifest impact contract risks")
+            .expect("manifest impact contract links")
             .iter()
             .any(|edge| edge["from"] == "packages/replay/package.json"
                 && edge["to"] == "packages/replay/package.json"
                 && edge["type"] == "package_export"
                 && edge["evidence"] == "package_manifest"),
-        "impact lens must treat package manifest exports as contract risk: {manifest_impact:#}"
+        "impact lens must treat package manifest exports as contract link: {manifest_impact:#}"
     );
 }
 

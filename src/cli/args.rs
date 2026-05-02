@@ -13,20 +13,22 @@ use crate::{map, render, repo};
 #[derive(Debug, Parser)]
 #[command(name = "codemap")]
 #[command(about = "Structural code map CLI for AI coding agents")]
-#[command(before_help = "Daily workflow:
-  codemap ls <scope>
+#[command(before_help = "Primary map workflow:
+  codemap ls [scope]
   codemap cone <anchor>
   codemap changed
-  codemap proof <scope|--changed>
-  codemap doctor
+  codemap proof <anchor|changed>
 
-Focused lenses are drill-down targets from map expand output, not a required ritual.
+Diagnostics and deeper lenses stay available as exact expand targets.
 ")]
-#[command(after_help = "Focused lenses:
+#[command(after_help = "Diagnostics:
+  doctor, status, files, schema, bootstrap, init, anchors, boundaries
+
+Focused map lenses:
   runtime, contract, flow, boundary-map, siblings, place, delete, diff-map, impact, proof-map, graph
 
-Diagnostics and integration:
-  status, files, schema, bootstrap, init, anchors, boundaries
+Machine output:
+  readable text is the agent default; JSON remains schema-backed for integrations.
 ")]
 #[command(version)]
 pub struct Cli {
@@ -46,50 +48,69 @@ enum CommandKind {
     Changed(ChangedArgs),
     #[command(about = "Print structural proof surfaces, or run them only with --run")]
     Proof(ProofArgs),
+    #[command(hide = true)]
     #[command(about = "Check environment, repo detection, cache path, and safety defaults")]
     Doctor(FormatArgs),
+    #[command(hide = true)]
     #[command(about = "Report structural blast-radius clusters for a diff or explicit files")]
     Impact(ImpactArgs),
+    #[command(hide = true)]
     #[command(about = "Show structural map changes for a diff without printing textual diff")]
     DiffMap(DiffMapArgs),
+    #[command(hide = true)]
     #[command(about = "Show public/schema/export contract surface for an exact anchor")]
     Contract(ContractArgs),
+    #[command(hide = true)]
     #[command(about = "Show runtime entrypoints, routes, scripts, and env surfaces for a scope")]
     Runtime(RuntimeArgs),
+    #[command(hide = true)]
     #[command(about = "Show proof coverage surfaces around a scope or diff")]
     ProofMap(ProofMapArgs),
+    #[command(hide = true)]
     #[command(about = "Show structural blockers and cleanup map before deleting an anchor")]
     Delete(DeleteArgs),
+    #[command(hide = true)]
     #[command(about = "Show read-only package/domain boundary crossings for a scope")]
     BoundaryMap(BoundaryMapArgs),
+    #[command(hide = true)]
     #[command(about = "Show a bounded structural flow from an exact anchor")]
     Flow(FlowArgs),
+    #[command(hide = true)]
     #[command(about = "Show same-scope structural siblings and local conventions")]
     Siblings(SiblingsArgs),
+    #[command(hide = true)]
     #[command(about = "Show existing placement conventions for a scope and kind")]
     Place(PlaceArgs),
+    #[command(hide = true)]
     #[command(about = "Render a small graph lens as Mermaid, Markdown, or JSON")]
     Graph(GraphArgs),
+    #[command(hide = true)]
     #[command(alias = "check-boundaries")]
     #[command(about = "Check explicit forbidden boundaries and generated-file edits")]
     Boundaries(BoundariesArgs),
+    #[command(hide = true)]
     #[command(about = "Show repo, cache, language, domain, and verification status")]
     Status(FormatArgs),
+    #[command(hide = true)]
     #[command(about = "List indexed project files without writing to the project")]
     Files(FilesArgs),
+    #[command(hide = true)]
     #[command(about = "Print a bundled stable JSON schema or schema manifest")]
     Schema(SchemaArgs),
+    #[command(hide = true)]
     #[command(about = "Print one-time global agent instruction text")]
     Bootstrap(BootstrapArgs),
+    #[command(hide = true)]
     #[command(about = "Print or explicitly write optional codemap bootloader/config files")]
     Init(InitArgs),
+    #[command(hide = true)]
     #[command(about = "Validate optional .ctx.yml semantic anchors")]
     Anchors(AnchorsArgs),
 }
 
 #[derive(Debug, Args)]
 struct FormatArgs {
-    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
+    #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
     format: OutputFormat,
 }
 
@@ -97,20 +118,21 @@ struct FormatArgs {
 struct FilesArgs {
     #[arg(long)]
     path: Option<String>,
-    #[arg(long, default_value_t = 200)]
+    #[arg(long, default_value_t = 200, hide = true)]
     limit: usize,
-    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
+    #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
     format: OutputFormat,
 }
 
 #[derive(Debug, Args)]
 struct LsArgs {
+    #[arg(default_value = ".")]
     path: String,
-    #[arg(long)]
+    #[arg(long = "all", alias = "include-hidden")]
     include_hidden: bool,
-    #[arg(long, default_value_t = 20)]
+    #[arg(long, default_value_t = 20, hide = true)]
     limit: usize,
-    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
+    #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
     format: OutputFormat,
 }
 
@@ -119,11 +141,11 @@ struct ConeArgs {
     path: String,
     #[arg(long, default_value_t = 1)]
     depth: usize,
-    #[arg(long)]
+    #[arg(long = "all", alias = "include-hidden")]
     include_hidden: bool,
-    #[arg(long, default_value_t = 20)]
+    #[arg(long, default_value_t = 20, hide = true)]
     limit: usize,
-    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
+    #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
     format: OutputFormat,
 }
 
@@ -155,61 +177,61 @@ struct SchemaArgs {
 
 #[derive(Debug, Args)]
 struct ImpactArgs {
-    #[arg(long)]
+    #[arg(long, hide = true)]
     changed: bool,
-    #[arg(long)]
+    #[arg(long, hide = true)]
     staged: bool,
-    #[arg(long)]
+    #[arg(long, hide = true)]
     since: Option<String>,
-    #[arg(long)]
+    #[arg(long, hide = true)]
     files: Option<String>,
-    #[arg()]
+    #[arg(hide = true)]
     positional_files: Vec<String>,
     #[arg(long, default_value_t = 1)]
     depth: usize,
-    #[arg(long, default_value_t = 30)]
+    #[arg(long, default_value_t = 30, hide = true)]
     limit: usize,
-    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
+    #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
     format: OutputFormat,
 }
 
 #[derive(Debug, Args)]
 struct DiffMapArgs {
-    #[arg(long)]
+    #[arg(long, hide = true)]
     changed: bool,
-    #[arg(long)]
+    #[arg(long, hide = true)]
     staged: bool,
-    #[arg(long)]
+    #[arg(long, hide = true)]
     since: Option<String>,
-    #[arg(long)]
+    #[arg(long, hide = true)]
     files: Option<String>,
-    #[arg()]
+    #[arg(hide = true)]
     positional_files: Vec<String>,
-    #[arg(long, default_value_t = 30)]
+    #[arg(long, default_value_t = 30, hide = true)]
     limit: usize,
-    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
+    #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
     format: OutputFormat,
 }
 
 #[derive(Debug, Args)]
 struct ChangedArgs {
-    #[arg(long)]
+    #[arg(long, hide = true)]
     changed: bool,
-    #[arg(long)]
+    #[arg(long, hide = true)]
     staged: bool,
-    #[arg(long)]
+    #[arg(long, hide = true)]
     since: Option<String>,
-    #[arg(long)]
+    #[arg(long, hide = true)]
     files: Option<String>,
-    #[arg()]
+    #[arg(hide = true)]
     positional_files: Vec<String>,
     #[arg(long, value_enum, default_value_t = ChangedSection::Overview)]
     section: ChangedSection,
-    #[arg(long)]
+    #[arg(long = "all", alias = "include-hidden")]
     include_hidden: bool,
-    #[arg(long, default_value_t = 30)]
+    #[arg(long, default_value_t = 30, hide = true)]
     limit: usize,
-    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
+    #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
     format: OutputFormat,
 }
 
@@ -219,17 +241,19 @@ enum ChangedSection {
     Diff,
     Impact,
     Proof,
-    Unknowns,
+    #[value(alias = "unknowns")]
+    Unknown,
+    Hidden,
 }
 
 #[derive(Debug, Args)]
 struct ContractArgs {
     path: String,
-    #[arg(long)]
+    #[arg(long = "all", alias = "include-hidden")]
     include_hidden: bool,
-    #[arg(long, default_value_t = 20)]
+    #[arg(long, default_value_t = 20, hide = true)]
     limit: usize,
-    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
+    #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
     format: OutputFormat,
 }
 
@@ -237,32 +261,32 @@ struct ContractArgs {
 struct RuntimeArgs {
     #[arg(default_value = ".")]
     scope: String,
-    #[arg(long)]
+    #[arg(long = "all", alias = "include-hidden")]
     include_hidden: bool,
-    #[arg(long, default_value_t = 20)]
+    #[arg(long, default_value_t = 20, hide = true)]
     limit: usize,
-    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
+    #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
     format: OutputFormat,
 }
 
 #[derive(Debug, Args)]
 struct ProofArgs {
     target: Option<String>,
-    #[arg(long)]
+    #[arg(long, hide = true)]
     changed: bool,
-    #[arg(long)]
+    #[arg(long, hide = true)]
     staged: bool,
-    #[arg(long)]
+    #[arg(long, hide = true)]
     since: Option<String>,
-    #[arg(long)]
+    #[arg(long, hide = true)]
     files: Option<String>,
     #[arg(long, default_value_t = 1)]
     depth: usize,
-    #[arg(long, default_value_t = 12)]
+    #[arg(long, default_value_t = 12, hide = true)]
     limit: usize,
     #[arg(long)]
     run: bool,
-    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
+    #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
     format: OutputFormat,
 }
 
@@ -279,20 +303,20 @@ struct ProofMapArgs {
     files: Option<String>,
     #[arg(long, help = "Show ungrouped per-seed proof sensors")]
     raw_sensors: bool,
-    #[arg(long, default_value_t = 20)]
+    #[arg(long, default_value_t = 20, hide = true)]
     limit: usize,
-    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
+    #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
     format: OutputFormat,
 }
 
 #[derive(Debug, Args)]
 struct DeleteArgs {
     path: String,
-    #[arg(long)]
+    #[arg(long = "all", alias = "include-hidden")]
     include_hidden: bool,
-    #[arg(long, default_value_t = 20)]
+    #[arg(long, default_value_t = 20, hide = true)]
     limit: usize,
-    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
+    #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
     format: OutputFormat,
 }
 
@@ -302,22 +326,22 @@ struct BoundaryMapArgs {
     scope: String,
     #[arg(long)]
     changed: bool,
-    #[arg(long)]
+    #[arg(long = "all", alias = "include-hidden")]
     include_hidden: bool,
-    #[arg(long, default_value_t = 20)]
+    #[arg(long, default_value_t = 20, hide = true)]
     limit: usize,
-    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
+    #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
     format: OutputFormat,
 }
 
 #[derive(Debug, Args)]
 struct FlowArgs {
     path: String,
-    #[arg(long)]
+    #[arg(long = "all", alias = "include-hidden")]
     include_hidden: bool,
-    #[arg(long, default_value_t = 20)]
+    #[arg(long, default_value_t = 20, hide = true)]
     limit: usize,
-    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
+    #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
     format: OutputFormat,
 }
 
@@ -325,11 +349,11 @@ struct FlowArgs {
 struct SiblingsArgs {
     #[arg(default_value = ".")]
     scope: String,
-    #[arg(long)]
+    #[arg(long = "all", alias = "include-hidden")]
     include_hidden: bool,
-    #[arg(long, default_value_t = 20)]
+    #[arg(long, default_value_t = 20, hide = true)]
     limit: usize,
-    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
+    #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
     format: OutputFormat,
 }
 
@@ -339,11 +363,11 @@ struct PlaceArgs {
     scope: String,
     #[arg(long)]
     kind: String,
-    #[arg(long)]
+    #[arg(long = "all", alias = "include-hidden")]
     include_hidden: bool,
-    #[arg(long, default_value_t = 20)]
+    #[arg(long, default_value_t = 20, hide = true)]
     limit: usize,
-    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
+    #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
     format: OutputFormat,
 }
 
@@ -355,9 +379,9 @@ struct GraphArgs {
     lens: String,
     #[arg(long)]
     changed: bool,
-    #[arg(long, default_value_t = 12)]
+    #[arg(long, default_value_t = 12, hide = true)]
     limit: usize,
-    #[arg(long, value_enum, default_value_t = GraphOutputFormat::Markdown)]
+    #[arg(long, value_enum, default_value_t = default_graph_output_format(), hide = true)]
     format: GraphOutputFormat,
 }
 
@@ -367,7 +391,7 @@ struct BoundariesArgs {
     changed: bool,
     #[arg(long)]
     strict_warnings: bool,
-    #[arg(long, value_enum, default_value_t = OutputFormat::Markdown)]
+    #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
     format: OutputFormat,
 }
 
@@ -419,4 +443,28 @@ enum SchemaKind {
     AnchorValidation,
     Graph,
     Boundaries,
+}
+
+fn default_output_format() -> OutputFormat {
+    match std::env::var("CODEMAP_FORMAT")
+        .unwrap_or_default()
+        .trim()
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "json" => OutputFormat::Json,
+        _ => OutputFormat::Markdown,
+    }
+}
+
+fn default_graph_output_format() -> GraphOutputFormat {
+    match std::env::var("CODEMAP_FORMAT")
+        .unwrap_or_default()
+        .trim()
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "json" => GraphOutputFormat::Json,
+        _ => GraphOutputFormat::Markdown,
+    }
 }

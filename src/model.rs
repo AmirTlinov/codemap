@@ -232,6 +232,7 @@ pub struct ProofReport {
     pub schema_version: &'static str,
     pub target: Option<String>,
     pub changed: Vec<String>,
+    #[serde(skip_serializing)]
     pub risk: String,
     pub proofs: Vec<ProofSurface>,
     pub fallback: Vec<String>,

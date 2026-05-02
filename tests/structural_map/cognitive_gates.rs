@@ -14,7 +14,7 @@ fn daily_workflow_markdown_stays_compact_and_non_ritualistic() {
             120,
         ),
         ("changed", vec!["changed"], 120),
-        ("proof changed", vec!["proof", "--changed"], 120),
+        ("proof changed", vec!["proof", "changed"], 120),
     ];
     for (name, args, max_lines) in cases {
         let markdown = run_markdown(repo.path(), cache.path(), &args);
@@ -27,7 +27,7 @@ fn daily_workflow_markdown_stays_compact_and_non_ritualistic() {
         assert_hidden_sections_have_expand(name, &markdown);
     }
 
-    let proof = run_markdown(repo.path(), cache.path(), &["proof", "--changed"]);
+    let proof = run_markdown(repo.path(), cache.path(), &["proof", "changed"]);
     assert!(
         proof.matches("vitest run").count() <= 1,
         "proof should group sensors by command instead of repeating the same command: {proof}"

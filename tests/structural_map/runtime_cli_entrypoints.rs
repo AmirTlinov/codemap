@@ -55,7 +55,7 @@ fn runtime_lens_exposes_manifest_cli_entrypoints() {
     let runtime = run_json(
         repo.path(),
         cache.path(),
-        &["runtime", ".", "--include-hidden", "--format", "json"],
+        &["runtime", ".", "--all", "--format", "json"],
     );
     assert_schema("schemas/runtime.schema.json", &runtime);
     for (command, path, evidence) in [

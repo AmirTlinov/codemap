@@ -26,7 +26,7 @@ fn cone_symbol_report(
         limit,
         "symbol outgoing edges hidden by limit",
         &format!(
-            "codemap cone {} --include-hidden",
+            "codemap cone {} --all",
             shell_quote(&anchor_path)
         ),
     );
@@ -37,7 +37,7 @@ fn cone_symbol_report(
         limit,
         "symbol incoming edges hidden by limit",
         &format!(
-            "codemap cone {} --include-hidden",
+            "codemap cone {} --all",
             shell_quote(&anchor_path)
         ),
     );
@@ -48,7 +48,7 @@ fn cone_symbol_report(
         limit,
         "symbol proof edges hidden by limit",
         &format!(
-            "codemap cone {} --include-hidden",
+            "codemap cone {} --all",
             shell_quote(&anchor_path)
         ),
     );
@@ -131,7 +131,7 @@ fn cone_anchor(
             info,
             include_hidden,
             limit,
-            &format!("codemap cone {} --include-hidden", shell_quote(rel)),
+            &format!("codemap cone {} --all", shell_quote(rel)),
         );
         return (summary, vec![info.rel.clone()], unknowns, hidden);
     }
@@ -153,7 +153,7 @@ fn cone_anchor(
             hidden.push(HiddenGroup {
                 reason: "directory anchor files hidden by limit".to_string(),
                 count: count - files.len(),
-                expand: format!("codemap cone {} --include-hidden", shell_quote(rel)),
+                expand: format!("codemap cone {} --all", shell_quote(rel)),
             });
         }
         return (

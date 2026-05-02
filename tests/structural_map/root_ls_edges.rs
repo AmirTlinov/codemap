@@ -82,7 +82,7 @@ fn root_ls_hides_agent_support_dirs_and_edges_by_default() {
     let expanded = run_json(
         repo.path(),
         cache.path(),
-        &["ls", ".", "--include-hidden", "--format", "json"],
+        &["ls", ".", "--all", "--format", "json"],
     );
     assert_schema("schemas/ls.schema.json", &expanded);
     assert!(
@@ -153,7 +153,7 @@ fn root_ls_hides_agent_support_dirs_and_edges_by_default() {
     let package_expanded = run_json(
         repo.path(),
         cache.path(),
-        &["ls", "packages/app", "--include-hidden", "--format", "json"],
+        &["ls", "packages/app", "--all", "--format", "json"],
     );
     assert_schema("schemas/ls.schema.json", &package_expanded);
     assert!(

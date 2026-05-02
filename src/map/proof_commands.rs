@@ -279,7 +279,7 @@ fn proof_fallback_commands(
                     .map(|edge| edge.from.clone())
                     .chain(
                         cluster
-                            .contract_risks
+                            .contract_links
                             .iter()
                             .filter(|edge| edge.from != edge.to)
                             .map(|edge| edge.from.clone()),

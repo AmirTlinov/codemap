@@ -51,7 +51,7 @@ fn boundary_map_root_hides_support_fixture_boundaries_until_explicit_scope() {
     assert!(
         root["hidden"].as_array().expect("hidden").iter().any(|hidden| {
             hidden["reason"] == "support boundary artifacts hidden"
-                && hidden["expand"] == "codemap boundary-map . --include-hidden"
+                && hidden["expand"] == "codemap boundary-map . --all"
         }),
         "root boundary-map should make hidden support boundaries explicit: {root:#}"
     );

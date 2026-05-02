@@ -191,7 +191,7 @@ fn proof_map_hidden_expands_use_supported_flags() {
         hidden.iter().all(|group| group["expand"]
             .as_str()
             .is_some_and(|expand| expand.contains("--limit")
-                && !expand.contains("--include-hidden"))),
+                && !expand.contains("--all"))),
         "proof-map hidden expand commands must be runnable by the current CLI: {proof_map:#}"
     );
 }
@@ -214,7 +214,7 @@ fn proof_map_scope_expands_to_matching_proof_scope() {
         "proof-map scope expand should keep the same explicit scope: {proof_map:#}"
     );
     assert!(
-        expand.iter().all(|command| command != "codemap proof --changed"),
+        expand.iter().all(|command| command != "codemap proof changed"),
         "explicit proof-map scope must not point at changed files: {proof_map:#}"
     );
 }
@@ -243,7 +243,7 @@ fn proof_map_files_expands_to_matching_proof_files() {
         "proof-map --files expand should keep the same explicit file selector: {proof_map:#}"
     );
     assert!(
-        expand.iter().all(|command| command != "codemap proof --changed"),
+        expand.iter().all(|command| command != "codemap proof changed"),
         "explicit proof-map files must not point at changed files: {proof_map:#}"
     );
 }
@@ -417,7 +417,7 @@ fn proof_map_default_matches_changed_selector() {
         "bare proof-map expand should match explicit --changed"
     );
     assert!(
-        expand.iter().all(|command| command == "codemap proof --changed"),
+        expand.iter().all(|command| command == "codemap proof changed"),
         "bare proof-map must not double-prefix or degrade changed selector: {default_report:#}"
     );
 }
@@ -443,7 +443,7 @@ fn proof_map_staged_expands_to_matching_proof_staged_selector() {
         "proof-map --staged expand should preserve the staged selector: {proof_map:#}"
     );
     assert!(
-        expand.iter().all(|command| command != "codemap proof --changed"
+        expand.iter().all(|command| command != "codemap proof changed"
             && !command.as_str().unwrap_or_default().starts_with("codemap proof --files")),
         "proof-map --staged must not degrade into changed/files selectors: {proof_map:#}"
     );
@@ -475,7 +475,7 @@ fn proof_map_since_expands_to_matching_proof_since_selector() {
         "proof-map --since expand should preserve the since selector: {proof_map:#}"
     );
     assert!(
-        expand.iter().all(|command| command != "codemap proof --changed"
+        expand.iter().all(|command| command != "codemap proof changed"
             && !command.as_str().unwrap_or_default().starts_with("codemap proof --files")),
         "proof-map --since must not degrade into changed/files selectors: {proof_map:#}"
     );

@@ -11,7 +11,7 @@ fn cone_markdown_groups_edges_by_source_without_edge_table_spam() {
     assert!(output.status.success());
     let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
     assert!(
-        markdown.contains("\n## Incoming\n") && markdown.contains("incoming:"),
+        markdown.contains("\n## Links\n") && markdown.contains("incoming:"),
         "cone markdown should keep relation sections with grouped lists: {markdown}"
     );
     assert!(
@@ -28,7 +28,7 @@ fn cone_markdown_groups_edges_by_source_without_edge_table_spam() {
         "cone markdown should not return to repeated edge table spam: {markdown}"
     );
     assert!(
-        !markdown.contains("| Field | Value |") && markdown.contains("\n## Anchor Summary\n"),
+        !markdown.contains("| Field | Value |") && markdown.contains("\n## Observed\n"),
         "cone markdown should render anchor metadata as compact map bullets: {markdown}"
     );
     assert!(

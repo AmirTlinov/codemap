@@ -65,7 +65,7 @@ fn runtime_hidden_expands_use_the_actual_scope() {
     assert!(
         hidden.iter().all(|group| group["expand"]
             .as_str()
-            .is_some_and(|expand| expand.starts_with("codemap runtime packages/app/src --include-hidden --limit ")
+            .is_some_and(|expand| expand.starts_with("codemap runtime packages/app/src --all --limit ")
                 && !expand.contains("<larger-number>"))),
         "runtime hidden expand should be an executable command for the current scope, not a placeholder: {runtime:#}"
     );
@@ -147,7 +147,7 @@ fn runtime_reports_hidden_proof_edges_when_limited() {
             .iter()
             .any(|group| group["reason"] == "runtime proof edges hidden by limit"
                 && group["expand"].as_str().is_some_and(|expand| {
-                    expand.starts_with("codemap runtime packages/app/src --include-hidden --limit ")
+                    expand.starts_with("codemap runtime packages/app/src --all --limit ")
                         && !expand.contains("<larger-number>")
                 })),
         "runtime proof truncation must be visible and expandable, not silent: {runtime:#}"

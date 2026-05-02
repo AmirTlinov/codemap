@@ -79,7 +79,7 @@ pub fn runtime_report(
         }
     }
     let mut hidden = Vec::new();
-    let include_hidden_expand = format!("codemap runtime {} --include-hidden", shell_quote(&scope));
+    let include_hidden_expand = format!("codemap runtime {} --all", shell_quote(&scope));
     if hidden_scope_count > 0 {
         hidden.push(HiddenGroup {
             reason: "recursive runtime files hidden at root scope".to_string(),

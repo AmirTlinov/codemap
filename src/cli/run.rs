@@ -45,6 +45,12 @@ pub fn run() -> Result<()> {
     if let Some(()) = try_cached_proof_map_fast_path(&cli.command, &root_selection)? {
         return Ok(());
     }
+    if let Some(()) = try_cached_siblings_fast_path(&cli.command, &root_selection)? {
+        return Ok(());
+    }
+    if let Some(()) = try_cached_place_fast_path(&cli.command, &root_selection)? {
+        return Ok(());
+    }
     if let Some(()) = try_runtime_root_fast_path(&cli.command, &root_selection)? {
         return Ok(());
     }
@@ -188,6 +194,7 @@ pub fn run() -> Result<()> {
             ensure_valid_config(&project)?;
             let scope = project_relative_arg(&project, &args.scope)?;
             let report = map::siblings_report(&project, &scope, args.include_hidden, args.limit);
+            maybe_write_siblings_lens_cache(&project, &scope, &args, &report);
             output(args.format, &report, || render::siblings(&report))
         }
         CommandKind::Place(args) => {
@@ -200,6 +207,7 @@ pub fn run() -> Result<()> {
                 args.include_hidden,
                 args.limit,
             );
+            maybe_write_place_lens_cache(&project, &scope, &args, &report);
             output(args.format, &report, || render::place(&report))
         }
         CommandKind::Graph(args) => {

@@ -19,10 +19,11 @@ pub fn set_expand_root(root: Option<&Path>) {
 }
 
 pub fn root_aware_expand(command: &str) -> String {
+    let command = public_expand_command(command);
     let Some(root) = EXPAND_ROOT.get() else {
-        return command.to_string();
+        return command;
     };
-    prefix_expand_command(command, root)
+    prefix_expand_command(&command, root)
 }
 
 pub fn print_json<T: Serialize>(value: &T) -> anyhow::Result<()> {
@@ -75,6 +76,12 @@ fn prefix_expand_command(command: &str, root: &str) -> String {
         shell_quote_for_expand(root),
         command.trim_start_matches("codemap ")
     )
+}
+
+fn public_expand_command(command: &str) -> String {
+    command
+        .replace("codemap proof --changed", "codemap proof changed")
+        .replace(" --include-hidden", " --all")
 }
 
 fn shell_quote_for_expand(value: &str) -> String {

@@ -9,7 +9,7 @@ fn changed_combines_delta_impact_and_proof_without_running_commands() {
     let changed = run_json(repo.path(), cache.path(), &["changed", "--format", "json"]);
     assert_schema("schemas/changed.schema.json", &changed);
     assert_eq!(changed["kind"], "changed_report");
-    assert_eq!(changed["schema_version"], "2");
+    assert_eq!(changed["schema_version"], "3");
     assert!(
         changed["changed"]
             .as_array()
@@ -78,9 +78,9 @@ fn changed_inherits_package_export_contract_impact() {
                 .expect("cluster changed")
                 .iter()
                 .any(|path| path == "packages/replay/package.json")
-                && cluster["contract_risks"]
+                && cluster["contract_links"]
                     .as_array()
-                    .expect("contract risks")
+                    .expect("contract links")
                     .iter()
                     .any(|edge| edge["from"] == "packages/replay/package.json"
                         && edge["to"] == "packages/replay/package.json"
@@ -203,7 +203,7 @@ fn changed_distinguishes_visible_and_total_changed_files() {
         "markdown should render Map Delta as compact count bullets: {markdown}"
     );
     assert!(
-        markdown.contains("[risk=") && !markdown.contains("| Cluster | Risk | Reasons | Edges |"),
+        markdown.contains("[direct=") && !markdown.contains("| Cluster | Risk | Reasons | Edges |"),
         "changed markdown should render impact summary as compact cluster bullets: {markdown}"
     );
     assert!(

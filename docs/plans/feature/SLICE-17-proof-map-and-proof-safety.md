@@ -105,7 +105,7 @@ empty test commands
 
 - Root `proof-map .` shows proof containers, not every test file.
 - `proof-map <scope>` shows direct/indirect/e2e/contract sensors.
-- `proof --changed` uses structural changes, not task keywords.
+- `proof changed` uses structural changes, not task keywords.
 - Broad fallback is clearly marked.
 - Direct/import/symbol/e2e/contract/snapshot/name/container/fallback proof is
   visibly separated.
@@ -135,11 +135,11 @@ Run:
 
 ```bash
 codemap --root /Users/amir/Documents/projects/spritestudio proof-map .
-codemap --root /Users/amir/Documents/projects/spritestudio proof --changed
+codemap --root /Users/amir/Documents/projects/spritestudio proof changed
 codemap --root /Users/amir/Documents/projects/Sillentway-VPN proof-map .
-codemap --root /Users/amir/Documents/projects/Sillentway-VPN proof --changed
+codemap --root /Users/amir/Documents/projects/Sillentway-VPN proof changed
 codemap --root <third-project> proof-map .
-codemap --root <third-project> proof --changed
+codemap --root <third-project> proof changed
 ```
 
 Record whether it finds better proof than manual package script reading.

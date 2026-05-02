@@ -289,7 +289,7 @@ verification:
                     .as_array()
                     .expect("next")
                     .iter()
-                    .any(|command| command == "codemap proof --changed")),
+                    .any(|command| command == "codemap proof changed")),
         "verification defaults should be visible in details: {validation:#}"
     );
 }

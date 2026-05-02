@@ -27,12 +27,11 @@ fn impact_summary_section(clusters: &[ImpactCluster]) {
 fn render_impact_summary_lines(clusters: &[ImpactCluster]) {
     for cluster in clusters {
         println!(
-            "- `{}` [risk={}; direct={}; cross={}; contract={}; proof={}]",
+            "- `{}` [direct={}; cross={}; contract={}; proof={}]",
             cluster.id,
-            cluster.risk,
             cluster.direct_consumers.len(),
             cluster.cross_boundary_consumers.len(),
-            cluster.contract_risks.len(),
+            cluster.contract_links.len(),
             cluster.proof.len()
         );
         if !cluster.reasons.is_empty() {
@@ -43,7 +42,6 @@ fn render_impact_summary_lines(clusters: &[ImpactCluster]) {
 
 fn render_impact_cluster(cluster: &ImpactCluster) {
     println!("\n## Cluster `{}`", cluster.id);
-    println!("risk: `{}`", cluster.risk);
     if !cluster.changed.is_empty() {
         println!("changed:");
         println!("{}", bullet(&cluster.changed, true, Some(10)));
@@ -54,7 +52,7 @@ fn render_impact_cluster(cluster: &ImpactCluster) {
     }
     grouped_edge_list("direct consumers", &cluster.direct_consumers, 12);
     grouped_edge_list("cross-boundary consumers", &cluster.cross_boundary_consumers, 12);
-    grouped_edge_list("contract risks", &cluster.contract_risks, 12);
+    grouped_edge_list("contract links", &cluster.contract_links, 12);
     grouped_edge_list("proof", &cluster.proof, 12);
 }
 
@@ -69,7 +67,13 @@ pub fn proof(report: &ProofReport) {
         println!();
     }
     println!("\n## Summary\n");
-    println!("- risk: `{}`", report.risk);
+    if !report.changed.is_empty() {
+        println!("- changed anchors: `{}`", report.changed.len());
+    } else if report.target.is_some() {
+        println!("- target anchors: `1`");
+    } else {
+        println!("- target anchors: `0`");
+    }
     if report.proofs.is_empty()
         && report.fallback.is_empty()
         && report.unknowns.is_empty()

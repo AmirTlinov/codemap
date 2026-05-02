@@ -37,7 +37,7 @@ pub fn siblings_report(
         .collect::<Vec<_>>();
     same_kind.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.kind.cmp(&b.kind)));
     let mut hidden = Vec::new();
-    let include_hidden_expand = format!("codemap siblings {} --include-hidden", shell_quote(&scope));
+    let include_hidden_expand = format!("codemap siblings {} --all", shell_quote(&scope));
     if recursive_hidden_count > 0 {
         hidden.push(HiddenGroup {
             reason: "recursive sibling files hidden at root scope".to_string(),
@@ -121,7 +121,7 @@ pub fn siblings_report(
         proof_pattern,
         unknowns: Vec::new(),
         hidden,
-        expand: vec![format!("codemap ls {} --include-hidden", shell_quote(&scope))],
+        expand: vec![format!("codemap ls {} --all", shell_quote(&scope))],
     }
 }
 
@@ -232,7 +232,7 @@ pub fn place_report(
     };
     let local_conventions = placement_conventions(&scope, &requested_kind, &existing_surfaces);
     let include_hidden_expand = format!(
-        "codemap place {} --kind {} --include-hidden",
+        "codemap place {} --kind {} --all",
         shell_quote(&scope),
         shell_quote(&requested_kind)
     );

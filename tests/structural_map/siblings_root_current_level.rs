@@ -43,7 +43,7 @@ fn root_siblings_stays_current_level_until_include_hidden() {
             .expect("hidden")
             .iter()
             .any(|group| group["reason"] == "recursive sibling files hidden at root scope"
-                && group["expand"] == "codemap siblings . --include-hidden"),
+                && group["expand"] == "codemap siblings . --all"),
         "root siblings should make recursive files an explicit expansion: {siblings:#}"
     );
     for section in ["same_kind", "route_service_test_triplets"] {
@@ -73,7 +73,7 @@ fn root_siblings_stays_current_level_until_include_hidden() {
         &[
             "siblings",
             ".",
-            "--include-hidden",
+            "--all",
             "--limit",
             "50",
             "--format",

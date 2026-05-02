@@ -80,14 +80,14 @@ fn runtime_root_scope_is_current_level_until_include_hidden() {
             .expect("hidden groups")
             .iter()
             .any(|group| group["reason"] == "recursive runtime files hidden at root scope"
-                && group["expand"] == "codemap runtime . --include-hidden"),
+                && group["expand"] == "codemap runtime . --all"),
         "root runtime should expose the explicit expansion command for recursive runtime files: {runtime:#}"
     );
 
     let expanded = run_json(
         repo.path(),
         cache.path(),
-        &["runtime", ".", "--include-hidden", "--format", "json"],
+        &["runtime", ".", "--all", "--format", "json"],
     );
     assert_schema("schemas/runtime.schema.json", &expanded);
     assert!(

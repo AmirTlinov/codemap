@@ -57,7 +57,7 @@ pub fn contract_report(
             }
         });
     let mut hidden = Vec::new();
-    let include_hidden_expand = format!("codemap contract {} --include-hidden", shell_quote(&rel));
+    let include_hidden_expand = format!("codemap contract {} --all", shell_quote(&rel));
     truncate_with_hidden(
         &mut exported_contracts,
         limit,

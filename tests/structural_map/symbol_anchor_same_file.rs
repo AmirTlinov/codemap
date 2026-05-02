@@ -57,7 +57,7 @@ fn symbol_anchor_cone_links_same_file_symbol_body_uses() {
         &[
             "ls",
             "src/local-flow.tsx",
-            "--include-hidden",
+            "--all",
             "--format",
             "json",
         ],

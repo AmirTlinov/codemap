@@ -45,7 +45,7 @@ tests/*
    - `ls .`;
    - `graph --lens causal`;
    - `changed`;
-   - `proof --changed`.
+   - `proof changed`.
 5. Probe focused lenses where anchors exist:
    - `runtime .`;
    - `proof-map .`;

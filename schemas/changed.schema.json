@@ -21,7 +21,7 @@
   ],
   "properties": {
     "kind": { "const": "changed_report" },
-    "schema_version": { "const": "2" },
+    "schema_version": { "const": "3" },
     "selector": { "type": "string" },
     "total_changed_count": { "type": "integer", "minimum": 0 },
     "changed": {
@@ -265,14 +265,13 @@
     "impact_cluster": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "risk", "changed", "direct_consumers", "cross_boundary_consumers", "contract_risks", "proof", "reasons"],
+      "required": ["id", "changed", "direct_consumers", "cross_boundary_consumers", "contract_links", "proof", "reasons"],
       "properties": {
         "id": { "type": "string" },
-        "risk": { "type": "string" },
         "changed": { "type": "array", "items": { "type": "string" } },
         "direct_consumers": { "type": "array", "items": { "$ref": "#/$defs/structural_edge" } },
         "cross_boundary_consumers": { "type": "array", "items": { "$ref": "#/$defs/structural_edge" } },
-        "contract_risks": { "type": "array", "items": { "$ref": "#/$defs/structural_edge" } },
+        "contract_links": { "type": "array", "items": { "$ref": "#/$defs/structural_edge" } },
         "proof": { "type": "array", "items": { "$ref": "#/$defs/structural_edge" } },
         "reasons": { "type": "array", "items": { "type": "string" } }
       }

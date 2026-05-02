@@ -4,15 +4,14 @@ fn help_exposes_only_map_first_commands() {
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("help utf8");
     for expected in [
-        "Daily workflow:",
-        "codemap ls <scope>",
+        "Primary map workflow:",
+        "codemap ls [scope]",
         "codemap cone <anchor>",
         "codemap changed",
-        "codemap proof <scope|--changed>",
-        "Focused lenses are drill-down targets",
-        "Focused lenses:",
+        "codemap proof <anchor|changed>",
+        "Focused map lenses:",
         "runtime, contract, flow",
-        "Diagnostics and integration:",
+        "Diagnostics:",
     ] {
         assert!(
             stdout.contains(expected),
@@ -32,7 +31,7 @@ fn help_exposes_only_map_first_commands() {
         .collect::<Vec<_>>();
     assert_eq!(
         commands,
-        vec!["ls", "cone", "changed", "proof", "doctor"],
+        vec!["ls", "cone", "changed", "proof", "help"],
         "help should put daily commands first: {stdout}"
     );
     for forbidden in ["start", "locate", "find", "verify", "widen", "read_first"] {
@@ -75,7 +74,7 @@ fn assert_map_bootstrap_text(text: &str) {
         "codemap ls <scope-or-file>",
         "codemap cone <scope-or-file> --depth 1",
         "codemap changed",
-        "codemap proof --changed",
+        "codemap proof changed",
     ] {
         assert!(
             text.contains(expected),
@@ -85,8 +84,6 @@ fn assert_map_bootstrap_text(text: &str) {
     for forbidden in [
         "codemap start",
         "codemap verify",
-        "codemap diff-map --changed",
-        "codemap proof-map --changed",
         "read_first",
         "ranking engine",
         "when that lens matches",
@@ -151,7 +148,7 @@ fn root_ls_is_a_bounded_domain_and_package_map() {
     let root_with_hidden = run_json(
         repo.path(),
         cache.path(),
-        &["ls", ".", "--include-hidden", "--format", "json"],
+        &["ls", ".", "--all", "--format", "json"],
     );
     assert!(
         root_with_hidden["directory"]
@@ -366,7 +363,7 @@ fn cone_shows_proof_edges_through_direct_consumers() {
         ],
     );
     assert_schema("schemas/impact.schema.json", &public_impact);
-    assert_eq!(public_impact["clusters"][0]["risk"], "high");
+    assert_eq!(public_impact["clusters"][0].get("risk"), None);
 
     let public_proof = run_json(
         repo.path(),
@@ -380,8 +377,9 @@ fn cone_shows_proof_edges_through_direct_consumers() {
     );
     assert_schema("schemas/proof.schema.json", &public_proof);
     assert_eq!(
-        public_proof["risk"], public_impact["clusters"][0]["risk"],
-        "proof risk should reflect structural impact when a direct consumer is a contract/public surface: {public_proof:#}"
+        public_proof.get("risk"),
+        None,
+        "proof should expose proof surfaces without a score-like verdict: {public_proof:#}"
     );
 
     let cone = run_json(

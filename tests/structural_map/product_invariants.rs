@@ -45,6 +45,38 @@ fn public_json_outputs_do_not_reintroduce_router_or_trust_fields() {
     }
 }
 
+#[test]
+fn codemap_format_json_applies_to_hidden_structural_outputs() {
+    let (repo, cache) = fixture();
+    let cases = [
+        (&["graph", "--lens", "causal"][..], "graph"),
+        (&["boundaries"][..], "boundaries"),
+    ];
+
+    for (args, kind) in cases {
+        let output = codemap()
+            .current_dir(repo.path())
+            .env("CODEMAP_CACHE_DIR", cache.path())
+            .env("CODEMAP_FORMAT", "json")
+            .args(args)
+            .output()
+            .expect("codemap should run");
+        let report: Value = serde_json::from_slice(&output.stdout).unwrap_or_else(|error| {
+            panic!(
+                "CODEMAP_FORMAT=json should make {:?} emit JSON, error={error}, stdout={}, stderr={}",
+                args,
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            )
+        });
+        assert_eq!(
+            report["kind"], kind,
+            "CODEMAP_FORMAT=json should select JSON for {:?}: {report:#}",
+            args
+        );
+    }
+}
+
 fn collect_forbidden_json_keys(
     value: &Value,
     path: &str,

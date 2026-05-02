@@ -39,7 +39,7 @@ tests/structural_map/*
    - same file/scope;
    - direct consumers;
    - package/domain consumers;
-   - public/contract risk;
+   - public/contract link;
    - runtime risk;
    - proof candidates;
    - unknowns.
@@ -63,7 +63,7 @@ Tests fail if:
 - impact changes when task wording changes;
 - reverse importer is omitted;
 - cross-package consumer is not grouped;
-- package export removal lacks contract risk;
+- package export removal lacks contract link;
 - runtime route removal lacks runtime risk;
 - output includes source_of_truth/confidence language.
 

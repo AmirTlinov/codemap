@@ -33,7 +33,7 @@ fn ls_symbol_report(
             hidden.push(HiddenGroup {
                 reason: "symbol edges hidden by limit".to_string(),
                 count: edge_count - edges.len(),
-                expand: format!("codemap ls {} --include-hidden", shell_quote(&anchor_path)),
+                expand: format!("codemap ls {} --all", shell_quote(&anchor_path)),
             });
         }
     }
@@ -115,7 +115,7 @@ fn ls_file_report(
         info,
         include_hidden,
         limit,
-        &format!("codemap ls {} --include-hidden", shell_quote(&info.rel)),
+        &format!("codemap ls {} --all", shell_quote(&info.rel)),
     );
     LsReport {
         kind: "ls_report",
@@ -256,42 +256,42 @@ fn ls_directory_report(
         hidden.push(HiddenGroup {
             reason: "directory edges hidden by limit".to_string(),
             count: edge_count - edges.len(),
-            expand: format!("codemap ls {} --include-hidden", shell_quote(rel)),
+            expand: format!("codemap ls {} --all", shell_quote(rel)),
         });
     }
     if surface_count > surfaces.len() {
         hidden.push(HiddenGroup {
             reason: "directory surfaces hidden by limit".to_string(),
             count: surface_count - surfaces.len(),
-            expand: format!("codemap ls {} --include-hidden", shell_quote(rel)),
+            expand: format!("codemap ls {} --all", shell_quote(rel)),
         });
     }
     if hidden_generic_count > 0 {
         hidden.push(HiddenGroup {
             reason: "generic source files hidden".to_string(),
             count: hidden_generic_count,
-            expand: format!("codemap ls {} --include-hidden", shell_quote(rel)),
+            expand: format!("codemap ls {} --all", shell_quote(rel)),
         });
     }
     if hidden_support_package_count > 0 {
         hidden.push(HiddenGroup {
             reason: "support packages hidden below support scopes".to_string(),
             count: hidden_support_package_count,
-            expand: format!("codemap ls {} --include-hidden", shell_quote(rel)),
+            expand: format!("codemap ls {} --all", shell_quote(rel)),
         });
     }
     if hidden_support_artifact_count > 0 {
         hidden.push(HiddenGroup {
             reason: "support artifacts hidden".to_string(),
             count: hidden_support_artifact_count,
-            expand: format!("codemap ls {} --include-hidden", shell_quote(rel)),
+            expand: format!("codemap ls {} --all", shell_quote(rel)),
         });
     }
     if !include_hidden && !recursive_files.is_empty() {
         hidden.push(HiddenGroup {
             reason: "recursive files below this level hidden".to_string(),
             count: recursive_files.len(),
-            expand: format!("codemap ls {} --include-hidden", shell_quote(rel)),
+            expand: format!("codemap ls {} --all", shell_quote(rel)),
         });
     }
     LsReport {

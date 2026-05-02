@@ -9,7 +9,6 @@
     "schema_version",
     "target",
     "changed",
-    "risk",
     "proofs",
     "fallback",
     "unknowns",
@@ -19,17 +18,13 @@
   ],
   "properties": {
     "kind": { "const": "proof_plan" },
-    "schema_version": { "const": "5" },
+    "schema_version": { "const": "6" },
     "target": {
       "anyOf": [{ "type": "string" }, { "type": "null" }]
     },
     "changed": {
       "type": "array",
       "items": { "type": "string" }
-    },
-    "risk": {
-      "type": "string",
-      "enum": ["low", "medium", "medium-high", "high", "critical"]
     },
     "proofs": {
       "type": "array",

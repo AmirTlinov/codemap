@@ -45,11 +45,11 @@ fn ls_file_anchor_renders_metadata_and_symbols_without_tables() {
     assert!(output.status.success());
     let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
     assert!(
-        markdown.contains("\n## File\n") && markdown.contains("- kind: `runtime_state`"),
+        markdown.contains("\n## Observed\n") && markdown.contains("- kind: `runtime_state`"),
         "ls file markdown should render file metadata as compact bullets: {markdown}"
     );
     assert!(
-        markdown.contains("\n## Symbols\n") && markdown.contains("["),
+        markdown.contains("\n## Observed Symbols\n") && markdown.contains("["),
         "ls file markdown should keep a compact symbol outline: {markdown}"
     );
     assert!(
@@ -76,7 +76,7 @@ fn ls_directory_surfaces_render_as_compact_blocks() {
     assert!(output.status.success());
     let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
     assert!(
-        markdown.contains("\n## Surfaces\n") && markdown.contains("[role="),
+        markdown.contains("\n## Observed\n") && markdown.contains("[role="),
         "ls directory markdown should render surfaces as compact blocks: {markdown}"
     );
     assert!(

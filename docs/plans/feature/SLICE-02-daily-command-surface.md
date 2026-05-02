@@ -12,10 +12,10 @@ ls
 cone
 changed
 proof
-doctor
 ```
 
-Focused lenses stay available as expand targets, not as ritual.
+Focused lenses and diagnostics stay available as expand or diagnostic targets,
+not as the primary ritual.
 
 ## Scope
 
@@ -35,9 +35,9 @@ tests/structural_map/*
 ## Implementation Steps
 
 1. Rework CLI help grouping:
-   - daily commands first;
-   - focused lenses second;
-   - diagnostics/schema commands last;
+   - four primary map commands visible in `Commands`;
+   - focused lenses listed as exact expand targets;
+   - diagnostics/schema commands listed outside the primary command list;
    - compat aliases hidden or explicitly compat.
 2. Add `codemap changed` as a vertical daily MVP if only `diff-map` exists.
    The MVP may compose existing `diff-map`, `impact`, `proof-map`, and `proof`
@@ -46,7 +46,7 @@ tests/structural_map/*
    - `diff-map --changed`;
    - `impact --changed`;
    - `proof-map --changed`;
-   - `proof --changed`.
+   - `proof changed`.
 4. Ensure `proof` defaults to plan-only mode and only executes with `--run`.
 5. Make every daily command support:
    - `--format markdown`;
@@ -57,7 +57,7 @@ tests/structural_map/*
 
 ## Acceptance
 
-- `codemap --help` makes the first five commands obvious.
+- `codemap --help` makes the four primary map commands obvious.
 - No command asks for a natural-language task prompt.
 - `start`, `locate`, `verify`, `widen`, or old names do not appear as primary
   UX. If kept, they are compatibility only.
@@ -84,7 +84,7 @@ Run on each live repo:
 codemap --root <repo> --help
 codemap --root <repo> ls .
 codemap --root <repo> changed
-codemap --root <repo> proof --changed
+codemap --root <repo> proof changed
 ```
 
 Record whether you needed to remember any non-obvious command to continue.

@@ -117,7 +117,7 @@ fn impact_graph(
                     .direct_consumers
                     .iter()
                     .chain(cluster.cross_boundary_consumers.iter())
-                    .chain(cluster.contract_risks.iter())
+                    .chain(cluster.contract_links.iter())
                     .flat_map(|edge| [edge.from.clone(), edge.to.clone()])
             }))
             .collect(),

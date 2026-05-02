@@ -28,16 +28,18 @@ codemap = ls + xref + cone + impact + proof for code
 Primary daily commands:
 
 ```bash
-codemap ls <scope>
+codemap ls [scope]
 codemap cone <anchor>
 codemap changed
-codemap proof <scope|--changed>
-codemap doctor
+codemap proof <anchor|changed>
 ```
 
 Focused lenses remain public and supported, but they are deep map targets:
 `runtime`, `contract`, `flow`, `boundary-map`, `siblings`, `place`, `delete`,
 `diff-map`, `impact`, `proof-map`, and `graph`.
+
+`doctor`, `status`, `files`, `schema`, `bootstrap`, `init`, `anchors`, and
+`boundaries` are diagnostics or setup surfaces, not primary map commands.
 
 ## Surfaces
 
@@ -55,7 +57,7 @@ Focused lenses remain public and supported, but they are deep map targets:
 
 `codemap runtime <scope>` shows deterministic runtime surfaces: entrypoints, file-convention routes, static framework route registrations, scripts, env references, workers/jobs, CI, nearby proof, and typed blind spots such as dynamic route strings or env keys.
 
-`codemap proof <anchor>|--changed` returns the smallest structural proof surfaces it can justify. It prefers adjacent/importing tests and package-local commands before broad fallbacks. It never runs by default.
+`codemap proof <anchor|changed>` returns the smallest structural proof surfaces it can justify. It prefers adjacent/importing tests and package-local commands before broad fallbacks. It never runs by default.
 
 `codemap proof-map <scope>|--changed` shows proof coverage surfaces around an area: direct, indirect, e2e, contract, missing direct proof for important surfaces, and commands.
 
@@ -99,7 +101,7 @@ After edits:
 
 ```bash
 codemap changed
-codemap proof --changed
+codemap proof changed
 ```
 
 Expand only when structural evidence requires it: empty cone, public/package/schema boundary, missing proof surface, or failure outside the predicted impact.

@@ -16,7 +16,10 @@ fn maybe_write_proof_changed_lens_cache(
     report: &crate::model::ProofReport,
 ) {
     if args.run
-        || args.target.is_some()
+        || args
+            .target
+            .as_deref()
+            .is_some_and(|target| target != "changed")
         || args
             .files
             .as_deref()
@@ -24,15 +27,17 @@ fn maybe_write_proof_changed_lens_cache(
     {
         return;
     }
-    if !args.changed && !args.staged && args.since.is_none() {
+    if args.target.as_deref() != Some("changed") && !args.staged && args.since.is_none() {
         return;
     }
-    let selector = if args.staged {
+    let selector = if args.target.as_deref() == Some("changed") {
+        "changed".to_string()
+    } else if args.staged {
         "--staged".to_string()
     } else if let Some(since) = args.since.as_deref() {
         format!("--since {}", shell_quote_arg(since))
     } else {
-        "--changed".to_string()
+        "changed".to_string()
     };
     let _ = crate::cache::write_proof_changed_report(
         &project.cache_dir,

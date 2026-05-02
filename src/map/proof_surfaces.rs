@@ -260,30 +260,30 @@ fn proof_base_evidence(evidence: &str) -> &str {
         .unwrap_or(evidence)
 }
 
-fn risk_for_directory(project: &Project, rel: &str, depth: usize) -> Risk {
+fn impact_level_for_directory(project: &Project, rel: &str, depth: usize) -> Risk {
     files_under_directory(project, rel)
         .into_iter()
         .filter(|file| !file.has_role("generated") && !is_generic_noise(file))
-        .map(|file| structural_risk_for_file(project, &file.rel, depth).0)
+        .map(|file| structural_impact_level_for_file(project, &file.rel, depth).0)
         .max()
         .unwrap_or(Risk::Medium)
 }
 
-fn structural_risk_for_file(project: &Project, rel: &str, depth: usize) -> (Risk, Vec<String>) {
-    let (file_risk, mut reasons) = risk_for_file(project, rel);
+fn structural_impact_level_for_file(project: &Project, rel: &str, depth: usize) -> (Risk, Vec<String>) {
+    let (file_risk, mut reasons) = impact_level_for_file(project, rel);
     if !project.files.contains_key(rel) {
         return (file_risk, reasons);
     }
     let direct_consumers = direct_consumer_edges(project, rel);
     let cross_boundary_consumers =
         cross_boundary_consumer_edges(project, rel, &direct_consumers, depth.max(1));
-    let contract_risks = contract_risk_edges(project, rel, &direct_consumers);
-    let (structural_risk, structural_reasons) = structural_impact_risk(
+    let contract_links = contract_link_edges(project, rel, &direct_consumers);
+    let (structural_risk, structural_reasons) = structural_impact_level(
         project,
         rel,
         &direct_consumers,
         &cross_boundary_consumers,
-        &contract_risks,
+        &contract_links,
     );
     reasons.extend(structural_reasons);
     (file_risk.max(structural_risk), unique(reasons))

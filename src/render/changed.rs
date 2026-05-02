@@ -15,6 +15,12 @@ pub fn changed(report: &ChangedReport, section_filter: &str) {
         section("Expand", &report.expand);
         return;
     }
+    let hidden = changed_render_hidden(report);
+    if section_filter == "hidden" {
+        hidden_section(&hidden);
+        section("Expand", &report.expand);
+        return;
+    }
     if section_filter == "overview" {
         changed_summary(report);
     }
@@ -30,6 +36,11 @@ pub fn changed(report: &ChangedReport, section_filter: &str) {
     if matches!(section_filter, "overview" | "unknowns") {
         unknown_section(&report.unknowns);
     }
+    hidden_section(&hidden);
+    section("Expand", &report.expand);
+}
+
+fn changed_render_hidden(report: &ChangedReport) -> Vec<crate::model::HiddenGroup> {
     let mut hidden = report.hidden.clone();
     if report.git_state.len() > report.display_limit {
         hidden.push(crate::model::HiddenGroup {
@@ -53,8 +64,7 @@ pub fn changed(report: &ChangedReport, section_filter: &str) {
             ),
         });
     }
-    hidden_section(&hidden);
-    section("Expand", &report.expand);
+    hidden
 }
 
 fn changed_summary(report: &ChangedReport) {
@@ -242,7 +252,6 @@ fn changed_impact_section(report: &ChangedReport, compact: bool) {
     }
     for cluster in &report.impact {
         println!("\n### `{}`", cluster.id);
-        println!("risk: `{}`", cluster.risk);
         if !cluster.changed.is_empty() {
             println!("changed:");
             println!("{}", bullet(&cluster.changed, true, Some(10)));
@@ -253,7 +262,7 @@ fn changed_impact_section(report: &ChangedReport, compact: bool) {
         }
         grouped_edge_list("direct consumers", &cluster.direct_consumers, 8);
         grouped_edge_list("cross-boundary consumers", &cluster.cross_boundary_consumers, 8);
-        grouped_edge_list("contract risks", &cluster.contract_risks, 8);
+        grouped_edge_list("contract links", &cluster.contract_links, 8);
         if !cluster.proof.is_empty() {
             println!("proof: {} edges (see Proof section)", cluster.proof.len());
         }
@@ -276,12 +285,11 @@ fn changed_impact_summary_lines(clusters: &[ImpactCluster]) {
             .map(|path| changed_relative_path(path, prefix.as_deref()))
             .unwrap_or_else(|| cluster.id.clone());
         println!(
-            "- `{}` [risk={}; direct={}; cross={}; contract={}; proof={}]",
+            "- `{}` [direct={}; cross={}; contract={}; proof={}]",
             label,
-            cluster.risk,
             cluster.direct_consumers.len(),
             cluster.cross_boundary_consumers.len(),
-            cluster.contract_risks.len(),
+            cluster.contract_links.len(),
             cluster.proof.len()
         );
         if !cluster.reasons.is_empty() {

@@ -75,7 +75,7 @@ pub fn cone_report(
         limit,
         "outgoing edges hidden by limit",
         &format!(
-            "codemap cone {} --depth {depth} --include-hidden",
+            "codemap cone {} --depth {depth} --all",
             shell_quote(&rel)
         ),
     );
@@ -86,7 +86,7 @@ pub fn cone_report(
         limit,
         "incoming edges hidden by limit",
         &format!(
-            "codemap cone {} --depth {depth} --include-hidden",
+            "codemap cone {} --depth {depth} --all",
             shell_quote(&rel)
         ),
     );
@@ -97,7 +97,7 @@ pub fn cone_report(
         limit,
         "proof edges hidden by limit",
         &format!(
-            "codemap cone {} --depth {depth} --include-hidden",
+            "codemap cone {} --depth {depth} --all",
             shell_quote(&rel)
         ),
     );
@@ -108,7 +108,7 @@ pub fn cone_report(
         limit,
         "contract edges hidden by limit",
         &format!(
-            "codemap cone {} --depth {depth} --include-hidden",
+            "codemap cone {} --depth {depth} --all",
             shell_quote(&rel)
         ),
     );
@@ -119,7 +119,7 @@ pub fn cone_report(
         limit,
         "boundary edges hidden by limit",
         &format!(
-            "codemap cone {} --depth {depth} --include-hidden",
+            "codemap cone {} --depth {depth} --all",
             shell_quote(&rel)
         ),
     );
@@ -140,7 +140,7 @@ pub fn cone_report(
         unknowns,
         expand: vec![
             format!("codemap cone {} --depth {}", shell_quote(&rel), depth + 1),
-            format!("codemap ls {} --include-hidden", shell_quote(&rel)),
+            format!("codemap ls {} --all", shell_quote(&rel)),
         ],
     }
 }

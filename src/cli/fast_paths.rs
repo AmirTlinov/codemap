@@ -141,7 +141,7 @@ fn try_clean_proof_changed_fast_path(
     if proof_has_explicit_target_or_files(args) || args.run {
         return Ok(None);
     }
-    if !args.changed && !args.staged && args.since.is_none() {
+    if args.target.as_deref() != Some("changed") && !args.staged && args.since.is_none() {
         return Ok(None);
     }
     let cwd = env::current_dir()?;
@@ -166,7 +166,7 @@ fn try_cached_proof_changed_fast_path(
     if proof_has_explicit_target_or_files(args) || args.run {
         return Ok(None);
     }
-    if !args.changed && !args.staged && args.since.is_none() {
+    if args.target.as_deref() != Some("changed") && !args.staged && args.since.is_none() {
         return Ok(None);
     }
     let cwd = env::current_dir()?;
@@ -329,12 +329,14 @@ fn changed_selector(args: &ChangedArgs) -> String {
 }
 
 fn proof_selector(args: &ProofArgs) -> String {
-    if args.staged {
+    if args.target.as_deref() == Some("changed") {
+        "changed".to_string()
+    } else if args.staged {
         "--staged".to_string()
     } else if let Some(since) = args.since.as_deref() {
         format!("--since {}", shell_quote_arg(since))
     } else {
-        "--changed".to_string()
+        "changed".to_string()
     }
 }
 
@@ -349,7 +351,9 @@ fn changed_git_state(args: &ChangedArgs, root: &Path) -> Vec<crate::model::GitCh
 }
 
 fn proof_git_state(args: &ProofArgs, root: &Path) -> Vec<crate::model::GitChange> {
-    if args.staged {
+    if args.target.as_deref() == Some("changed") {
+        repo::git_changes(root, false, None)
+    } else if args.staged {
         repo::git_changes(root, true, None)
     } else if let Some(since) = args.since.as_deref() {
         repo::git_changes(root, false, Some(since))
@@ -374,7 +378,9 @@ fn changed_has_explicit_files(args: &ChangedArgs) -> bool {
 }
 
 fn proof_has_explicit_target_or_files(args: &ProofArgs) -> bool {
-    args.target.is_some()
+    args.target
+        .as_deref()
+        .is_some_and(|target| target != "changed")
         || args
             .files
             .as_deref()

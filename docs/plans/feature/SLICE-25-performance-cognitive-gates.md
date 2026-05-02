@@ -30,7 +30,7 @@ src/repo/resolver*
    - `ls <file>`;
    - `cone <file>`;
    - `changed`;
-   - `proof --changed`;
+   - `proof changed`;
    - `runtime .`.
 2. Add fixture timing tests where stable enough.
 3. Add output budget tests:
