@@ -118,6 +118,24 @@ next: keep cache work tied to stale-fact failures or measured daily latency,
 not broad scanner rewrites.
 ```
 
+Slice 09 seventh boundary is closed:
+
+```txt
+closed: incremental cache repair now validates reused `inventory.json` file
+facts against the matching fingerprint-cache content signature. If the
+fingerprint path is unchanged but cached FileInfo is stale or corrupt, only
+that mismatched file becomes a scan candidate; surrounding unchanged facts are
+still reused and derived facts are rebuilt over the repaired map.
+proof: stale-inventory regression, existing missing-inventory regression,
+line-budget, full gate, doctor, and git diff check.
+review: covered by final reviewer; CHANGES only required this ledger correction
+because cache/scanner policy changes require review even when narrow.
+live: not required; this is cache-artifact corruption behavior, covered better
+by a controlled fixture.
+next: keep cache parked unless daily use shows stale derived facts, config
+dependency invalidation gaps, or measured latency regressions.
+```
+
 Slice 25 first boundary is closed:
 
 ```txt
@@ -382,7 +400,7 @@ or misleading map.
 | 25 Performance, path stability, cognitive gates | closed first boundary | live | Daily workflow cognitive budgets are guarded. |
 | 26 Fixture matrix across stacks | closed first boundary | full | Cross-stack fixtures cover daily after-edit workflow plus focused lenses. |
 | 27 Live adoption harness and PATH ergonomics | closed first boundary | live | Read-only daily/focused live harness is usable and records budgets. |
-| 28 Final audit, cleanup, TODO closure | todo | final | Full system audit passes; TODO is honestly closed. |
+| 28 Final audit, cleanup, TODO closure | closed | final | Full system audit passed with one parked dirty-repo perf gap recorded. |
 
 ## Closed Boundaries
 
@@ -679,6 +697,36 @@ proof: focused place fixture validates the expand command; schema remains
 unchanged because this is command content, not report shape.
 review: not required; this is a narrow expand reproducibility fix.
 live: not required; a fixture catches the exact invalid-command regression.
+```
+
+### Slice 28: Final Audit, Cleanup, And TODO Closure
+
+```txt
+closed: final completion audit passed against the adjusted end-to-end product
+boundary: daily surface is `ls`, `cone`, `changed`, `proof`, `doctor`;
+focused lenses remain drill-down/expand targets; public JSON reports are
+schema-backed; root views are bounded; exact anchors are useful; typed unknowns,
+evidence, locations, hidden counts, and reproducible expands are present in the
+load-bearing workflows; live dogfood had no command failures or line-budget
+failures.
+proof: `cargo fmt --check`, `cargo test --quiet`, `cargo clippy --all-targets
+-- -D warnings`, `cargo run --quiet --bin codemap -- doctor`, `git diff
+--check`, schema command smoke for all 21 manifest entries plus manifest,
+public help inspection, docs/product invariant audit, fixture/schema/cognitive
+test inspection, and live read-only dogfood on spritestudio, Sillentway-VPN,
+and Levelly-1.
+review: final reviewer returned CHANGES, not BLOCK; required corrections were
+ledger-only: mark Slice 28 closed, record that the cache boundary was reviewed,
+and record the parked dirty-repo performance gap.
+live: dogfood summary contained 39 probe rows, 0 command failures, and 0
+line-budget failures. Additional navigation probes showed SpriteStudio
+root/app/cone/proof orientation, SilentWay runtime -> flow stitching for
+`src/masque-core`, and Levelly package/boundary orientation.
+parked: dirty live `changed` remains about 1-3s on larger repos, and first
+cold scans are still several seconds on large repos. Warm `ls`/focused commands
+are acceptable enough for daily use, but future work should target changed
+latency only when measured daily pain recurs.
+done: no known false structural claim remains from the final audit.
 ```
 
 ## Live Probe Set
