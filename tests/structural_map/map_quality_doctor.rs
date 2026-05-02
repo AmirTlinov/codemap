@@ -122,3 +122,55 @@ fn doctor_schema_proof_warning_keeps_root_migrations_visible() {
         "schema proof warning should point at root migration owner: {doctor:#}"
     );
 }
+
+#[test]
+fn doctor_manifest_quality_uses_builtin_cargo_workspace_and_swift_package_proof() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("Cargo.toml"),
+        "[workspace]\nresolver = \"2\"\nmembers = []\n",
+    );
+    write(
+        &repo.path().join("app/Package.swift"),
+        r#"// swift-tools-version: 6.0
+import PackageDescription
+
+let package = Package(
+    name: "FixtureApp",
+    targets: [.target(name: "FixtureApp")]
+)
+"#,
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "manifest proof fixture"]);
+
+    let doctor = run_json(repo.path(), cache.path(), &["doctor", "--format", "json"]);
+    let warnings = doctor["map_quality"].as_array().expect("map_quality");
+    assert!(
+        warnings
+            .iter()
+            .all(|warning| warning["kind"] != "manifest_without_deterministic_proof"),
+        "Cargo workspace and SwiftPM manifests should have deterministic built-in proof surfaces: {doctor:#}"
+    );
+
+    let cargo_proof = run_json(repo.path(), cache.path(), &["proof", "Cargo.toml", "--format", "json"]);
+    assert!(
+        cargo_proof["proofs"].as_array().expect("proofs").iter().any(
+            |proof| proof["command"] == "cargo test"
+                && proof["evidence"] == "cargo_manifest_command"
+        ),
+        "Cargo workspace manifest should expose built-in cargo proof commands: {cargo_proof:#}"
+    );
+    let swift_proof = run_json(repo.path(), cache.path(), &["proof", "app/Package.swift", "--format", "json"]);
+    assert!(
+        swift_proof["proofs"].as_array().expect("proofs").iter().any(
+            |proof| proof["command"] == "cd app && swift test"
+                && proof["evidence"] == "swift_package_command"
+        ),
+        "Swift package manifest should expose package-local SwiftPM proof commands: {swift_proof:#}"
+    );
+}

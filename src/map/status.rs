@@ -140,7 +140,7 @@ fn map_quality_warnings(project: &Project) -> Vec<MapQualityWarning> {
         &mut warnings,
         "manifest_without_deterministic_proof",
         "manifest",
-        "no manifest script, package-local Cargo command, or package-specific CI reference was found",
+        "no manifest script, package-local build/test command, or package-specific CI reference was found",
         "proof may only show broader fallback commands for these manifests",
         |_| true,
     );

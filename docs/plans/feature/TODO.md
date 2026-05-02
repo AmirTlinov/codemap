@@ -62,9 +62,35 @@ repos would add noise instead of proof.
 
 ## Current Boundary
 
-No broad numbered slice is active after Slice 30F. Pick the next boundary from
+No broad numbered slice is active after Slice 30G. Pick the next boundary from
 the largest daily-workflow gap observed in live use, not by continuing the slice
 number ritual.
+
+Slice 30G is closed:
+
+```txt
+status: closed
+tier: focused/full/live
+closed: manifest proof quality now recognizes deterministic built-in proof
+surfaces for Cargo workspace manifests and SwiftPM packages, so `doctor` no
+longer reports fallback-only manifest proof for those owner surfaces.
+guardrails: this adds only package-local build/test commands derived from
+`Cargo.toml` and `Package.swift`; it does not parse docs, infer repo intent, or
+run commands.
+excluded: richer Makefile/CI ownership and custom repo dialect proof mapping
+remain later proof-planner work.
+proof: focused `cargo test --quiet
+doctor_manifest_quality_uses_builtin_cargo_workspace_and_swift_package_proof`
+and `cargo test --quiet doctor_`; full local gate; current-repo doctor JSON;
+live SilentWay doctor JSON, `proof Cargo.toml`, and
+`proof src/silentway-app/macos-native/Package.swift`.
+review: not required; bounded manifest proof surfaces with fixture and live
+probes.
+live: SilentWay drops the noisy `manifest_without_deterministic_proof` warning
+while exact Cargo and Swift manifests show hard package-local proof commands.
+next: continue with command ownership only where deterministic manifests,
+scripts, or CI can prove the relationship.
+```
 
 Slice 30F is closed:
 
