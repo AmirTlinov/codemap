@@ -69,7 +69,7 @@ fn scanner_reports_ignored_dirs_and_generated_header_surfaces() {
 
     let doctor = run_json(repo.path(), cache.path(), &["doctor", "--format", "json"]);
     assert_schema("schemas/status.schema.json", &doctor);
-    assert_eq!(doctor["schema_version"], "3");
+    assert_eq!(doctor["schema_version"], "4");
     assert!(
         doctor["scanner"]["ignored"]
             .as_array()

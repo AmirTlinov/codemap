@@ -26,7 +26,10 @@ pub struct Project {
     pub anchors: CtxConfig,
     pub cache_state: String,
     pub cache_artifacts: Vec<CacheArtifactStatus>,
+    pub cache_strategy: String,
+    pub files_reused: usize,
     pub scan_stats: ScanStats,
+    pub timings: ProjectTimings,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -79,6 +82,16 @@ pub struct ScanGroup {
     pub reason: String,
     pub count: usize,
     pub examples: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct ProjectTimings {
+    pub root_ms: u128,
+    pub scan_ms: u128,
+    pub facts_ms: u128,
+    pub cache_artifact_ms: u128,
+    pub cache_write_ms: u128,
+    pub total_ms: u128,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]

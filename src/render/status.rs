@@ -53,6 +53,10 @@ pub fn status(report: &StatusReport, doctor: bool) {
                 vec!["Cache".to_string(), code(&report.cache_dir)],
                 vec!["Cache state".to_string(), report.cache_state.clone()],
                 vec![
+                    "Cache strategy".to_string(),
+                    report.cache_strategy.clone()
+                ],
+                vec![
                     "Zero-footprint default".to_string(),
                     report.zero_footprint_default.to_string()
                 ],
@@ -73,6 +77,10 @@ pub fn status(report: &StatusReport, doctor: bool) {
                     report.files_scanned.to_string()
                 ],
                 vec![
+                    "Files reused".to_string(),
+                    report.files_reused.to_string()
+                ],
+                vec![
                     "Files visited".to_string(),
                     report.scanner.files_visited.to_string()
                 ],
@@ -89,6 +97,27 @@ pub fn status(report: &StatusReport, doctor: bool) {
                     "Boundary findings".to_string(),
                     report.boundary_findings.to_string()
                 ],
+            ],
+        )
+    );
+    println!("\n## Project Timings\n");
+    println!(
+        "{}",
+        table(
+            &["Phase", "ms"],
+            vec![
+                vec!["root".to_string(), report.timings.root_ms.to_string()],
+                vec!["scan".to_string(), report.timings.scan_ms.to_string()],
+                vec!["facts".to_string(), report.timings.facts_ms.to_string()],
+                vec![
+                    "cache_artifacts".to_string(),
+                    report.timings.cache_artifact_ms.to_string()
+                ],
+                vec![
+                    "cache_write".to_string(),
+                    report.timings.cache_write_ms.to_string()
+                ],
+                vec!["total".to_string(), report.timings.total_ms.to_string()],
             ],
         )
     );

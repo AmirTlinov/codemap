@@ -15,6 +15,8 @@ pub fn load_project_with_cache(
     root_selection: RootSelection,
     cache_write: CacheWriteMode,
 ) -> Result<Project> {
+    let total_started = Instant::now();
+    let root_started = Instant::now();
     let root_hint = match &root_selection {
         RootSelection::Auto => None,
         RootSelection::Exact(path) | RootSelection::Discover(path) => Some(path),
@@ -28,7 +30,13 @@ pub fn load_project_with_cache(
     let remote = git_remote(&root);
     let (anchors, config_path, config_errors) = load_ctx_configs(&root);
     let nearest_agents = nearest_agents(&cwd, &root);
+    let root_ms = root_started.elapsed().as_millis();
+
+    let scan_started = Instant::now();
     let (mut files, scan_stats) = scan_files(&root)?;
+    let scan_ms = scan_started.elapsed().as_millis();
+
+    let facts_started = Instant::now();
     let packages = detect_packages(&root, &files);
     let ts_path_aliases = detect_ts_path_aliases(&root, &files);
     resolve_imports(&root, &mut files, &packages, &ts_path_aliases);
@@ -39,6 +47,7 @@ pub fn load_project_with_cache(
     let package_manager = detect_package_manager(&root);
     let languages = detect_languages(&files);
     let domains = discover_domains(&root, &files, &anchors, config_path.as_deref());
+    let facts_ms = facts_started.elapsed().as_millis();
     let vcs = if is_git_repo(&root) {
         Some("git".to_string())
     } else {
@@ -65,14 +74,34 @@ pub fn load_project_with_cache(
         anchors,
         cache_state: String::new(),
         cache_artifacts: Vec::new(),
+        cache_strategy: if cache::cache_enabled() {
+            "full_scan".to_string()
+        } else {
+            "disabled".to_string()
+        },
+        files_reused: 0,
         scan_stats,
+        timings: ProjectTimings::default(),
     };
+    let cache_artifact_started = Instant::now();
     let fingerprint = cache::fingerprint(&project, None);
     let cache_artifacts = cache::artifact_statuses(&project, &fingerprint);
     project.cache_state = cache::cache_state(&cache_artifacts);
     project.cache_artifacts = cache_artifacts;
+    let cache_artifact_ms = cache_artifact_started.elapsed().as_millis();
+
+    let cache_write_started = Instant::now();
     if cache_write == CacheWriteMode::Enabled {
         cache::write_status(&project, VERSION)?;
     }
+    let cache_write_ms = cache_write_started.elapsed().as_millis();
+    project.timings = ProjectTimings {
+        root_ms,
+        scan_ms,
+        facts_ms,
+        cache_artifact_ms,
+        cache_write_ms,
+        total_ms: total_started.elapsed().as_millis(),
+    };
     Ok(project)
 }

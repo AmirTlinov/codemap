@@ -10,12 +10,15 @@ pub struct StatusReport {
     pub nearest_agents: Option<String>,
     pub cache_dir: String,
     pub cache_state: String,
+    pub cache_strategy: String,
     pub cache_artifacts: Vec<crate::model::CacheArtifactStatus>,
     pub scanner: crate::model::ScanStats,
+    pub timings: crate::model::ProjectTimings,
     pub zero_footprint_default: bool,
     pub package_manager: String,
     pub languages: Vec<String>,
     pub files_scanned: usize,
+    pub files_reused: usize,
     pub domains: Vec<DomainStatus>,
     pub scripts: Vec<String>,
     pub fingerprint: String,
@@ -40,7 +43,7 @@ pub fn status_report(project: &Project) -> StatusReport {
         .collect();
     StatusReport {
         kind: "status_report",
-        schema_version: "3",
+        schema_version: "4",
         root: project.root.to_string_lossy().to_string(),
         cwd: project.cwd.to_string_lossy().to_string(),
         vcs: project.vcs.clone(),
@@ -53,12 +56,15 @@ pub fn status_report(project: &Project) -> StatusReport {
         nearest_agents: project.nearest_agents.clone(),
         cache_dir: project.cache_dir.to_string_lossy().to_string(),
         cache_state: project.cache_state.clone(),
+        cache_strategy: project.cache_strategy.clone(),
         cache_artifacts: project.cache_artifacts.clone(),
         scanner: project.scan_stats.clone(),
+        timings: project.timings.clone(),
         zero_footprint_default: true,
         package_manager: project.package_manager.clone(),
         languages: project.languages.iter().cloned().collect(),
         files_scanned: project.files.len(),
+        files_reused: project.files_reused,
         domains: project
             .domains
             .iter()

@@ -102,7 +102,8 @@ Implemented:
 - Config discovery uses visible candidates, so `.ctx.yml` files inside ignored
   build/dependency dirs cannot become semantic anchor errors.
 - `doctor` / `status --format json` now expose `scanner` counters and grouped
-  ignored/generated facts through `status_report` schema v3.
+  ignored/generated facts. This landed in `status_report` schema v3 and remains
+  part of later status schemas.
 - Ignored groups count unique ignored roots, not a mixed directory + tracked
   file total.
 - Generated path conventions and hard generated header comments mark files with
@@ -112,7 +113,7 @@ Boundary:
 
 ```txt
 closed: fast scanner policy, ignore/vendor/build pruning, generated header
-detection, scanner counters, status schema v3, and load-bearing tests.
+detection, scanner counters, status diagnostics, and load-bearing tests.
 excluded: generated source-owner tracing, source maps, codegen config ownership,
 and cache partial-rescan work.
 ```
@@ -133,8 +134,8 @@ git diff --check
 Live result:
 
 ```txt
-spritestudio doctor: status_report v3, 1123 scanned, 135 skipped
-Sillentway-VPN doctor: status_report v3, 785 scanned, 199 skipped
+spritestudio doctor: status_report v3 at slice closure, 1123 scanned, 135 skipped
+Sillentway-VPN doctor: status_report v3 at slice closure, 785 scanned, 199 skipped
 Levelly-1 ls: ls_report v3, bounded root map
 ```
 

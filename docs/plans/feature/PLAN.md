@@ -49,6 +49,33 @@ These are hard constraints for every slice:
 
 `codemap` may be incomplete. It must not be confidently false.
 
+## Process Invariant
+
+This plan must not turn into a ceremony engine. Validation scales with risk:
+
+```txt
+docs-only / planning cleanup:
+  prove the document diff is coherent and whitespace-clean
+
+small renderer or copy cleanup:
+  run focused tests or command snapshots for the touched output
+
+model, schema, cache, scanner, git-state, or lens semantics:
+  run the full local gate and use an independent reviewer
+
+final product closure:
+  run full gates, fixture coverage, live dogfood, and final reviewer
+```
+
+Do not keep a slice open until every future edge case in the roadmap is solved.
+Close the declared boundary once the load-bearing acceptance is true, record
+excluded work explicitly, then move to the next higher-value slice.
+
+Do not spawn a reviewer or run the full live dogfood harness for cosmetic
+markdown cleanup unless the cleanup changes agent-facing behavior, line-budget
+contracts, or a false claim risk. The process is here to lower future repair
+cost, not to become another product surface.
+
 ## End-State Command Shape
 
 The daily surface must stay small:
@@ -309,9 +336,11 @@ schema versions. Legacy/router schemas must be
 absent unless explicitly quarantined as compatibility and not used by structural
 lenses.
 
-## Review Loop
+## Validation Loop
 
-Every implementation slice ends with:
+Each slice declares its validation tier before closure.
+
+Full structural slices use:
 
 ```txt
 cargo fmt --check
@@ -321,7 +350,31 @@ cargo run --quiet --bin codemap -- doctor
 git diff --check
 ```
 
-Then a reviewer subagent returns:
+Focused code slices may replace the full suite with targeted tests plus the
+smallest command probe that proves the changed behavior, unless the change
+touches shared model/schema/cache/scanner/git-state code.
+
+Docs-only slices use:
+
+```txt
+git diff --check -- docs/plans/feature
+```
+
+Reviewer subagents are required for:
+
+- model/schema/cache/scanner/git-state changes;
+- new or materially changed public lens behavior;
+- performance/correctness claims;
+- final audit and TODO closure.
+
+They are optional for:
+
+- typo fixes;
+- plan/TODO cleanup;
+- narrow renderer polish inside an already closed boundary;
+- test-only additions that do not change behavior.
+
+When used, the reviewer returns:
 
 ```txt
 PASS
@@ -345,11 +398,14 @@ The reviewer must inspect:
 - overfitted fixtures;
 - whether the agent would still prefer manual `rg`.
 
-No slice is done until reviewer returns `PASS`.
+No slice is done until its declared validation tier passes. If reviewer or live
+dogfood is intentionally skipped, the slice notes must say why.
 
 ## Live Dogfooding
 
-Every meaningful slice must be used in real projects:
+Use live dogfood when the change affects user-facing command behavior,
+performance, cache freshness, git state, scanner visibility, or final adoption.
+The required live repo set is:
 
 ```txt
 /Users/amir/Documents/projects/spritestudio
@@ -357,10 +413,10 @@ Every meaningful slice must be used in real projects:
 one additional repo under /Users/amir/Documents/projects
 ```
 
-This three-repo set is the Required Live Repo Set. If a slice's `Live Dogfood`
-section lists only slice-specific examples, it still inherits this requirement:
-run the relevant command shape on all three repos or record why that repo lacks
-the needed anchor.
+For docs-only, schema-only parity tests, or narrow internal refactors, use a
+focused local proof and record `live dogfood not required` with the reason. If a
+slice's `Live Dogfood` section lists slice-specific examples, run those examples
+only when they prove the slice boundary better than the full harness.
 
 Live dogfood scripts must be read-only with respect to target repositories. They
 may write summaries only under this repo's `target/` or another explicitly named
@@ -378,8 +434,18 @@ For each live probe record:
 
 ## Slice Sequence
 
-This plan is deliberately split finely. Each slice is a reviewable product
-capability, not a vague bucket.
+This sequence is a roadmap, not a demand to polish every slice to world-perfect
+completion before moving on. Each slice needs a closure boundary:
+
+```txt
+closed: what is now genuinely true
+excluded: what remains later work
+next: the next highest-value slice
+```
+
+If a slice starts producing only cosmetic micro-commits, stop and run a closure
+audit. The next work should move back to facts, schemas, cache, or lens
+correctness unless the cosmetic issue causes real agent confusion.
 
 1. Product lock, baseline inventory, and invariant guards.
 2. Daily command surface and alias cleanup.
