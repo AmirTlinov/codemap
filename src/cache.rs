@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -91,7 +92,11 @@ pub fn fingerprint(project: &Project, domain_path: Option<&str>) -> String {
     hex_prefix(&hash, 16)
 }
 
-pub fn write_status(project: &Project, version: &str) -> Result<()> {
+pub fn write_status_with_change_sets(
+    project: &Project,
+    version: &str,
+    git_status_change_sets: Option<(&BTreeSet<String>, &BTreeSet<String>)>,
+) -> Result<()> {
     if !cache_enabled() {
         return Ok(());
     }
@@ -116,7 +121,7 @@ pub fn write_status(project: &Project, version: &str) -> Result<()> {
     fs::write(project.cache_dir.join("status.json"), format!("{body}\n"))?;
     cached_project::write_inventory(project, version)?;
     write_graph(project, version)?;
-    fingerprints::write_fingerprints(project, version)?;
+    fingerprints::write_fingerprints(project, version, git_status_change_sets)?;
     Ok(())
 }
 

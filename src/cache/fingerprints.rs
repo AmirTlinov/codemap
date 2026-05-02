@@ -9,7 +9,7 @@ use sha2::{Digest, Sha256};
 
 use crate::model::Project;
 
-const FINGERPRINT_CACHE_FORMAT: u32 = 5;
+const FINGERPRINT_CACHE_FORMAT: u32 = 7;
 
 pub struct CacheFileDelta {
     pub cached_fingerprint: String,
@@ -82,26 +82,56 @@ pub fn file_delta_for_known_changes(
     if cached.git_head != current_git_head(root) {
         return None;
     }
+    if !cached.git_status_probe_valid {
+        return None;
+    }
     let cached_by_path = cached
         .files
         .iter()
         .map(|file| (file.path.as_str(), file))
         .collect::<BTreeMap<_, _>>();
+    let cached_status_changed_or_added = cached
+        .git_status_changed_or_added
+        .iter()
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let cached_status_removed = cached
+        .git_status_removed
+        .iter()
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let mut verify_changed_or_added = changed_or_added_candidates.clone();
+    verify_changed_or_added.extend(cached_status_changed_or_added);
+    verify_changed_or_added.extend(
+        cached_status_removed
+            .iter()
+            .filter(|path| root.join(path).exists())
+            .cloned(),
+    );
+    let mut verify_removed = removed_candidates.clone();
+    verify_removed.extend(
+        cached_status_removed
+            .iter()
+            .filter(|path| !root.join(path).exists())
+            .cloned(),
+    );
     let mut unchanged = cached_by_path
         .keys()
-        .filter(|path| !removed_candidates.contains(**path))
+        .filter(|path| !verify_removed.contains(**path))
         .map(|path| (*path).to_string())
         .collect::<BTreeSet<_>>();
     let mut changed_or_added = BTreeSet::new();
-    let mut removed = removed_candidates
+    let mut removed = verify_removed
         .iter()
         .filter(|path| cached_by_path.contains_key(path.as_str()))
         .cloned()
         .collect::<BTreeSet<_>>();
-    for rel in changed_or_added_candidates {
+    for rel in &verify_changed_or_added {
         unchanged.remove(rel);
         let Some(cached) = cached_by_path.get(rel.as_str()) else {
-            changed_or_added.insert(rel.clone());
+            if root.join(rel).exists() {
+                changed_or_added.insert(rel.clone());
+            }
             continue;
         };
         if cached_file_matches(root, rel, cached) {
@@ -110,7 +140,7 @@ pub fn file_delta_for_known_changes(
             changed_or_added.insert(rel.clone());
         }
     }
-    for rel in changed_or_added_candidates {
+    for rel in &verify_changed_or_added {
         if !root.join(rel).exists() {
             changed_or_added.remove(rel);
             unchanged.remove(rel);
@@ -146,14 +176,29 @@ pub fn cached_git_head_matches(root: &Path, cache_dir: &Path, version: &str) -> 
     Some(cached.git_head.is_some() && cached.git_head == current_git_head(root))
 }
 
-pub(super) fn write_fingerprints(project: &Project, version: &str) -> Result<()> {
+pub(super) fn write_fingerprints(
+    project: &Project,
+    version: &str,
+    git_status_change_sets: Option<(&BTreeSet<String>, &BTreeSet<String>)>,
+) -> Result<()> {
     let tracked_paths = git_tracked_paths(&project.root);
+    let (git_status_changed_or_added, git_status_removed) = git_status_change_sets
+        .map(|(changed_or_added, removed)| {
+            (
+                changed_or_added.iter().cloned().collect(),
+                removed.iter().cloned().collect(),
+            )
+        })
+        .unwrap_or_default();
     let fingerprints = CachedFingerprints {
         format_version: FINGERPRINT_CACHE_FORMAT,
         version: version.to_string(),
         root: project.root.to_string_lossy().to_string(),
         git_head: current_git_head(&project.root),
         has_untracked: current_git_status_has_untracked(&project.root),
+        git_status_probe_valid: git_status_change_sets.is_some(),
+        git_status_changed_or_added,
+        git_status_removed,
         fingerprint: super::fingerprint(project, None),
         files: project
             .files
@@ -211,6 +256,12 @@ struct CachedFingerprints {
     git_head: Option<String>,
     #[serde(default)]
     has_untracked: bool,
+    #[serde(default)]
+    git_status_probe_valid: bool,
+    #[serde(default)]
+    git_status_changed_or_added: Vec<String>,
+    #[serde(default)]
+    git_status_removed: Vec<String>,
     fingerprint: String,
     files: Vec<CachedFileFingerprint>,
 }

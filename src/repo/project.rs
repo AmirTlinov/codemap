@@ -87,7 +87,14 @@ pub fn load_project_with_cache(
                     let cache_artifact_ms = cache_artifact_started.elapsed().as_millis();
                     let cache_write_started = Instant::now();
                     if cache_write == CacheWriteMode::Enabled && !delta.is_exact_hit() {
-                        cache::write_status(&project, VERSION)?;
+                        let git_status_change_sets = git_status_cache_change_sets(&project.root);
+                        cache::write_status_with_change_sets(
+                            &project,
+                            VERSION,
+                            git_status_change_sets
+                                .as_ref()
+                                .map(|(changed_or_added, removed)| (changed_or_added, removed)),
+                        )?;
                     }
                     let cache_write_ms = cache_write_started.elapsed().as_millis();
                     project.timings.root_ms = root_ms;
@@ -154,7 +161,14 @@ pub fn load_project_with_cache(
 
     let cache_write_started = Instant::now();
     if cache_write == CacheWriteMode::Enabled {
-        cache::write_status(&project, VERSION)?;
+        let git_status_change_sets = git_status_cache_change_sets(&project.root);
+        cache::write_status_with_change_sets(
+            &project,
+            VERSION,
+            git_status_change_sets
+                .as_ref()
+                .map(|(changed_or_added, removed)| (changed_or_added, removed)),
+        )?;
     }
     let cache_write_ms = cache_write_started.elapsed().as_millis();
     project.timings = ProjectTimings {
