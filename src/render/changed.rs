@@ -49,10 +49,25 @@ pub fn changed(report: &ChangedReport, section_filter: &str) {
 fn changed_summary(report: &ChangedReport) {
     if !report.git_state.is_empty() {
         println!("\n## Git State\n");
-        for change in report.git_state.iter().take(visible_git_state_count(report)) {
+        let visible_changes = report
+            .git_state
+            .iter()
+            .take(visible_git_state_count(report))
+            .collect::<Vec<_>>();
+        let prefix = changed_common_dir_prefix(
+            &visible_changes
+                .iter()
+                .map(|change| change.path.as_str())
+                .collect::<Vec<_>>(),
+        );
+        if let Some(prefix) = &prefix {
+            println!("prefix: `{prefix}`");
+        }
+        for change in visible_changes {
+            let path = changed_relative_path(&change.path, prefix.as_deref());
             println!(
                 "- `{}` [{}; staged={}; unstaged={}]",
-                change.path, change.status, change.staged, change.unstaged
+                path, change.status, change.staged, change.unstaged
             );
             if let Some(old_path) = &change.old_path {
                 println!("  old: `{old_path}`");
@@ -79,11 +94,21 @@ fn changed_anchor_section(files: &[crate::model::FileSummary]) {
         return;
     }
     println!("\n## Changed Anchors\n");
+    let prefix = changed_common_dir_prefix(
+        &files
+            .iter()
+            .map(|file| file.path.as_str())
+            .collect::<Vec<_>>(),
+    );
+    if let Some(prefix) = &prefix {
+        println!("prefix: `{prefix}`");
+    }
     for file in files {
         let package = file.package.as_deref().unwrap_or("none");
+        let path = changed_relative_path(&file.path, prefix.as_deref());
         println!(
             "- `{}` [{}; {}; package={}; lines={}; symbols={}; exports={}; imports={}; imported_by={}]",
-            file.path,
+            path,
             file.kind,
             file.language,
             package,
@@ -100,6 +125,38 @@ fn changed_anchor_section(files: &[crate::model::FileSummary]) {
             println!("  exports: {}", changed_preview_list(&file.exports, 6));
         }
     }
+}
+
+fn changed_common_dir_prefix(paths: &[&str]) -> Option<String> {
+    if paths.len() < 2 {
+        return None;
+    }
+    let mut common = paths
+        .first()?
+        .split('/')
+        .collect::<Vec<_>>();
+    common.pop();
+    for path in paths.iter().skip(1) {
+        let mut segments = path.split('/').collect::<Vec<_>>();
+        segments.pop();
+        let len = common
+            .iter()
+            .zip(segments.iter())
+            .take_while(|(left, right)| left == right)
+            .count();
+        common.truncate(len);
+        if common.is_empty() {
+            return None;
+        }
+    }
+    Some(format!("{}/", common.join("/")))
+}
+
+fn changed_relative_path(path: &str, prefix: Option<&str>) -> String {
+    prefix
+        .and_then(|prefix| path.strip_prefix(prefix))
+        .unwrap_or(path)
+        .to_string()
 }
 
 fn changed_preview_list(values: &[String], limit: usize) -> String {
@@ -144,7 +201,7 @@ fn changed_impact_section(report: &ChangedReport, compact: bool) {
     }
     println!("\n## Impact\n");
     if compact {
-        render_impact_summary_lines(&report.impact);
+        changed_impact_summary_lines(&report.impact);
         return;
     }
     for cluster in &report.impact {
@@ -163,6 +220,36 @@ fn changed_impact_section(report: &ChangedReport, compact: bool) {
         grouped_edge_list("contract risks", &cluster.contract_risks, 8);
         if !cluster.proof.is_empty() {
             println!("proof: {} edges (see Proof section)", cluster.proof.len());
+        }
+    }
+}
+
+fn changed_impact_summary_lines(clusters: &[ImpactCluster]) {
+    let paths = clusters
+        .iter()
+        .filter_map(|cluster| cluster.id.strip_prefix("changed:"))
+        .collect::<Vec<_>>();
+    let prefix = changed_common_dir_prefix(&paths);
+    if let Some(prefix) = &prefix {
+        println!("prefix: `{prefix}`");
+    }
+    for cluster in clusters {
+        let label = cluster
+            .id
+            .strip_prefix("changed:")
+            .map(|path| changed_relative_path(path, prefix.as_deref()))
+            .unwrap_or_else(|| cluster.id.clone());
+        println!(
+            "- `{}` [risk={}; direct={}; cross={}; contract={}; proof={}]",
+            label,
+            cluster.risk,
+            cluster.direct_consumers.len(),
+            cluster.cross_boundary_consumers.len(),
+            cluster.contract_risks.len(),
+            cluster.proof.len()
+        );
+        if !cluster.reasons.is_empty() {
+            println!("  reasons: {}", cluster.reasons.join("; "));
         }
     }
 }
