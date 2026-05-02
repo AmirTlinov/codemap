@@ -22,7 +22,7 @@ one additional repo under /Users/amir/Documents/projects
 Likely files:
 
 ```txt
-scripts/live-probe.sh
+scripts/dogfood-codemap.sh
 scripts/live-adoption-notes.md or docs/plans/feature/live-probes.md
 README.md
 docs/PRODUCT.md
@@ -32,7 +32,9 @@ tests/*
 
 ## Implementation Steps
 
-1. Add non-mutating live probe script.
+1. Extend the existing non-mutating `scripts/dogfood-codemap.sh` harness unless
+   there is a concrete reason to split it. Do not create a parallel live-probe
+   script just to rename the same responsibility.
 2. Add or document a local install path:
    - `cargo install --path .`; or
    - a local symlink/helper that keeps target repos untouched.
@@ -91,9 +93,9 @@ This slice relies on:
 Run:
 
 ```bash
-scripts/live-probe.sh /Users/amir/Documents/projects/spritestudio
-scripts/live-probe.sh /Users/amir/Documents/projects/Sillentway-VPN
-scripts/live-probe.sh <third-project>
+scripts/dogfood-codemap.sh /Users/amir/Documents/projects/spritestudio
+scripts/dogfood-codemap.sh /Users/amir/Documents/projects/Sillentway-VPN
+scripts/dogfood-codemap.sh <third-project>
 ```
 
 Then run one real "find my way around this domain" task in each repo using

@@ -52,8 +52,11 @@ language. This slice is a guardrail and inventory slice.
    - file count;
    - ignored count if available;
    - scan/load timing if already exposed.
-5. Record current fixture coverage and missing lenses in a test-visible list.
-6. Update product docs so `codemap ls`, `cone`, `changed`, `proof`, and
+5. Create or update `scripts/dogfood-codemap.sh` as the read-only baseline
+   harness. It must write only under this repo's `target/dogfood-codemap` or an
+   explicit temp/artifact directory, never into probed target repos.
+6. Record current fixture coverage and missing lenses in a test-visible list.
+7. Update product docs so `codemap ls`, `cone`, `changed`, `proof`, and
    `doctor` are the primary daily flow.
 
 ## Acceptance
@@ -62,6 +65,8 @@ language. This slice is a guardrail and inventory slice.
 - Existing compat commands, if any, are explicitly marked compat.
 - Product invariant tests are load-bearing and fail on forbidden language.
 - The current baseline is measurable enough to compare later slices.
+- The live dogfood harness is read-only for target repos and records timings,
+  status, and line counts in machine-readable form.
 - No schema is removed without a compatibility decision.
 
 ## Load-Bearing Tests
@@ -83,6 +88,7 @@ codemap --root /Users/amir/Documents/projects/spritestudio doctor
 codemap --root /Users/amir/Documents/projects/Sillentway-VPN doctor
 codemap --root <third-project> doctor
 codemap --root /Users/amir/Documents/projects/spritestudio --help
+scripts/dogfood-codemap.sh
 ```
 
 Record whether current help makes it obvious what to run first.
@@ -105,4 +111,3 @@ baseline output that is too vague to compare later
 - reviewer returns PASS;
 - live baseline notes exist;
 - `TODO.md` Slice 01 boxes can be checked honestly.
-

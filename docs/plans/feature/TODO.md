@@ -279,6 +279,8 @@ codemap --root <third-project> proof --changed
 Add slice-specific probes from each `SLICE-*.md` file.
 Every slice inherits the three-repo live requirement from `PLAN.md`; if a repo
 lacks a relevant anchor, record that explicitly instead of skipping it silently.
+Use `scripts/dogfood-codemap.sh` as the default read-only harness unless a slice
+explicitly proves it needs a separate script.
 
 ## Live Probe Notes Template
 
