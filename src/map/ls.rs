@@ -343,6 +343,11 @@ fn directory_surface_role(kind: &str) -> Option<String> {
             | "test_support"
             | "source"
             | "config"
+            | "docs"
+            | "env_config"
+            | "runtime_config"
+            | "manifest"
+            | "lockfile"
             | "schema_contract"
             | "public_boundary"
             | "build_ci"
@@ -360,6 +365,14 @@ fn directory_surface_evidence(kind: &str) -> String {
         "package_script".to_string()
     } else if kind.starts_with("package:") || kind.starts_with("support_package:") {
         "package_manifest".to_string()
+    } else if kind == "manifest" {
+        "manifest_file".to_string()
+    } else if kind == "env_config" {
+        "env_file".to_string()
+    } else if kind == "runtime_config" {
+        "runtime_config_file".to_string()
+    } else if kind == "lockfile" {
+        "lockfile".to_string()
     } else if kind.starts_with("recursive:") {
         "recursive_inventory".to_string()
     } else {
@@ -373,6 +386,10 @@ fn directory_surface_strength(kind: &str) -> EvidenceStrength {
     } else if kind == "domain"
         || kind == "schema_contract"
         || kind == "public_boundary"
+        || kind == "manifest"
+        || kind == "env_config"
+        || kind == "runtime_config"
+        || kind == "lockfile"
         || kind == "build_ci"
     {
         EvidenceStrength::High

@@ -6,6 +6,7 @@ include!("repo/root.rs");
 include!("repo/config.rs");
 include!("repo/scan.rs");
 include!("repo/roles.rs");
+include!("repo/roles_build_ci.rs");
 include!("repo/file_extract.rs");
 include!("repo/symbols_jsx_refs.rs");
 include!("repo/js_params.rs");

@@ -75,7 +75,7 @@ fn strict_test_edges_for_file(
                 70usize,
                 file.rel.clone(),
                 "test_name".to_string(),
-                EvidenceStrength::High,
+                EvidenceStrength::Medium,
             ));
             continue;
         }

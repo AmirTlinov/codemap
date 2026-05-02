@@ -41,6 +41,32 @@ fn proof_surface_precedence(value: &ProofSurface) -> (EvidenceStrength, usize) {
     (value.strength, proof_evidence_precedence(&value.evidence))
 }
 
+fn proof_surface_is_deterministic(proof: &ProofSurface) -> bool {
+    proof.strength >= EvidenceStrength::High
+}
+
+fn proof_surface_satisfies_specific_proof(proof: &ProofSurface) -> bool {
+    proof_surface_is_deterministic(proof) || proof_surface_command_closes_fallback(proof)
+}
+
+fn proof_surface_command_closes_fallback(proof: &ProofSurface) -> bool {
+    if proof.command.is_none() {
+        return false;
+    }
+    if proof_surface_is_deterministic(proof) {
+        return true;
+    }
+    matches!(
+        proof_base_evidence(&proof.evidence),
+        "test_import"
+            | "test_imported_symbol_reference"
+            | "test_reexported_symbol_reference"
+            | "test_support_import"
+            | "test_symbol_reference"
+            | "e2e_route"
+    )
+}
+
 fn proof_evidence_precedence(evidence: &str) -> usize {
     let mediated = evidence.ends_with("_via_direct_consumer")
         || evidence.ends_with("_via_direct_dependency")

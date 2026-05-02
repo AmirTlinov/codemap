@@ -234,8 +234,87 @@ fn proof_token_surfaces_do_not_cross_package_boundaries() {
         paths.contains(&"packages/replay/tests/order-route-smoke.test.ts"),
         "same-package soft proof should remain visible: {proof:#}"
     );
+    let same_package_proof = proof["proofs"]
+        .as_array()
+        .expect("proofs")
+        .iter()
+        .find(|proof| proof["path"] == "packages/replay/tests/order-route-smoke.test.ts")
+        .expect("same-package proof");
+    assert_eq!(same_package_proof["evidence"], "test_surface_tokens");
+    assert_eq!(same_package_proof["locations"][0]["line_start"], 1);
+    assert_eq!(same_package_proof["locations"][0]["kind"], "test_surface");
     assert!(
         !paths.contains(&"packages/app/tests/order-route-smoke.test.ts"),
         "soft token proof must not jump to a sibling package without hard evidence: {proof:#}"
     );
+}
+
+#[test]
+fn proof_token_surface_locations_skip_unrelated_first_tests() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("packages/replay/src/order-route.ts"),
+        "export function createPartnerOrderRoute() {\n  return 'order-route';\n}\n",
+    );
+    write(
+        &repo.path().join("packages/replay/tests/order-route-smoke.test.ts"),
+        "test('unrelated smoke', () => {\n  expect('health').toBeTruthy();\n});\n\ntest('order route smoke', () => {\n  expect('create partner order route').toBeTruthy();\n});\n",
+    );
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "packages/replay/src/order-route.ts",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    let surface = proof["proofs"]
+        .as_array()
+        .expect("proofs")
+        .iter()
+        .find(|proof| proof["path"] == "packages/replay/tests/order-route-smoke.test.ts")
+        .expect("soft proof");
+    assert_eq!(surface["evidence"], "test_surface_tokens");
+    assert_eq!(surface["locations"][0]["kind"], "test_surface");
+    assert_eq!(surface["locations"][0]["line_start"], 5);
+}
+
+#[test]
+fn proof_import_locations_find_multiline_named_imports() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("packages/replay/src/multiline-direct.ts"),
+        "export function multilineDirectValue() {\n  return 1;\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/replay/tests/multiline-direct.test.ts"),
+        "import {\n  multilineDirectValue,\n} from '../src/multiline-direct';\n\ntest('multiline direct value', () => {\n  expect(multilineDirectValue()).toBe(1);\n});\n",
+    );
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "packages/replay/src/multiline-direct.ts",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    let direct = proof["proofs"]
+        .as_array()
+        .expect("proofs")
+        .iter()
+        .find(|proof| proof["path"] == "packages/replay/tests/multiline-direct.test.ts")
+        .expect("direct proof");
+    assert_eq!(direct["evidence"], "test_import");
+    assert_eq!(direct["locations"][0]["kind"], "import_statement");
+    assert_eq!(direct["locations"][0]["line_start"], 2);
 }

@@ -10,7 +10,7 @@ use sha2::{Digest, Sha256};
 pub use super::fingerprint_delta::CacheFileDelta;
 use crate::model::Project;
 
-const FINGERPRINT_CACHE_FORMAT: u32 = 7;
+const FINGERPRINT_CACHE_FORMAT: u32 = 8;
 
 pub fn file_delta(
     root: &Path,

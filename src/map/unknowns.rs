@@ -78,6 +78,17 @@ fn unknown_unresolved_import(path: &str, spec: &str, line_start: Option<usize>) 
     )
 }
 
+fn unknown_missing_deterministic_proof(path: &str, expand: String) -> Unknown {
+    unknown(
+        "missing_deterministic_proof",
+        Some(path),
+        None,
+        "only soft proof evidence was found for this proof scope",
+        "token, path, or test-name matches are shown as soft evidence and do not close direct proof discovery",
+        Some(expand),
+    )
+}
+
 fn unresolved_import_unknowns(project: &Project, file: &FileInfo) -> Vec<Unknown> {
     file.unresolved_imports
         .iter()

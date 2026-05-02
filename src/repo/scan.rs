@@ -237,6 +237,9 @@ fn scan_file_rejection(path: &Path, size: u64) -> Option<&'static str> {
         .and_then(|s| s.to_str())
         .unwrap_or("")
         .to_ascii_lowercase();
+    if is_env_surface_name(&name) || is_lockfile_name(&name) {
+        return None;
+    }
     if size > 900_000 && !is_asset_ext(&ext) {
         return Some("too_large");
     }
@@ -283,11 +286,25 @@ fn scan_file_rejection(path: &Path, size: u64) -> Option<&'static str> {
 }
 
 fn language_for(path: &Path) -> String {
+    let name = path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
     let ext = path
         .extension()
         .and_then(|s| s.to_str())
         .unwrap_or("")
         .to_ascii_lowercase();
+    if is_env_surface_name(&name) {
+        return "env".to_string();
+    }
+    if is_lockfile_name(&name) {
+        return "lockfile".to_string();
+    }
+    if matches!(name.as_str(), "dockerfile" | "jenkinsfile" | "earthfile") {
+        return "config".to_string();
+    }
     match ext.as_str() {
         "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte" => "javascript/typescript",
         "py" => "python",
@@ -295,6 +312,8 @@ fn language_for(path: &Path) -> String {
         "go" => "go",
         "swift" => "swift",
         "json" | "toml" | "yaml" | "yml" => "config",
+        "prisma" | "graphql" | "gql" | "proto" | "avsc" => "schema",
+        "sql" => "sql",
         "css" | "scss" | "sass" | "less" => "style",
         ext if is_asset_ext(ext) => "asset",
         ext if is_snapshot_ext(ext) => "snapshot",

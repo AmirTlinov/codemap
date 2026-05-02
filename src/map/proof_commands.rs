@@ -249,7 +249,7 @@ fn proof_fallback_commands(
     if anchors.is_empty() && changed.is_empty() {
         return Vec::new();
     }
-    if proofs.iter().any(|proof| proof.command.is_some()) {
+    if proofs.iter().any(proof_surface_command_closes_fallback) {
         return Vec::new();
     }
     let proof_commands = proofs
@@ -300,4 +300,3 @@ fn anchor_file_rel(anchor: &str) -> String {
         .map(|(file_rel, _)| file_rel)
         .unwrap_or_else(|| anchor.to_string())
 }
-

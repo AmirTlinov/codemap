@@ -29,6 +29,7 @@ pub(crate) fn import_statement_locations(
     };
     let mut locations = Vec::new();
     let mut css_block_comment = false;
+    let mut inside_import_block = false;
     for (index, line) in text.lines().enumerate() {
         let visible;
         let line = if matches!(info.ext.as_str(), "css" | "scss" | "sass" | "less") {
@@ -38,7 +39,8 @@ pub(crate) fn import_statement_locations(
             line
         };
         let trimmed = line.trim_start();
-        if !line_looks_like_import_or_reexport(trimmed) {
+        let import_like = line_looks_like_import_or_reexport(trimmed);
+        if !import_like && !inside_import_block {
             continue;
         }
         if names
@@ -49,6 +51,11 @@ pub(crate) fn import_statement_locations(
             if locations.len() >= 3 {
                 break;
             }
+        }
+        if import_like && import_statement_may_continue(line) {
+            inside_import_block = true;
+        } else if inside_import_block && import_statement_complete(line) {
+            inside_import_block = false;
         }
     }
     if locations.is_empty() {
@@ -143,6 +150,7 @@ pub(crate) fn line_looks_like_import_or_reexport(trimmed: &str) -> bool {
     trimmed.starts_with("import ")
         || trimmed.starts_with("import(")
         || trimmed.starts_with("require(")
+        || trimmed.starts_with("from ")
         || trimmed.starts_with("export ")
         || trimmed.starts_with("use ")
         || trimmed.starts_with("mod ")
@@ -150,4 +158,24 @@ pub(crate) fn line_looks_like_import_or_reexport(trimmed: &str) -> bool {
         || trimmed.starts_with("#[path")
         || trimmed.starts_with("include!(")
         || trimmed.starts_with("@import ")
+}
+
+fn import_statement_may_continue(line: &str) -> bool {
+    let trimmed = line.trim_end();
+    if trimmed.ends_with(';') || trimmed.ends_with(')') {
+        return false;
+    }
+    let compact = trimmed.trim_start();
+    (compact.starts_with("import ")
+        || compact.starts_with("export ")
+        || compact.starts_with("use ")
+        || compact.starts_with("from "))
+        && (trimmed.contains('{') || trimmed.contains('(') || trimmed.ends_with(','))
+}
+
+fn import_statement_complete(line: &str) -> bool {
+    let trimmed = line.trim_end();
+    trimmed.ends_with(';')
+        || trimmed.ends_with(')')
+        || (trimmed.contains(" from ") && (trimmed.contains('"') || trimmed.contains('\'')))
 }

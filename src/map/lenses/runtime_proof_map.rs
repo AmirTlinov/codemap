@@ -226,13 +226,22 @@ pub fn proof_map_report(
             ));
         }
         let proofs = proof_surfaces_for_anchor(project, seed, 1, discovery_limit);
-        if proofs.is_empty() && proof_map_missing_should_surface(project, seed, scope.as_deref(), &changed) {
+        let has_specific_proof = proofs.iter().any(proof_surface_satisfies_specific_proof);
+        if !has_specific_proof
+            && proof_map_missing_should_surface(project, seed, scope.as_deref(), &changed)
+        {
             missing_direct.push(surface_from_path(
                 "missing_direct_proof",
                 seed,
                 "no_structural_proof_surface",
                 EvidenceStrength::Medium,
             ));
+            if !proofs.is_empty() {
+                unknowns.push(unknown_missing_deterministic_proof(
+                    seed,
+                    format!("codemap proof-map {}", shell_quote(seed)),
+                ));
+            }
         }
         if scope.is_none()
             && let Some(unknown) =
@@ -440,59 +449,4 @@ fn group_env_surfaces(values: Vec<EnvSurface>) -> Vec<EnvSurface> {
         }
     }
     out
-}
-
-fn route_proof_surfaces_for_routes(
-    project: &Project,
-    routes: Vec<RuntimeRoute>,
-    index: &RuntimeFactIndex,
-) -> Vec<ProofSurface> {
-    routes
-        .into_iter()
-        .flat_map(|route| {
-            let label = route_anchor_label(&route);
-            route_reference_edges_with_index(project, &route, index)
-                .into_iter()
-                .map(move |edge| ProofSurface {
-                    command: proof_command_for_test(project, &edge.from),
-                    path: Some(edge.from),
-                    evidence: edge.evidence,
-                    strength: edge.strength,
-                    reason: format!("e2e visits runtime route {label}"),
-                    locations: edge.locations,
-                })
-        })
-        .collect()
-}
-
-fn route_proof_unknowns_for_routes(
-    project: &Project,
-    routes: Vec<RuntimeRoute>,
-    index: &RuntimeFactIndex,
-) -> Vec<Unknown> {
-    routes
-        .into_iter()
-        .filter(|route| {
-            route_can_be_proved_by_page_goto(route)
-                && route_has_page_visit_in_proof_scope_with_index(project, route, index)
-                && route_has_ambiguous_page_visit_owner_with_index(project, route, index)
-        })
-        .map(|route| {
-            let line = route
-                .locations
-                .first()
-                .and_then(|location| location.line_start);
-            unknown(
-                "ambiguous_route_visit_owner",
-                Some(route.file.clone()),
-                line,
-                format!(
-                    "runtime route `{}` has multiple method-compatible owners in this proof scope",
-                    route_anchor_label(&route)
-                ),
-                "page.goto route visits are not attached as e2e proof because the owner is ambiguous",
-                Some(format!("codemap runtime {}", shell_quote(&route.file))),
-            )
-        })
-        .collect()
 }

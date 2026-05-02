@@ -55,7 +55,9 @@ fn try_cached_cone_fast_path(
     }) else {
         return Ok(None);
     };
-    output(args.format, &report, || render::cone(&report))?;
+    output(args.format, &report, || {
+        render::cone(&report, cone_section_name(args.section))
+    })?;
     Ok(Some(()))
 }
 

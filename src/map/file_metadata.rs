@@ -40,8 +40,13 @@ fn file_kind_for_ls(info: &FileInfo) -> String {
         "e2e_test",
         "test_support",
         "test",
+        "manifest",
         "schema_contract",
         "public_boundary",
+        "env_config",
+        "runtime_config",
+        "lockfile",
+        "docs",
         "runtime_state",
         "adapter",
         "parser",
@@ -70,6 +75,12 @@ fn file_kind_for_ls(info: &FileInfo) -> String {
         "snapshot".to_string()
     } else if info.language == "config" {
         "config".to_string()
+    } else if info.language == "env" {
+        "env_config".to_string()
+    } else if info.language == "schema" {
+        "schema_contract".to_string()
+    } else if info.language == "lockfile" {
+        "lockfile".to_string()
     } else if info.language == "markdown" {
         "docs".to_string()
     } else {

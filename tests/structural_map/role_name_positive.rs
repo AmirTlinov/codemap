@@ -53,8 +53,8 @@ fn proof_links_ui_anchor_to_named_unit_and_e2e_surfaces_without_imports() {
         "e2e proof must require shared exact UI/test surface, not canvas/studio words: {proof:#}"
     );
     assert!(
-        proof["fallback"].as_array().expect("fallback").is_empty(),
-        "broad fallback should stay hidden when file-level proof commands exist"
+        !proof["fallback"].as_array().expect("fallback").is_empty(),
+        "soft file-level proof commands must not hide broad fallback"
     );
 
     let cone = run_json(
@@ -189,8 +189,8 @@ test('import dialog is a different accessible surface', async ({ page }) => {
         "role name must be exact enough to avoid sibling dialog e2e proof: {proof:#}"
     );
     assert!(
-        proof["fallback"].as_array().expect("fallback").is_empty(),
-        "structural e2e proof should suppress broad fallback: {proof:#}"
+        !proof["fallback"].as_array().expect("fallback").is_empty(),
+        "soft e2e role/name proof must not suppress broad fallback: {proof:#}"
     );
 }
 
@@ -296,4 +296,3 @@ test('command palette opens export dialog', async ({ page }) => {
         "dialog accessible-name proof should resolve through multiline barrel exports: {proof:#}"
     );
 }
-

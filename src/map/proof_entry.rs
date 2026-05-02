@@ -169,7 +169,21 @@ pub fn proof_report(
             }
         }
     }
-    proofs = unique_proof_surfaces(proofs);
+    let all_proofs = unique_proof_surfaces(proofs);
+    let fallback = proof_fallback_commands(project, &anchors, &changed, &all_proofs);
+    let mut unknowns = Vec::new();
+    if let Some(target) = target.as_ref()
+        && (project.files.contains_key(target) || directory_has_files(project, target))
+        && proof_missing_should_surface(project, target)
+        && !all_proofs.is_empty()
+        && !all_proofs.iter().any(proof_surface_satisfies_specific_proof)
+    {
+        unknowns.push(unknown_missing_deterministic_proof(
+            target,
+            format!("codemap proof-map {}", shell_quote(target)),
+        ));
+    }
+    proofs = all_proofs;
     if proofs.len() > limit {
         hidden.push(HiddenGroup {
             reason: "proof surfaces hidden by limit".to_string(),
@@ -182,8 +196,6 @@ pub fn proof_report(
         });
         proofs.truncate(limit);
     }
-    let fallback = proof_fallback_commands(project, &anchors, &changed, &proofs);
-    let mut unknowns = Vec::new();
     let mut expand = Vec::new();
     if proofs.is_empty()
         && let Some(target) = target.as_ref()

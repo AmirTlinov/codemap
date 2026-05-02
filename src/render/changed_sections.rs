@@ -61,6 +61,12 @@ const CHANGED_ROLE_ORDER: &[&str] = &[
     "source",
     "test",
     "schema",
+    "manifest",
+    "env",
+    "config",
+    "lockfile",
+    "docs",
+    "public_boundary",
     "contract_doc",
     "ci",
     "script",
@@ -101,12 +107,28 @@ fn changed_roles_for_path(path: &str) -> Vec<String> {
     }
     if lower.contains("schema")
         || lower.contains("openapi")
+        || lower.ends_with(".prisma")
         || lower.ends_with(".proto")
         || lower.ends_with(".graphql")
+        || lower.ends_with(".gql")
         || changed_path_has_segment(&lower, "migrations")
         || changed_path_has_segment(&lower, "prisma")
     {
         roles.insert("schema".to_string());
+    }
+    if changed_path_is_manifest(&lower) {
+        roles.insert("manifest".to_string());
+        roles.insert("public_boundary".to_string());
+    }
+    if changed_path_is_env(&lower) {
+        roles.insert("env".to_string());
+        roles.insert("config".to_string());
+    }
+    if changed_path_is_config(&lower) {
+        roles.insert("config".to_string());
+    }
+    if changed_path_is_lockfile(&lower) {
+        roles.insert("lockfile".to_string());
     }
     if lower.starts_with(".github/workflows/")
         || lower.starts_with(".gitlab-ci")
@@ -149,6 +171,9 @@ fn changed_roles_for_path(path: &str) -> Vec<String> {
     if lower.ends_with(".md") && (lower.contains("/contracts/") || lower.contains("contract")) {
         roles.insert("contract_doc".to_string());
     }
+    if lower.ends_with(".md") {
+        roles.insert("docs".to_string());
+    }
     if roles.is_empty() && changed_path_looks_like_source(&lower) {
         roles.insert("source".to_string());
     }
@@ -160,6 +185,65 @@ fn changed_roles_for_path(path: &str) -> Vec<String> {
 
 fn changed_path_has_segment(path: &str, segment: &str) -> bool {
     path.split('/').any(|part| part == segment)
+}
+
+fn changed_path_file_name(path: &str) -> &str {
+    path.rsplit('/').next().unwrap_or(path)
+}
+
+fn changed_path_is_manifest(path: &str) -> bool {
+    matches!(
+        changed_path_file_name(path),
+        "package.json"
+            | "cargo.toml"
+            | "go.mod"
+            | "go.work"
+            | "pyproject.toml"
+            | "requirements.txt"
+            | "package.swift"
+            | "pnpm-workspace.yaml"
+            | "pnpm-workspace.yml"
+    )
+}
+
+fn changed_path_is_env(path: &str) -> bool {
+    let name = changed_path_file_name(path);
+    name == ".env" || name.starts_with(".env.")
+}
+
+fn changed_path_is_lockfile(path: &str) -> bool {
+    matches!(
+        changed_path_file_name(path),
+        "package-lock.json"
+            | "npm-shrinkwrap.json"
+            | "pnpm-lock.yaml"
+            | "pnpm-lock.yml"
+            | "yarn.lock"
+            | "bun.lock"
+            | "bun.lockb"
+            | "cargo.lock"
+            | "poetry.lock"
+            | "pdm.lock"
+            | "uv.lock"
+            | "gemfile.lock"
+            | "composer.lock"
+    ) || path.ends_with(".lock")
+}
+
+fn changed_path_is_config(path: &str) -> bool {
+    let name = changed_path_file_name(path);
+    changed_path_is_env(path)
+        || matches!(
+            name,
+            "dockerfile"
+                | "docker-compose.yml"
+                | "docker-compose.yaml"
+                | "compose.yml"
+                | "compose.yaml"
+                | "kustomization.yaml"
+                | "kustomization.yml"
+        )
+        || matches!(path.rsplit('.').next().unwrap_or_default(), "json" | "toml" | "yaml" | "yml")
 }
 
 fn changed_path_looks_like_source(path: &str) -> bool {
@@ -247,7 +331,7 @@ fn changed_unknown_section(values: &[Unknown], force: bool) {
     if values.is_empty() {
         if force {
             println!("\n## Unknown\n");
-            println!("None found.");
+            println!("No Unknown entries recorded for this selector.");
         }
         return;
     }

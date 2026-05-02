@@ -1,4 +1,7 @@
 include!("lenses/changed.rs");
+include!("lenses/changed_structural_events.rs");
+include!("lenses/changed_fail_open_unknowns.rs");
+include!("lenses/changed_path_helpers.rs");
 include!("lenses/diff_map.rs");
 include!("lenses/diff_map_runtime.rs");
 include!("lenses/diff_map_unknowns.rs");
@@ -11,6 +14,7 @@ include!("lenses/runtime_clap_commands.rs");
 include!("lenses/runtime_scope.rs");
 include!("lenses/runtime_root_containers.rs");
 include!("lenses/runtime_worker_jobs.rs");
+include!("lenses/runtime_proof_helpers.rs");
 include!("lenses/runtime_proof_map.rs");
 include!("lenses/boundary_map.rs");
 include!("lenses/flow_runtime_entrypoints.rs");

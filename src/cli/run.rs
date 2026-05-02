@@ -86,7 +86,9 @@ pub fn run() -> Result<()> {
             let report =
                 map::cone_report(&project, &path, args.depth, args.include_hidden, args.limit);
             maybe_write_cone_lens_cache(&project, &path, &args, &report);
-            output(args.format, &report, || render::cone(&report))
+            output(args.format, &report, || {
+                render::cone(&report, cone_section_name(args.section))
+            })
         }
         CommandKind::Init(args) => init(&project, args),
         CommandKind::Bootstrap(_) => Ok(()),

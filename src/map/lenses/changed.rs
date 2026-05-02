@@ -14,7 +14,14 @@ pub fn changed_report(
         .filter(|file| file != ".")
         .collect::<BTreeSet<_>>()
         .len();
-    let structural_events = changed_structural_events(&git_state, &selector);
+    let changed_paths = changed
+        .iter()
+        .map(|file| repo::normalize_rel_path(file))
+        .filter(|file| file != ".")
+        .collect::<Vec<_>>();
+    let mut structural_events = changed_structural_events(&git_state, &selector);
+    structural_events.extend(changed_diff_structural_events(project, &changed_paths, &mode));
+    sort_changed_structural_events(&mut structural_events);
     if total_changed_count == 0 && git_state.is_empty() {
         return ChangedReport {
             kind: "changed_report",
@@ -75,6 +82,7 @@ pub fn changed_report(
     unknowns.extend(diff.new_unknowns.clone());
     unknowns.extend(impact.unknowns.clone());
     unknowns.extend(proof_map.unknowns.clone());
+    unknowns.extend(changed_fail_open_unknowns(project, &changed_paths));
     dedupe_unknowns(&mut unknowns);
     let unknown_expand = format!(
         "codemap changed{} --section unknown --limit {}",
@@ -215,65 +223,6 @@ fn changed_proof_selector(selector: &str) -> String {
     } else {
         selector.to_string()
     }
-}
-
-fn changed_structural_events(
-    git_state: &[GitChange],
-    selector: &str,
-) -> Vec<crate::model::ChangedStructuralEvent> {
-    let mut events = git_state
-        .iter()
-        .filter_map(|change| changed_structural_event(change, selector))
-        .collect::<Vec<_>>();
-    events.sort_by(|a, b| {
-        a.kind
-            .cmp(&b.kind)
-            .then_with(|| a.path.cmp(&b.path))
-            .then_with(|| a.old_path.cmp(&b.old_path))
-    });
-    events
-}
-
-fn changed_structural_event(
-    change: &GitChange,
-    selector: &str,
-) -> Option<crate::model::ChangedStructuralEvent> {
-    let (kind, effect, location_kind, expand) = match change.status.as_str() {
-        "deleted" => (
-            "removed_anchor",
-            "path was removed from the working tree; inspect removed edges and exports",
-            "git_deleted",
-            Some(format!("codemap diff-map {selector}")),
-        ),
-        "renamed" => (
-            "renamed_anchor",
-            "path moved; old-path consumers may still point at the previous anchor",
-            "git_renamed",
-            Some(format!("codemap cone {}", shell_quote(&change.path))),
-        ),
-        "typechanged" => (
-            "typechanged_anchor",
-            "path type changed; structural facts may need a fresh exact anchor check",
-            "git_typechanged",
-            Some(format!("codemap ls {}", shell_quote(&change.path))),
-        ),
-        "conflicted" => (
-            "conflicted_anchor",
-            "merge conflict prevents a stable structural map for this path",
-            "git_conflicted",
-            Some(format!("codemap ls {}", shell_quote(&change.path))),
-        ),
-        _ => return None,
-    };
-    Some(crate::model::ChangedStructuralEvent {
-        kind: kind.to_string(),
-        path: change.path.clone(),
-        old_path: change.old_path.clone(),
-        evidence: "git_status".to_string(),
-        effect: effect.to_string(),
-        locations: vec![EvidenceLocation::path(&change.path, location_kind)],
-        expand,
-    })
 }
 
 fn count_with_hidden(visible: usize, hidden: &[HiddenGroup], reason: &str) -> usize {

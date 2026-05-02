@@ -35,11 +35,11 @@ fn proof_links_e2e_path_surface_to_non_ui_domain_anchor_without_imports() {
             .any(|surface| surface["path"]
                 == "packages/app/tests/e2e/canvas-selection-focus-state.spec.ts"
                 && surface["evidence"] == "e2e_path_surface"),
-        "e2e specs with strong path/name overlap should prove non-UI domain anchors without broad fallback: {proof:#}"
+        "e2e specs with strong path/name overlap should remain visible as soft proof evidence: {proof:#}"
     );
     assert!(
-        proof["fallback"].as_array().expect("fallback").is_empty(),
-        "structural e2e path proof should suppress broad fallback: {proof:#}"
+        !proof["fallback"].as_array().expect("fallback").is_empty(),
+        "soft e2e path proof must not suppress broad fallback: {proof:#}"
     );
 
     let symbol_proof = run_json(
@@ -65,11 +65,11 @@ fn proof_links_e2e_path_surface_to_non_ui_domain_anchor_without_imports() {
         "symbol anchors without exact symbol proof should expose clearly labeled owning-file proof instead of broad fallback: {symbol_proof:#}"
     );
     assert!(
-        symbol_proof["fallback"]
+        !symbol_proof["fallback"]
             .as_array()
             .expect("symbol fallback")
             .is_empty(),
-        "owning-file proof should suppress broad fallback for symbol anchors: {symbol_proof:#}"
+        "soft owning-file proof must not suppress broad fallback for symbol anchors: {symbol_proof:#}"
     );
 
     let symbol_cone = run_json(
@@ -196,4 +196,3 @@ fn proof_rejects_direct_e2e_path_surface_when_anchor_has_code_consumer() {
         "when an anchor has a code consumer, path-only e2e overlap must not pretend to prove the helper directly: {proof:#}"
     );
 }
-

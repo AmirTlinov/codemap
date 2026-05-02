@@ -333,13 +333,27 @@ fn direct_test_import_proof_surfaces_for_scope(
             file.has_role("test") && !file.has_role("test_support") && repo::is_source_ext(&file.ext)
         })
         .filter(|file| file.resolved_imports.iter().any(|target| seeds.contains(target)))
-        .map(|file| ProofSurface {
-            command: proof_command_for_test(project, &file.rel),
-            path: Some(file.rel.clone()),
-            evidence: "test_import".to_string(),
-            strength: EvidenceStrength::High,
-            reason: "test imports scope file".to_string(),
-            locations: proof_surface_locations_for_test(&file.rel, "test_import"),
+        .map(|file| {
+            let target = file
+                .resolved_imports
+                .iter()
+                .find(|target| seeds.contains(*target));
+            let locations = target
+                .map(|target| import_statement_locations(project, &file.rel, target))
+                .filter(|locations| {
+                    locations
+                        .iter()
+                        .any(|location| location.line_start.is_some())
+                })
+                .unwrap_or_else(|| proof_surface_locations_for_test(&file.rel, "test_import"));
+            ProofSurface {
+                command: proof_command_for_test(project, &file.rel),
+                path: Some(file.rel.clone()),
+                evidence: "test_import".to_string(),
+                strength: EvidenceStrength::High,
+                reason: "test imports scope file".to_string(),
+                locations,
+            }
         })
         .collect::<Vec<_>>();
     out.sort_by(|a, b| {

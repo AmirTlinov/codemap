@@ -143,6 +143,8 @@ struct ConeArgs {
     path: String,
     #[arg(long, default_value_t = 1)]
     depth: usize,
+    #[arg(long, value_enum)]
+    section: Option<ConeSection>,
     #[arg(long = "all", alias = "include-hidden")]
     include_hidden: bool,
     #[arg(long, default_value_t = 20, hide = true)]
@@ -242,6 +244,17 @@ enum ChangedSection {
     #[value(alias = "overview", alias = "diff")]
     Observed,
     #[value(alias = "impact")]
+    Links,
+    Roles,
+    Proof,
+    #[value(alias = "unknowns")]
+    Unknown,
+    Hidden,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
+enum ConeSection {
+    Observed,
     Links,
     Roles,
     Proof,

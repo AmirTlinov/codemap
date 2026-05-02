@@ -62,6 +62,24 @@ repos would add noise instead of proof.
 
 ## Current Boundary
 
+Post-final repair wave is active:
+
+```txt
+status: active
+tier: full/live
+boundary: false-confidence closure after live dogfood found first-class
+structural surfaces that were skipped or rendered as unknown. Slice 28 remains a
+historical final audit for the previous product boundary, but its broad trust
+claim is reopened until `.prisma`, `.env*`, package manifests, docs, and CI
+surfaces are indexed, role-consistent, proof-honest, and useful in exact cones.
+proof: regression fixtures plus live read-only Levelly probes for
+schema.prisma, .env.example, package.json, and current-repo Cargo.toml.
+review: required after each repair slice because scanner, public lens behavior,
+and proof/unknown semantics are changing.
+live: required where the bug was found in Levelly or current installed PATH use.
+next: map-quality P1/P2 cleanup after slices 29A-29C are verified and reviewed.
+```
+
 Slice 06 compact renderer is closed. Do not continue renderer micro-polish
 unless a specific output still confuses the agent or creates a false claim.
 
@@ -401,8 +419,56 @@ or misleading map.
 | 26 Fixture matrix across stacks | closed first boundary | full | Cross-stack fixtures cover daily after-edit workflow plus focused lenses. |
 | 27 Live adoption harness and PATH ergonomics | closed first boundary | live | Read-only daily/focused live harness is usable and records budgets. |
 | 28 Final audit, cleanup, TODO closure | closed | final | Full system audit passed with one parked dirty-repo perf gap recorded. |
+| 29A False-confidence closure: indexing and public roles | closed | full/live | `.prisma`, `.env*`, manifests, docs, and CI surfaces stay first-class across scanner, kind, cone roles, and changed roles. |
+| 29B False-confidence closure: proof and unknown truth | closed | full/live | Soft token proof and fallback commands do not hide missing deterministic proof sensors. |
+| 29C False-confidence closure: owner-surface cones | closed | full/live | Manifest, schema, env, and CI anchors expose useful deterministic neighborhoods. |
 
 ## Closed Boundaries
+
+### Slice 29A: False-Confidence Closure, Indexing And Public Roles
+
+```txt
+closed: `.prisma`, `.env*`, package manifests, Cargo manifests, docs, CI
+workflows, Docker/compose files, lockfiles, and DB migrations are indexed as
+first-class structural surfaces and render public roles instead of unknown.
+excluded: broad P1 role taxonomy cleanup for ordinary source files remains
+later map-quality work.
+proof: false-confidence structural-surface regressions plus full local gate.
+review: covered by final false-confidence reviewer.
+live: installed PATH `codemap` on Levelly reports schema.prisma as `schema`,
+.env.example as `config/env`, package.json as `manifest/public_boundary`, and
+current-repo `src/map/proof_owner_ci.rs` as `source`.
+```
+
+### Slice 29B: False-Confidence Closure, Proof And Unknown Truth
+
+```txt
+closed: direct proof requires deterministic evidence, package/schema/config
+owners get explicit proof surfaces or fail-open Unknowns, token/soft evidence
+does not clear missing deterministic proof, and package CI references must be
+package-specific.
+excluded: wider proof command ergonomics across every package manager remains
+P1/P2 work.
+proof: proof false-confidence regressions, deleted-env regression, CI multiline
+run regression, package-specific CI regression, and full local gate.
+review: covered by final false-confidence reviewer.
+live: Levelly Prisma schema proof lists package-local db scripts with
+`schema_package_script` evidence instead of a generic fallback.
+```
+
+### Slice 29C: False-Confidence Closure, Owner-Surface Cones
+
+```txt
+closed: manifest, schema, env, and CI anchors expose deterministic owner
+neighborhoods; `cone --section observed` for env surfaces includes declared
+env keys, while Links/Proof/Unknown remain section-filtered.
+excluded: full section symmetry for every future structural role remains
+follow-up map-quality work.
+proof: owner-cone regressions plus full local gate.
+review: covered by final false-confidence reviewer.
+live: Levelly `.env.example` observed section reports 20 declared env keys with
+line provenance and hidden summary.
+```
 
 ### Slice 01: Product Lock, Baseline Inventory, Invariant Guards
 

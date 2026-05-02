@@ -59,6 +59,19 @@ fn classify_roles(root: &Path, info: &mut FileInfo) {
     ) {
         info.roles.insert("public_boundary".to_string());
     }
+    if is_package_manifest_name(&name) {
+        info.roles.insert("manifest".to_string());
+    }
+    if is_env_surface_name(&name) {
+        info.roles.insert("env_config".to_string());
+        info.roles.insert("runtime_config".to_string());
+    }
+    if is_lockfile_name(&name) {
+        info.roles.insert("lockfile".to_string());
+    }
+    if is_docs_surface(&rel, &name, &info.ext) {
+        info.roles.insert("docs".to_string());
+    }
     add_role_if(
         &mut info.roles,
         &rel,
@@ -82,7 +95,7 @@ fn classify_roles(root: &Path, info: &mut FileInfo) {
         &["session", "cursor", "clock", "controller", "manager"],
         "runtime_state",
     );
-    if is_schema_contract_surface(&rel, &name, &info.ext) {
+    if !info.roles.contains("manifest") && is_schema_contract_surface(&rel, &name, &info.ext) {
         info.roles.insert("schema_contract".to_string());
     }
     add_role_if(
@@ -97,12 +110,7 @@ fn classify_roles(root: &Path, info: &mut FileInfo) {
         &["parser", "parse", "loader", "reader", "decoder"],
         "parser",
     );
-    add_role_if(
-        &mut info.roles,
-        &rel,
-        &["render", "view", "component", "page", "screen", "ui"],
-        "renderer_ui",
-    );
+    add_renderer_ui_role_if(&mut info.roles, &rel, &info.ext, &info.tokens);
     add_role_if(
         &mut info.roles,
         &rel,
@@ -120,8 +128,11 @@ fn classify_roles(root: &Path, info: &mut FileInfo) {
     }
     add_role_if(&mut info.roles, &rel, &["cache", "fingerprint"], "cache");
     add_role_if(&mut info.roles, &rel, &["cli", "command"], "cli_surface");
-    if is_build_ci_surface(&rel, &name, &info.tokens) {
+    if is_build_ci_surface(&rel, &name, &info.ext, &info.tokens) {
         info.roles.insert("build_ci".to_string());
+    }
+    if is_runtime_config_surface(&rel, &name) {
+        info.roles.insert("runtime_config".to_string());
     }
     if name == "agents.md" {
         info.roles.insert("agent_bootstrap".to_string());
@@ -153,6 +164,90 @@ fn add_role_if(roles: &mut BTreeSet<String>, haystack: &str, needles: &[&str], r
     if needles.iter().any(|needle| haystack.contains(needle)) {
         roles.insert(role.to_string());
     }
+}
+
+fn add_renderer_ui_role_if(
+    roles: &mut BTreeSet<String>,
+    rel: &str,
+    ext: &str,
+    tokens: &BTreeSet<String>,
+) {
+    if matches!(ext, "tsx" | "jsx" | "vue" | "svelte")
+        || ["render", "view", "component", "page", "screen"]
+        .iter()
+        .any(|needle| rel.contains(needle))
+        || tokens.contains("ui")
+    {
+        roles.insert("renderer_ui".to_string());
+    }
+}
+
+fn is_package_manifest_name(name: &str) -> bool {
+    matches!(
+        name,
+        "package.json"
+            | "cargo.toml"
+            | "go.mod"
+            | "go.work"
+            | "pyproject.toml"
+            | "requirements.txt"
+            | "package.swift"
+            | "pnpm-workspace.yaml"
+            | "pnpm-workspace.yml"
+    )
+}
+
+fn is_env_surface_name(name: &str) -> bool {
+    name == ".env" || name.starts_with(".env.")
+}
+
+fn is_lockfile_name(name: &str) -> bool {
+    matches!(
+        name,
+        "package-lock.json"
+            | "npm-shrinkwrap.json"
+            | "pnpm-lock.yaml"
+            | "pnpm-lock.yml"
+            | "yarn.lock"
+            | "bun.lock"
+            | "bun.lockb"
+            | "cargo.lock"
+            | "poetry.lock"
+            | "pdm.lock"
+            | "uv.lock"
+            | "gemfile.lock"
+            | "composer.lock"
+    ) || name.ends_with(".lock")
+}
+
+fn is_docs_surface(rel: &str, name: &str, ext: &str) -> bool {
+    ext == "md"
+        && (name == "readme.md"
+            || name == "agents.md"
+            || rel.starts_with("docs/")
+            || rel.contains("/docs/")
+            || rel.starts_with("contracts/")
+            || rel.contains("/contracts/"))
+}
+
+fn is_runtime_config_surface(rel: &str, name: &str) -> bool {
+    is_env_surface_name(name)
+        || matches!(
+            name,
+            "dockerfile"
+                | "docker-compose.yml"
+                | "docker-compose.yaml"
+                | "compose.yml"
+                | "compose.yaml"
+                | "kustomization.yaml"
+                | "kustomization.yml"
+        )
+        || rel.starts_with("deploy/")
+        || rel.starts_with("deployment/")
+        || rel.starts_with("infra/")
+        || rel.contains("/deploy/")
+        || rel.contains("/deployment/")
+        || rel.contains("/k8s/")
 }
 
 fn is_snapshot_surface(rel: &str, name: &str, ext: &str) -> bool {
@@ -246,41 +341,6 @@ fn contract_surface_stem(path: &Path, name: &str) -> String {
     } else {
         stem
     }
-}
-
-fn is_build_ci_surface(rel: &str, name: &str, tokens: &BTreeSet<String>) -> bool {
-    rel.starts_with(".github/workflows/")
-        || rel.starts_with(".circleci/")
-        || rel.starts_with(".buildkite/")
-        || rel.starts_with(".teamcity/")
-        || matches!(
-            name,
-            ".gitlab-ci.yml"
-                | ".gitlab-ci.yaml"
-                | "azure-pipelines.yml"
-                | "azure-pipelines.yaml"
-                | "bitbucket-pipelines.yml"
-                | "bitbucket-pipelines.yaml"
-                | ".drone.yml"
-                | ".drone.yaml"
-                | ".woodpecker.yml"
-                | ".woodpecker.yaml"
-                | "jenkinsfile"
-                | "dockerfile"
-                | "docker-compose.yml"
-                | "docker-compose.yaml"
-                | "compose.yml"
-                | "compose.yaml"
-                | "makefile"
-                | "justfile"
-                | "taskfile"
-                | "taskfile.yml"
-                | "taskfile.yaml"
-                | "earthfile"
-        )
-        || tokens.contains("build")
-        || tokens.contains("ci")
-        || tokens.contains("workflow")
 }
 
 fn is_generated(rel: &str) -> bool {

@@ -25,23 +25,40 @@ pub fn ls(report: &LsReport) {
     }
 }
 
-pub fn cone(report: &ConeReport) {
+pub fn cone(report: &ConeReport, section_filter: Option<&str>) {
     println!("# Structural Cone\n");
     println!("Anchor: `{}`", report.anchor.path);
     println!("Depth: `{}`", report.depth);
-    render_anchor_summary("Observed", &report.anchor);
-    render_roles(&report.anchor);
-    if !report.outgoing.is_empty() || !report.incoming.is_empty() || !report.contracts.is_empty() || !report.boundary.is_empty() {
+    if matches!(section_filter, None | Some("observed")) {
+        render_cone_observed(report);
+    }
+    if matches!(section_filter, None | Some("roles")) {
+        render_roles(&report.anchor);
+    }
+    if matches!(section_filter, None | Some("links"))
+        && (!report.outgoing.is_empty()
+            || !report.incoming.is_empty()
+            || !report.contracts.is_empty()
+            || !report.boundary.is_empty())
+    {
         println!("\n## Links\n");
         grouped_edge_list("outgoing", &report.outgoing, 20);
         grouped_edge_list("incoming", &report.incoming, 20);
         grouped_edge_list("contracts", &report.contracts, 20);
         grouped_edge_list("boundary", &report.boundary, 20);
     }
-    cone_section("Proof", &report.proof);
-    hidden_section(&report.hidden);
-    unknown_section(&report.unknowns);
-    section("Expand", &report.expand);
+    if matches!(section_filter, None | Some("proof")) {
+        cone_section("Proof", &report.proof);
+    }
+    if matches!(section_filter, None | Some("hidden")) {
+        hidden_section(&report.hidden);
+    }
+    if matches!(section_filter, None | Some("unknown")) {
+        unknown_section(&report.unknowns);
+    }
+    if section_filter.is_none() {
+        section("Expand", &report.expand);
+    }
 }
 
 fn edge_location_summary(edge: &StructuralEdge) -> String {
@@ -102,6 +119,30 @@ fn render_anchor_summary(title: &str, anchor: &crate::model::FileSummary) {
     println!("- imported by: `{}`", anchor.imported_by_count);
 }
 
+fn render_cone_observed(report: &ConeReport) {
+    render_anchor_summary("Observed", &report.anchor);
+    render_declared_env_keys(&report.outgoing);
+}
+
+fn render_declared_env_keys(edges: &[StructuralEdge]) {
+    let keys = edges
+        .iter()
+        .filter(|edge| edge.edge_type == "declares_env")
+        .filter_map(|edge| edge.to.strip_prefix("env:").map(|key| (key, edge)))
+        .collect::<Vec<_>>();
+    if keys.is_empty() {
+        return;
+    }
+    println!("- declared env keys: `{}`", keys.len());
+    for (key, edge) in keys.iter().take(12) {
+        println!("  - `{key}` {}", edge_location_summary(edge));
+    }
+    let hidden = keys.len().saturating_sub(12);
+    if hidden > 0 {
+        println!("  - hidden: {hidden} env keys");
+    }
+}
+
 fn render_ls_directory(report: &LsReport) {
     if report.directory.is_empty() {
         println!("\nNo indexed files under this directory.");
@@ -148,6 +189,24 @@ fn canonical_roles(anchor: &crate::model::FileSummary) -> Vec<String> {
     let path = anchor.path.to_ascii_lowercase();
     if local.iter().any(|role| matches!(*role, "test" | "e2e_test" | "test_support")) {
         roles.insert("test".to_string());
+    }
+    if local.contains(&"public_boundary") || anchor.kind == "public_boundary" {
+        roles.insert("public_boundary".to_string());
+    }
+    if local.contains(&"manifest") || matches!(path.as_str(), "package.json" | "cargo.toml") {
+        roles.insert("manifest".to_string());
+    }
+    if local.contains(&"env_config") || anchor.kind == "env_config" || path.contains(".env") {
+        roles.insert("env".to_string());
+    }
+    if local.contains(&"runtime_config") || anchor.kind == "runtime_config" {
+        roles.insert("config".to_string());
+    }
+    if local.contains(&"lockfile") || anchor.kind == "lockfile" {
+        roles.insert("lockfile".to_string());
+    }
+    if local.contains(&"docs") || anchor.kind == "docs" || path.ends_with(".md") {
+        roles.insert("docs".to_string());
     }
     if local.contains(&"schema_contract") || anchor.kind == "schema_contract" {
         roles.insert("schema".to_string());

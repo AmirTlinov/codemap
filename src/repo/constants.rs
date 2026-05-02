@@ -1,4 +1,4 @@
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), "+surface-cache-v3");
 
 const ROOT_MARKERS: &[&str] = &[
     ".ctx.yml",
@@ -64,8 +64,8 @@ const SOURCE_EXTS: &[&str] = &[
 ];
 
 const TEXT_EXTS: &[&str] = &[
-    "json", "toml", "yaml", "yml", "md", "txt", "sql", "graphql", "proto", "css", "scss",
-    "sass", "less", "svg", "snap", "snapshot",
+    "json", "toml", "yaml", "yml", "md", "txt", "sql", "prisma", "graphql", "gql", "proto",
+    "avsc", "lock", "css", "scss", "sass", "less", "svg", "snap", "snapshot",
 ];
 
 const DOMAIN_HINT_DIRS: &[&str] = &[

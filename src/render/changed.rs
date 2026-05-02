@@ -147,6 +147,9 @@ fn changed_structural_events_section(report: &ChangedReport) {
             "- `{}` [{}; evidence={}]",
             event.path, event.kind, event.evidence
         );
+        if !event.locations.is_empty() {
+            println!("  at: {}", proof_location_summary(&event.locations));
+        }
         if let Some(old_path) = &event.old_path {
             println!("  old: `{old_path}`");
         }

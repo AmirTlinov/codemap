@@ -63,6 +63,13 @@ pub fn cone_report(
     let mut proof = cone_proof_edges_with_direct_consumers(project, &seed_files);
     let mut contracts = cone_contract_edges(project, &outgoing);
     let mut boundary = cone_boundary_edges(project, &rel, &depths);
+    if seed_files.len() == 1 {
+        let seed = &seed_files[0];
+        outgoing.extend(cone_owner_outgoing_edges(project, seed));
+        incoming.extend(cone_owner_incoming_edges(project, seed));
+        proof.extend(cone_owner_proof_edges(project, seed));
+        unknowns.extend(cone_owner_unknowns(project, seed));
+    }
     sort_edges(&mut outgoing);
     sort_edges(&mut incoming);
     sort_edges(&mut proof);

@@ -131,6 +131,8 @@ fn python_proof_without_package_manifest_uses_pytest_file_and_skips_init_support
             |surface| surface["path"] == "tests/economy_analytics/test_catalog.py"
                 && surface["evidence"] == "test_import"
                 && surface["command"] == "pytest tests/economy_analytics/test_catalog.py"
+                && surface["locations"][0]["kind"] == "import_statement"
+                && surface["locations"][0]["line_start"] == 1
         ),
         "python test file proof should be runnable without package manifest: {proof:#}"
     );
@@ -146,4 +148,3 @@ fn python_proof_without_package_manifest_uses_pytest_file_and_skips_init_support
         "file-level pytest proof should suppress broad fallback: {proof:#}"
     );
 }
-

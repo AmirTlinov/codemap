@@ -21,11 +21,11 @@ fn proof_links_jsx_visible_text_to_e2e_get_by_text_partial() {
                 .as_str()
                 .unwrap_or_default()
                 .contains("test:e2e")),
-        "static JSX visible text should link to partial getByText e2e proof without broad fallback: {proof:#}"
+        "static JSX visible text should link to partial getByText e2e proof as soft evidence: {proof:#}"
     );
     assert!(
-        proof["fallback"].as_array().expect("fallback").is_empty(),
-        "e2e visible-text proof should hide broad fallback: {proof:#}"
+        !proof["fallback"].as_array().expect("fallback").is_empty(),
+        "soft e2e visible-text proof must not hide broad fallback: {proof:#}"
     );
 
     let cone = run_json(
@@ -108,8 +108,8 @@ fn proof_follows_direct_ui_dependency_for_thin_composition_files() {
         "thin TSX composition should inherit proof from directly rendered UI dependency: {proof:#}"
     );
     assert!(
-        proof["fallback"].as_array().expect("fallback").is_empty(),
-        "direct dependency proof should hide broad fallback: {proof:#}"
+        !proof["fallback"].as_array().expect("fallback").is_empty(),
+        "soft direct dependency proof must not hide broad fallback: {proof:#}"
     );
 
     let cone = run_json(
@@ -183,8 +183,8 @@ fn proof_follows_direct_ui_dependency_when_rendered_component_is_aliased() {
         "aliased rendered import should still inherit proof from the exact dependency export: {proof:#}"
     );
     assert!(
-        proof["fallback"].as_array().expect("fallback").is_empty(),
-        "aliased direct dependency proof should hide broad fallback: {proof:#}"
+        !proof["fallback"].as_array().expect("fallback").is_empty(),
+        "soft aliased direct dependency proof must not hide broad fallback: {proof:#}"
     );
 }
 
@@ -440,4 +440,3 @@ fn proof_direct_ui_dependency_requires_jsx_binding_from_same_dependency() {
         "fallback should remain visible when no rendered dependency has structural proof: {proof:#}"
     );
 }
-
