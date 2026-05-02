@@ -142,6 +142,7 @@ fn map_quality_warnings(project: &Project) -> Vec<MapQualityWarning> {
         "manifest",
         "no manifest script, package-local Cargo command, or package-specific CI reference was found",
         "proof may only show broader fallback commands for these manifests",
+        |_| true,
     );
     push_owner_surface_proof_warning(
         project,
@@ -149,7 +150,8 @@ fn map_quality_warnings(project: &Project) -> Vec<MapQualityWarning> {
         "schema_without_deterministic_proof",
         "schema_contract",
         "no schema generate/migrate/seed script or CI reference was found",
-        "schema proof may be fallback-only even when the schema is indexed",
+        "schema owner proof may be fallback-only even when the schema is indexed",
+        schema_proof_warning_candidate,
     );
     push_env_quality_warning(project, &mut warnings);
     warnings
@@ -182,12 +184,14 @@ fn push_owner_surface_proof_warning(
     role: &str,
     reason: &str,
     effect: &str,
+    candidate: impl Fn(&FileInfo) -> bool,
 ) {
     let examples = project
         .files
         .values()
         .filter(|file| file.has_role(role))
         .filter(|file| !is_support_artifact_path(&file.rel))
+        .filter(|file| candidate(file))
         .filter(|file| owner_surface_proof_surfaces(project, &file.rel).is_empty())
         .map(|file| file.rel.clone())
         .collect::<Vec<_>>();
@@ -195,6 +199,10 @@ fn push_owner_surface_proof_warning(
         .first()
         .map(|example| format!("codemap proof {}", shell_quote(example)));
     push_map_quality_warning(warnings, kind, examples, reason, effect, expand);
+}
+
+fn schema_proof_warning_candidate(file: &FileInfo) -> bool {
+    schema_owner_path(&file.rel)
 }
 
 fn push_env_quality_warning(project: &Project, warnings: &mut Vec<MapQualityWarning>) {

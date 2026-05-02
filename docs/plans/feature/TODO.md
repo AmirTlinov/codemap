@@ -62,9 +62,39 @@ repos would add noise instead of proof.
 
 ## Current Boundary
 
-No broad numbered slice is active after Slice 30E. Pick the next boundary from
+No broad numbered slice is active after Slice 30F. Pick the next boundary from
 the largest daily-workflow gap observed in live use, not by continuing the slice
 number ritual.
+
+Slice 30F is closed:
+
+```txt
+status: closed
+tier: focused/full/live
+closed: `doctor/status` map-quality no longer asks Prisma-style
+generate/migrate/seed proof from every `schema_contract` role. The
+`schema_without_deterministic_proof` warning is limited to schema owner
+surfaces covered by the deterministic schema proof detector, such as Prisma,
+GraphQL/proto/avro/sql/migration owners.
+guardrails: JSON schemas and TypeScript type contracts still stay indexed and
+role-classified as structural surfaces; only the misleading proof-quality
+warning is suppressed until a matching deterministic detector exists.
+excluded: adding new JSON-schema/type-contract proof detectors; this slice only
+tunes warning truthfulness before adding more warning kinds.
+proof: focused `cargo test doctor_ -- --nocapture` and
+`cargo test doctor_schema_proof_warning -- --nocapture`; full local gate;
+current-repo `cargo run --quiet --bin codemap -- doctor --format json`; live
+Levelly `cargo run --quiet --manifest-path ... -- --root ... doctor --format
+json`.
+review: first independent reviewer BLOCK found root `migrations/...` warning
+gap; final review required after the ledger correction.
+live: current repo `map_quality` drops the noisy 21 JSON schema warning; Levelly
+drops the noisy TypeScript type-contract schema warning while keeping manifest
+and env warnings.
+next: continue with package-aware proof quality and fallback-only diagnostics,
+or add deterministic proof detectors for JSON schema/type contract surfaces
+before warning on them.
+```
 
 Slice 30E is closed:
 

@@ -415,6 +415,7 @@ fn schema_owner_path(rel: &str) -> bool {
         || lower.ends_with(".proto")
         || lower.ends_with(".avsc")
         || lower.ends_with(".sql")
+        || lower.starts_with("migrations/")
         || lower.contains("/migrations/")
 }
 
