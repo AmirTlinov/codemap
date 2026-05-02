@@ -5,22 +5,13 @@ pub fn diff_map(report: &DiffMapReport) {
     cone_section("Removed Structural Lines", &report.removed_edges);
     if !report.changed_symbols.is_empty() {
         println!("\n## Changed Symbols\n");
-        let rows = report
-            .changed_symbols
-            .iter()
-            .map(|symbol| {
-                vec![
-                    code(&symbol.path),
-                    symbol.name.clone(),
-                    symbol.change.clone(),
-                    symbol
-                        .line_start
-                        .map(|line| line.to_string())
-                        .unwrap_or_else(|| "unknown".to_string()),
-                ]
-            })
-            .collect();
-        println!("{}", table(&["Path", "Name", "Change", "Line"], rows));
+        for symbol in &report.changed_symbols {
+            let where_hint = symbol
+                .line_start
+                .map(|line| code(&format!("{}:{line}", symbol.path)))
+                .unwrap_or_else(|| code(&symbol.path));
+            println!("- `{}` in {} [{}]", symbol.name, where_hint, symbol.change);
+        }
     }
     surface_section("Added Exports", &report.added_exports);
     surface_section("Removed Exports", &report.removed_exports);
@@ -119,22 +110,16 @@ pub fn boundary_map(report: &BoundaryMapReport) {
     cone_section("Test Only Crossings", &report.test_only_crossings);
     if !report.package_edges.is_empty() {
         println!("\n## Package Edges\n");
-        let rows = report
-            .package_edges
-            .iter()
-            .map(|edge| {
-                vec![
-                    code(&edge.from_manifest),
-                    edge.dependency.clone(),
-                    edge.to_manifest
-                        .as_ref()
-                        .map(|value| code(value))
-                        .unwrap_or_else(|| code(&edge.to)),
-                    edge.source.clone(),
-                ]
-            })
-            .collect();
-        println!("{}", table(&["From", "Dependency", "To", "Evidence"], rows));
+        for edge in &report.package_edges {
+            let target = edge.to_manifest.as_ref().unwrap_or(&edge.to);
+            println!(
+                "- `{}` --{}--> `{}` [{}]",
+                edge.from_manifest, edge.dependency, target, edge.source
+            );
+            if let Some(workspace_manifest) = &edge.workspace_manifest {
+                println!("  workspace: `{workspace_manifest}`");
+            }
+        }
     }
     if !report.explicit_forbidden_findings.is_empty() {
         boundaries(&report.explicit_forbidden_findings);
@@ -150,30 +135,23 @@ pub fn flow(report: &FlowReport) {
     println!("Precision: `{}`", report.precision);
     if !report.steps.is_empty() {
         println!("\n## Steps\n");
-        let rows = report
-            .steps
-            .iter()
-            .map(|step| {
-                vec![
-                    step.index.to_string(),
-                    code(&step.anchor),
-                    step.kind.clone(),
-                    step.evidence.clone(),
-                    step
-                        .locations
-                        .first()
-                        .map(|location| {
-                            if let Some(line) = location.line_start {
-                                code(&format!("{}:{line}", location.path))
-                            } else {
-                                code(&location.path)
-                            }
-                        })
-                        .unwrap_or_else(|| "unknown".to_string()),
-                ]
-            })
-            .collect();
-        println!("{}", table(&["#", "Anchor", "Kind", "Evidence", "Where"], rows));
+        for step in &report.steps {
+            let where_hint = step
+                .locations
+                .first()
+                .map(|location| {
+                    if let Some(line) = location.line_start {
+                        code(&format!("{}:{line}", location.path))
+                    } else {
+                        code(&location.path)
+                    }
+                })
+                .unwrap_or_else(|| "unknown".to_string());
+            println!(
+                "- {}. `{}` [{}; {}] {}",
+                step.index, step.anchor, step.kind, step.evidence, where_hint
+            );
+        }
     }
     surface_section("Side Effects", &report.side_effects);
     cone_section("Contracts", &report.contracts);
