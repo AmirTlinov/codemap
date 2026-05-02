@@ -87,6 +87,7 @@ pub fn boundary_map_report(
         .collect::<Vec<_>>();
     let mut explicit_forbidden_findings = boundary_findings(project, changed)
         .into_iter()
+        .filter(|finding| finding_touches_scope(finding, &scope))
         .filter_map(|finding| {
             let paths = [finding.from.as_str(), finding.to.as_str()];
             if support_fact_hidden(hide_support, changed, &paths) {
@@ -163,6 +164,10 @@ pub fn boundary_map_report(
         hidden,
         expand: vec!["codemap boundaries".to_string()],
     }
+}
+
+fn finding_touches_scope(finding: &BoundaryFinding, scope: &str) -> bool {
+    path_under_scope(&finding.from, scope) || path_under_scope(&finding.to, scope)
 }
 
 fn changed_touches(changed: Option<&BTreeSet<String>>, path: &str) -> bool {

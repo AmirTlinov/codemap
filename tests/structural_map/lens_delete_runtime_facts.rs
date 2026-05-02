@@ -108,6 +108,35 @@ fn delete_lens_reports_package_manifest_export_blocker() {
 }
 
 #[test]
+fn delete_lens_checklist_includes_direct_user_cleanup() {
+    let (repo, cache) = fixture();
+
+    let delete_map = run_json(
+        repo.path(),
+        cache.path(),
+        &["delete", "packages/replay/src/session.ts", "--format", "json"],
+    );
+    assert_schema("schemas/delete.schema.json", &delete_map);
+    assert!(
+        delete_map["direct_users"]
+            .as_array()
+            .expect("direct users")
+            .iter()
+            .any(|edge| edge["from"] == "packages/replay/src/index.ts"),
+        "delete fixture should expose direct users: {delete_map:#}"
+    );
+    assert!(
+        delete_map["checklist"]
+            .as_array()
+            .expect("checklist")
+            .iter()
+            .any(|item| item.as_str() == Some("update direct users shown above")),
+        "delete lens checklist should include direct-user cleanup when direct users exist: {delete_map:#}"
+    );
+    assert_eq!(delete_map.get("safe_to_delete"), None);
+}
+
+#[test]
 fn delete_lens_rejects_package_export_targets_that_escape_package_base() {
     let (repo, cache) = fixture();
     write(

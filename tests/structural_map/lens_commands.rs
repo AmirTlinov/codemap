@@ -65,14 +65,6 @@ fn new_lenses_return_deterministic_structural_maps() {
             .any(|edge| edge["from"] == "packages/replay/src/index.ts"),
         "delete lens should show blockers instead of claiming safety: {delete_map:#}"
     );
-    assert!(
-        delete_map["checklist"]
-            .as_array()
-            .expect("checklist")
-            .iter()
-            .any(|item| item.as_str() == Some("update direct users shown above")),
-        "delete lens checklist should include direct-user cleanup when direct users exist: {delete_map:#}"
-    );
     assert_eq!(delete_map.get("safe_to_delete"), None);
 
     let siblings = run_json(

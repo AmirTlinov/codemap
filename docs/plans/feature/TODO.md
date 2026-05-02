@@ -217,7 +217,7 @@ or misleading map.
 | 17 Proof-map and proof safety | closed first boundary | focused | `proof --run` refuses deploy/migrate/unknown shell commands by default. |
 | 18 Impact lens | closed first boundary | focused | Package export surfaces participate in contract impact risk. |
 | 19 Delete lens | closed first boundary | focused | Direct-user blockers feed mechanical cleanup without deletion-safety claims. |
-| 20 Boundary-map lens | todo | focused/live | Crossings are read-only facts; forbidden findings require explicit config. |
+| 20 Boundary-map lens | closed first boundary | focused/live | Scoped boundary maps do not leak unrelated explicit forbidden findings. |
 | 21 Flow lens | closed first boundary | focused/live | Rust CLI runtime entrypoints stitch to manifest provenance and exact `main` symbols. |
 | 22 Siblings and place lenses | closed first boundary | focused | `place` expand preserves required kind arguments. |
 | 23 Non-code, assets, data, events, generated ownership | closed first boundary | focused/live | CSS @import barrels create deterministic style edges with line evidence. |
@@ -468,6 +468,20 @@ proof: focused delete fixture validates direct users and checklist item; schema
 unchanged.
 review: not required; narrow checklist content derived from existing evidence.
 live: not required; controlled fixture proves the missing checklist case.
+```
+
+### Slice 20: Boundary-Map Lens
+
+```txt
+closed: scoped `boundary-map <scope>` now filters explicit forbidden findings
+to findings whose `from` or `to` path is inside the requested scope. This keeps
+the lens read-only and current-scope instead of dumping global config findings.
+excluded: full boundary taxonomy, domain ownership semantics, and live
+cross-repo boundary audit remain later work.
+proof: focused fixture verifies an unrelated test scope does not receive the
+app-to-replay forbidden finding; schema unchanged.
+review: not required for this narrow scope-filter fix.
+live: not required; controlled semantic-anchor fixture proves the leak.
 ```
 
 ### Slice 22: Siblings And Place Lenses

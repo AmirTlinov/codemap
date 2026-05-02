@@ -191,6 +191,30 @@ fn boundary_map_changed_reveals_support_workspace_manifest_package_edges() {
 }
 
 #[test]
+fn boundary_map_scoped_view_filters_unrelated_explicit_forbidden_findings() {
+    let (repo, cache) = fixture();
+
+    let scoped = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "boundary-map",
+            "packages/replay/tests",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/boundary-map.schema.json", &scoped);
+    assert!(
+        scoped["explicit_forbidden_findings"]
+            .as_array()
+            .expect("explicit forbidden findings")
+            .is_empty(),
+        "scoped boundary-map must not leak explicit forbidden findings from unrelated scopes: {scoped:#}"
+    );
+}
+
+#[test]
 fn boundary_map_package_edges_classify_js_dependency_kinds() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");
