@@ -130,6 +130,8 @@ struct FilesArgs {
 struct LsArgs {
     #[arg(default_value = ".")]
     path: String,
+    #[arg(long, value_enum)]
+    section: Option<LsSection>,
     #[arg(long = "all", alias = "include-hidden")]
     include_hidden: bool,
     #[arg(long, default_value_t = 20, hide = true)]
@@ -244,6 +246,17 @@ enum ChangedSection {
     #[value(alias = "overview", alias = "diff")]
     Observed,
     #[value(alias = "impact")]
+    Links,
+    Roles,
+    Proof,
+    #[value(alias = "unknowns")]
+    Unknown,
+    Hidden,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
+enum LsSection {
+    Observed,
     Links,
     Roles,
     Proof,

@@ -62,9 +62,33 @@ repos would add noise instead of proof.
 
 ## Current Boundary
 
-No broad numbered slice is active after Slice 30D. Pick the next boundary from
+No broad numbered slice is active after Slice 30E. Pick the next boundary from
 the largest daily-workflow gap observed in live use, not by continuing the slice
 number ritual.
+
+Slice 30E is closed:
+
+```txt
+status: closed
+tier: focused/full/live
+closed: `codemap ls` now accepts the stable RFC section filter
+`--section observed|links|roles|proof|unknown|hidden`, matching the daily
+anti-noise control already available in `cone` and `changed`.
+guardrails: the filter is renderer-only, so JSON/cache facts stay complete;
+`ls --section proof` and `ls --section unknown` explicitly say those layers are
+not computed by `ls` instead of claiming no proof or unknowns exist.
+excluded: computing proof or typed unknown facts inside `ls`; those remain
+owned by `proof`, `cone`, and `changed`.
+proof: focused `cargo test ls_ -- --nocapture`, live current-repo
+`cargo run --quiet --bin codemap -- ls . --section observed`, `ls Cargo.toml
+--section roles`, `ls Cargo.toml --section proof`, and `ls Cargo.toml
+--section unknown`.
+review: independent reviewer required because primary CLI behavior changed.
+live: current repo command probes prove the previously failing
+`ls . --section observed` path now works from the built binary.
+next: tune map-quality warning noise on live repos before adding more warning
+kinds.
+```
 
 Slice 30D is closed:
 

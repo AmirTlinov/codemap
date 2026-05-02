@@ -39,6 +39,7 @@ include!("structural_map/hidden_unknown_markdown.rs");
 include!("structural_map/surface_markdown.rs");
 include!("structural_map/runtime_markdown.rs");
 include!("structural_map/file_summary_markdown.rs");
+include!("structural_map/ls_section_cli.rs");
 include!("structural_map/focused_lens_markdown.rs");
 include!("structural_map/cone_proof_limits.rs");
 include!("structural_map/rust_include_edges.rs");

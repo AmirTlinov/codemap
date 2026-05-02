@@ -24,7 +24,9 @@ fn try_cached_ls_fast_path(
     }) else {
         return Ok(None);
     };
-    output(args.format, &report, || render::ls(&report))?;
+    output(args.format, &report, || {
+        render::ls(&report, ls_section_name(args.section))
+    })?;
     Ok(Some(()))
 }
 

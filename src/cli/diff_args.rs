@@ -135,6 +135,18 @@ fn changed_section_name(section: Option<ChangedSection>) -> Option<&'static str>
     }
 }
 
+fn ls_section_name(section: Option<LsSection>) -> Option<&'static str> {
+    match section {
+        Some(LsSection::Observed) => Some("observed"),
+        Some(LsSection::Links) => Some("links"),
+        Some(LsSection::Roles) => Some("roles"),
+        Some(LsSection::Proof) => Some("proof"),
+        Some(LsSection::Unknown) => Some("unknown"),
+        Some(LsSection::Hidden) => Some("hidden"),
+        None => None,
+    }
+}
+
 fn cone_section_name(section: Option<ConeSection>) -> Option<&'static str> {
     match section {
         Some(ConeSection::Observed) => Some("observed"),

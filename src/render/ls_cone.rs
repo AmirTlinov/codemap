@@ -1,20 +1,39 @@
-pub fn ls(report: &LsReport) {
+pub fn ls(report: &LsReport, section_filter: Option<&str>) {
     println!("# Structural LS\n");
     println!("Path: `{}`", report.path);
     println!("Mode: `{}`", report.mode);
     match report.mode.as_str() {
-        "file" => render_ls_file(report),
-        "directory" => render_ls_directory(report),
+        "file" => render_ls_file(report, section_filter),
+        "directory" => render_ls_directory(report, section_filter),
         "missing" => {
-            println!("\nNo indexed file or directory anchor found.");
+            if matches!(section_filter, None | Some("observed")) {
+                println!("\nNo indexed file or directory anchor found.");
+            }
         }
         _ => {}
     }
-    if !report.edges.is_empty() {
+    if matches!(section_filter, None | Some("links")) && !report.edges.is_empty() {
         cone_section("Links", &report.edges);
     }
-    hidden_section(&report.hidden);
-    if !report.next.is_empty() {
+    if matches!(section_filter, Some("proof")) {
+        render_empty_ls_section("Proof", "Proof surfaces are not computed by ls.");
+    }
+    if matches!(section_filter, Some("unknown")) {
+        let detail = if report.mode == "missing" {
+            "No indexed anchor was found for this ls path."
+        } else {
+            "Typed unknowns are not computed by ls."
+        };
+        render_empty_ls_section("Unknown", detail);
+    }
+    if matches!(section_filter, None | Some("hidden")) {
+        if report.hidden.is_empty() && section_filter == Some("hidden") {
+            render_empty_ls_section("Hidden", "No hidden material in this ls report.");
+        } else {
+            hidden_section(&report.hidden);
+        }
+    }
+    if section_filter.is_none() && !report.next.is_empty() {
         println!("\n## Expand\n");
         let next = report
             .next
@@ -80,27 +99,33 @@ fn edge_location_summary(edge: &StructuralEdge) -> String {
     format!("{}{}", code(&base), suffix)
 }
 
-fn render_ls_file(report: &LsReport) {
+fn render_ls_file(report: &LsReport, section_filter: Option<&str>) {
     let Some(anchor) = &report.anchor else {
         return;
     };
-    render_anchor_summary("Observed", anchor);
-    render_roles(anchor);
-    if !anchor.symbols.is_empty() {
-        println!("\n## Observed Symbols\n");
-        for symbol in anchor.symbols.iter().take(30) {
-            println!(
-                "- `{}` [{}; exported={}; lines={}-{}]",
-                symbol.name, symbol.kind, symbol.exported, symbol.line_start, symbol.line_end
-            );
-        }
-        let hidden_count = anchor.symbols.len().saturating_sub(30);
-        if hidden_count > 0 {
-            println!("- hidden: {hidden_count} symbols");
+    if matches!(section_filter, None | Some("observed")) {
+        render_anchor_summary("Observed", anchor);
+        if !anchor.symbols.is_empty() {
+            println!("\n## Observed Symbols\n");
+            for symbol in anchor.symbols.iter().take(30) {
+                println!(
+                    "- `{}` [{}; exported={}; lines={}-{}]",
+                    symbol.name, symbol.kind, symbol.exported, symbol.line_start, symbol.line_end
+                );
+            }
+            let hidden_count = anchor.symbols.len().saturating_sub(30);
+            if hidden_count > 0 {
+                println!("- hidden: {hidden_count} symbols");
+            }
         }
     }
-    section("Exports", &anchor.exports);
-    section("Imports", &anchor.imports);
+    if matches!(section_filter, None | Some("roles")) {
+        render_roles(anchor);
+    }
+    if matches!(section_filter, None | Some("links")) {
+        section("Exports", &anchor.exports);
+        section("Imports", &anchor.imports);
+    }
 }
 
 fn render_anchor_summary(title: &str, anchor: &crate::model::FileSummary) {
@@ -143,7 +168,14 @@ fn render_declared_env_keys(edges: &[StructuralEdge]) {
     }
 }
 
-fn render_ls_directory(report: &LsReport) {
+fn render_ls_directory(report: &LsReport, section_filter: Option<&str>) {
+    if matches!(section_filter, Some("roles")) {
+        render_ls_directory_roles(report);
+        return;
+    }
+    if !matches!(section_filter, None | Some("observed")) {
+        return;
+    }
     if report.directory.is_empty() {
         println!("\nNo indexed files under this directory.");
         return;
@@ -172,6 +204,27 @@ fn render_ls_directory(report: &LsReport) {
             println!("  hidden: {} examples", surface.hidden_count);
         }
     }
+}
+
+fn render_ls_directory_roles(report: &LsReport) {
+    let mut roles: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    for surface in &report.directory {
+        let role = surface.role.as_deref().unwrap_or("none");
+        *roles.entry(role.to_string()).or_default() += surface.count;
+    }
+    if roles.is_empty() {
+        render_empty_ls_section("Roles", "No directory roles found in this ls report.");
+        return;
+    }
+    println!("\n## Roles\n");
+    for (role, count) in roles {
+        println!("- `{role}`: `{count}` surfaces");
+    }
+}
+
+fn render_empty_ls_section(title: &str, detail: &str) {
+    println!("\n## {title}\n");
+    println!("- {detail}");
 }
 
 fn render_roles(anchor: &crate::model::FileSummary) {

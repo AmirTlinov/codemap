@@ -78,7 +78,9 @@ pub fn run() -> Result<()> {
             let path = project_relative_arg(&project, &args.path)?;
             let report = map::ls_report(&project, &path, args.include_hidden, args.limit);
             maybe_write_ls_lens_cache(&project, &path, &args, &report);
-            output(args.format, &report, || render::ls(&report))
+            output(args.format, &report, || {
+                render::ls(&report, ls_section_name(args.section))
+            })
         }
         CommandKind::Cone(args) => {
             ensure_valid_config(&project)?;

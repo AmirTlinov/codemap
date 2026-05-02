@@ -64,6 +64,67 @@ fn ls_file_anchor_renders_metadata_and_symbols_without_tables() {
 }
 
 #[test]
+fn ls_section_filters_use_stable_rfc_layers() {
+    let (repo, cache) = fixture();
+
+    let roles = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["ls", "package.json", "--section", "roles"])
+        .output()
+        .expect("ls roles section should run");
+    assert!(
+        roles.status.success(),
+        "ls --section roles failed: {}",
+        String::from_utf8_lossy(&roles.stderr)
+    );
+    let roles_markdown = String::from_utf8(roles.stdout).expect("roles markdown utf8");
+    assert!(
+        roles_markdown.contains("\n## Roles\n") && roles_markdown.contains("manifest"),
+        "ls --section roles should render only the role layer for manifests: {roles_markdown}"
+    );
+    assert!(
+        !roles_markdown.contains("\n## Observed\n") && !roles_markdown.contains("\n## Links\n"),
+        "ls --section roles should not dump observed or links layers: {roles_markdown}"
+    );
+
+    let links = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["ls", "packages/replay/src/session.ts", "--section", "links"])
+        .output()
+        .expect("ls links section should run");
+    assert!(
+        links.status.success(),
+        "ls --section links failed: {}",
+        String::from_utf8_lossy(&links.stderr)
+    );
+    let links_markdown = String::from_utf8(links.stdout).expect("links markdown utf8");
+    assert!(
+        links_markdown.contains("\n## Exports\n") && links_markdown.contains("\n## Imports\n"),
+        "ls --section links should keep file link facts: {links_markdown}"
+    );
+    assert!(
+        !links_markdown.contains("\n## Observed\n") && !links_markdown.contains("\n## Roles\n"),
+        "ls --section links should not dump observed or role layers: {links_markdown}"
+    );
+
+    let hidden = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["ls", "package.json", "--section", "hidden"])
+        .output()
+        .expect("ls hidden section should run");
+    assert!(hidden.status.success());
+    let hidden_markdown = String::from_utf8(hidden.stdout).expect("hidden markdown utf8");
+    assert!(
+        hidden_markdown.contains("\n## Hidden\n")
+            && !hidden_markdown.contains("\n## Observed\n"),
+        "ls --section hidden should render a stable hidden layer even when empty: {hidden_markdown}"
+    );
+}
+
+#[test]
 fn ls_directory_surfaces_render_as_compact_blocks() {
     let (repo, cache) = fixture();
 
