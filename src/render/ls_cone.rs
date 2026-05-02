@@ -24,33 +24,7 @@ pub fn cone(report: &ConeReport) {
     println!("# Structural Cone\n");
     println!("Anchor: `{}`", report.anchor.path);
     println!("Depth: `{}`", report.depth);
-    println!(
-        "\n{}",
-        table(
-            &["Field", "Value"],
-            vec![
-                vec!["Kind".to_string(), report.anchor.kind.clone()],
-                vec![
-                    "Package".to_string(),
-                    report
-                        .anchor
-                        .package
-                        .clone()
-                        .unwrap_or_else(|| "none".to_string()),
-                ],
-                vec!["Language".to_string(), report.anchor.language.clone()],
-                vec!["Lines".to_string(), report.anchor.lines.to_string()],
-                vec![
-                    "Symbols".to_string(),
-                    report.anchor.symbols.len().to_string(),
-                ],
-                vec![
-                    "Imported by".to_string(),
-                    report.anchor.imported_by_count.to_string(),
-                ],
-            ],
-        )
-    );
+    render_anchor_summary("Anchor Summary", &report.anchor);
     cone_section("Outgoing", &report.outgoing);
     cone_section("Incoming", &report.incoming);
     cone_section("Proof", &report.proof);
@@ -84,52 +58,38 @@ fn render_ls_file(report: &LsReport) {
     let Some(anchor) = &report.anchor else {
         return;
     };
-    println!(
-        "\n{}",
-        table(
-            &["Field", "Value"],
-            vec![
-                vec!["Kind".to_string(), anchor.kind.clone()],
-                vec![
-                    "Package".to_string(),
-                    anchor.package.clone().unwrap_or_else(|| "none".to_string()),
-                ],
-                vec!["Language".to_string(), anchor.language.clone()],
-                vec!["Lines".to_string(), anchor.lines.to_string()],
-                vec![
-                    "Roles".to_string(),
-                    if anchor.roles.is_empty() {
-                        "none".to_string()
-                    } else {
-                        anchor.roles.join(", ")
-                    },
-                ],
-                vec![
-                    "Imported by".to_string(),
-                    anchor.imported_by_count.to_string(),
-                ],
-            ],
-        )
-    );
+    render_anchor_summary("File", anchor);
     if !anchor.symbols.is_empty() {
         println!("\n## Symbols\n");
-        let rows = anchor
-            .symbols
-            .iter()
-            .take(30)
-            .map(|symbol| {
-                vec![
-                    symbol.name.clone(),
-                    symbol.kind.clone(),
-                    symbol.exported.to_string(),
-                    format!("{}-{}", symbol.line_start, symbol.line_end),
-                ]
-            })
-            .collect();
-        println!("{}", table(&["Name", "Kind", "Exported", "Lines"], rows));
+        for symbol in anchor.symbols.iter().take(30) {
+            println!(
+                "- `{}` [{}; exported={}; lines={}-{}]",
+                symbol.name, symbol.kind, symbol.exported, symbol.line_start, symbol.line_end
+            );
+        }
+        let hidden_count = anchor.symbols.len().saturating_sub(30);
+        if hidden_count > 0 {
+            println!("- hidden: {hidden_count} symbols");
+        }
     }
     section("Exports", &anchor.exports);
     section("Imports", &anchor.imports);
+}
+
+fn render_anchor_summary(title: &str, anchor: &crate::model::FileSummary) {
+    println!("\n## {title}\n");
+    println!("- kind: `{}`", anchor.kind);
+    println!(
+        "- package: `{}`",
+        anchor.package.as_deref().unwrap_or("none")
+    );
+    println!("- language: `{}`", anchor.language);
+    println!("- lines: `{}`", anchor.lines);
+    if !anchor.roles.is_empty() {
+        println!("- roles: {}", anchor.roles.join(", "));
+    }
+    println!("- symbols: `{}`", anchor.symbols.len());
+    println!("- imported by: `{}`", anchor.imported_by_count);
 }
 
 fn render_ls_directory(report: &LsReport) {
@@ -138,33 +98,27 @@ fn render_ls_directory(report: &LsReport) {
         return;
     }
     println!("\n## Surfaces\n");
-    let rows = report
-        .directory
-        .iter()
-        .map(|surface| {
-            vec![
-                surface.kind.clone(),
-                surface
-                    .role
-                    .clone()
-                    .unwrap_or_else(|| "none".to_string()),
-                surface.count.to_string(),
-                surface.evidence.clone(),
-                format!("{:?}", surface.strength).to_ascii_lowercase(),
-                surface
-                    .examples
-                    .iter()
-                    .map(|example| code(example))
-                    .collect::<Vec<_>>()
-                    .join(", "),
-            ]
-        })
-        .collect();
-    println!(
-        "{}",
-        table(
-            &["Kind", "Role", "Count", "Evidence", "Strength", "Examples"],
-            rows
-        )
-    );
+    for surface in &report.directory {
+        let role = surface.role.as_deref().unwrap_or("none");
+        let strength = format!("{:?}", surface.strength).to_ascii_lowercase();
+        println!(
+            "- `{}` [role={}; count={}; {}; {}]",
+            surface.kind, role, surface.count, surface.evidence, strength
+        );
+        if let Some(path) = &surface.path {
+            println!("  path: `{path}`");
+        }
+        if !surface.examples.is_empty() {
+            let examples = surface
+                .examples
+                .iter()
+                .map(|example| code(example))
+                .collect::<Vec<_>>()
+                .join(", ");
+            println!("  examples: {examples}");
+        }
+        if surface.hidden_count > 0 {
+            println!("  hidden: {} examples", surface.hidden_count);
+        }
+    }
 }

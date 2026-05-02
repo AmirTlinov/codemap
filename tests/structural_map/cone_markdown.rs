@@ -28,6 +28,10 @@ fn cone_markdown_groups_edges_by_source_without_edge_table_spam() {
         "cone markdown should not return to repeated edge table spam: {markdown}"
     );
     assert!(
+        !markdown.contains("| Field | Value |") && markdown.contains("\n## Anchor Summary\n"),
+        "cone markdown should render anchor metadata as compact map bullets: {markdown}"
+    );
+    assert!(
         markdown.lines().count() < 100,
         "focused cone markdown should stay compact: {markdown}"
     );
