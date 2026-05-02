@@ -43,6 +43,8 @@ pub struct FileInfo {
     pub rel: String,
     pub ext: String,
     pub size: u64,
+    #[serde(default, skip_serializing)]
+    pub content_hash: Option<String>,
     pub line_count: usize,
     pub language: String,
     pub roles: BTreeSet<String>,

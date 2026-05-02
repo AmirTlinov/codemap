@@ -55,6 +55,7 @@ fn scan_file(root: &Path, rel: &str, stats: &mut ScanStatsBuilder) -> Option<Fil
         rel: rel.to_string(),
         ext,
         size: meta.len(),
+        content_hash: None,
         line_count: 0,
         language,
         roles: BTreeSet::new(),

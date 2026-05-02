@@ -66,6 +66,27 @@ fn doctor_incrementally_rescans_only_changed_files() {
 }
 
 #[test]
+fn doctor_skips_rescan_when_only_metadata_changed_for_same_content() {
+    let (repo, cache) = fixture();
+
+    let body = "import { seek } from '@fixture/replay';\n\nexport const frame = seek(1).frame;\n";
+    let _ = run_json(repo.path(), cache.path(), &["ls", ".", "--format", "json"]);
+    std::thread::sleep(std::time::Duration::from_millis(5));
+    write(&repo.path().join("packages/app/src/useReplay.ts"), body);
+
+    let doctor = run_json(repo.path(), cache.path(), &["doctor", "--format", "json"]);
+    assert_schema("schemas/status.schema.json", &doctor);
+    assert_eq!(
+        doctor["cache_strategy"], "warm_load",
+        "same-content rewrites should keep cached file facts warm: {doctor:#}"
+    );
+    assert_eq!(
+        doctor["scanner"]["files_scanned"], 0,
+        "same-content metadata changes should not trigger parser rescan: {doctor:#}"
+    );
+}
+
+#[test]
 fn doctor_incrementally_scans_only_added_files() {
     let (repo, cache) = fixture();
 

@@ -8,9 +8,10 @@ use sha2::{Digest, Sha256};
 
 use crate::model::Project;
 
+const FINGERPRINT_CACHE_FORMAT: u32 = 2;
+
 pub struct CacheFileDelta {
     pub cached_fingerprint: String,
-    pub fingerprint: String,
     pub unchanged: BTreeSet<String>,
     pub changed_or_added: BTreeSet<String>,
     pub removed: BTreeSet<String>,
@@ -27,9 +28,12 @@ pub fn file_delta(
     cache_dir: &Path,
     version: &str,
     current_files: &[String],
-    config_path: Option<&str>,
+    _config_path: Option<&str>,
 ) -> Option<CacheFileDelta> {
     let cached = read_cached_fingerprints(cache_dir)?;
+    if cached.format_version != FINGERPRINT_CACHE_FORMAT {
+        return None;
+    }
     if cached.version != version || cached.root != root.to_string_lossy() {
         return None;
     }
@@ -56,7 +60,15 @@ pub fn file_delta(
         }
         let (modified_secs, modified_nanos) = file_modified_parts_from_meta(&meta);
         if modified_secs != cached.modified_secs || modified_nanos != cached.modified_nanos {
-            changed_or_added.insert(rel.clone());
+            if cached
+                .content_hash
+                .as_deref()
+                .is_some_and(|hash| current_content_hash(root.join(rel)).as_deref() == Some(hash))
+            {
+                unchanged.insert(rel.clone());
+            } else {
+                changed_or_added.insert(rel.clone());
+            }
         } else {
             unchanged.insert(rel.clone());
         }
@@ -68,7 +80,6 @@ pub fn file_delta(
         .collect();
     Some(CacheFileDelta {
         cached_fingerprint: cached.fingerprint,
-        fingerprint: fingerprint_from_files(root, current_files, config_path)?,
         unchanged,
         changed_or_added,
         removed,
@@ -77,6 +88,7 @@ pub fn file_delta(
 
 pub(super) fn write_fingerprints(project: &Project, version: &str) -> Result<()> {
     let fingerprints = CachedFingerprints {
+        format_version: FINGERPRINT_CACHE_FORMAT,
         version: version.to_string(),
         root: project.root.to_string_lossy().to_string(),
         fingerprint: super::fingerprint(project, None),
@@ -88,6 +100,7 @@ pub(super) fn write_fingerprints(project: &Project, version: &str) -> Result<()>
                 CachedFileFingerprint {
                     path: file.rel.clone(),
                     size: file.size,
+                    content_hash: file.content_hash.clone(),
                     modified_secs: modified.map(|parts| parts.0),
                     modified_nanos: modified.map(|parts| parts.1),
                 }
@@ -102,32 +115,6 @@ pub(super) fn write_fingerprints(project: &Project, version: &str) -> Result<()>
     Ok(())
 }
 
-fn fingerprint_from_files(
-    root: &Path,
-    files: &[String],
-    config_path: Option<&str>,
-) -> Option<String> {
-    let mut hasher = Sha256::new();
-    for rel in files {
-        let meta = fs::metadata(root.join(rel)).ok()?;
-        hasher.update(rel.as_bytes());
-        hasher.update([0]);
-        hasher.update(meta.len().to_string().as_bytes());
-        let (modified_secs, modified_nanos) = file_modified_parts_from_meta(&meta);
-        if let Some(secs) = modified_secs {
-            hasher.update(secs.to_string().as_bytes());
-        }
-        if let Some(nanos) = modified_nanos {
-            hasher.update(nanos.to_string().as_bytes());
-        }
-    }
-    if let Some(path) = config_path {
-        hasher.update(path.as_bytes());
-    }
-    let hash = hasher.finalize();
-    Some(super::hex_prefix(&hash, 16))
-}
-
 fn read_cached_fingerprints(cache_dir: &Path) -> Option<CachedFingerprints> {
     let text = fs::read_to_string(cache_dir.join("fingerprints.json")).ok()?;
     serde_json::from_str(&text).ok()
@@ -135,6 +122,8 @@ fn read_cached_fingerprints(cache_dir: &Path) -> Option<CachedFingerprints> {
 
 #[derive(Deserialize, Serialize)]
 struct CachedFingerprints {
+    #[serde(default)]
+    format_version: u32,
     version: String,
     root: String,
     fingerprint: String,
@@ -145,8 +134,16 @@ struct CachedFingerprints {
 struct CachedFileFingerprint {
     path: String,
     size: u64,
+    #[serde(default)]
+    content_hash: Option<String>,
     modified_secs: Option<u64>,
     modified_nanos: Option<u32>,
+}
+
+fn current_content_hash(path: impl AsRef<Path>) -> Option<String> {
+    let bytes = fs::read(path).ok()?;
+    let hash = Sha256::digest(&bytes);
+    Some(super::hex_prefix(&hash, 16))
 }
 
 fn file_modified_parts(project: &Project, file: &crate::model::FileInfo) -> Option<(u64, u32)> {

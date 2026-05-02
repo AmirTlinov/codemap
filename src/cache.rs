@@ -72,10 +72,14 @@ pub fn fingerprint(project: &Project, domain_path: Option<&str>) -> String {
         hasher.update(file.rel.as_bytes());
         hasher.update([0]);
         hasher.update(file.size.to_string().as_bytes());
-        if let Ok(meta) = std::fs::metadata(file.rel_path(project))
+        if let Some(content_hash) = &file.content_hash {
+            hasher.update(b"content");
+            hasher.update(content_hash.as_bytes());
+        } else if let Ok(meta) = std::fs::metadata(file.rel_path(project))
             && let Ok(modified) = meta.modified()
             && let Ok(duration) = modified.duration_since(std::time::UNIX_EPOCH)
         {
+            hasher.update(b"metadata");
             hasher.update(duration.as_secs().to_string().as_bytes());
             hasher.update(duration.subsec_nanos().to_string().as_bytes());
         }

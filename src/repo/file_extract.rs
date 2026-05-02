@@ -6,6 +6,7 @@ fn extract_imports_exports(root: &Path, info: &mut FileInfo) {
     let Ok(text) = fs::read_to_string(path) else {
         return;
     };
+    info.content_hash = Some(scan_content_hash(text.as_bytes()));
     info.line_count = line_count(&text);
     if !is_source_ext(&info.ext) {
         return;
@@ -82,6 +83,15 @@ fn extract_imports_exports(root: &Path, info: &mut FileInfo) {
 
 fn line_count(text: &str) -> usize {
     text.lines().count()
+}
+
+fn scan_content_hash(bytes: &[u8]) -> String {
+    let hash = <sha2::Sha256 as sha2::Digest>::digest(bytes);
+    hash.iter()
+        .flat_map(|b| [b >> 4, b & 0x0f])
+        .take(16)
+        .map(|n| char::from_digit(n as u32, 16).expect("hex digit"))
+        .collect()
 }
 
 fn extract_rust_include_specs(text: &str) -> BTreeSet<String> {

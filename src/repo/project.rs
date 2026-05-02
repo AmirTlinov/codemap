@@ -82,7 +82,8 @@ pub fn load_project_with_cache(
                         },
                         files_reused: delta.unchanged.len(),
                     });
-                    let cache_artifacts = cache::artifact_statuses(&project, &delta.fingerprint);
+                    let fingerprint = cache::fingerprint(&project, None);
+                    let cache_artifacts = cache::artifact_statuses(&project, &fingerprint);
                     project.cache_state = cache::cache_state(&cache_artifacts);
                     project.cache_artifacts = cache_artifacts;
                     let cache_artifact_ms = cache_artifact_started.elapsed().as_millis();
