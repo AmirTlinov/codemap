@@ -1,0 +1,57 @@
+#[test]
+fn dirty_daily_lens_artifacts_roundtrip_without_output_drift() {
+    let (repo, cache) = fixture();
+    let rel = "packages/app/src/useReplay.ts";
+
+    let _ = run_json(repo.path(), cache.path(), &["ls", ".", "--format", "json"]);
+    write(
+        &repo.path().join(rel),
+        "import { seek } from '@fixture/replay';\n\nexport const changedFrame = seek(71).frame;\n",
+    );
+
+    let changed_first = run_lens_stdout(repo.path(), cache.path(), &["changed"]);
+    let changed_second = run_lens_stdout(repo.path(), cache.path(), &["changed"]);
+    assert_eq!(
+        changed_first, changed_second,
+        "cached changed artifact must preserve markdown output"
+    );
+
+    let proof_first = run_lens_stdout(repo.path(), cache.path(), &["proof", "--changed"]);
+    let proof_second = run_lens_stdout(repo.path(), cache.path(), &["proof", "--changed"]);
+    assert_eq!(
+        proof_first, proof_second,
+        "cached proof artifact must preserve markdown output"
+    );
+
+    assert!(
+        cached_lens_artifact_exists(cache.path(), "changed-current.json"),
+        "changed command should write an external lens artifact"
+    );
+    assert!(
+        cached_lens_artifact_exists(cache.path(), "proof-changed.json"),
+        "proof --changed should write an external lens artifact"
+    );
+}
+
+fn run_lens_stdout(repo: &Path, cache: &Path, args: &[&str]) -> String {
+    let output = codemap()
+        .current_dir(repo)
+        .env("CODEMAP_CACHE_DIR", cache)
+        .args(args)
+        .output()
+        .expect("codemap should run");
+    assert!(
+        output.status.success(),
+        "codemap {:?} failed: {}",
+        args,
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout).expect("utf8 stdout")
+}
+
+fn cached_lens_artifact_exists(cache_root: &Path, name: &str) -> bool {
+    fs::read_dir(cache_root)
+        .expect("cache dir")
+        .filter_map(|entry| entry.ok())
+        .any(|entry| entry.path().join(name).exists())
+}

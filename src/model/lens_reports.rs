@@ -38,7 +38,7 @@ pub struct ImpactReport {
     pub expand: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ImpactCluster {
     pub id: String,
     pub risk: String,
@@ -71,7 +71,7 @@ pub struct DiffMapReport {
     pub expand: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ChangedReport {
     pub kind: &'static str,
     pub schema_version: &'static str,
@@ -90,7 +90,7 @@ pub struct ChangedReport {
     pub expand: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct GitChange {
     pub path: String,
     pub old_path: Option<String>,
@@ -99,7 +99,7 @@ pub struct GitChange {
     pub unstaged: bool,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ChangedStructuralEvent {
     pub kind: String,
     pub path: String,
@@ -110,7 +110,7 @@ pub struct ChangedStructuralEvent {
     pub expand: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ChangedMapDelta {
     pub added_edges: usize,
     pub removed_edges: usize,
@@ -126,7 +126,7 @@ pub struct ChangedMapDelta {
     pub new_unknowns: usize,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ChangedProofSummary {
     pub commands: Vec<ChangedProofCommand>,
     pub fallback: Vec<String>,
@@ -137,7 +137,7 @@ pub struct ChangedProofSummary {
     pub missing_direct: Vec<Surface>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ChangedProofCommand {
     pub command: String,
     pub sensors: Vec<ProofSurface>,

@@ -197,7 +197,7 @@ pub struct LsReport {
     pub next: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FileSummary {
     pub path: String,
     pub kind: String,
@@ -241,7 +241,7 @@ pub struct ProofReport {
     pub run_hint: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ProofSurface {
     pub command: Option<String>,
     pub path: Option<String>,

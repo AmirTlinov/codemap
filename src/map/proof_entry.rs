@@ -210,6 +210,23 @@ pub fn proof_report(
     }
 }
 
+pub fn clean_proof_report(_selector: String) -> ProofReport {
+    ProofReport {
+        kind: "proof_plan",
+        schema_version: "5",
+        target: None,
+        changed: Vec::new(),
+        risk: "low".to_string(),
+        proofs: Vec::new(),
+        fallback: Vec::new(),
+        unknowns: Vec::new(),
+        hidden: Vec::new(),
+        expand: Vec::new(),
+        run_hint: "codemap proof prints only by default; use --run to execute proof commands"
+            .to_string(),
+    }
+}
+
 fn risk_from_str(value: &str) -> Risk {
     match value {
         "critical" => Risk::Critical,

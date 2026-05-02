@@ -18,11 +18,16 @@ use crate::model::{
 pub(crate) mod cached_project;
 pub(crate) mod fingerprint_delta;
 pub(crate) mod fingerprints;
+pub(crate) mod lens_artifacts;
 
 pub use cached_project::read_cached_project;
 pub use fingerprints::{
     cached_git_head, cached_git_head_matches, file_delta, file_delta_by_rechecking_cached_files,
     file_delta_for_head_change, file_delta_for_known_changes,
+};
+pub use lens_artifacts::{
+    read_changed_report, read_proof_changed_report, write_changed_report,
+    write_proof_changed_report,
 };
 
 const CACHE_ARTIFACTS: &[&str] = &[
@@ -201,7 +206,7 @@ fn cached_fingerprint(path: &Path) -> Option<String> {
         .map(str::to_string)
 }
 
-fn cached_status_fingerprint(cache_dir: &Path) -> Option<String> {
+pub(super) fn cached_status_fingerprint(cache_dir: &Path) -> Option<String> {
     cached_fingerprint(&cache_dir.join("status.json"))
 }
 

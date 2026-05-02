@@ -2,11 +2,47 @@ fn proof(project: &crate::model::Project, args: ProofArgs) -> Result<()> {
     ensure_valid_config(project)?;
     let (target, changed, selector) = proof_inputs(project, &args)?;
     let report = map::proof_report(project, target, changed, selector, args.depth, args.limit);
+    maybe_write_proof_changed_lens_cache(project, &args, &report);
     if args.run {
         render::proof(&report);
         return run_proof_plan(project, &report);
     }
     output(args.format, &report, || render::proof(&report))
+}
+
+fn maybe_write_proof_changed_lens_cache(
+    project: &crate::model::Project,
+    args: &ProofArgs,
+    report: &crate::model::ProofReport,
+) {
+    if args.run
+        || args.target.is_some()
+        || args
+            .files
+            .as_deref()
+            .is_some_and(|files| !files.trim().is_empty())
+    {
+        return;
+    }
+    if !args.changed && !args.staged && args.since.is_none() {
+        return;
+    }
+    let selector = if args.staged {
+        "--staged".to_string()
+    } else if let Some(since) = args.since.as_deref() {
+        format!("--since {}", shell_quote_arg(since))
+    } else {
+        "--changed".to_string()
+    };
+    let _ = crate::cache::write_proof_changed_report(
+        &project.cache_dir,
+        repo::VERSION,
+        &project.root,
+        &selector,
+        args.depth,
+        args.limit,
+        report,
+    );
 }
 
 fn run_proof_plan(
