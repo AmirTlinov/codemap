@@ -62,9 +62,27 @@ repos would add noise instead of proof.
 
 ## Current Boundary
 
-No broad numbered slice is active after Slice 30C. Pick the next boundary from
+No broad numbered slice is active after Slice 30D. Pick the next boundary from
 the largest daily-workflow gap observed in live use, not by continuing the slice
 number ritual.
+
+Slice 30D is closed:
+
+```txt
+status: closed
+tier: focused/full
+closed: `doctor/status` now exposes schema-backed `map_quality` warnings for
+manifest, schema, and env owner surfaces that are indexed but have incomplete
+deterministic proof/consumer rails.
+guardrails: warnings are deterministic diagnostics with count, examples,
+reason, effect, and expand; they do not claim failure, ranking, or remediation.
+excluded: scoring map quality, global confidence, and broad repo-specific
+advice remain non-goals.
+proof: map-quality doctor regression, schema parity, and full local gate.
+live: current repo doctor smoke; broader live repos are for the next adoption
+slice if map-quality noise needs tuning.
+next: tune warning noise on real projects before adding more warning kinds.
+```
 
 Slice 30C is closed:
 
@@ -73,21 +91,20 @@ status: closed
 tier: focused/full
 closed: source-role classification now covers deterministic application,
 service, domain, controller, module, repository, package graph, map surface,
-extractor, script catalog, config loader, and evidence surfaces for clear path
-and file-name patterns.
+extractor, script catalog, CLI surface, config loader, and evidence surfaces
+for clear path and file-name patterns.
 guardrails: no fallback role for every source file; files still need stable
 path/name/source evidence to get a role, and source roles do not override the
 primary `source` kind.
 excluded: richer cross-language architecture roles and per-domain quality
-thresholds remain later map-quality work. The codemap repo still has generic
-internal map files reported as unclassified by `doctor`.
+thresholds remain later map-quality work.
 proof: focused source-role doctor regression plus current-repo doctor smoke and
 full local gate.
-review: required only if this role expansion changes public lens semantics in a
-future blocker; current boundary is deterministic role classification.
-live: current installed PATH smoke after gate.
-next: map-quality doctor warnings beyond unclassified count, especially
-fallback-only proof rate and incomplete manifest/schema/env cones.
+review: independent reviewer required because scanner/cache/public role
+semantics changed.
+live: current installed PATH smoke verifies warm `surface-cache-v5`
+`unclassified_count=0`.
+next: tune map-quality doctor warning noise on live repos.
 ```
 
 Slice 30B is closed:
@@ -495,21 +512,39 @@ or misleading map.
 | 30A Role-aware proof planner | closed | focused/full/live | Custom proof roles and Makefile/justfile targets beat generic fallback without task routing. |
 | 30B Receipt/witness changed map | closed | focused | Receipt JSON deltas collapse to proof-witness buckets instead of config-key spam. |
 | 30C Source-role map quality | closed | focused/full | Deterministic source roles reduce obvious unclassified noise without a catch-all source role or kind inflation. |
+| 30D Doctor map-quality diagnostics | closed | focused/full | Status schema now carries deterministic map-quality warnings with examples and expand commands. |
 
 ## Closed Boundaries
+
+### Slice 30D: Doctor Map-Quality Diagnostics
+
+```txt
+closed: doctor/status reports deterministic map-quality warnings for indexed
+manifest/schema/env surfaces that lack direct proof or consumer evidence. The
+warnings carry count, examples, reason, effect, and exact expand command when a
+focused expansion exists.
+excluded: quality scoring, confidence, semantic advice, and repo-specific
+teaching.
+proof: `doctor_reports_map_quality_warnings_for_incomplete_owner_surfaces`,
+schema manifest/status version bump, current-repo doctor smoke, and full local
+gate.
+live: current repo doctor smoke only; tune on live repos before adding warning
+kinds.
+```
 
 ### Slice 30C: Source-Role Map Quality
 
 ```txt
 closed: source files now get deterministic roles for application/service/domain/
 controller/module/repository/package graph/map surface/extractor/script catalog/
-config loader/evidence surfaces when path/name/source evidence supports it.
+CLI surface/config loader/evidence surfaces when path/name/source evidence
+supports it. Scanner and `changed --section roles` share the same source path
+role catalog.
 excluded: role thresholds for every ecosystem and broader doctor quality
-warnings beyond unclassified count; current codemap internals still have
-unclassified generic map/source files.
+warnings beyond the first map-quality diagnostics.
 proof: source-role regression fixture, current-repo doctor fresh-cache smoke,
-and full local gate.
-live: PATH smoke after install on this repo.
+warm `surface-cache-v5` smoke, and full local gate.
+live: PATH smoke after install on this repo shows `unclassified_count=0`.
 ```
 
 ### Slice 30B: Receipt/Witness Changed Map

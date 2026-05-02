@@ -166,7 +166,21 @@ fn source_is_module_surface(root: &Path, rel: &str, name: &str, ext: &str) -> bo
 }
 
 fn source_path_tokens(rel: &str) -> BTreeSet<String> {
-    rel.split(|ch: char| !ch.is_ascii_alphanumeric())
+    let path = Path::new(rel);
+    let mut token_source = path
+        .parent()
+        .map(|parent| parent.to_string_lossy().to_string())
+        .unwrap_or_default();
+    if let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) {
+        if !token_source.is_empty() {
+            token_source.push('/');
+        }
+        token_source.push_str(stem);
+    } else if token_source.is_empty() {
+        token_source = rel.to_string();
+    }
+    token_source
+        .split(|ch: char| !ch.is_ascii_alphanumeric())
         .filter(|part| !part.is_empty())
         .map(str::to_ascii_lowercase)
         .collect()

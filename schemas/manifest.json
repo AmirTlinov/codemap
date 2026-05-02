@@ -7,14 +7,14 @@
       "kind": "doctor",
       "file": "schemas/status.schema.json",
       "contract": "structural_output",
-      "schema_version": "4",
+      "schema_version": "5",
       "json_kind": "status_report"
     },
     {
       "kind": "status",
       "file": "schemas/status.schema.json",
       "contract": "structural_output",
-      "schema_version": "4",
+      "schema_version": "5",
       "json_kind": "status_report"
     },
     {

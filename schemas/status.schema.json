@@ -28,12 +28,13 @@
     "scripts",
     "fingerprint",
     "boundary_findings",
+    "map_quality",
     "unclassified_source_files",
     "unclassified_count"
   ],
   "properties": {
     "kind": { "const": "status_report" },
-    "schema_version": { "const": "4" },
+    "schema_version": { "const": "5" },
     "root": { "type": "string" },
     "cwd": { "type": "string" },
     "vcs": { "type": ["string", "null"] },
@@ -76,6 +77,10 @@
     },
     "fingerprint": { "type": "string" },
     "boundary_findings": { "type": "integer", "minimum": 0 },
+    "map_quality": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/map_quality_warning" }
+    },
     "unclassified_source_files": {
       "type": "array",
       "items": { "type": "string" }
@@ -151,6 +156,22 @@
           "type": "array",
           "items": { "type": "string" }
         }
+      }
+    },
+    "map_quality_warning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "count", "examples", "reason", "effect", "expand"],
+      "properties": {
+        "kind": { "type": "string" },
+        "count": { "type": "integer", "minimum": 0 },
+        "examples": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "reason": { "type": "string" },
+        "effect": { "type": "string" },
+        "expand": { "type": ["string", "null"] }
       }
     },
     "project_timings": {

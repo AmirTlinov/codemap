@@ -23,6 +23,7 @@ pub struct StatusReport {
     pub scripts: Vec<String>,
     pub fingerprint: String,
     pub boundary_findings: usize,
+    pub map_quality: Vec<MapQualityWarning>,
     pub unclassified_source_files: Vec<String>,
     pub unclassified_count: usize,
 }
@@ -34,6 +35,16 @@ pub struct DomainStatus {
     pub config: Option<String>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct MapQualityWarning {
+    pub kind: String,
+    pub count: usize,
+    pub examples: Vec<String>,
+    pub reason: String,
+    pub effect: String,
+    pub expand: Option<String>,
+}
+
 pub fn status_report(project: &Project) -> StatusReport {
     let unclassified: Vec<String> = project
         .files
@@ -43,7 +54,7 @@ pub fn status_report(project: &Project) -> StatusReport {
         .collect();
     StatusReport {
         kind: "status_report",
-        schema_version: "4",
+        schema_version: "5",
         root: project.root.to_string_lossy().to_string(),
         cwd: project.cwd.to_string_lossy().to_string(),
         vcs: project.vcs.clone(),
@@ -77,7 +88,170 @@ pub fn status_report(project: &Project) -> StatusReport {
         scripts: project.scripts.iter().map(|s| s.command.clone()).collect(),
         fingerprint: cache::fingerprint(project, None),
         boundary_findings: boundary_findings(project, None).len(),
+        map_quality: map_quality_warnings(project),
         unclassified_count: unclassified.len(),
         unclassified_source_files: unclassified.into_iter().take(30).collect(),
     }
+}
+
+fn map_quality_warnings(project: &Project) -> Vec<MapQualityWarning> {
+    let mut warnings = Vec::new();
+    push_missing_role_warning(
+        project,
+        &mut warnings,
+        "manifest_role_missing",
+        "manifest",
+        "file name is a package/workspace manifest but scanner did not assign manifest role",
+        "manifest cones and package proof surfaces may be incomplete",
+        |file| {
+            let name = status_file_name(&file.rel);
+            repo::is_package_manifest_name(&name)
+        },
+    );
+    push_missing_role_warning(
+        project,
+        &mut warnings,
+        "env_role_missing",
+        "env_config",
+        "file name is .env* but scanner did not assign env_config role",
+        "runtime config knobs may be absent from cone/changed unknowns",
+        |file| {
+            let name = status_file_name(&file.rel);
+            repo::is_env_surface_name(&name)
+        },
+    );
+    push_missing_role_warning(
+        project,
+        &mut warnings,
+        "schema_role_missing",
+        "schema_contract",
+        "file path/extension looks like a schema or contract but scanner did not assign schema role",
+        "schema cones and contract/proof checks may be incomplete",
+        |file| {
+            let name = status_file_name(&file.rel);
+            !file.has_role("manifest")
+                && !repo::is_package_manifest_name(&name)
+                && repo::is_schema_contract_surface(&file.rel.to_ascii_lowercase(), &name, &file.ext)
+                && !file.has_role("migration")
+        },
+    );
+    push_owner_surface_proof_warning(
+        project,
+        &mut warnings,
+        "manifest_without_deterministic_proof",
+        "manifest",
+        "no manifest script, package-local Cargo command, or package-specific CI reference was found",
+        "proof may only show broader fallback commands for these manifests",
+    );
+    push_owner_surface_proof_warning(
+        project,
+        &mut warnings,
+        "schema_without_deterministic_proof",
+        "schema_contract",
+        "no schema generate/migrate/seed script or CI reference was found",
+        "schema proof may be fallback-only even when the schema is indexed",
+    );
+    push_env_quality_warning(project, &mut warnings);
+    warnings
+}
+
+fn push_missing_role_warning(
+    project: &Project,
+    warnings: &mut Vec<MapQualityWarning>,
+    kind: &str,
+    expected_role: &str,
+    reason: &str,
+    effect: &str,
+    candidate: impl Fn(&FileInfo) -> bool,
+) {
+    let examples = project
+        .files
+        .values()
+        .filter(|file| {
+            !is_support_artifact_path(&file.rel) && candidate(file) && !file.has_role(expected_role)
+        })
+        .map(|file| file.rel.clone())
+        .collect::<Vec<_>>();
+    push_map_quality_warning(warnings, kind, examples, reason, effect, None);
+}
+
+fn push_owner_surface_proof_warning(
+    project: &Project,
+    warnings: &mut Vec<MapQualityWarning>,
+    kind: &str,
+    role: &str,
+    reason: &str,
+    effect: &str,
+) {
+    let examples = project
+        .files
+        .values()
+        .filter(|file| file.has_role(role))
+        .filter(|file| !is_support_artifact_path(&file.rel))
+        .filter(|file| owner_surface_proof_surfaces(project, &file.rel).is_empty())
+        .map(|file| file.rel.clone())
+        .collect::<Vec<_>>();
+    let expand = examples
+        .first()
+        .map(|example| format!("codemap proof {}", shell_quote(example)));
+    push_map_quality_warning(warnings, kind, examples, reason, effect, expand);
+}
+
+fn push_env_quality_warning(project: &Project, warnings: &mut Vec<MapQualityWarning>) {
+    let examples = project
+        .files
+        .values()
+        .filter(|file| file.has_role("env_config"))
+        .filter(|file| !is_support_artifact_path(&file.rel))
+        .filter_map(|file| {
+            let keys = env_declared_keys(project, &file.rel);
+            if keys.is_empty() {
+                return Some(format!("{} (no declared keys)", file.rel));
+            }
+            let missing_consumers = owner_env_unknowns(project, &file.rel).len();
+            (missing_consumers > 0)
+                .then(|| format!("{} ({missing_consumers} keys without static readers)", file.rel))
+        })
+        .collect::<Vec<_>>();
+    let expand = examples.first().map(|example| {
+        let path = example.split(' ').next().unwrap_or(example);
+        format!("codemap cone {}", shell_quote(path))
+    });
+    push_map_quality_warning(
+        warnings,
+        "env_config_without_consumers",
+        examples,
+        "env file has no declared keys or has keys without deterministic static readers",
+        "runtime config cone has missing-consumer unknowns for at least one key",
+        expand,
+    );
+}
+
+fn push_map_quality_warning(
+    warnings: &mut Vec<MapQualityWarning>,
+    kind: &str,
+    examples: Vec<String>,
+    reason: &str,
+    effect: &str,
+    expand: Option<String>,
+) {
+    if examples.is_empty() {
+        return;
+    }
+    warnings.push(MapQualityWarning {
+        kind: kind.to_string(),
+        count: examples.len(),
+        examples: examples.into_iter().take(8).collect(),
+        reason: reason.to_string(),
+        effect: effect.to_string(),
+        expand,
+    });
+}
+
+fn status_file_name(rel: &str) -> String {
+    Path::new(rel)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(rel)
+        .to_ascii_lowercase()
 }

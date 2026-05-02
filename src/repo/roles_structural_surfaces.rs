@@ -1,4 +1,4 @@
-fn is_package_manifest_name(name: &str) -> bool {
+pub(crate) fn is_package_manifest_name(name: &str) -> bool {
     matches!(
         name,
         "package.json"
@@ -13,7 +13,7 @@ fn is_package_manifest_name(name: &str) -> bool {
     )
 }
 
-fn is_env_surface_name(name: &str) -> bool {
+pub(crate) fn is_env_surface_name(name: &str) -> bool {
     name == ".env" || name.starts_with(".env.")
 }
 
@@ -46,7 +46,7 @@ fn is_docs_surface(rel: &str, name: &str, ext: &str) -> bool {
             || rel.contains("/contracts/"))
 }
 
-fn is_runtime_config_surface(rel: &str, name: &str) -> bool {
+pub(crate) fn is_runtime_config_surface(rel: &str, name: &str) -> bool {
     is_env_surface_name(name)
         || matches!(
             name,

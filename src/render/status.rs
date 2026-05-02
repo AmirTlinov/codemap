@@ -271,6 +271,30 @@ pub fn status(report: &StatusReport, doctor: bool) {
         println!("\n## Anchor Config Errors\n");
         println!("{}", bullet(&report.config_errors, false, Some(10)));
     }
+    if !report.map_quality.is_empty() {
+        println!("\n## Map Quality Warnings\n");
+        let rows = report
+            .map_quality
+            .iter()
+            .map(|warning| {
+                vec![
+                    code(&warning.kind),
+                    warning.count.to_string(),
+                    warning.examples.join(", "),
+                    warning.effect.clone(),
+                    warning
+                        .expand
+                        .as_ref()
+                        .map(|command| code(command))
+                        .unwrap_or_else(|| "-".to_string()),
+                ]
+            })
+            .collect();
+        println!(
+            "{}",
+            table(&["Kind", "Count", "Examples", "Effect", "Expand"], rows)
+        );
+    }
     if !report.scripts.is_empty() {
         println!("\n## Verification Hints\n");
         println!("{}", bullet(&report.scripts, true, Some(10)));

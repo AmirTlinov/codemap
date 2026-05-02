@@ -34,6 +34,10 @@ fn source_role_classifiers_keep_doctor_unclassified_noise_low() {
         "pub fn extract_surfaces() {}\n",
     );
     write(
+        &repo.path().join("src/repo/js_imports.rs"),
+        "pub fn scan_js_imports() {}\n",
+    );
+    write(
         &repo.path().join("src/repo/scripts_make.rs"),
         "pub fn make_targets() {}\n",
     );
@@ -60,6 +64,7 @@ fn source_role_classifiers_keep_doctor_unclassified_noise_low() {
         ("src/repositories/order_repository.ts", "repository"),
         ("src/map/lenses/diff_map.rs", "map_surface"),
         ("src/repo/surfaces_core.rs", "extractor"),
+        ("src/repo/js_imports.rs", "extractor"),
         ("src/repo/scripts_make.rs", "script_catalog"),
         ("src/cli/args.rs", "cli_surface"),
         ("src/repo/project.rs", "state_model"),

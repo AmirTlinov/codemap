@@ -226,7 +226,7 @@ fn add_renderer_ui_role_if(
     }
 }
 
-fn is_schema_contract_surface(rel: &str, name: &str, ext: &str) -> bool {
+pub(crate) fn is_schema_contract_surface(rel: &str, name: &str, ext: &str) -> bool {
     if !is_contract_surface_ext(ext) {
         return false;
     }
