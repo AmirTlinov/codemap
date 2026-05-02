@@ -13,6 +13,7 @@ include!("lenses/runtime_root_containers.rs");
 include!("lenses/runtime_worker_jobs.rs");
 include!("lenses/runtime_proof_map.rs");
 include!("lenses/boundary_map.rs");
+include!("lenses/flow_runtime_entrypoints.rs");
 include!("lenses/delete_boundary_flow.rs");
 include!("lenses/siblings_place.rs");
 include!("lenses/runtime_code_shape.rs");

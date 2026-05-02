@@ -285,9 +285,15 @@ pub fn flow_report(
                             .cloned()
                             .unwrap_or_else(|| rel.clone()),
                         kind: "runtime_entrypoint".to_string(),
-                        evidence: surface.evidence,
-                        locations: vec![EvidenceLocation::path(&rel, "runtime_entrypoint")],
+                        evidence: surface.evidence.clone(),
+                        locations: runtime_entrypoint_locations(project, &rel, &surface),
                     });
+                    if let Some(step) = runtime_entrypoint_symbol_step(project, file) {
+                        steps.push(FlowStep {
+                            index: steps.len(),
+                            ..step
+                        });
+                    }
                 }
                 steps.push(FlowStep {
                     index: steps.len(),
@@ -378,19 +384,6 @@ pub fn flow_report(
         hidden,
         expand,
     }
-}
-
-fn runtime_entrypoint_surface_for_file(project: &Project, rel: &str) -> Option<Surface> {
-    let mut surfaces = Vec::new();
-    for package in &project.packages {
-        let Some(manifest) = project.files.get(&package.manifest) else {
-            continue;
-        };
-        surfaces.extend(runtime_manifest_entrypoints(project, manifest));
-    }
-    surfaces
-        .into_iter()
-        .find(|surface| surface.path.as_deref() == Some(rel))
 }
 
 fn route_handler_step(project: &Project, route: &RuntimeRoute) -> Option<FlowStep> {

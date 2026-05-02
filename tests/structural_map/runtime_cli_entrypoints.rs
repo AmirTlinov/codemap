@@ -30,11 +30,11 @@ fn runtime_lens_exposes_manifest_cli_entrypoints() {
     );
     write(
         &repo.path().join("crates/worker/Cargo.toml"),
-        "[package]\nname = \"fixture-worker\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[[bin]]\nname = \"fixture-worker\"\npath = \"src/bin/worker.rs\"\n",
+        "[package]\nname = \"fixture-worker\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[package.metadata.fixture]\nnote = \"src/bin/worker.rs\"\n# path = \"src/bin/worker.rs\"\n\n[[bin]]\nname = \"fixture-worker\"\npath = \"src/bin/worker.rs\"\n\n[package.metadata.after]\npath = \"src/bin/worker.rs\"\n",
     );
     write(
         &repo.path().join("crates/worker/src/bin/worker.rs"),
-        "fn main() {}\n",
+        "mod helper {\n    fn main() {}\n}\n\nfn main() {}\n",
     );
     write(
         &repo.path().join("crates/default-bin/Cargo.toml"),
@@ -167,10 +167,24 @@ fn runtime_lens_exposes_manifest_cli_entrypoints() {
             .first()
             .is_some_and(|step| step["kind"] == "runtime_entrypoint"
                 && step["evidence"] == "cargo_bin_target"
+                && step["locations"][0]["path"] == "crates/worker/Cargo.toml"
+                && step["locations"][0]["line_start"] == 12
                 && step["anchor"]
                     .as_str()
                     .is_some_and(|anchor| anchor.contains("fixture-worker -> crates/worker/src/bin/worker.rs"))),
-        "flow should preserve the Cargo bin runtime origin before file dependencies: {flow:#}"
+        "flow should preserve the exact Cargo bin path line, not earlier metadata/comment mentions: {flow:#}"
+    );
+    assert!(
+        flow["steps"]
+            .as_array()
+            .expect("steps")
+            .iter()
+            .any(|step| step["kind"] == "entry_symbol"
+                && step["anchor"] == "crates/worker/src/bin/worker.rs#main"
+                && step["evidence"] == "rust_main_symbol"
+                && step["locations"][0]["kind"] == "entry_symbol"
+                && step["locations"][0]["line_start"] == 5),
+        "flow should stitch a Rust runtime entrypoint to the top-level main symbol, not nested helper mains: {flow:#}"
     );
 }
 

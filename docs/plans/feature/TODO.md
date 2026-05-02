@@ -149,6 +149,22 @@ next: keep non-code work bounded to deterministic imports/references; do not
 guess CSS class ownership from names.
 ```
 
+Slice 21 first boundary is closed:
+
+```txt
+closed: Rust CLI flow now stitches explicit Cargo bin entrypoints to their
+manifest line and to the exact `main` symbol when present. The path is bounded:
+Cargo.toml bin target -> file -> `#main` -> direct structural imports.
+proof: runtime CLI entrypoint fixture asserts Cargo.toml provenance and
+`entry_symbol`; live SilentWay `flow src/masque-core/src/bin/vpn_server.rs`
+shows `cargo_bin_target` at `src/masque-core/Cargo.toml:96` and
+`src/masque-core/src/bin/vpn_server.rs#main` at lines 136-153.
+review: required before commit because this changes public flow behavior.
+live: Sillentway-VPN is the motivating Rust/native repo.
+next: do not expand into callgraph; only add more runtime-to-code stitching
+when a deterministic owner edge is visible.
+```
+
 Slice 13 first boundary is closed:
 
 ```txt
@@ -198,7 +214,7 @@ or misleading map.
 | 18 Impact lens | closed first boundary | focused | Package export surfaces participate in contract impact risk. |
 | 19 Delete lens | todo | focused | Deletion blockers are mapped without `safe`/`probably unused` claims. |
 | 20 Boundary-map lens | todo | focused/live | Crossings are read-only facts; forbidden findings require explicit config. |
-| 21 Flow lens | todo | focused/live | Bounded structural paths stop at typed unknowns. |
+| 21 Flow lens | closed first boundary | focused/live | Rust CLI runtime entrypoints stitch to manifest provenance and exact `main` symbols. |
 | 22 Siblings and place lenses | todo | focused | Local conventions are shown without ranking or recommendations. |
 | 23 Non-code, assets, data, events, generated ownership | closed first boundary | focused/live | CSS @import barrels create deterministic style edges with line evidence. |
 | 24 Unknown taxonomy, scope repair, fail-closed traversal | closed first boundary | full | Empty proof/test scopes point to nearest parent proof scope with typed unknowns. |
