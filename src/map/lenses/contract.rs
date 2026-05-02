@@ -22,6 +22,7 @@ pub fn contract_report(
         .cloned()
         .collect::<Vec<_>>();
     let mut proof = cone_proof_edges_with_direct_consumers(project, std::slice::from_ref(&rel));
+    let mut package_exports = package_export_edges(project, &rel);
     let mut exported_contracts = project
         .files
         .get(&rel)
@@ -48,6 +49,7 @@ pub fn contract_report(
         .map(|file| {
             file.has_role("public_boundary")
                 || package_for_rel(project, &rel).is_some_and(|package| package.manifest == rel)
+                || !package_exports.is_empty()
                 || !cross_package_consumers.is_empty()
         })
         .unwrap_or(false);
@@ -71,6 +73,14 @@ pub fn contract_report(
         limit,
         &mut hidden,
         "exported contract surfaces hidden by limit",
+        &include_hidden_expand,
+    );
+    limit_edge_section(
+        &mut package_exports,
+        &mut hidden,
+        include_hidden,
+        limit,
+        "package export edges hidden by limit",
         &include_hidden_expand,
     );
     limit_edge_section(
@@ -119,11 +129,12 @@ pub fn contract_report(
     );
     ContractReport {
         kind: "contract_report",
-        schema_version: "1",
+        schema_version: "2",
         anchor,
         contract_kind,
         public_surface,
         exported_contracts,
+        package_exports,
         producers,
         consumers,
         cross_package_consumers,

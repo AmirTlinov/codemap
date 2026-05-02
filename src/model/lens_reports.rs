@@ -149,6 +149,7 @@ pub struct ContractReport {
     pub contract_kind: String,
     pub public_surface: bool,
     pub exported_contracts: Vec<Surface>,
+    pub package_exports: Vec<StructuralEdge>,
     pub producers: Vec<StructuralEdge>,
     pub consumers: Vec<StructuralEdge>,
     pub cross_package_consumers: Vec<StructuralEdge>,

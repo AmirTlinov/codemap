@@ -11,6 +11,7 @@
     "contract_kind",
     "public_surface",
     "exported_contracts",
+    "package_exports",
     "producers",
     "consumers",
     "cross_package_consumers",
@@ -24,7 +25,7 @@
       "const": "contract_report"
     },
     "schema_version": {
-      "const": "1"
+      "const": "2"
     },
     "anchor": {
       "$ref": "#/$defs/file_summary"
@@ -39,6 +40,12 @@
       "type": "array",
       "items": {
         "$ref": "#/$defs/surface"
+      }
+    },
+    "package_exports": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/structural_edge"
       }
     },
     "producers": {

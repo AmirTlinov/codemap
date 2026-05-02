@@ -28,6 +28,31 @@ fn delete_lens_reports_package_manifest_export_blocker() {
                 .is_some_and(|text| text.contains("package public exports"))),
         "delete lens checklist should point at the manifest blocker without claiming safety: {delete_map:#}"
     );
+
+    let contract = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "contract",
+            "packages/replay/src/index.ts",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/contract.schema.json", &contract);
+    assert_eq!(contract["schema_version"], "2");
+    assert!(contract["public_surface"].as_bool().unwrap_or(false));
+    assert!(
+        contract["package_exports"]
+            .as_array()
+            .expect("package exports")
+            .iter()
+            .any(|edge| edge["from"] == "packages/replay/package.json"
+                && edge["to"] == "packages/replay/src/index.ts"
+                && edge["type"] == "package_export"
+                && edge["evidence"] == "package_manifest"),
+        "contract lens must expose package manifest exports as public contract evidence: {contract:#}"
+    );
 }
 
 #[test]
