@@ -113,3 +113,46 @@ fixtures cover each claimed language
 
 Exact files become useful maps, not just file metadata.
 
+## First Closure
+
+Status: closed within the unresolved-local-import boundary.
+
+Implemented:
+
+- `FileInfo` now records `unresolved_imports` from the shared import resolver.
+- Only local-looking unresolved imports are reported as blind spots:
+  - relative or absolute source imports;
+  - Rust `crate::`, `self::`, `super::`, and `.rs` include-style specs.
+- External package imports are not treated as unresolved local structural facts.
+- `cone <file>` emits typed `unresolved_import` unknowns with line provenance
+  where the import statement can be located.
+
+Boundary:
+
+```txt
+closed: exact file cones no longer silently drop unresolved local imports.
+excluded: full base/source-owner import matrix, non-code import resolution,
+path-alias repair beyond existing resolver support, and unresolved external
+package dependency diagnostics.
+```
+
+Proof:
+
+```bash
+cargo fmt --check
+cargo test --quiet cone_reports_unresolved_local_imports_as_typed_unknowns --test structural_map
+cargo test --quiet public_json_reports_validate_against_manifest_schemas --test structural_map
+cargo test --quiet
+cargo clippy --all-targets -- -D warnings
+cargo run --quiet --bin codemap -- doctor
+git diff --check
+```
+
+Live decision:
+
+```txt
+not required for this boundary; the fixture isolates the false omission better
+than ambient live repos, and no broad command orientation behavior changed.
+```
+
+Reviewer: PASS.

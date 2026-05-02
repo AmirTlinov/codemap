@@ -49,6 +49,7 @@ pub struct FileInfo {
     pub imports: BTreeSet<String>,
     pub import_bindings: ImportBindingsBySpec,
     pub resolved_imports: BTreeSet<String>,
+    pub unresolved_imports: BTreeSet<String>,
     pub resolved_import_bindings: ImportBindingsBySpec,
     pub exports: BTreeSet<String>,
     pub symbols: Vec<SymbolInfo>,

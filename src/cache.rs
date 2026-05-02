@@ -202,6 +202,7 @@ fn write_inventory(project: &Project, version: &str) -> Result<()> {
                             .collect(),
                     })
                     .collect(),
+                unresolved_imports: file.unresolved_imports.iter().cloned().collect(),
                 resolved_import_bindings: file
                     .resolved_import_bindings
                     .iter()
@@ -324,6 +325,7 @@ struct CachedFile {
     line_count: usize,
     roles: Vec<String>,
     import_bindings: Vec<CachedImportBindings>,
+    unresolved_imports: Vec<String>,
     resolved_import_bindings: Vec<CachedImportBindings>,
     symbols: Vec<crate::model::SymbolInfo>,
     jsx_tags: Vec<String>,

@@ -88,6 +88,7 @@ fn cone_anchor(
     if let Some(info) = project.files.get(rel) {
         let summary = file_summary(project, info, include_hidden, limit);
         let mut hidden = Vec::new();
+        let unknowns = unresolved_import_unknowns(project, info);
         push_symbol_hidden_groups(
             &mut hidden,
             info,
@@ -95,7 +96,7 @@ fn cone_anchor(
             limit,
             &format!("codemap cone {} --include-hidden", shell_quote(rel)),
         );
-        return (summary, vec![info.rel.clone()], Vec::new(), hidden);
+        return (summary, vec![info.rel.clone()], unknowns, hidden);
     }
     if directory_has_files(project, rel) {
         let mut files = files_under_directory(project, rel)

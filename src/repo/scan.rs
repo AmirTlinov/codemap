@@ -40,6 +40,7 @@ fn scan_files(root: &Path) -> Result<(BTreeMap<String, FileInfo>, ScanStats)> {
             imports: BTreeSet::new(),
             import_bindings: BTreeMap::new(),
             resolved_imports: BTreeSet::new(),
+            unresolved_imports: BTreeSet::new(),
             resolved_import_bindings: BTreeMap::new(),
             exports: BTreeSet::new(),
             symbols: Vec::new(),

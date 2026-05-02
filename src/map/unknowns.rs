@@ -66,3 +66,35 @@ fn unknown_directory_aggregate(path: &str, depth: usize) -> Unknown {
         )),
     )
 }
+
+fn unknown_unresolved_import(path: &str, spec: &str, line_start: Option<usize>) -> Unknown {
+    unknown(
+        "unresolved_import",
+        Some(path),
+        line_start,
+        format!("local import `{spec}` did not resolve to an indexed target"),
+        "structural import edge is omitted until the target can be resolved",
+        Some(format!("codemap ls {}", shell_quote(path))),
+    )
+}
+
+fn unresolved_import_unknowns(project: &Project, file: &FileInfo) -> Vec<Unknown> {
+    file.unresolved_imports
+        .iter()
+        .map(|spec| {
+            unknown_unresolved_import(
+                &file.rel,
+                spec,
+                unresolved_import_line(project, file, spec),
+            )
+        })
+        .collect()
+}
+
+fn unresolved_import_line(project: &Project, file: &FileInfo, spec: &str) -> Option<usize> {
+    let text = std::fs::read_to_string(project.root.join(&file.rel)).ok()?;
+    text.lines()
+        .enumerate()
+        .find(|(_, line)| line.contains(spec) && line_looks_like_import_or_reexport(line.trim()))
+        .map(|(index, _)| index + 1)
+}

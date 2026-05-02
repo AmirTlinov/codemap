@@ -186,11 +186,24 @@ case more directly than dirty live repos.
 
 ### Slice 11: Symbol/import/export extraction matrix
 
-- [ ] Slice 11 implemented
-- [ ] Slice 11 gates passed
-- [ ] Slice 11 review decision recorded
-- [ ] Slice 11 live decision/probe recorded
-- [ ] Slice 11 agent satisfied
+- [x] Slice 11 implemented within first fact boundary
+- [x] Slice 11 gates passed
+- [x] Slice 11 review decision recorded
+- [x] Slice 11 live decision/probe recorded
+- [x] Slice 11 agent satisfied
+
+Boundary:
+
+```txt
+closed: unresolved local imports are recorded in FileInfo and surfaced as typed
+unresolved_import unknowns in exact file cones, with line provenance where
+available.
+excluded: full extraction matrix closure, non-code import resolution,
+unresolved external dependency diagnostics, and source-owner/codegen import
+repair.
+live: not required for this boundary; a controlled fixture proves the false
+omission directly.
+```
 
 ### Slice 12: Package/workspace graph and boundaries
 

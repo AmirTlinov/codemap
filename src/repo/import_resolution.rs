@@ -23,6 +23,7 @@ fn resolve_imports(
         .collect();
     for seed in snapshot {
         let mut resolved = BTreeSet::new();
+        let mut unresolved = BTreeSet::new();
         let mut resolved_bindings = BTreeMap::new();
         for spec in seed.imports {
             if let Some(target) = resolve_import(
@@ -45,13 +46,27 @@ fn resolve_imports(
                         );
                 }
                 resolved.insert(target);
+            } else if unresolved_import_should_be_reported(&seed.ext, &spec) {
+                unresolved.insert(spec);
             }
         }
         if let Some(info) = files.get_mut(&seed.rel) {
             info.resolved_imports = resolved;
+            info.unresolved_imports = unresolved;
             info.resolved_import_bindings = resolved_bindings;
         }
     }
+}
+
+fn unresolved_import_should_be_reported(ext: &str, spec: &str) -> bool {
+    if spec.starts_with('.') || spec.starts_with('/') {
+        return true;
+    }
+    matches!(ext, "rs")
+        && (spec.starts_with("crate::")
+            || spec.starts_with("self::")
+            || spec.starts_with("super::")
+            || spec.ends_with(".rs"))
 }
 
 fn enrich_accessible_surfaces_from_component_contracts(
@@ -175,4 +190,3 @@ fn component_export_resolves_to_dialog_labelledby_contract(
     }
     false
 }
-
