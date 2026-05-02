@@ -21,24 +21,24 @@ fn impact_summary_section(clusters: &[ImpactCluster]) {
         return;
     }
     println!("\n## Impact\n");
-    let rows = clusters
-        .iter()
-        .map(|cluster| {
-            vec![
-                code(&cluster.id),
-                code(&cluster.risk),
-                cluster.reasons.join("; "),
-                format!(
-                    "direct={} cross={} contract={} proof={}",
-                    cluster.direct_consumers.len(),
-                    cluster.cross_boundary_consumers.len(),
-                    cluster.contract_risks.len(),
-                    cluster.proof.len()
-                ),
-            ]
-        })
-        .collect();
-    println!("{}", table(&["Cluster", "Risk", "Reasons", "Edges"], rows));
+    render_impact_summary_lines(clusters);
+}
+
+fn render_impact_summary_lines(clusters: &[ImpactCluster]) {
+    for cluster in clusters {
+        println!(
+            "- `{}` [risk={}; direct={}; cross={}; contract={}; proof={}]",
+            cluster.id,
+            cluster.risk,
+            cluster.direct_consumers.len(),
+            cluster.cross_boundary_consumers.len(),
+            cluster.contract_risks.len(),
+            cluster.proof.len()
+        );
+        if !cluster.reasons.is_empty() {
+            println!("  reasons: {}", cluster.reasons.join("; "));
+        }
+    }
 }
 
 fn render_impact_cluster(cluster: &ImpactCluster) {

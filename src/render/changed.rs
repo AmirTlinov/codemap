@@ -101,25 +101,7 @@ fn changed_impact_section(report: &ChangedReport, compact: bool) {
     }
     println!("\n## Impact\n");
     if compact {
-        let rows = report
-            .impact
-            .iter()
-            .map(|cluster| {
-                vec![
-                    code(&cluster.id),
-                    code(&cluster.risk),
-                    cluster.reasons.join("; "),
-                    format!(
-                        "direct={} cross={} contract={} proof={}",
-                        cluster.direct_consumers.len(),
-                        cluster.cross_boundary_consumers.len(),
-                        cluster.contract_risks.len(),
-                        cluster.proof.len()
-                    ),
-                ]
-            })
-            .collect();
-        println!("{}", table(&["Cluster", "Risk", "Reasons", "Edges"], rows));
+        render_impact_summary_lines(&report.impact);
         return;
     }
     for cluster in &report.impact {

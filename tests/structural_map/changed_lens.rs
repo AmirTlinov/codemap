@@ -164,6 +164,10 @@ fn changed_distinguishes_visible_and_total_changed_files() {
         "markdown should render Map Delta as compact count bullets: {markdown}"
     );
     assert!(
+        markdown.contains("[risk=") && !markdown.contains("| Cluster | Risk | Reasons | Edges |"),
+        "changed markdown should render impact summary as compact cluster bullets: {markdown}"
+    );
+    assert!(
         !markdown.contains("| Status | Path | Old | Staged | Unstaged |")
             && !markdown.contains("| Surface | Count |"),
         "changed markdown should not return to Git State or Map Delta table spam: {markdown}"

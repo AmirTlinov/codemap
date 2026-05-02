@@ -58,6 +58,7 @@ fn impact_markdown_groups_relations_without_repeated_edge_tables() {
     );
     assert!(
         !markdown.contains("| Field | Value |")
+            && !markdown.contains("| Cluster | Risk | Reasons | Edges |")
             && !markdown.contains("| From | Type | To | Evidence | Strength | Where |"),
         "impact markdown should not repeat per-cluster field/edge tables: {markdown}"
     );
