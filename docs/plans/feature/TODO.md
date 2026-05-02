@@ -58,11 +58,21 @@ Satisfied: the implementing agent would voluntarily use the result again.
 
 ### Slice 06: Compact markdown grammar and renderer
 
-- [ ] Slice 06 implemented
-- [ ] Slice 06 gates passed
-- [ ] Slice 06 reviewer PASS
-- [ ] Slice 06 live dogfood complete
-- [ ] Slice 06 agent satisfied
+- [x] Slice 06 implemented within closure boundary
+- [x] Slice 06 gates passed
+- [x] Slice 06 reviewer PASS
+- [x] Slice 06 live dogfood complete
+- [x] Slice 06 agent satisfied
+
+Boundary:
+
+```txt
+closed: daily/focused compact map grammar for ls, cone, changed, impact,
+proof, proof-map, runtime, hidden/unknown, surfaces, and contract exports.
+excluded: doctor/status diagnostics, graph/boundary diagnostics, tiny metadata
+headers that are not repeated path spam.
+next: stop renderer micro-polish and return to facts/schemas/cache/lens depth.
+```
 
 ### Slice 07: Schema rail and golden validation
 

@@ -105,3 +105,26 @@ line budget holds
 
 Markdown becomes a stable map grammar, not per-command prose.
 
+## Closure Boundary
+
+2026-05-02 audit boundary:
+
+```txt
+closed:
+  daily/focused map markdown compaction pass
+  ls/cone metadata, symbols, surfaces
+  changed overview, impact summary, proof summary
+  runtime/env/surface/proof grouping
+  hidden and unknown blocks
+  contract export grouping
+
+not part of this closure:
+  diagnostic doctor/status tables
+  graph/boundary tabular or mermaid-oriented diagnostics
+  small focused-lens metadata headers that are not repeated path spam
+  future tree-path renderer polish
+```
+
+Do not keep spending micro-slices on cosmetic table removal. The next work
+should move back to facts, schemas, cache, or functional lens correctness unless
+a table causes real agent confusion or a line-budget regression.
