@@ -59,6 +59,8 @@ fn file_kind_for_ls(info: &FileInfo) -> String {
     }
     if repo::is_source_ext(&info.ext) {
         "source".to_string()
+    } else if info.language == "style" {
+        "style".to_string()
     } else if info.language == "config" {
         "config".to_string()
     } else if info.language == "markdown" {
@@ -75,4 +77,3 @@ fn is_generic_noise(info: &FileInfo) -> bool {
         && info.exports.is_empty()
         && info.symbols.is_empty()
 }
-

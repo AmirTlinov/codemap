@@ -213,6 +213,7 @@ fn language_for(path: &Path) -> String {
         "go" => "go",
         "swift" => "swift",
         "json" | "toml" | "yaml" | "yml" => "config",
+        "css" | "scss" | "sass" | "less" => "style",
         "md" => "markdown",
         _ => "unknown",
     }

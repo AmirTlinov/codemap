@@ -70,6 +70,7 @@ include!("structural_map/lens_runtime_facts.rs");
 include!("structural_map/runtime_cli_entrypoints.rs");
 include!("structural_map/runtime_env_fail_closed.rs");
 include!("structural_map/runtime_root_current_level.rs");
+include!("structural_map/non_code_surfaces.rs");
 include!("structural_map/proof_map_grouping.rs");
 include!("structural_map/proof_map_limits.rs");
 include!("structural_map/runtime_env_grouping.rs");

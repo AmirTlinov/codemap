@@ -59,7 +59,8 @@ const SOURCE_EXTS: &[&str] = &[
 ];
 
 const TEXT_EXTS: &[&str] = &[
-    "json", "toml", "yaml", "yml", "md", "txt", "sql", "graphql", "proto",
+    "json", "toml", "yaml", "yml", "md", "txt", "sql", "graphql", "proto", "css", "scss",
+    "sass", "less",
 ];
 
 const DOMAIN_HINT_DIRS: &[&str] = &[
