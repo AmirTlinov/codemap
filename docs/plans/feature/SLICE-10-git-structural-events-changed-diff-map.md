@@ -128,3 +128,50 @@ expand goes to useful next lenses
 ## Done When
 
 After-edit orientation starts with `codemap changed`.
+
+## First Closure
+
+Status: closed within the comment-only correctness boundary.
+
+Implemented:
+
+- `diff-map` no longer treats every changed exported-symbol file as a changed
+  symbol surface.
+- Exported symbols are marked `symbol_body_changed` only when a changed current
+  non-comment code line intersects that symbol's current line range.
+- Comments/docs remain soft surfaces and do not become runtime routes, proof
+  sensors, structural edges, or symbol deltas.
+- Removed import/export lines stay visible as `removed_edges`/`removed_exports`
+  without being matched against current symbol ranges.
+
+Boundary:
+
+```txt
+closed: comments-only changes do not create false structural delta.
+excluded: complete deleted/renamed/typechanged/conflicted/lockfile/generated
+git structural event matrix, plus removed-line symbol body detection until base
+symbol ranges exist.
+```
+
+Proof:
+
+```bash
+cargo fmt --check
+cargo test --quiet changed_does_not_turn_comment_only_edits_into_symbol_delta --test structural_map
+cargo test --quiet changed_keeps_url_string_literal_edits_as_symbol_delta --test structural_map
+cargo test --quiet changed_does_not_mark_symbol_body_when_import_above_symbol_is_removed --test structural_map
+cargo test --quiet changed_ --test structural_map
+cargo test --quiet
+cargo clippy --all-targets -- -D warnings
+cargo run --quiet --bin codemap -- doctor
+git diff --check
+```
+
+Live decision:
+
+```txt
+not required for this boundary; the fixture isolates the false structural claim
+directly, while dirty live repos would only prove ambient changed behavior.
+```
+
+Reviewer: PASS.

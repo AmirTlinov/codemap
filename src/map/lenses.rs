@@ -20,3 +20,4 @@ include!("lenses/runtime_facts.rs");
 include!("lenses/flow_route_helpers.rs");
 include!("lenses/env_package_helpers.rs");
 include!("lenses/helpers.rs");
+include!("lenses/diff_map_symbols.rs");

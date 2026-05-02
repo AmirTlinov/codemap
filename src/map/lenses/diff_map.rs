@@ -33,21 +33,6 @@ pub fn diff_map_report(
     let selector = diff_map_selector(&changed, &mode);
     let diff_expand = format!("codemap diff-map {selector} --limit <larger-number>");
     for rel in &changed {
-        if let Some(file) = project.files.get(rel) {
-            changed_summaries.push(file_summary(project, file, false, 12));
-            for symbol in file.symbols.iter().filter(|symbol| symbol.exported) {
-                changed_symbols.push(ChangedSymbol {
-                    path: rel.clone(),
-                    name: symbol.name.clone(),
-                    change: "file_changed_symbol_surface".to_string(),
-                    line_start: Some(symbol.line_start),
-                    line_end: Some(symbol.line_end),
-                });
-            }
-        } else {
-            changed_summaries.push(missing_file_summary(project, rel));
-            new_unknowns.push(unknown_unindexed_anchor(rel));
-        }
         let delta = git_unified_zero_delta(project, rel, &mode);
         let added_code = diff_current_runtime_code(project, rel, &mode);
         let removed_code = diff_base_runtime_code(project, rel, &mode);
@@ -55,6 +40,19 @@ pub fn diff_map_report(
             .as_deref()
             .map(unsupported_framework_route_context)
             .unwrap_or_default();
+        if let Some(file) = project.files.get(rel) {
+            changed_summaries.push(file_summary(project, file, false, 12));
+            changed_symbols.extend(changed_symbols_from_delta(
+                rel,
+                file,
+                &delta,
+                &added_code,
+                &removed_code,
+            ));
+        } else {
+            changed_summaries.push(missing_file_summary(project, rel));
+            new_unknowns.push(unknown_unindexed_anchor(rel));
+        }
         if diff_file_is_added(project, rel, &mode)
             && let Some(route) = runtime_route_from_path_convention(rel)
         {

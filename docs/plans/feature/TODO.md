@@ -163,11 +163,26 @@ git structural events if timing diagnostics show changed/doctor pain first.
 
 ### Slice 10: Git structural events, changed, diff-map
 
-- [ ] Slice 10 implemented
-- [ ] Slice 10 gates passed
-- [ ] Slice 10 review decision recorded
-- [ ] Slice 10 live decision/probe recorded
-- [ ] Slice 10 agent satisfied
+- [x] Slice 10 implemented within first correctness boundary
+- [x] Slice 10 gates passed
+- [x] Slice 10 review decision recorded
+- [x] Slice 10 live decision/probe recorded
+- [x] Slice 10 agent satisfied
+
+Boundary:
+
+```txt
+closed: comment-only edits no longer create changed_symbols, runtime routes, or
+proof surfaces; exported symbols are marked changed only when changed
+current non-comment code intersects the current symbol line range; removed
+import/export lines remain removed_edges/removed_exports instead of false symbol
+body deltas.
+excluded: full git structural event matrix for deleted/renamed/typechanged/
+conflicted/lockfile/generated ownership cases, plus removed-line symbol body
+detection until base symbol ranges exist.
+live: not required for this boundary; controlled fixture proves the false-claim
+case more directly than dirty live repos.
+```
 
 ### Slice 11: Symbol/import/export extraction matrix
 
