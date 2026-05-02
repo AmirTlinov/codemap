@@ -14,8 +14,8 @@ pub fn runtime_report(
     let mut ci = Vec::new();
     let mut proof = Vec::new();
     let mut unknowns = Vec::new();
-    let runtime_facts = runtime_fact_index(project);
     let (scope_files, hidden_scope_count) = runtime_scope_files(project, &scope, include_hidden);
+    let runtime_facts = runtime_fact_index_for_files(project, scope_files.iter().copied());
     let root_containers = if scope == "." && !include_hidden {
         root_runtime_containers(project)
     } else {
@@ -186,6 +186,7 @@ pub fn proof_map_report(
     let limit = limit.max(1);
     let scope = scope.map(|value| repo::normalize_rel_path(&value));
     let (seeds, hidden_seed_count) = proof_map_seed_selection(project, scope.as_deref(), &changed, raw_sensors);
+    let route_index_paths = proof_map_route_index_paths(project, scope.as_deref(), &seeds);
     let mut direct = Vec::new();
     let mut indirect = Vec::new();
     let mut e2e = Vec::new();
@@ -195,7 +196,7 @@ pub fn proof_map_report(
     let mut scope_expand = Vec::new();
     let discovery_limit = usize::MAX;
     let mut hidden = Vec::new();
-    let runtime_facts = runtime_fact_index(project);
+    let runtime_facts = runtime_fact_index_for_paths(project, &route_index_paths);
     let expand_larger_limit = proof_map_expand(&proof_selector, false);
     let expand_raw_sensors = proof_map_expand(&proof_selector, true);
     if hidden_seed_count > 0 {
