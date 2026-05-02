@@ -70,7 +70,7 @@ pub fn graph_markdown(graph: &GraphLens) {
                 vec![
                     hidden.reason.clone(),
                     hidden.count.to_string(),
-                    code(&hidden.expand),
+                    code(&root_aware_expand(&hidden.expand)),
                 ]
             })
             .collect();
@@ -89,7 +89,7 @@ pub fn graph_mermaid(graph: &GraphLens) {
             "  %% hidden: {} ({}); expand: {}",
             escape_mermaid(&hidden.reason),
             hidden.count,
-            escape_mermaid(&hidden.expand)
+            escape_mermaid(&root_aware_expand(&hidden.expand))
         );
     }
     for node in &graph.nodes {

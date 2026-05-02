@@ -29,6 +29,7 @@ pub fn run() -> Result<()> {
         _ => repo::CacheWriteMode::Enabled,
     };
     let project = repo::load_project_with_cache(root_selection, cache_write)?;
+    render::set_expand_root(cli.root.as_deref());
     match cli.command {
         CommandKind::Doctor(args) => {
             let report = map::status_report(&project);

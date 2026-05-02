@@ -123,7 +123,7 @@ fn proof_plan_surface_section(title: &str, report: &ProofReport) {
         if hidden_details > 0 {
             println!("- hidden details: `{hidden_details}` sensors");
             if let Some(expand) = proof_detail_expand(report, proofs.len()) {
-                println!("  expand: `{expand}`");
+                println!("  expand: `{}`", root_aware_expand(&expand));
             }
         }
     }

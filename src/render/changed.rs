@@ -316,8 +316,11 @@ fn changed_proof_section(report: &ChangedReport) {
         if hidden_count > 0 {
             println!("- hidden: {hidden_count} sensors");
             println!(
-                "  expand: `codemap proof-map --changed --raw-sensors --limit {}`",
-                sensors.len() + hidden_count
+                "  expand: `{}`",
+                root_aware_expand(&format!(
+                    "codemap proof-map --changed --raw-sensors --limit {}",
+                    sensors.len() + hidden_count
+                ))
             );
         }
     }

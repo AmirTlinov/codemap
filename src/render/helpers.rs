@@ -3,7 +3,11 @@ fn section(title: &str, values: &[String]) {
         return;
     }
     println!("\n## {title}\n");
-    println!("{}", bullet(values, true, Some(20)));
+    let values = values
+        .iter()
+        .map(|value| root_aware_expand(value))
+        .collect::<Vec<_>>();
+    println!("{}", bullet(&values, true, Some(20)));
 }
 
 fn unknown_section(values: &[Unknown]) {
@@ -23,7 +27,7 @@ fn unknown_section(values: &[Unknown]) {
             println!("    reason: {}", unknown.reason);
             println!("    effect: {}", unknown.effect);
             if let Some(expand) = &unknown.expand {
-                println!("    expand: `{expand}`");
+                println!("    expand: `{}`", root_aware_expand(expand));
             }
         }
     }
@@ -133,7 +137,7 @@ fn hidden_section(hidden: &[crate::model::HiddenGroup]) {
     println!("\n## Hidden\n");
     for hidden in hidden {
         println!("- {}: {}", hidden.reason, hidden.count);
-        println!("  expand: `{}`", hidden.expand);
+        println!("  expand: `{}`", root_aware_expand(&hidden.expand));
     }
 }
 
