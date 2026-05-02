@@ -153,13 +153,17 @@ Slice 21 first boundary is closed:
 
 ```txt
 closed: Rust CLI flow now stitches explicit Cargo bin entrypoints to their
-manifest line and to the exact `main` symbol when present. The path is bounded:
-Cargo.toml bin target -> file -> `#main` -> direct structural imports.
+manifest line, to the exact `main` symbol when present, and to same-file
+top-level functions that `main` directly calls. The path is bounded:
+Cargo.toml bin target -> file -> `#main` -> direct entry calls -> direct
+structural imports.
 proof: runtime CLI entrypoint fixture asserts Cargo.toml provenance and
-`entry_symbol`; live SilentWay `flow src/masque-core/src/bin/vpn_server.rs`
-shows `cargo_bin_target` at `src/masque-core/Cargo.toml:96` and
-`src/masque-core/src/bin/vpn_server.rs#main` at lines 136-153.
-review: required before commit because this changes public flow behavior.
+`entry_symbol` plus a same-file `entry_call`; live SilentWay
+`flow src/masque-core/src/bin/vpn_server.rs` shows `cargo_bin_target` at
+`src/masque-core/Cargo.toml:96`, `vpn_server.rs#main` at lines 136-153, and
+direct entry calls to `run_diagnostics` / `run_vpn_server`.
+review: PASS after tightening direct-call evidence against method/qualified
+false positives.
 live: Sillentway-VPN is the motivating Rust/native repo.
 next: do not expand into callgraph; only add more runtime-to-code stitching
 when a deterministic owner edge is visible.

@@ -288,11 +288,17 @@ pub fn flow_report(
                         evidence: surface.evidence.clone(),
                         locations: runtime_entrypoint_locations(project, &rel, &surface),
                     });
-                    if let Some(step) = runtime_entrypoint_symbol_step(project, file) {
+                    if let Some((step, entry_symbol)) = runtime_entrypoint_symbol_step(project, file) {
                         steps.push(FlowStep {
                             index: steps.len(),
                             ..step
                         });
+                        for step in runtime_entrypoint_direct_call_steps(project, file, &entry_symbol) {
+                            steps.push(FlowStep {
+                                index: steps.len(),
+                                ..step
+                            });
+                        }
                     }
                 }
                 steps.push(FlowStep {

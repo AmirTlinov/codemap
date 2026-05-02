@@ -34,7 +34,7 @@ fn runtime_lens_exposes_manifest_cli_entrypoints() {
     );
     write(
         &repo.path().join("crates/worker/src/bin/worker.rs"),
-        "mod helper {\n    fn main() {}\n}\n\nfn main() {}\n",
+        "mod helper {\n    fn main() {}\n}\n\nfn main() {\n    run_worker();\n}\n\nfn run_worker() {}\n",
     );
     write(
         &repo.path().join("crates/default-bin/Cargo.toml"),
@@ -185,6 +185,45 @@ fn runtime_lens_exposes_manifest_cli_entrypoints() {
                 && step["locations"][0]["kind"] == "entry_symbol"
                 && step["locations"][0]["line_start"] == 5),
         "flow should stitch a Rust runtime entrypoint to the top-level main symbol, not nested helper mains: {flow:#}"
+    );
+    assert!(
+        flow["steps"]
+            .as_array()
+            .expect("steps")
+            .iter()
+            .any(|step| step["kind"] == "entry_call"
+                && step["anchor"] == "crates/worker/src/bin/worker.rs#run_worker"
+                && step["evidence"] == "rust_entry_direct_call"
+                && step["locations"][0]["kind"] == "entry_call"
+                && step["locations"][0]["line_start"] == 6),
+        "flow should show a bounded direct Rust call from main to a same-file top-level function: {flow:#}"
+    );
+}
+
+#[test]
+fn flow_rust_entry_call_rejects_method_and_qualified_calls() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("Cargo.toml"),
+        "[package]\nname = \"rust-entry-call-negative\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    );
+    write(
+        &repo.path().join("src/main.rs"),
+        "fn main() {\n    let worker = Worker;\n    worker.run_worker();\n    Type::run_worker();\n}\n\nstruct Worker;\nimpl Worker {\n    fn run_worker(&self) {}\n}\n\nstruct Type;\nimpl Type {\n    fn run_worker() {}\n}\n\nfn run_worker() {}\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "rust entry call negative fixture"]);
+
+    let flow = run_json(repo.path(), cache.path(), &["flow", "src/main.rs", "--format", "json"]);
+    assert_schema("schemas/flow.schema.json", &flow);
+    assert!(
+        flow["steps"]
+            .as_array()
+            .expect("steps")
+            .iter()
+            .all(|step| !(step["kind"] == "entry_call"
+                && step["anchor"] == "src/main.rs#run_worker")),
+        "method or qualified calls must not be reported as direct same-file top-level entry calls: {flow:#}"
     );
 }
 

@@ -11,14 +11,17 @@ fn runtime_entrypoint_surface_for_file(project: &Project, rel: &str) -> Option<S
         .find(|surface| surface.path.as_deref() == Some(rel))
 }
 
-fn runtime_entrypoint_symbol_step(project: &Project, file: &FileInfo) -> Option<FlowStep> {
+fn runtime_entrypoint_symbol_step(
+    project: &Project,
+    file: &FileInfo,
+) -> Option<(FlowStep, crate::model::SymbolInfo)> {
     let symbol = file.symbols.iter().find(|symbol| {
         file.language == "rust"
             && symbol.name == "main"
             && symbol.kind == "function"
             && symbol_is_top_level(project, file, symbol)
     })?;
-    Some(FlowStep {
+    let step = FlowStep {
         index: 0,
         anchor: format!("{}#main", file.rel),
         kind: "entry_symbol".to_string(),
@@ -29,6 +32,79 @@ fn runtime_entrypoint_symbol_step(project: &Project, file: &FileInfo) -> Option<
             line_end: Some(symbol.line_end),
             kind: "entry_symbol".to_string(),
         }],
+    };
+    Some((step, symbol.clone()))
+}
+
+fn runtime_entrypoint_direct_call_steps(
+    project: &Project,
+    file: &FileInfo,
+    entry_symbol: &crate::model::SymbolInfo,
+) -> Vec<FlowStep> {
+    if file.language != "rust" {
+        return Vec::new();
+    }
+    let Ok(text) = std::fs::read_to_string(project.root.join(&file.rel)) else {
+        return Vec::new();
+    };
+    let body_lines = text
+        .lines()
+        .enumerate()
+        .skip(entry_symbol.line_start.saturating_sub(1))
+        .take(
+            entry_symbol
+                .line_end
+                .saturating_sub(entry_symbol.line_start)
+                .saturating_add(1),
+        )
+        .collect::<Vec<_>>();
+    let mut steps = Vec::new();
+    for target in file.symbols.iter().filter(|symbol| {
+        symbol.kind == "function"
+            && symbol.name != entry_symbol.name
+            && symbol_is_top_level(project, file, symbol)
+    }) {
+        if let Some(line) = rust_direct_call_line(&body_lines, &target.name) {
+            steps.push(FlowStep {
+                index: 0,
+                anchor: format!("{}#{}", file.rel, target.name),
+                kind: "entry_call".to_string(),
+                evidence: "rust_entry_direct_call".to_string(),
+                locations: vec![EvidenceLocation::line(
+                    &file.rel,
+                    line,
+                    "entry_call",
+                )],
+            });
+        }
+    }
+    steps.sort_by(|a, b| {
+        a.locations
+            .first()
+            .and_then(|location| location.line_start)
+            .cmp(&b.locations.first().and_then(|location| location.line_start))
+            .then_with(|| a.anchor.cmp(&b.anchor))
+    });
+    steps
+}
+
+fn rust_direct_call_line(body_lines: &[(usize, &str)], name: &str) -> Option<usize> {
+    let mut state = NonJsCodeState::default();
+    for (index, line) in body_lines {
+        let code = c_like_code_line_without_strings_and_comments(line, "rs", &mut state);
+        if rust_line_has_direct_call(&code, name) {
+            return Some(index + 1);
+        }
+    }
+    None
+}
+
+fn rust_line_has_direct_call(line: &str, name: &str) -> bool {
+    identifier_ranges(line, name).any(|(start, end)| {
+        let before = &line[..start];
+        let after = &line[end..];
+        !matches!(previous_nonspace_byte(before), Some(b'.' | b':'))
+            && matches!(next_nonspace_byte(after), Some(b'('))
     })
 }
 
