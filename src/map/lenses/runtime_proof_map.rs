@@ -192,6 +192,7 @@ pub fn proof_map_report(
     let mut contract = Vec::new();
     let mut missing_direct = Vec::new();
     let mut unknowns = Vec::new();
+    let mut scope_expand = Vec::new();
     let discovery_limit = usize::MAX;
     let mut hidden = Vec::new();
     let runtime_facts = runtime_fact_index(project);
@@ -232,6 +233,12 @@ pub fn proof_map_report(
                 EvidenceStrength::Medium,
             ));
         }
+        if scope.is_none()
+            && let Some(unknown) =
+                proof_map_changed_scope_repair_unknown(project, seed, &changed, &proofs)
+        {
+            unknowns.push(unknown);
+        }
         for proof in proofs {
             if proof.evidence.contains("via_") {
                 indirect.push(proof);
@@ -248,6 +255,12 @@ pub fn proof_map_report(
                 direct.push(proof);
             }
         }
+    }
+    if let Some((unknown, expand)) =
+        proof_map_exact_scope_repair(project, scope.as_deref(), &direct, &indirect, &e2e, &contract)
+    {
+        unknowns.push(unknown);
+        scope_expand.push(expand);
     }
     if !raw_sensors {
         group_duplicate_proof_surfaces(
@@ -341,6 +354,8 @@ pub fn proof_map_report(
     );
     let fallback = proof_fallback_commands(project, &seeds, &changed, &commands);
     let proof_expand = proof_map_proof_expand(&proof_selector);
+    let mut expand = vec![proof_expand];
+    expand.extend(scope_expand);
     ProofMapReport {
         kind: "proof_map_report",
         schema_version: "2",
@@ -355,7 +370,7 @@ pub fn proof_map_report(
         fallback,
         unknowns,
         hidden,
-        expand: vec![proof_expand],
+        expand,
     }
 }
 

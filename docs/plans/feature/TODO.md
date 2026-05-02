@@ -115,6 +115,24 @@ next: extend the same repair pattern to proof-map/place parent hints only if a
 real daily workflow still leaves the agent stuck at an empty exact scope.
 ```
 
+Slice 24 second boundary is closed:
+
+```txt
+closed: proof-map now shares the same nearest parent proof-scope repair, and
+`changed` inherits that typed unknown through proof-map facts for changed files
+with no direct sensors. The expand stays daily-oriented as `codemap proof
+<nearest-scope>`, with proof-map also exposing a broader proof-map drill-down
+for explicit scopes.
+proof: focused fixtures for empty exact proof-map scope and changed new narrow
+anchor without direct proof sensors; schema parity fixture remains green.
+review: required before commit because this changes public-lens behavior for
+proof-map and changed.
+live: not required for this boundary; controlled dirty fixture isolates the
+daily after-edit false dead-end better than current live repo dirt.
+next: keep scope repair parked unless real daily probes still produce an empty
+proof dead-end.
+```
+
 Slice 13 first boundary is closed:
 
 ```txt
