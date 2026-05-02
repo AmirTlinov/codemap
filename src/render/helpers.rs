@@ -188,6 +188,14 @@ fn grouped_edge_list(title: &str, edges: &[StructuralEdge], limit: usize) {
     }
 }
 
+fn cone_section(title: &str, edges: &[StructuralEdge]) {
+    if edges.is_empty() {
+        return;
+    }
+    println!("\n## {title}\n");
+    grouped_edge_list(&title.to_ascii_lowercase(), edges, 20);
+}
+
 pub(crate) fn table(headers: &[&str], rows: Vec<Vec<String>>) -> String {
     let mut out = Vec::new();
     out.push(format!("| {} |", headers.join(" | ")));

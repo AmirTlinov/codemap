@@ -11,44 +11,9 @@ pub fn ls(report: &LsReport) {
         _ => {}
     }
     if !report.edges.is_empty() {
-        println!("\n## Edges\n");
-        let rows = report
-            .edges
-            .iter()
-            .map(|edge| {
-                vec![
-                    code(&edge.from),
-                    edge.edge_type.clone(),
-                    code(&edge.to),
-                    edge.evidence.clone(),
-                    format!("{:?}", edge.strength).to_ascii_lowercase(),
-                    edge_location_summary(edge),
-                ]
-            })
-            .collect();
-        println!(
-            "{}",
-            table(
-                &["From", "Type", "To", "Evidence", "Strength", "Where"],
-                rows
-            )
-        );
+        cone_section("Edges", &report.edges);
     }
-    if !report.hidden.is_empty() {
-        println!("\n## Hidden\n");
-        let rows = report
-            .hidden
-            .iter()
-            .map(|hidden| {
-                vec![
-                    hidden.reason.clone(),
-                    hidden.count.to_string(),
-                    code(&hidden.expand),
-                ]
-            })
-            .collect();
-        println!("{}", table(&["Reason", "Count", "Expand"], rows));
-    }
+    hidden_section(&report.hidden);
     if !report.next.is_empty() {
         println!("\n## Next\n");
         println!("{}", bullet(&report.next, true, Some(5)));
@@ -91,50 +56,9 @@ pub fn cone(report: &ConeReport) {
     cone_section("Proof", &report.proof);
     cone_section("Contracts", &report.contracts);
     cone_section("Boundary", &report.boundary);
-    if !report.hidden.is_empty() {
-        println!("\n## Hidden\n");
-        let rows = report
-            .hidden
-            .iter()
-            .map(|hidden| {
-                vec![
-                    hidden.reason.clone(),
-                    hidden.count.to_string(),
-                    code(&hidden.expand),
-                ]
-            })
-            .collect();
-        println!("{}", table(&["Reason", "Count", "Expand"], rows));
-    }
+    hidden_section(&report.hidden);
     unknown_section(&report.unknowns);
     section("Expand", &report.expand);
-}
-
-fn cone_section(title: &str, edges: &[StructuralEdge]) {
-    if edges.is_empty() {
-        return;
-    }
-    println!("\n## {title}\n");
-    let rows = edges
-        .iter()
-        .map(|edge| {
-            vec![
-                code(&edge.from),
-                edge.edge_type.clone(),
-                code(&edge.to),
-                edge.evidence.clone(),
-                format!("{:?}", edge.strength).to_ascii_lowercase(),
-                edge_location_summary(edge),
-            ]
-        })
-        .collect();
-    println!(
-        "{}",
-        table(
-            &["From", "Type", "To", "Evidence", "Strength", "Where"],
-            rows
-        )
-    );
 }
 
 fn edge_location_summary(edge: &StructuralEdge) -> String {

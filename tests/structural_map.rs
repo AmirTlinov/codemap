@@ -29,6 +29,7 @@ include!("structural_map/root_ls_workspace_roles.rs");
 include!("structural_map/contract_role_precision.rs");
 include!("structural_map/contract_markdown.rs");
 include!("structural_map/directory_cone_and_tsconfig.rs");
+include!("structural_map/cone_markdown.rs");
 include!("structural_map/cone_proof_limits.rs");
 include!("structural_map/rust_include_edges.rs");
 include!("structural_map/next_routes.rs");
