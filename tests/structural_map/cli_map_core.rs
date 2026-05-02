@@ -3,6 +3,22 @@ fn help_exposes_only_map_first_commands() {
     let output = codemap().arg("--help").output().expect("help should run");
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("help utf8");
+    for expected in [
+        "Daily workflow:",
+        "codemap ls <scope>",
+        "codemap cone <anchor>",
+        "codemap changed",
+        "codemap proof <scope|--changed>",
+        "Focused lenses are drill-down targets",
+        "Focused lenses:",
+        "runtime, contract, flow",
+        "Diagnostics and integration:",
+    ] {
+        assert!(
+            stdout.contains(expected),
+            "help should make the daily surface and drill-down groups obvious: {stdout}"
+        );
+    }
     for command in ["ls", "cone", "changed", "proof", "graph", "boundaries"] {
         assert!(stdout.contains(command), "help should expose {command}");
     }

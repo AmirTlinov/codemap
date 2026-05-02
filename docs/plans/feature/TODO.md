@@ -83,6 +83,22 @@ next: keep cache parked unless daily use shows stale derived facts, config
 dependency invalidation gaps, or path-normalization cases outside git diff.
 ```
 
+Slice 02 first boundary is closed:
+
+```txt
+closed: root help now makes the daily workflow visible before the flat command
+list: `ls`, `cone`, `changed`, `proof`, `doctor`. Focused lenses are explicitly
+described as drill-down targets from expand output, with diagnostics/integration
+called out separately. Command behavior and schemas are unchanged.
+proof: focused help test plus direct `codemap --help` output inspection.
+review: not required; narrow help/UX contract change with existing product
+invariant guards.
+live: not required; `--help` is repo-independent and does not inspect target
+repos.
+next: only revisit Slice 02 if live daily workflow still needs non-obvious
+commands before orientation/change/proof closure.
+```
+
 Slice 12 first boundary is closed:
 
 ```txt
@@ -198,7 +214,7 @@ or misleading map.
 | Slice | Status | Tier | Boundary |
 | --- | --- | --- | --- |
 | 01 Product lock, baseline inventory, invariant guards | closed first boundary | focused | Public JSON outputs reject router/trust fields. |
-| 02 Daily command surface and alias cleanup | todo | focused/live | Daily surface is `ls`, `cone`, `changed`, `proof`, `doctor`; focused lenses remain discoverable. |
+| 02 Daily command surface and alias cleanup | closed first boundary | focused | Root help exposes daily workflow before focused lenses and diagnostics. |
 | 03 Unified fact model and constructors | todo | full | Shared constructors prevent lenses from inventing separate fact logic. |
 | 04 Evidence locations and typed unknowns | todo | full | Important claims carry provenance; blind spots are typed. |
 | 05 Scope model, root maps, expand protocol | todo | focused/live | Root is current-level; exact anchors drill down; expand is reproducible. |

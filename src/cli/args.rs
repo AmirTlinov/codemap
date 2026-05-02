@@ -13,6 +13,21 @@ use crate::{map, render, repo};
 #[derive(Debug, Parser)]
 #[command(name = "codemap")]
 #[command(about = "Structural code map CLI for AI coding agents")]
+#[command(before_help = "Daily workflow:
+  codemap ls <scope>
+  codemap cone <anchor>
+  codemap changed
+  codemap proof <scope|--changed>
+  codemap doctor
+
+Focused lenses are drill-down targets from map expand output, not a required ritual.
+")]
+#[command(after_help = "Focused lenses:
+  runtime, contract, flow, boundary-map, siblings, place, delete, diff-map, impact, proof-map, graph
+
+Diagnostics and integration:
+  status, files, schema, bootstrap, init, anchors, boundaries
+")]
 #[command(version)]
 pub struct Cli {
     #[arg(long, global = true)]
