@@ -28,6 +28,70 @@ fn role_aware_minimal_commands(
     .collect()
 }
 
+fn role_aware_command_proof_surfaces(project: &Project, anchor: &str) -> Vec<ProofSurface> {
+    let rel = anchor_file_rel(anchor);
+    let Some(context) = proof_role_context(project, std::slice::from_ref(&rel)) else {
+        return Vec::new();
+    };
+    let mut candidates = project
+        .scripts
+        .iter()
+        .filter_map(|script| {
+            let rank = role_aware_script_rank(script, &context)?;
+            let (evidence, strength) = role_aware_script_evidence(script, &context);
+            Some((rank, script.command.clone(), script, evidence, strength))
+        })
+        .collect::<Vec<_>>();
+    candidates.sort_by(|left, right| left.0.cmp(&right.0).then_with(|| left.1.cmp(&right.1)));
+    let mut seen = BTreeSet::new();
+    candidates
+        .into_iter()
+        .filter(|(_, command, _, _, _)| seen.insert(command.clone()))
+        .take(3)
+        .map(|(_, command, script, evidence, strength)| ProofSurface {
+            command: Some(command),
+            path: script.path.clone().or_else(|| Some(rel.clone())),
+            evidence: evidence.to_string(),
+            strength,
+            reason: format!(
+                "{} matches structural proof context for {}",
+                script.reason, rel
+            ),
+            locations: role_aware_script_locations(script, evidence),
+        })
+        .collect()
+}
+
+fn role_aware_script_evidence(
+    script: &crate::model::ScriptInfo,
+    context: &ProofRoleContext,
+) -> (&'static str, EvidenceStrength) {
+    let text = script_search_text(script);
+    let token_hits = context
+        .tokens
+        .iter()
+        .filter(|token| script_text_has_token(&text, token))
+        .count();
+    if token_hits >= 2 {
+        ("script_path_token", EvidenceStrength::Medium)
+    } else {
+        ("role_script_target", EvidenceStrength::Medium)
+    }
+}
+
+fn role_aware_script_locations(
+    script: &crate::model::ScriptInfo,
+    evidence: &str,
+) -> Vec<EvidenceLocation> {
+    let Some(path) = &script.path else {
+        return Vec::new();
+    };
+    match script.line_start {
+        Some(line) => vec![EvidenceLocation::line(path, line, evidence)],
+        None => vec![EvidenceLocation::path(path, evidence)],
+    }
+}
+
 struct ProofRoleContext {
     roles: BTreeSet<String>,
     tokens: BTreeSet<String>,
@@ -108,12 +172,7 @@ fn role_aware_script_rank(
     script: &crate::model::ScriptInfo,
     context: &ProofRoleContext,
 ) -> Option<usize> {
-    let text = format!(
-        "{} {} {}",
-        script.name.to_ascii_lowercase(),
-        script.command.to_ascii_lowercase(),
-        script.reason.to_ascii_lowercase()
-    );
+    let text = script_search_text(script);
     if script_is_mutating_without_validation(&text) {
         return None;
     }
@@ -153,6 +212,15 @@ fn role_aware_script_rank(
     role_specific_script_rank(&context.roles, &text)
 }
 
+fn script_search_text(script: &crate::model::ScriptInfo) -> String {
+    format!(
+        "{} {} {}",
+        script.name.to_ascii_lowercase(),
+        script.command.to_ascii_lowercase(),
+        script.reason.to_ascii_lowercase()
+    )
+}
+
 fn role_specific_script_rank(roles: &BTreeSet<String>, text: &str) -> Option<usize> {
     let mut ranks = Vec::new();
     if roles.contains("receipt") || roles.contains("witness") {
@@ -174,14 +242,14 @@ fn role_specific_script_rank(roles: &BTreeSet<String>, text: &str) -> Option<usi
     if roles.contains("proof_runner") {
         ranks.extend(role_keyword_ranks(
             text,
-            &["qwen", "proof", "validate", "doctor", "next", "test"],
+            &["doctor", "validate", "next", "test"],
             20,
         ));
     }
     if roles.contains("owner_doc") {
         ranks.extend(role_keyword_ranks(
             text,
-            &["doctor", "next", "validate", "proof", "test"],
+            &["doctor", "next", "validate", "test"],
             30,
         ));
     }

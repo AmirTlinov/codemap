@@ -9,6 +9,17 @@ mod navigation;
 mod proof_map;
 mod siblings_place;
 
+const LENS_ARTIFACT_FORMAT_VERSION: u64 = 2;
+const LENS_ARTIFACTS: &[&str] = &[
+    "ls-current.json",
+    "cone-current.json",
+    "changed-current.json",
+    "proof-changed.json",
+    "proof-map-current.json",
+    "siblings-current.json",
+    "place-current.json",
+];
+
 pub use changed_proof::{
     read_changed_report, read_proof_changed_report, write_changed_report,
     write_proof_changed_report,
@@ -22,12 +33,23 @@ pub use siblings_place::{
     write_siblings_report,
 };
 
+pub fn format_version() -> u64 {
+    LENS_ARTIFACT_FORMAT_VERSION
+}
+
+pub fn artifact_names() -> &'static [&'static str] {
+    LENS_ARTIFACTS
+}
+
 fn read_lens_artifact<T>(cache_dir: &Path, name: &str, version: &str, root: &Path) -> Option<T>
 where
     T: LensArtifact + DeserializeOwned,
 {
     let text = fs::read_to_string(cache_dir.join(name)).ok()?;
     let cached: T = serde_json::from_str(&text).ok()?;
+    if cached.format_version() != LENS_ARTIFACT_FORMAT_VERSION {
+        return None;
+    }
     if cached.version() != version {
         return None;
     }
@@ -55,6 +77,7 @@ fn current_status_fingerprint(cache_dir: &Path) -> Option<String> {
 }
 
 trait LensArtifact {
+    fn format_version(&self) -> u64;
     fn version(&self) -> &str;
     fn root(&self) -> &str;
     fn fingerprint(&self) -> &str;

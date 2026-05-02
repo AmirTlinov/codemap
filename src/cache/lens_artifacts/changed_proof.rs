@@ -8,7 +8,10 @@ use crate::model::{
     GitChange, HiddenGroup, ImpactCluster, ProofReport, ProofSurface, Unknown,
 };
 
-use super::{LensArtifact, current_status_fingerprint, read_lens_artifact, write_lens_artifact};
+use super::{
+    LensArtifact, current_status_fingerprint, format_version, read_lens_artifact,
+    write_lens_artifact,
+};
 
 pub fn read_changed_report(
     cache_dir: &Path,
@@ -34,6 +37,7 @@ pub fn write_changed_report(
     report: &ChangedReport,
 ) -> Result<()> {
     let cached = CachedChangedLens {
+        format_version: format_version(),
         version: version.to_string(),
         root: root.to_string_lossy().to_string(),
         fingerprint: current_status_fingerprint(cache_dir).unwrap_or_default(),
@@ -70,6 +74,7 @@ pub fn write_proof_changed_report(
     report: &ProofReport,
 ) -> Result<()> {
     let cached = CachedProofLens {
+        format_version: format_version(),
         version: version.to_string(),
         root: root.to_string_lossy().to_string(),
         fingerprint: current_status_fingerprint(cache_dir).unwrap_or_default(),
@@ -83,6 +88,7 @@ pub fn write_proof_changed_report(
 
 #[derive(Deserialize, Serialize)]
 struct CachedChangedLens {
+    format_version: u64,
     version: String,
     root: String,
     fingerprint: String,
@@ -92,6 +98,10 @@ struct CachedChangedLens {
 }
 
 impl LensArtifact for CachedChangedLens {
+    fn format_version(&self) -> u64 {
+        self.format_version
+    }
+
     fn version(&self) -> &str {
         &self.version
     }
@@ -107,6 +117,7 @@ impl LensArtifact for CachedChangedLens {
 
 #[derive(Deserialize, Serialize)]
 struct CachedProofLens {
+    format_version: u64,
     version: String,
     root: String,
     fingerprint: String,
@@ -117,6 +128,10 @@ struct CachedProofLens {
 }
 
 impl LensArtifact for CachedProofLens {
+    fn format_version(&self) -> u64 {
+        self.format_version
+    }
+
     fn version(&self) -> &str {
         &self.version
     }

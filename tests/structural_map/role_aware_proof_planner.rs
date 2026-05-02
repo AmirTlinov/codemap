@@ -58,6 +58,96 @@ field-v0-one-slot-local-aperture-contest:
     );
 }
 
+fn proof_surfaces(proof: &Value) -> Vec<&Value> {
+    proof["proofs"].as_array().expect("proofs").iter().collect()
+}
+
+fn proof_surface_for<'a>(proof: &'a Value, command: &str) -> &'a Value {
+    proof_surfaces(proof)
+        .into_iter()
+        .find(|surface| surface["command"].as_str() == Some(command))
+        .unwrap_or_else(|| panic!("missing proof surface for {command}: {proof:#}"))
+}
+
+fn proof_surface_commands(proof: &Value) -> Vec<&str> {
+    proof_surfaces(proof)
+        .into_iter()
+        .filter_map(|surface| surface["command"].as_str())
+        .collect()
+}
+
+fn assert_makefile_proof_surface(
+    surface: &Value,
+    evidence: &str,
+    strength: &str,
+    line_start: u64,
+) {
+    assert_eq!(surface["path"], "Makefile", "surface path: {surface:#}");
+    assert_eq!(surface["evidence"], evidence, "surface evidence: {surface:#}");
+    assert_eq!(surface["strength"], strength, "surface strength: {surface:#}");
+    let location = &surface["locations"]
+        .as_array()
+        .expect("locations")
+        .first()
+        .expect("first location");
+    assert_eq!(location["path"], "Makefile", "location path: {surface:#}");
+    assert_eq!(
+        location["line_start"], line_start,
+        "location line: {surface:#}"
+    );
+    assert_eq!(location["kind"], evidence, "location kind: {surface:#}");
+}
+
+fn assert_soft_proof_keeps_unknown(proof: &Value) {
+    assert!(
+        proof["unknowns"]
+            .as_array()
+            .expect("unknowns")
+            .iter()
+            .any(|unknown| unknown["kind"] == "missing_deterministic_proof"),
+        "soft role-aware evidence must not hide missing deterministic proof Unknown: {proof:#}"
+    );
+}
+
+#[test]
+fn makefile_define_blocks_do_not_emit_script_targets() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("Makefile"),
+        r#"define BLOCKER
+{ printf "\033[31mBLOCKER:\033[0m %s\n" "$(1)" >&2; exit 2; }
+endef
+
+doctor:
+	python3 tools/doctor.py
+"#,
+    );
+    write(&repo.path().join("tools/doctor.py"), "print('ok')\n");
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "make define fixture"]);
+
+    let status = run_json(repo.path(), cache.path(), &["status", "--format", "json"]);
+    assert_schema("schemas/status.schema.json", &status);
+    let scripts = status["scripts"].as_array().expect("scripts");
+    assert!(
+        scripts
+            .iter()
+            .any(|script| script.as_str() == Some("make doctor")),
+        "real Makefile target should still be indexed: {status:#}"
+    );
+    assert!(
+        scripts.iter().all(|script| {
+            let value = script.as_str().unwrap_or_default();
+            !value.contains("BLOCKER") && !value.contains("printf")
+        }),
+        "Makefile define macro body must not become script targets: {status:#}"
+    );
+}
+
 #[test]
 fn makefile_targets_can_match_source_files_by_exact_path_tokens() {
     let repo = TempDir::new().expect("repo tempdir");
@@ -80,12 +170,7 @@ fn makefile_targets_can_match_source_files_by_exact_path_tokens() {
         ],
     );
     assert_schema("schemas/proof.schema.json", &proof);
-    let commands = proof["fallback"]
-        .as_array()
-        .expect("fallback")
-        .iter()
-        .filter_map(|value| value.as_str())
-        .collect::<Vec<_>>();
+    let commands = proof_surface_commands(&proof);
     assert!(
         commands.contains(&"make field-v0-compute-conductance-bridge"),
         "exact source/script token match should infer the matching Makefile target: {proof:#}"
@@ -95,6 +180,13 @@ fn makefile_targets_can_match_source_files_by_exact_path_tokens() {
             .iter()
             .any(|command| command.contains("one-slot-local-aperture-contest")),
         "common Makefile words must not select an unrelated target: {proof:#}"
+    );
+    assert_soft_proof_keeps_unknown(&proof);
+    assert_makefile_proof_surface(
+        proof_surface_for(&proof, "make field-v0-compute-conductance-bridge"),
+        "script_path_token",
+        "medium",
+        19,
     );
 }
 
@@ -159,11 +251,7 @@ fn role_aware_proof_uses_repo_commands_before_generic_fallback() {
         ],
     );
     assert_schema("schemas/proof.schema.json", &proof);
-    let fallback = proof["fallback"].as_array().expect("fallback");
-    let commands = fallback
-        .iter()
-        .filter_map(|value| value.as_str())
-        .collect::<Vec<_>>();
+    let commands = proof_surface_commands(&proof);
     assert!(
         commands.contains(&"make qwen-sparse-compute-admission-v0-00675"),
         "path-token matched proof target should be present: {proof:#}"
@@ -176,13 +264,28 @@ fn role_aware_proof_uses_repo_commands_before_generic_fallback() {
         commands.contains(&"make doctor"),
         "doctor target should be present before generic fallback: {proof:#}"
     );
-    assert!(
-        !commands.contains(&"pytest"),
-        "role-aware Makefile commands should beat generic pytest fallback: {proof:#}"
-    );
+    assert_soft_proof_keeps_unknown(&proof);
     assert!(
         !commands.iter().any(|command| command.contains("deploy")),
         "mutating deploy target must not be inferred as proof: {proof:#}"
+    );
+    assert_makefile_proof_surface(
+        proof_surface_for(&proof, "make qwen-sparse-compute-admission-v0-00675"),
+        "script_path_token",
+        "medium",
+        4,
+    );
+    assert_makefile_proof_surface(
+        proof_surface_for(&proof, "make validate-receipts"),
+        "role_script_target",
+        "medium",
+        7,
+    );
+    assert_makefile_proof_surface(
+        proof_surface_for(&proof, "make doctor"),
+        "role_script_target",
+        "medium",
+        13,
     );
 }
 
@@ -224,7 +327,7 @@ fn changed_proof_section_reuses_role_aware_commands() {
         "changed proof should show receipt validation target: {markdown}"
     );
     assert!(
-        !markdown.contains("pytest"),
-        "changed proof should not fall back to generic pytest when role-aware commands exist: {markdown}"
+        !markdown.contains("Unknown: None found"),
+        "changed proof should stay fail-open when only role-aware soft evidence exists: {markdown}"
     );
 }

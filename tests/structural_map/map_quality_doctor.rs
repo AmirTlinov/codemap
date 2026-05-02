@@ -174,3 +174,74 @@ let package = Package(
         "Swift package manifest should expose package-local SwiftPM proof commands: {swift_proof:#}"
     );
 }
+
+#[test]
+fn doctor_manifest_quality_uses_pnpm_workspace_manifest_scripts_and_ci() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{"name":"pnpm-workspace-quality","private":true,"packageManager":"pnpm@9.15.0","scripts":{"test":"turbo test","lint":"turbo lint","verify:local":"pnpm install --frozen-lockfile && pnpm test"}}"#,
+    );
+    write(
+        &repo.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - \"apps/*\"\n",
+    );
+    write(
+        &repo.path().join("apps/api/package.json"),
+        r#"{"name":"@fixture/api","scripts":{"test":"vitest run"}}"#,
+    );
+    write(
+        &repo.path().join(".github/workflows/ci.yml"),
+        "name: ci\non: [push]\njobs:\n  verify:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pnpm install --frozen-lockfile\n      - run: pnpm verify:local\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "pnpm workspace quality"]);
+
+    let doctor = run_json(repo.path(), cache.path(), &["doctor", "--format", "json"]);
+    let warnings = doctor["map_quality"].as_array().expect("map_quality");
+    let manifest_warning = warnings
+        .iter()
+        .find(|warning| warning["kind"] == "manifest_without_deterministic_proof");
+    assert!(
+        manifest_warning.is_none_or(|warning| {
+            !warning["examples"]
+                .as_array()
+                .expect("examples")
+                .iter()
+                .any(|example| example == "pnpm-workspace.yaml")
+        }),
+        "pnpm workspace manifest should have deterministic script/CI proof surfaces: {doctor:#}"
+    );
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &["proof", "pnpm-workspace.yaml", "--format", "json"],
+    );
+    assert!(
+        proof["proofs"].as_array().expect("proofs").iter().any(
+            |surface| surface["evidence"] == "workspace_manifest_script"
+                && surface["command"] == "pnpm test"
+        ),
+        "proof should expose workspace root script surface: {proof:#}"
+    );
+    assert!(
+        proof["proofs"].as_array().expect("proofs").iter().any(
+            |surface| surface["evidence"] == "workspace_manifest_ci_reference"
+                && surface["command"] == "pnpm install --frozen-lockfile"
+        ),
+        "proof should expose CI workspace install surface: {proof:#}"
+    );
+    assert!(
+        proof["unknowns"]
+            .as_array()
+            .expect("unknowns")
+            .iter()
+            .all(|unknown| unknown["kind"] != "nearest_proof_scope"),
+        "workspace proof should not fall back to nearest scope when deterministic surfaces exist: {proof:#}"
+    );
+}

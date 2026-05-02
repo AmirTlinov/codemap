@@ -7,7 +7,10 @@ use crate::model::{
     HiddenGroup, PlaceReport, ProofSurface, SiblingsReport, StructuralEdge, Surface, Unknown,
 };
 
-use super::{LensArtifact, current_status_fingerprint, read_lens_artifact, write_lens_artifact};
+use super::{
+    LensArtifact, current_status_fingerprint, format_version, read_lens_artifact,
+    write_lens_artifact,
+};
 
 pub struct SiblingsLensKey<'a> {
     pub cache_dir: &'a Path,
@@ -46,6 +49,7 @@ pub fn read_siblings_report(key: SiblingsLensKey<'_>) -> Option<SiblingsReport> 
 
 pub fn write_siblings_report(key: SiblingsLensKey<'_>, report: &SiblingsReport) -> Result<()> {
     let cached = CachedSiblingsLens {
+        format_version: format_version(),
         version: key.version.to_string(),
         root: key.root.to_string_lossy().to_string(),
         fingerprint: current_status_fingerprint(key.cache_dir).unwrap_or_default(),
@@ -72,6 +76,7 @@ pub fn read_place_report(key: PlaceLensKey<'_>) -> Option<PlaceReport> {
 
 pub fn write_place_report(key: PlaceLensKey<'_>, report: &PlaceReport) -> Result<()> {
     let cached = CachedPlaceLens {
+        format_version: format_version(),
         version: key.version.to_string(),
         root: key.root.to_string_lossy().to_string(),
         fingerprint: current_status_fingerprint(key.cache_dir).unwrap_or_default(),
@@ -86,6 +91,7 @@ pub fn write_place_report(key: PlaceLensKey<'_>, report: &PlaceReport) -> Result
 
 #[derive(Deserialize, Serialize)]
 struct CachedSiblingsLens {
+    format_version: u64,
     version: String,
     root: String,
     fingerprint: String,
@@ -96,6 +102,10 @@ struct CachedSiblingsLens {
 }
 
 impl LensArtifact for CachedSiblingsLens {
+    fn format_version(&self) -> u64 {
+        self.format_version
+    }
+
     fn version(&self) -> &str {
         &self.version
     }
@@ -111,6 +121,7 @@ impl LensArtifact for CachedSiblingsLens {
 
 #[derive(Deserialize, Serialize)]
 struct CachedPlaceLens {
+    format_version: u64,
     version: String,
     root: String,
     fingerprint: String,
@@ -122,6 +133,10 @@ struct CachedPlaceLens {
 }
 
 impl LensArtifact for CachedPlaceLens {
+    fn format_version(&self) -> u64 {
+        self.format_version
+    }
+
     fn version(&self) -> &str {
         &self.version
     }

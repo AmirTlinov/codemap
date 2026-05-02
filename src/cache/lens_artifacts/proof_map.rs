@@ -5,7 +5,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::model::{HiddenGroup, ProofMapReport, ProofSurface, Surface, Unknown};
 
-use super::{LensArtifact, current_status_fingerprint, read_lens_artifact, write_lens_artifact};
+use super::{
+    LensArtifact, current_status_fingerprint, format_version, read_lens_artifact,
+    write_lens_artifact,
+};
 
 pub fn read_proof_map_report(
     cache_dir: &Path,
@@ -38,6 +41,7 @@ pub fn write_proof_map_report(
     report: &ProofMapReport,
 ) -> Result<()> {
     let cached = CachedProofMapLens {
+        format_version: format_version(),
         version: version.to_string(),
         root: root.to_string_lossy().to_string(),
         fingerprint: current_status_fingerprint(cache_dir).unwrap_or_default(),
@@ -52,6 +56,7 @@ pub fn write_proof_map_report(
 
 #[derive(Deserialize, Serialize)]
 struct CachedProofMapLens {
+    format_version: u64,
     version: String,
     root: String,
     fingerprint: String,
@@ -63,6 +68,10 @@ struct CachedProofMapLens {
 }
 
 impl LensArtifact for CachedProofMapLens {
+    fn format_version(&self) -> u64 {
+        self.format_version
+    }
+
     fn version(&self) -> &str {
         &self.version
     }

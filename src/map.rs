@@ -41,6 +41,7 @@ include!("map/file_metadata.rs");
 include!("map/test_edges.rs");
 include!("map/test_surface.rs");
 include!("map/proof_precedence.rs");
+include!("map/manifest_owner_surfaces.rs");
 include!("map/scope_repair.rs");
 include!("map/proof_entry.rs");
 include!("map/proof_owner_surfaces.rs");

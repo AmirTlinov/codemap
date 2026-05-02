@@ -154,6 +154,7 @@ fn map_quality_warnings(project: &Project) -> Vec<MapQualityWarning> {
         schema_proof_warning_candidate,
     );
     push_env_quality_warning(project, &mut warnings);
+    push_stale_lens_artifact_warning(project, &mut warnings);
     warnings
 }
 
@@ -232,6 +233,24 @@ fn push_env_quality_warning(project: &Project, warnings: &mut Vec<MapQualityWarn
         "env file has no declared keys or has keys without deterministic static readers",
         "runtime config cone has missing-consumer unknowns for at least one key",
         expand,
+    );
+}
+
+fn push_stale_lens_artifact_warning(project: &Project, warnings: &mut Vec<MapQualityWarning>) {
+    let fingerprint = cache::fingerprint(project, None);
+    let examples = cache::stale_lens_artifact_examples(
+        &project.cache_dir,
+        repo::VERSION,
+        &project.root,
+        &fingerprint,
+    );
+    push_map_quality_warning(
+        warnings,
+        "stale_lens_artifact",
+        examples,
+        "cached agent-facing lens artifact does not match current artifact format, binary version, root, or structural fingerprint",
+        "that lens artifact is ignored and the next matching lens command rebuilds it instead of serving stale map output",
+        None,
     );
 }
 

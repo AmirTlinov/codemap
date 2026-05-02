@@ -49,6 +49,13 @@ fn proof_surface_satisfies_specific_proof(proof: &ProofSurface) -> bool {
     proof_surface_is_deterministic(proof) || proof_surface_command_closes_fallback(proof)
 }
 
+fn proof_surface_is_soft_structural_match(proof: &ProofSurface) -> bool {
+    matches!(
+        proof_base_evidence(&proof.evidence),
+        "script_path_token" | "role_script_target"
+    )
+}
+
 fn proof_surface_command_closes_fallback(proof: &ProofSurface) -> bool {
     if proof.command.is_none() {
         return false;

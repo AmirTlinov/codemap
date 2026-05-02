@@ -176,6 +176,112 @@ fn owner_surface_cones_expose_manifest_schema_env_and_ci_neighborhoods() {
 }
 
 #[test]
+fn pnpm_workspace_manifest_cone_exposes_members_scripts_and_proof() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{"name":"workspace-owner-fixture","private":true,"packageManager":"pnpm@9.15.0","scripts":{"test":"turbo test","lint":"turbo lint","verify:local":"pnpm install --frozen-lockfile && pnpm test"}}"#,
+    );
+    write(
+        &repo.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - \"apps/*\"\n  - \"packages/*\"\n  - \"!packages/archive\"\n",
+    );
+    write(
+        &repo.path().join("apps/api/package.json"),
+        r#"{"name":"@fixture/api","scripts":{"test":"vitest run"}}"#,
+    );
+    write(
+        &repo.path().join("packages/ui/package.json"),
+        r#"{"name":"@fixture/ui","scripts":{"test":"vitest run"}}"#,
+    );
+    write(
+        &repo.path().join("packages/archive/package.json"),
+        r#"{"name":"@fixture/archive","scripts":{"test":"vitest run"}}"#,
+    );
+    write(
+        &repo.path().join(".github/workflows/ci.yml"),
+        "name: ci\non: [push]\njobs:\n  verify:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pnpm install --frozen-lockfile\n      - run: pnpm verify:local\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "pnpm workspace owner"]);
+
+    let links = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["cone", "pnpm-workspace.yaml", "--section", "links"])
+        .output()
+        .expect("workspace cone links should run");
+    assert!(
+        links.status.success(),
+        "workspace cone links failed: {}",
+        String::from_utf8_lossy(&links.stderr)
+    );
+    let links = String::from_utf8(links.stdout).expect("markdown utf8");
+    assert!(
+        links.contains("declares_workspace_pattern -> `workspace_pattern:apps/*`")
+            && links.contains("workspace_member -> `apps/api/package.json`")
+            && links.contains("workspace_member -> `packages/ui/package.json`")
+            && links.contains("workspace_script -> `script:test`")
+            && links.contains("runs_command -> `turbo test`"),
+        "workspace cone should expose patterns, member manifests, and root scripts: {links}"
+    );
+    assert!(
+        !links.contains("workspace_member -> `packages/archive/package.json`"),
+        "workspace cone should respect negated pnpm workspace patterns: {links}"
+    );
+
+    let proof = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["cone", "pnpm-workspace.yaml", "--section", "proof"])
+        .output()
+        .expect("workspace cone proof should run");
+    assert!(
+        proof.status.success(),
+        "workspace cone proof failed: {}",
+        String::from_utf8_lossy(&proof.stderr)
+    );
+    let proof = String::from_utf8(proof.stdout).expect("markdown utf8");
+    assert!(
+        proof.contains("workspace_manifest_script")
+            && proof.contains("workspace_manifest_ci_reference")
+            && proof.contains("pnpm install --frozen-lockfile"),
+        "workspace cone proof should expose root script and CI workspace proof surfaces: {proof}"
+    );
+
+    let changed = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "changed",
+            "--files",
+            "pnpm-workspace.yaml",
+            "--section",
+            "proof",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/changed.schema.json", &changed);
+    let unknowns = changed["unknowns"].as_array().expect("unknowns");
+    for kind in [
+        "package_local_script_not_found",
+        "ci_reference_not_found",
+        "package_consumer_not_found",
+        "workspace_members_not_found",
+    ] {
+        assert!(
+            unknowns.iter().all(|unknown| unknown["kind"] != kind),
+            "workspace manifest changed proof should not emit stale manifest unknown {kind}: {changed:#}"
+        );
+    }
+}
+
+#[test]
 fn prisma_client_consumer_edges_stay_inside_schema_owner_package() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");

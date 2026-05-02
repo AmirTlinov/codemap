@@ -4,7 +4,12 @@ fn makefile_scripts(root: &Path) -> Vec<ScriptInfo> {
         .find_map(|name| {
             let path = root.join(name);
             let text = fs::read_to_string(&path).ok()?;
-            Some(make_like_scripts_from_text(&text, "make", "Makefile target"))
+            Some(make_like_scripts_from_text(
+                &text,
+                "make",
+                "Makefile target",
+                name,
+            ))
         })
         .unwrap_or_default()
 }
@@ -15,14 +20,38 @@ fn justfile_scripts(root: &Path) -> Vec<ScriptInfo> {
         .find_map(|name| {
             let path = root.join(name);
             let text = fs::read_to_string(&path).ok()?;
-            Some(make_like_scripts_from_text(&text, "just", "justfile target"))
+            Some(make_like_scripts_from_text(
+                &text,
+                "just",
+                "justfile target",
+                name,
+            ))
         })
         .unwrap_or_default()
 }
 
-fn make_like_scripts_from_text(text: &str, runner: &str, reason: &str) -> Vec<ScriptInfo> {
+fn make_like_scripts_from_text(
+    text: &str,
+    runner: &str,
+    reason: &str,
+    path: &str,
+) -> Vec<ScriptInfo> {
     let mut scripts = Vec::new();
-    for line in text.lines() {
+    let mut in_make_define = false;
+    for (index, line) in text.lines().enumerate() {
+        if runner == "make" {
+            let trimmed = line.trim();
+            if in_make_define {
+                if trimmed == "endef" {
+                    in_make_define = false;
+                }
+                continue;
+            }
+            if trimmed == "define" || trimmed.starts_with("define ") {
+                in_make_define = true;
+                continue;
+            }
+        }
         let Some(targets) = make_like_targets(line) else {
             continue;
         };
@@ -31,6 +60,8 @@ fn make_like_scripts_from_text(text: &str, runner: &str, reason: &str) -> Vec<Sc
                 name: target.clone(),
                 command: format!("{runner} {}", shell_quote_script_target(&target)),
                 reason: format!("{reason}: {target}"),
+                path: Some(path.to_string()),
+                line_start: Some(index + 1),
             });
         }
     }
@@ -51,7 +82,14 @@ fn make_like_targets(line: &str) -> Option<Vec<String>> {
     }
     let targets = left
         .split_whitespace()
-        .filter(|target| !target.is_empty() && !target.contains('%') && !target.starts_with('.'))
+        .filter(|target| {
+            !target.is_empty()
+                && !target.contains('%')
+                && !target.starts_with('.')
+                && target.chars().all(|ch| {
+                    ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '.' | ':' | '/')
+                })
+        })
         .map(str::to_string)
         .collect::<Vec<_>>();
     (!targets.is_empty()).then_some(targets)

@@ -7,7 +7,10 @@ use crate::model::{
     ConeReport, DirectorySurface, FileSummary, HiddenGroup, LsReport, StructuralEdge, Unknown,
 };
 
-use super::{LensArtifact, current_status_fingerprint, read_lens_artifact, write_lens_artifact};
+use super::{
+    LensArtifact, current_status_fingerprint, format_version, read_lens_artifact,
+    write_lens_artifact,
+};
 
 pub struct LsLensKey<'a> {
     pub cache_dir: &'a Path,
@@ -42,6 +45,7 @@ pub fn read_ls_report(key: LsLensKey<'_>) -> Option<LsReport> {
 
 pub fn write_ls_report(key: LsLensKey<'_>, report: &LsReport) -> Result<()> {
     let cached = CachedLsLens {
+        format_version: format_version(),
         version: key.version.to_string(),
         root: key.root.to_string_lossy().to_string(),
         fingerprint: current_status_fingerprint(key.cache_dir).unwrap_or_default(),
@@ -68,6 +72,7 @@ pub fn read_cone_report(key: ConeLensKey<'_>) -> Option<ConeReport> {
 
 pub fn write_cone_report(key: ConeLensKey<'_>, report: &ConeReport) -> Result<()> {
     let cached = CachedConeLens {
+        format_version: format_version(),
         version: key.version.to_string(),
         root: key.root.to_string_lossy().to_string(),
         fingerprint: current_status_fingerprint(key.cache_dir).unwrap_or_default(),
@@ -82,6 +87,7 @@ pub fn write_cone_report(key: ConeLensKey<'_>, report: &ConeReport) -> Result<()
 
 #[derive(Deserialize, Serialize)]
 struct CachedLsLens {
+    format_version: u64,
     version: String,
     root: String,
     fingerprint: String,
@@ -92,6 +98,10 @@ struct CachedLsLens {
 }
 
 impl LensArtifact for CachedLsLens {
+    fn format_version(&self) -> u64 {
+        self.format_version
+    }
+
     fn version(&self) -> &str {
         &self.version
     }
@@ -107,6 +117,7 @@ impl LensArtifact for CachedLsLens {
 
 #[derive(Deserialize, Serialize)]
 struct CachedConeLens {
+    format_version: u64,
     version: String,
     root: String,
     fingerprint: String,
@@ -118,6 +129,10 @@ struct CachedConeLens {
 }
 
 impl LensArtifact for CachedConeLens {
+    fn format_version(&self) -> u64 {
+        self.format_version
+    }
+
     fn version(&self) -> &str {
         &self.version
     }

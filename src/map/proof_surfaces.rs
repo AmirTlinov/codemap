@@ -5,6 +5,7 @@ fn proof_surfaces_for_anchor(
     limit: usize,
 ) -> Vec<ProofSurface> {
     let mut out = owner_surface_proof_surfaces(project, anchor);
+    out.extend(role_aware_command_proof_surfaces(project, anchor));
     for (test, evidence, strength) in strict_test_edges_for_file(project, anchor, limit) {
         out.push(ProofSurface {
             command: proof_command_for_test(project, &test),

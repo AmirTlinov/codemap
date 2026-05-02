@@ -174,7 +174,8 @@ pub fn proof_report(
     let mut unknowns = Vec::new();
     if let Some(target) = target.as_ref()
         && (project.files.contains_key(target) || directory_has_files(project, target))
-        && proof_missing_should_surface(project, target)
+        && (proof_missing_should_surface(project, target)
+            || all_proofs.iter().any(proof_surface_is_soft_structural_match))
         && !all_proofs.is_empty()
         && !all_proofs.iter().any(proof_surface_satisfies_specific_proof)
     {

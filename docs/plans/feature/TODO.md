@@ -62,9 +62,142 @@ repos would add noise instead of proof.
 
 ## Current Boundary
 
-No broad numbered slice is active after Slice 30G. Pick the next boundary from
+No broad numbered slice is active after Slice 30L. Pick the next boundary from
 the largest daily-workflow gap observed in live use, not by continuing the slice
 number ritual.
+
+Slice 30L is closed:
+
+```txt
+status: closed
+tier: focused/full/live
+closed: cached daily lens artifacts now carry an explicit `format_version`, and
+fast paths reject artifacts whose format, binary version, root, or structural
+fingerprint does not match current facts. `doctor` exposes existing stale lens
+artifacts as `stale_lens_artifact` map-quality warnings instead of letting
+agent-facing lens output fail silently or reuse old map semantics.
+guardrails: this is cache correctness visibility, not a confidence score. The
+warning scans only the bounded known lens artifact set and does not mark missing
+optional lens artifacts as a problem.
+excluded: richer artifact migration UX, automatic cache pruning, and output
+budget tuning for large workspace script lists remain later work.
+proof: `cargo test stale_lens_artifact_format_is_not_served_and_is_visible_in_doctor
+-- --nocapture`; `cargo test lens_artifact -- --nocapture`; line-budget test;
+full `cargo fmt --check`, `cargo test --quiet`, clippy, doctor, and
+diff-check.
+review: independent reviewer GOOD for cache/lens semantics and public doctor
+warning; reviewer noted only the publication hygiene point that the new
+regression file must be committed with the include.
+live: current-repo `doctor` first surfaced an old `changed-current.json (format
+missing)` warning, then the artifact was rebuilt by `changed --section hidden`
+and the next `doctor` returned warm cache without stale-lens warnings.
+next: install the updated binary into PATH and repeat read-only live smoke on
+Levelly owner surfaces.
+```
+
+Slice 30K is closed:
+
+```txt
+status: closed
+tier: focused/full/live
+closed: role-aware proof command surfaces are now evidence-backed but explicitly
+soft. Makefile/justfile/package scripts carry path and line provenance, soft
+script-token/role matches emit `missing_deterministic_proof` instead of hiding
+fallback/unknowns, and Makefile `define ... endef` macro bodies no longer become
+fake script targets.
+guardrails: no ranking engine, no task router, no "best command" language.
+Role-aware commands are nearby validation candidates, not proof closure.
+excluded: richer repo dialects, command safety taxonomy, and exact CI ownership
+remain later work.
+proof: focused role-aware proof tests, Makefile define-block regression, full
+`cargo test --quiet`, clippy, doctor, diff-check, installed PATH smoke.
+review: first reviewer BLOCK found `changed --files pnpm-workspace.yaml` still
+emitted stale package-manifest unknowns despite workspace script/CI/member
+evidence; PASS after `changed_workspace_manifest_unknowns` and regression.
+live: `main_cluster` proof for `scripts/ops/ai/project_doctor.py` now shows
+`make ai-doctor`/`make doctor` family with Makefile line provenance and a
+`missing_deterministic_proof` Unknown; root script examples no longer include
+`BLOCKER`/`printf` macro-body noise. SilentWay changed proof still shows
+Cargo/masque-core proof plus Makefile docker-test surfaces.
+next: improve command ownership only when deterministic script/CI evidence can
+connect a command to the anchor more tightly than role/path tokens.
+```
+
+Slice 30J is closed:
+
+```txt
+status: closed
+tier: focused/live
+closed: cache namespace moved to `surface-cache-v6` so installed PATH smoke
+does not reuse stale `ls/cone/proof` lens artifacts generated before the new
+owner-surface detectors existed.
+guardrails: this is only cache invalidation for changed extraction/lens
+semantics; it does not change repository scanning behavior by itself.
+proof: installed `codemap` default-cache Levelly `cone pnpm-workspace.yaml
+--section links` after reinstall; current repo `doctor`; full local gate.
+review: manual blocker review; this was found by live PATH smoke after the
+fresh-cache pnpm workspace checks passed.
+next: make cache/artifact format changes visible as a product-level doctor
+warning, not just a namespace bump when detectors change.
+```
+
+Slice 30I is closed:
+
+```txt
+status: closed
+tier: focused/full/live
+closed: `pnpm-workspace.yaml` is now a first-class owner surface for cone,
+proof, and doctor quality. `cone pnpm-workspace.yaml` shows declared workspace
+patterns, matched package manifests, and workspace root scripts with line
+provenance. `proof pnpm-workspace.yaml` shows deterministic workspace root
+script and CI run-step proof surfaces instead of falling through to nearest
+scope fallback. `doctor` no longer reports the pnpm workspace manifest as
+fallback-only when those script/CI surfaces exist.
+guardrails: workspace member links are derived only from explicit pnpm
+workspace patterns and indexed package manifests. Script proof is limited to
+validation-looking root scripts; workspace tooling in mutating/dev-only scripts
+does not by itself become proof.
+excluded: richer line-budget shaping for the long workspace script list remains
+future output-budget work.
+proof: `cargo test pnpm_workspace_manifest_cone_exposes_members_scripts_and_proof
+-- --nocapture`; `cargo test
+doctor_manifest_quality_uses_pnpm_workspace_manifest_scripts_and_ci --
+--nocapture`; full `cargo test --quiet`; live Levelly fresh-cache
+`cone/proof/doctor` probes.
+review: subagent review attempts timed out; manual blocker review plus full
+local gate. The blocker found during manual review was fixed in Slice 30H:
+soft token/path script matches cannot close direct proof discovery. Live PATH
+smoke then exposed stale cache artifacts, closed by Slice 30J.
+live: Levelly `cone pnpm-workspace.yaml --section links` shows `apps/*`,
+`packages/*`, workspace member package manifests, and workspace root scripts;
+`doctor --format json` keeps only env-consumer warnings.
+next: tune output budget for large workspace script lists.
+```
+
+Slice 30H is closed:
+
+```txt
+status: closed
+tier: focused/full
+closed: repo-level Makefile/justfile/package script targets now carry path and
+line provenance, and role-aware proof can show nearby repo commands for custom
+owner surfaces without inventing a recommendation.
+guardrails: token/path/name matches are soft `medium` evidence only. They are
+shown as nearby proof surfaces, but they do not satisfy deterministic proof and
+now emit `missing_deterministic_proof` Unknown instead of hiding false
+confidence.
+excluded: no semantic ranking, no "best command", no embeddings, and no claim
+that a token-matched script is sufficient proof.
+proof: `cargo test role_aware -- --nocapture`; `cargo test
+makefile_targets_can_match_source_files_by_exact_path_tokens -- --nocapture`;
+`cargo test soft_token_proof_does_not_hide_missing_deterministic_proof_or_fallback
+-- --nocapture`; full `cargo test --quiet`.
+review: manual blocker review found the initial high-strength token proof bug;
+the slice was corrected before closure. Subagent review attempts timed out.
+next: keep direct proof limited to explicit test imports, CI/script calls,
+manifest entries, route visits, contract checks, or other source-backed hard
+relations.
+```
 
 Slice 30G is closed:
 

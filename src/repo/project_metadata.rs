@@ -53,6 +53,8 @@ fn detect_scripts(root: &Path) -> Vec<ScriptInfo> {
                     name: name.clone(),
                     command: invoke,
                     reason: format!("package.json script: {}", command.as_str().unwrap_or("")),
+                    path: Some("package.json".to_string()),
+                    line_start: json_key_line(&text, name),
                 });
             }
         }
@@ -62,6 +64,8 @@ fn detect_scripts(root: &Path) -> Vec<ScriptInfo> {
             name: "test".to_string(),
             command: "cargo test".to_string(),
             reason: "Cargo.toml detected".to_string(),
+            path: Some("Cargo.toml".to_string()),
+            line_start: Some(1),
         });
     }
     if root.join("go.mod").exists() {
@@ -69,6 +73,8 @@ fn detect_scripts(root: &Path) -> Vec<ScriptInfo> {
             name: "test".to_string(),
             command: "go test ./...".to_string(),
             reason: "go.mod detected".to_string(),
+            path: Some("go.mod".to_string()),
+            line_start: Some(1),
         });
     }
     if root.join("pyproject.toml").exists() || root.join("requirements.txt").exists() {
@@ -76,6 +82,11 @@ fn detect_scripts(root: &Path) -> Vec<ScriptInfo> {
             name: "test".to_string(),
             command: "pytest".to_string(),
             reason: "Python project files detected".to_string(),
+            path: ["pyproject.toml", "requirements.txt"]
+                .into_iter()
+                .find(|path| root.join(path).exists())
+                .map(str::to_string),
+            line_start: Some(1),
         });
     }
     if root.join("Package.swift").exists() {
@@ -83,6 +94,8 @@ fn detect_scripts(root: &Path) -> Vec<ScriptInfo> {
             name: "test".to_string(),
             command: "swift test".to_string(),
             reason: "Package.swift detected".to_string(),
+            path: Some("Package.swift".to_string()),
+            line_start: Some(1),
         });
     }
     scripts.extend(makefile_scripts(root));
@@ -90,6 +103,14 @@ fn detect_scripts(root: &Path) -> Vec<ScriptInfo> {
     scripts.sort_by(|a, b| a.command.cmp(&b.command));
     scripts.dedup_by(|a, b| a.command == b.command);
     scripts
+}
+
+fn json_key_line(text: &str, key: &str) -> Option<usize> {
+    let quoted = format!("\"{key}\"");
+    text.lines()
+        .enumerate()
+        .find(|(_, line)| line.contains(&quoted))
+        .map(|(index, _)| index + 1)
 }
 
 fn detect_languages(files: &BTreeMap<String, FileInfo>) -> BTreeSet<String> {

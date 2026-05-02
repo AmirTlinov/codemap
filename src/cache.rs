@@ -62,6 +62,67 @@ pub fn expected_artifacts() -> &'static [&'static str] {
     CACHE_ARTIFACTS
 }
 
+pub fn stale_lens_artifact_examples(
+    cache_dir: &Path,
+    version: &str,
+    root: &Path,
+    fingerprint: &str,
+) -> Vec<String> {
+    lens_artifacts::artifact_names()
+        .iter()
+        .filter_map(|name| {
+            let path = cache_dir.join(name);
+            if !path.exists() {
+                return None;
+            }
+            stale_lens_artifact_reason(&path, version, root, fingerprint)
+                .map(|reason| format!("{name} ({reason})"))
+        })
+        .collect()
+}
+
+fn stale_lens_artifact_reason(
+    path: &Path,
+    version: &str,
+    root: &Path,
+    fingerprint: &str,
+) -> Option<String> {
+    let text = match fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(_) => return Some("unreadable json".to_string()),
+    };
+    let value: Value = match serde_json::from_str(&text) {
+        Ok(value) => value,
+        Err(_) => return Some("invalid json".to_string()),
+    };
+    match value.get("format_version").and_then(Value::as_u64) {
+        Some(found) if found == lens_artifacts::format_version() => {}
+        Some(found) => {
+            return Some(format!(
+                "format {found} != {}",
+                lens_artifacts::format_version()
+            ));
+        }
+        None => return Some("format missing".to_string()),
+    }
+    match value.get("version").and_then(Value::as_str) {
+        Some(found) if found == version => {}
+        Some(found) => return Some(format!("version {found} != {version}")),
+        None => return Some("version missing".to_string()),
+    }
+    let expected_root = root.to_string_lossy();
+    match value.get("root").and_then(Value::as_str) {
+        Some(found) if found == expected_root.as_ref() => {}
+        Some(_) => return Some("root mismatch".to_string()),
+        None => return Some("root missing".to_string()),
+    }
+    match value.get("fingerprint").and_then(Value::as_str) {
+        Some(found) if found == fingerprint => None,
+        Some(_) => Some("fingerprint mismatch".to_string()),
+        None => Some("fingerprint missing".to_string()),
+    }
+}
+
 pub fn repo_key(root: &Path, remote: Option<&str>, version: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(root.to_string_lossy().as_bytes());

@@ -57,6 +57,9 @@ fn changed_should_check_direct_proof(file: &FileInfo) -> bool {
 
 fn changed_manifest_unknowns(project: &Project, rel: &str) -> Vec<Unknown> {
     let proofs = owner_surface_proof_surfaces(project, rel);
+    if workspace_manifest_file(rel) {
+        return changed_workspace_manifest_unknowns(project, rel, &proofs);
+    }
     let mut unknowns = Vec::new();
     if !proofs.iter().any(|proof| {
         matches!(
@@ -98,6 +101,51 @@ fn changed_manifest_unknowns(project: &Project, rel: &str) -> Vec<Unknown> {
             "no workspace package consumer was found for this manifest",
             "consumer map only includes deterministic manifest dependency edges",
             Some(format!("codemap graph --lens causal {}", shell_quote(rel))),
+        ));
+    }
+    unknowns
+}
+
+fn changed_workspace_manifest_unknowns(
+    project: &Project,
+    rel: &str,
+    proofs: &[ProofSurface],
+) -> Vec<Unknown> {
+    let mut unknowns = Vec::new();
+    if !proofs
+        .iter()
+        .any(|proof| proof.evidence == "workspace_manifest_script")
+    {
+        unknowns.push(unknown(
+            "workspace_script_not_found",
+            Some(rel),
+            None,
+            "no workspace root test, lint, build, check, or verify script was found",
+            "workspace manifest proof falls back to broader commands or CI references when available",
+            Some(format!("codemap proof {}", shell_quote(rel))),
+        ));
+    }
+    if !proofs
+        .iter()
+        .any(|proof| proof.evidence == "workspace_manifest_ci_reference")
+    {
+        unknowns.push(unknown(
+            "ci_reference_not_found",
+            Some(rel),
+            None,
+            "no CI reference was found for this workspace manifest",
+            "workspace-level validation may exist outside static workflow/script evidence",
+            Some(format!("codemap cone {}", shell_quote(rel))),
+        ));
+    }
+    if workspace_manifest_member_packages(project, rel).is_empty() {
+        unknowns.push(unknown(
+            "workspace_members_not_found",
+            Some(rel),
+            None,
+            "no workspace member package manifests matched this workspace manifest",
+            "workspace manifest changed map cannot show package membership impact",
+            Some(format!("codemap cone {}", shell_quote(rel))),
         ));
     }
     unknowns

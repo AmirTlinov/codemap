@@ -19,6 +19,9 @@ fn owner_surface_proof_surfaces(project: &Project, anchor: &str) -> Vec<ProofSur
 }
 
 fn manifest_script_proof_surfaces(project: &Project, file: &FileInfo) -> Vec<ProofSurface> {
+    if workspace_manifest_file(&file.rel) {
+        return workspace_manifest_script_proof_surfaces(project, file);
+    }
     if manifest_file_name(&file.rel) == "Cargo.toml" {
         return cargo_manifest_builtin_proof_surfaces(project, file);
     }
@@ -30,7 +33,7 @@ fn manifest_script_proof_surfaces(project: &Project, file: &FileInfo) -> Vec<Pro
         .iter()
         .find(|package| package.manifest == file.rel)
     else {
-        return cargo_manifest_builtin_proof_surfaces(project, file);
+        return Vec::new();
     };
     if package.ecosystem != "javascript" {
         return Vec::new();
@@ -45,69 +48,6 @@ fn manifest_script_proof_surfaces(project: &Project, file: &FileInfo) -> Vec<Pro
             strength: EvidenceStrength::Hard,
             reason: format!("package manifest defines `{name}` script: {command}"),
             locations: vec![EvidenceLocation::line(&package.manifest, line, "package_script")],
-        })
-        .collect()
-}
-
-fn cargo_manifest_builtin_proof_surfaces(project: &Project, file: &FileInfo) -> Vec<ProofSurface> {
-    if manifest_file_name(&file.rel) != "Cargo.toml" {
-        return Vec::new();
-    }
-    let Ok(text) = std::fs::read_to_string(project.root.join(&file.rel)) else {
-        return Vec::new();
-    };
-    if !text.contains("[package]") && !text.contains("[workspace]") {
-        return Vec::new();
-    }
-    let manifest_line =
-        first_line_containing(project, &file.rel, &["[package]", "[workspace]"]).unwrap_or(1);
-    let prefix = manifest_command_prefix(&file.rel);
-    ["cargo test", "cargo check", "cargo build"]
-        .into_iter()
-        .map(|command| ProofSurface {
-            command: Some(format!("{prefix}{command}")),
-            path: Some(file.rel.clone()),
-            evidence: "cargo_manifest_command".to_string(),
-            strength: EvidenceStrength::Hard,
-            reason: format!("Cargo manifest gives package-local `{command}` surface"),
-            locations: vec![EvidenceLocation::line(
-                &file.rel,
-                manifest_line,
-                "cargo_manifest",
-            )],
-        })
-        .collect()
-}
-
-fn swift_manifest_builtin_proof_surfaces(
-    project: &Project,
-    file: &FileInfo,
-) -> Vec<ProofSurface> {
-    if manifest_file_name(&file.rel) != "Package.swift" {
-        return Vec::new();
-    }
-    let Ok(text) = std::fs::read_to_string(project.root.join(&file.rel)) else {
-        return Vec::new();
-    };
-    if !text.contains("Package(") {
-        return Vec::new();
-    }
-    let manifest_line =
-        first_line_containing(project, &file.rel, &["Package("]).unwrap_or(1);
-    let prefix = manifest_command_prefix(&file.rel);
-    ["swift test", "swift build"]
-        .into_iter()
-        .map(|command| ProofSurface {
-            command: Some(format!("{prefix}{command}")),
-            path: Some(file.rel.clone()),
-            evidence: "swift_package_command".to_string(),
-            strength: EvidenceStrength::Hard,
-            reason: format!("Swift package manifest gives package-local `{command}` surface"),
-            locations: vec![EvidenceLocation::line(
-                &file.rel,
-                manifest_line,
-                "swift_package_manifest",
-            )],
         })
         .collect()
 }
@@ -182,6 +122,9 @@ fn env_consumer_proof_surfaces(project: &Project, file: &FileInfo) -> Vec<ProofS
 }
 
 fn manifest_ci_reference_proof_surfaces(project: &Project, file: &FileInfo) -> Vec<ProofSurface> {
+    if workspace_manifest_file(&file.rel) {
+        return workspace_manifest_ci_reference_proof_surfaces(project, file);
+    }
     let Some(package) = project
         .packages
         .iter()
@@ -439,26 +382,6 @@ fn first_line_containing(project: &Project, rel: &str, needles: &[&str]) -> Opti
         .enumerate()
         .find(|(_, line)| needles.iter().any(|needle| line.contains(needle)))
         .map(|(index, _)| index + 1)
-}
-
-fn manifest_file_name(rel: &str) -> &str {
-    Path::new(rel)
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or(rel)
-}
-
-fn manifest_command_prefix(rel: &str) -> String {
-    let path = Path::new(rel)
-        .parent()
-        .and_then(|parent| parent.to_str())
-        .map(repo::normalize_rel_path)
-        .unwrap_or_else(|| ".".to_string());
-    if path == "." {
-        String::new()
-    } else {
-        format!("cd {} && ", shell_quote(&path))
-    }
 }
 
 fn schema_owner_path(rel: &str) -> bool {

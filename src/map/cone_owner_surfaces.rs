@@ -63,6 +63,28 @@ fn cone_owner_unknowns(project: &Project, rel: &str) -> Vec<Unknown> {
     if file.has_role("env_config") {
         unknowns.extend(owner_env_unknowns(project, rel));
     }
+    if file.has_role("manifest") && workspace_manifest_file(rel) {
+        if workspace_manifest_member_packages(project, rel).is_empty() {
+            unknowns.push(unknown(
+                "workspace_members_not_found",
+                Some(rel),
+                None,
+                "no workspace member package manifests matched this workspace manifest",
+                "workspace manifest cone cannot show package membership edges",
+                Some(format!("codemap ls {}", shell_quote(rel))),
+            ));
+        }
+        if owner_surface_proof_surfaces(project, rel).is_empty() {
+            unknowns.push(unknown(
+                "workspace_proof_not_found",
+                Some(rel),
+                None,
+                "no workspace root script or CI run step was found for this workspace manifest",
+                "proof may fall back to broader repo commands",
+                Some(format!("codemap proof {}", shell_quote(rel))),
+            ));
+        }
+    }
     if (file.has_role("schema_contract") || schema_owner_path(rel))
         && owner_schema_edges(project, rel).is_empty()
         && owner_surface_proof_surfaces(project, rel).is_empty()
@@ -82,6 +104,9 @@ fn cone_owner_unknowns(project: &Project, rel: &str) -> Vec<Unknown> {
 fn owner_manifest_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {
     let mut edges = Vec::new();
     let Some(package) = project.packages.iter().find(|package| package.manifest == rel) else {
+        if workspace_manifest_file(rel) {
+            edges.extend(owner_workspace_manifest_edges(project, rel));
+        }
         return edges;
     };
     let package_line = first_line_containing(project, rel, &["\"name\"", "name ="]).unwrap_or(1);
