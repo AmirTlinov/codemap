@@ -9,7 +9,7 @@ use sha2::{Digest, Sha256};
 
 use crate::model::Project;
 
-const FINGERPRINT_CACHE_FORMAT: u32 = 3;
+const FINGERPRINT_CACHE_FORMAT: u32 = 4;
 
 pub struct CacheFileDelta {
     pub cached_fingerprint: String,
@@ -82,9 +82,6 @@ pub fn file_delta_for_known_changes(
     if cached.git_head != current_git_head(root) {
         return None;
     }
-    if cached.has_untracked {
-        return None;
-    }
     let cached_by_path = cached
         .files
         .iter()
@@ -122,6 +119,20 @@ pub fn file_delta_for_known_changes(
             }
         }
     }
+    for cached_file in cached.files.iter().filter(|file| !file.git_tracked) {
+        if changed_or_added_candidates.contains(&cached_file.path)
+            || removed_candidates.contains(&cached_file.path)
+        {
+            continue;
+        }
+        if !root.join(&cached_file.path).exists() || git_path_is_ignored(root, &cached_file.path) {
+            unchanged.remove(&cached_file.path);
+            removed.insert(cached_file.path.clone());
+        } else if !cached_file_matches(root, &cached_file.path, cached_file) {
+            unchanged.remove(&cached_file.path);
+            changed_or_added.insert(cached_file.path.clone());
+        }
+    }
     Some(CacheFileDelta {
         cached_fingerprint: cached.fingerprint,
         unchanged,
@@ -136,6 +147,7 @@ pub fn cached_git_head_matches(root: &Path, cache_dir: &Path, version: &str) -> 
 }
 
 pub(super) fn write_fingerprints(project: &Project, version: &str) -> Result<()> {
+    let tracked_paths = git_tracked_paths(&project.root);
     let fingerprints = CachedFingerprints {
         format_version: FINGERPRINT_CACHE_FORMAT,
         version: version.to_string(),
@@ -150,6 +162,9 @@ pub(super) fn write_fingerprints(project: &Project, version: &str) -> Result<()>
                 let modified = file_modified_parts(project, file);
                 CachedFileFingerprint {
                     path: file.rel.clone(),
+                    git_tracked: tracked_paths
+                        .as_ref()
+                        .is_some_and(|paths| paths.contains(&file.rel)),
                     size: file.size,
                     content_hash: file.content_hash.clone(),
                     modified_secs: modified.map(|parts| parts.0),
@@ -203,6 +218,8 @@ struct CachedFingerprints {
 #[derive(Deserialize, Serialize)]
 struct CachedFileFingerprint {
     path: String,
+    #[serde(default)]
+    git_tracked: bool,
     size: u64,
     #[serde(default)]
     content_hash: Option<String>,
@@ -262,6 +279,36 @@ fn current_git_status_has_untracked(root: &Path) -> bool {
     String::from_utf8_lossy(&output.stdout)
         .lines()
         .any(|line| line.starts_with("?? "))
+}
+
+fn git_tracked_paths(root: &Path) -> Option<BTreeSet<String>> {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["ls-files", "-c"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    Some(
+        String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .filter_map(|line| {
+                let rel = line.trim();
+                (!rel.is_empty()).then(|| rel.replace('\\', "/"))
+            })
+            .collect(),
+    )
+}
+
+fn git_path_is_ignored(root: &Path, rel: &str) -> bool {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["check-ignore", "-q", "--", rel])
+        .output();
+    output.is_ok_and(|output| output.status.success())
 }
 
 fn file_modified_parts(project: &Project, file: &crate::model::FileInfo) -> Option<(u64, u32)> {

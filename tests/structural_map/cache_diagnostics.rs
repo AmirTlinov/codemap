@@ -89,7 +89,37 @@ fn doctor_uses_git_status_mismatch_set_for_committed_repos() {
 }
 
 #[test]
-fn doctor_falls_back_when_cached_index_contains_untracked_files() {
+fn doctor_uses_git_status_mismatch_set_for_untracked_paths_with_spaces() {
+    let (repo, cache) = fixture();
+
+    let _ = run_json(repo.path(), cache.path(), &["ls", ".", "--format", "json"]);
+    write(
+        &repo.path().join("packages/app/src/local draft.ts"),
+        "export const localDraft = 'untracked spaced path';\n",
+    );
+
+    let doctor = run_json(repo.path(), cache.path(), &["doctor", "--format", "json"]);
+    assert_schema("schemas/status.schema.json", &doctor);
+    assert_eq!(doctor["cache_strategy"], "partial_rescan");
+    assert_eq!(
+        doctor["scanner"]["files_scanned"], 1,
+        "NUL status parsing should scan only the new untracked file with a space: {doctor:#}"
+    );
+
+    let ls = run_json(
+        repo.path(),
+        cache.path(),
+        &["ls", "packages/app/src/local draft.ts", "--format", "json"],
+    );
+    assert_schema("schemas/ls.schema.json", &ls);
+    assert_eq!(
+        ls["mode"], "file",
+        "untracked path with spaces must not be hidden by quoted porcelain parsing: {ls:#}"
+    );
+}
+
+#[test]
+fn doctor_uses_cached_untracked_probe_for_deleted_untracked_files() {
     let (repo, cache) = fixture();
     let untracked = repo.path().join("packages/app/src/localDraft.ts");
     write(
@@ -105,7 +135,7 @@ fn doctor_falls_back_when_cached_index_contains_untracked_files() {
     assert_eq!(doctor["cache_strategy"], "partial_rescan");
     assert_eq!(
         doctor["scanner"]["files_scanned"], 0,
-        "untracked cached files need fallback candidate delta so deletions do not survive: {doctor:#}"
+        "deleted cached untracked files should be removed without a full candidate scan: {doctor:#}"
     );
 
     let ls = run_json(
@@ -118,7 +148,39 @@ fn doctor_falls_back_when_cached_index_contains_untracked_files() {
 }
 
 #[test]
-fn doctor_falls_back_and_rescans_modified_cached_untracked_files() {
+fn doctor_removes_cached_untracked_file_that_becomes_git_ignored() {
+    let (repo, cache) = fixture();
+    let untracked = repo.path().join("packages/app/src/localDraft.ts");
+    write(
+        &untracked,
+        "export const localDraft = 'untracked cache candidate';\n",
+    );
+
+    let _ = run_json(repo.path(), cache.path(), &["ls", ".", "--format", "json"]);
+    write(&repo.path().join(".gitignore"), "packages/app/src/localDraft.ts\n");
+
+    let doctor = run_json(repo.path(), cache.path(), &["doctor", "--format", "json"]);
+    assert_schema("schemas/status.schema.json", &doctor);
+    assert_eq!(doctor["cache_strategy"], "partial_rescan");
+    assert_eq!(
+        doctor["scanner"]["files_scanned"], 0,
+        "cached untracked files that become ignored should disappear without parser rescan: {doctor:#}"
+    );
+
+    let ls = run_json(
+        repo.path(),
+        cache.path(),
+        &["ls", "packages/app/src/localDraft.ts", "--format", "json"],
+    );
+    assert_schema("schemas/ls.schema.json", &ls);
+    assert_eq!(
+        ls["mode"], "missing",
+        "ignored local file must not survive from cached untracked facts: {ls:#}"
+    );
+}
+
+#[test]
+fn doctor_uses_cached_untracked_probe_for_modified_untracked_files() {
     let (repo, cache) = fixture();
     let untracked = repo.path().join("packages/app/src/localDraft.ts");
     write(
@@ -137,7 +199,7 @@ fn doctor_falls_back_and_rescans_modified_cached_untracked_files() {
     assert_eq!(doctor["cache_strategy"], "partial_rescan");
     assert_eq!(
         doctor["scanner"]["files_scanned"], 1,
-        "modified cached untracked files need fallback candidate delta and rescan: {doctor:#}"
+        "modified cached untracked files should be the only parser rescan: {doctor:#}"
     );
 
     let ls = run_json(

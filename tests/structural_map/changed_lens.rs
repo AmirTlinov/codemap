@@ -52,6 +52,45 @@ fn changed_combines_delta_impact_and_proof_without_running_commands() {
 }
 
 #[test]
+fn changed_inherits_package_export_contract_impact() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("packages/replay/package.json"),
+        r#"{
+  "name": "@fixture/replay",
+  "version": "1.0.1",
+  "main": "src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "test": "vitest run" }
+}
+"#,
+    );
+
+    let changed = run_json(repo.path(), cache.path(), &["changed", "--format", "json"]);
+    assert_schema("schemas/changed.schema.json", &changed);
+    assert!(
+        changed["impact"]
+            .as_array()
+            .expect("impact")
+            .iter()
+            .any(|cluster| cluster["changed"]
+                .as_array()
+                .expect("cluster changed")
+                .iter()
+                .any(|path| path == "packages/replay/package.json")
+                && cluster["contract_risks"]
+                    .as_array()
+                    .expect("contract risks")
+                    .iter()
+                    .any(|edge| edge["from"] == "packages/replay/package.json"
+                        && edge["to"] == "packages/replay/package.json"
+                        && edge["type"] == "package_export"
+                        && edge["evidence"] == "package_manifest")),
+        "daily changed overview should inherit package export contract impact: {changed:#}"
+    );
+}
+
+#[test]
 fn changed_reports_clean_state_calmly() {
     let (repo, cache) = fixture();
 

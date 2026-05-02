@@ -46,7 +46,7 @@ fn git_status_cache_change_sets(root: &Path) -> Option<(BTreeSet<String>, BTreeS
     let output = Command::new("git")
         .arg("-C")
         .arg(root)
-        .args(["status", "--porcelain", "-uall", "--", "."])
+        .args(["status", "--porcelain=v1", "-z", "-uall", "--", "."])
         .output()
         .ok()?;
     if !output.status.success() {
@@ -55,26 +55,29 @@ fn git_status_cache_change_sets(root: &Path) -> Option<(BTreeSet<String>, BTreeS
     let root_prefix = git_status_root_prefix(root);
     let mut changed_or_added = BTreeSet::new();
     let mut removed = BTreeSet::new();
-    for line in String::from_utf8_lossy(&output.stdout).lines() {
-        if line.len() < 4 {
+    let mut entries = output.stdout.split(|byte| *byte == 0).filter(|entry| !entry.is_empty());
+    while let Some(entry) = entries.next() {
+        if entry.len() < 4 {
             continue;
         }
-        let index_status = line.chars().next().unwrap_or(' ');
-        let worktree_status = line.chars().nth(1).unwrap_or(' ');
+        let record = String::from_utf8_lossy(entry);
+        let index_status = record.chars().next().unwrap_or(' ');
+        let worktree_status = record.chars().nth(1).unwrap_or(' ');
         let status = porcelain_status(index_status, worktree_status);
-        if matches!(status, "conflicted" | "typechanged" | "untracked") {
+        if status == "conflicted" {
             return None;
         }
-        let raw = line[3..].trim();
-        let (old_path, path) = if let Some((old_path, new_path)) = raw.split_once(" -> ") {
-            (
-                normalize_status_path(old_path, root_prefix.as_deref()),
-                normalize_status_path(new_path, root_prefix.as_deref()),
-            )
+        let raw = &record[3..];
+        let path = normalize_status_path(raw, root_prefix.as_deref());
+        let old_path = if index_status == 'R' || index_status == 'C' {
+            entries.next().and_then(|entry| {
+                normalize_status_path(&String::from_utf8_lossy(entry), root_prefix.as_deref())
+            })
         } else {
-            (None, normalize_status_path(raw, root_prefix.as_deref()))
+            None
         };
-        if let Some(old_path) = old_path
+        if index_status == 'R'
+            && let Some(old_path) = old_path
             && !should_ignore_rel(&old_path)
         {
             removed.insert(old_path);

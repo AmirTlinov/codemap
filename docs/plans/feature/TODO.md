@@ -68,14 +68,15 @@ unless a specific output still confuses the agent or creates a false claim.
 Slice 09 third boundary is closed:
 
 ```txt
-closed: tracked git repos avoid a full candidate walk when cached HEAD is
-the same and `git status` gives an exact mismatch set. The parser should scan
-only mismatched cache candidates, reuse cached facts for the rest, and fall back
-to the older full candidate delta when untracked cached files make deletion
-freshness impossible to prove from status alone.
+closed: git repos avoid a full candidate walk when cached HEAD is the same and
+`git status` gives an exact mismatch set. The parser should scan only
+mismatched cache candidates, reuse cached facts for the rest, and probe cached
+untracked files directly so deleted/modified local files do not force a repo
+candidate delta.
 proof: focused cache diagnostics for committed tracked mismatch,
-cached-untracked deletion/modification fallback, and rename-into-ignored-dir
-removal; full gate; live warm sanity on ctx, spritestudio, and Sillentway-VPN.
+untracked path-with-spaces status parsing, cached-untracked deletion/
+modification/ignore-transition probes, and rename-into-ignored-dir removal;
+full gate; live warm sanity on ctx, spritestudio, and Sillentway-VPN.
 review: PASS after fixing rename into ignored directory stale-cache risk.
 live: ctx, spritestudio, and Sillentway-VPN reported warm_load with
 files_scanned=0 and files_visited=0 after external-cache warmup.
@@ -236,14 +237,15 @@ live next: warm_load with scan_ms=0 on all four probed repos.
 ```
 
 ```txt
-closed third boundary: for committed git repos with matching cached HEAD and no
-cached untracked files, cache freshness now uses `git status` as the mismatch
-set before parser work. If the cached index contains untracked files, the fast
-path fails closed to the full candidate delta because status alone cannot prove
-removed untracked files.
+closed third boundary: for committed git repos with matching cached HEAD, cache
+freshness now uses `git status` as the mismatch set before parser work. Cached
+untracked files are stored per path and probed directly, so deleted/modified
+untracked source does not require a full candidate delta.
 proof third: `doctor_uses_git_status_mismatch_set_for_committed_repos`,
-`doctor_falls_back_when_cached_index_contains_untracked_files`,
-`doctor_falls_back_and_rescans_modified_cached_untracked_files`,
+`doctor_uses_git_status_mismatch_set_for_untracked_paths_with_spaces`,
+`doctor_uses_cached_untracked_probe_for_deleted_untracked_files`,
+`doctor_removes_cached_untracked_file_that_becomes_git_ignored`,
+`doctor_uses_cached_untracked_probe_for_modified_untracked_files`,
 `doctor_removes_cached_source_renamed_into_ignored_directory`, full gate, and
 live warm sanity on ctx/spritestudio/Sillentway-VPN.
 review third: PASS after the cache-specific status parser preserved old-path
@@ -353,7 +355,8 @@ excluded: full impact grouping closure, deleted/renamed structural event matrix,
 runtime/data/generated impact taxonomy, and broader live output audit.
 proof: package export fixture asserts contract impact risk and exact
 `package_export` / `package_manifest` edges in `contract_risks` for both the
-export target and package manifest.
+export target and package manifest; changed overview fixture proves the daily
+`codemap changed` path inherits the same package export contract impact.
 review: required before commit because this changes public lens semantics.
 live: not required; controlled package export fixture proves the false-negative
 directly.
