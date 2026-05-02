@@ -286,16 +286,17 @@ fn render_file_summaries(title: &str, files: &[crate::model::FileSummary]) {
         return;
     }
     println!("\n## {title}\n");
-    let rows = files
-        .iter()
-        .map(|file| {
-            vec![
-                code(&file.path),
-                file.kind.clone(),
-                file.package.clone().unwrap_or_else(|| "none".to_string()),
-                file.language.clone(),
-            ]
-        })
-        .collect();
-    println!("{}", table(&["Path", "Kind", "Package", "Language"], rows));
+    for file in files {
+        let package = file.package.as_deref().unwrap_or("none");
+        println!(
+            "- `{}` [{}; {}; package={}; lines={}]",
+            file.path, file.kind, file.language, package, file.lines
+        );
+        if !file.roles.is_empty() {
+            println!("  roles: {}", file.roles.join(", "));
+        }
+        if !file.exports.is_empty() {
+            println!("  exports: {}", file.exports.join(", "));
+        }
+    }
 }
