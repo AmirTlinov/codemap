@@ -248,19 +248,17 @@ fn runtime_routes_section(title: &str, routes: &[RuntimeRoute]) {
         return;
     }
     println!("\n## {title}\n");
-    let rows = routes
-        .iter()
-        .map(|route| {
-            vec![
-                route.method.clone().unwrap_or_else(|| "ANY".to_string()),
-                code(&route.path),
-                code(&route.file),
-                route.evidence.clone(),
-                format!("{:?}", route.strength).to_ascii_lowercase(),
-            ]
-        })
-        .collect();
-    println!("{}", table(&["Method", "Path", "File", "Evidence", "Strength"], rows));
+    for route in routes {
+        let method = route.method.as_deref().unwrap_or("ANY");
+        println!(
+            "- `{method} {}` -> `{}` [{}; {}] {}",
+            route.path,
+            route.file,
+            route.evidence,
+            format!("{:?}", route.strength).to_ascii_lowercase(),
+            proof_location_summary(&route.locations)
+        );
+    }
 }
 
 fn env_section(title: &str, env: &[EnvSurface]) {
@@ -268,29 +266,19 @@ fn env_section(title: &str, env: &[EnvSurface]) {
         return;
     }
     println!("\n## {title}\n");
-    let rows = env
-        .iter()
-        .map(|item| {
-            vec![
-                item.name.clone(),
-                code(&item.used_by),
-                item.declaration
-                    .as_ref()
-                    .map(|path| code(path))
-                    .unwrap_or_else(|| "none".to_string()),
-                item.evidence.clone(),
-                format!("{:?}", item.strength).to_ascii_lowercase(),
-                proof_location_summary(&item.locations),
-            ]
-        })
-        .collect();
-    println!(
-        "{}",
-        table(
-            &["Name", "Used By", "Declaration", "Evidence", "Strength", "Where"],
-            rows,
-        )
-    );
+    for item in env {
+        println!(
+            "- `{}` used by `{}` [{}; {}] {}",
+            item.name,
+            item.used_by,
+            item.evidence,
+            format!("{:?}", item.strength).to_ascii_lowercase(),
+            proof_location_summary(&item.locations)
+        );
+        if let Some(declaration) = &item.declaration {
+            println!("  declaration: `{declaration}`");
+        }
+    }
 }
 
 fn render_file_summaries(title: &str, files: &[crate::model::FileSummary]) {
