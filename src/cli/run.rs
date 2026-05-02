@@ -24,6 +24,12 @@ pub fn run() -> Result<()> {
         repo::RootSelection::Auto
     };
     render::set_expand_root(cli.root.as_deref());
+    if let Some(()) = try_cached_ls_fast_path(&cli.command, &root_selection)? {
+        return Ok(());
+    }
+    if let Some(()) = try_cached_cone_fast_path(&cli.command, &root_selection)? {
+        return Ok(());
+    }
     if let Some(()) = try_clean_changed_fast_path(&cli.command, &root_selection)? {
         return Ok(());
     }
@@ -62,6 +68,7 @@ pub fn run() -> Result<()> {
             ensure_valid_config(&project)?;
             let path = project_relative_arg(&project, &args.path)?;
             let report = map::ls_report(&project, &path, args.include_hidden, args.limit);
+            maybe_write_ls_lens_cache(&project, &path, &args, &report);
             output(args.format, &report, || render::ls(&report))
         }
         CommandKind::Cone(args) => {
@@ -69,6 +76,7 @@ pub fn run() -> Result<()> {
             let path = project_relative_arg(&project, &args.path)?;
             let report =
                 map::cone_report(&project, &path, args.depth, args.include_hidden, args.limit);
+            maybe_write_cone_lens_cache(&project, &path, &args, &report);
             output(args.format, &report, || render::cone(&report))
         }
         CommandKind::Init(args) => init(&project, args),

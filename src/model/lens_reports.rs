@@ -11,7 +11,7 @@ pub struct Surface {
     pub hidden_count: usize,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ConeReport {
     pub kind: &'static str,
     pub schema_version: &'static str,

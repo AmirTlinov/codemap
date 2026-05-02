@@ -1,3 +1,64 @@
+fn try_cached_ls_fast_path(
+    command: &CommandKind,
+    root_selection: &repo::RootSelection,
+) -> Result<Option<()>> {
+    let CommandKind::Ls(args) = command else {
+        return Ok(None);
+    };
+    let cwd = env::current_dir()?;
+    let root = repo::resolve_root(root_selection, &cwd)?;
+    let path = root_relative_arg(&root, &args.path)?;
+    let git_state = repo::git_changes(&root, false, None);
+    let remote = repo::git_remote(&root);
+    let cache_dir = crate::cache::project_cache_dir(&root, remote.as_deref(), repo::VERSION);
+    if !lens_cache_matches_current(&root, &cache_dir, &git_state) {
+        return Ok(None);
+    }
+    let Some(report) = crate::cache::read_ls_report(crate::cache::LsLensKey {
+        cache_dir: &cache_dir,
+        version: repo::VERSION,
+        root: &root,
+        path: &path,
+        include_hidden: args.include_hidden,
+        limit: args.limit,
+    }) else {
+        return Ok(None);
+    };
+    output(args.format, &report, || render::ls(&report))?;
+    Ok(Some(()))
+}
+
+fn try_cached_cone_fast_path(
+    command: &CommandKind,
+    root_selection: &repo::RootSelection,
+) -> Result<Option<()>> {
+    let CommandKind::Cone(args) = command else {
+        return Ok(None);
+    };
+    let cwd = env::current_dir()?;
+    let root = repo::resolve_root(root_selection, &cwd)?;
+    let path = root_relative_arg(&root, &args.path)?;
+    let git_state = repo::git_changes(&root, false, None);
+    let remote = repo::git_remote(&root);
+    let cache_dir = crate::cache::project_cache_dir(&root, remote.as_deref(), repo::VERSION);
+    if !lens_cache_matches_current(&root, &cache_dir, &git_state) {
+        return Ok(None);
+    }
+    let Some(report) = crate::cache::read_cone_report(crate::cache::ConeLensKey {
+        cache_dir: &cache_dir,
+        version: repo::VERSION,
+        root: &root,
+        path: &path,
+        depth: args.depth,
+        include_hidden: args.include_hidden,
+        limit: args.limit,
+    }) else {
+        return Ok(None);
+    };
+    output(args.format, &report, || render::cone(&report))?;
+    Ok(Some(()))
+}
+
 fn try_clean_changed_fast_path(
     command: &CommandKind,
     root_selection: &repo::RootSelection,
@@ -179,15 +240,52 @@ fn maybe_write_changed_lens_cache(
     );
 }
 
+fn maybe_write_ls_lens_cache(
+    project: &crate::model::Project,
+    path: &str,
+    args: &LsArgs,
+    report: &crate::model::LsReport,
+) {
+    let _ = crate::cache::write_ls_report(
+        crate::cache::LsLensKey {
+            cache_dir: &project.cache_dir,
+            version: repo::VERSION,
+            root: &project.root,
+            path,
+            include_hidden: args.include_hidden,
+            limit: args.limit,
+        },
+        report,
+    );
+}
+
+fn maybe_write_cone_lens_cache(
+    project: &crate::model::Project,
+    path: &str,
+    args: &ConeArgs,
+    report: &crate::model::ConeReport,
+) {
+    let _ = crate::cache::write_cone_report(
+        crate::cache::ConeLensKey {
+            cache_dir: &project.cache_dir,
+            version: repo::VERSION,
+            root: &project.root,
+            path,
+            depth: args.depth,
+            include_hidden: args.include_hidden,
+            limit: args.limit,
+        },
+        report,
+    );
+}
+
 fn lens_cache_matches_current(
     root: &Path,
     cache_dir: &Path,
     git_state: &[crate::model::GitChange],
 ) -> bool {
-    if git_state.is_empty() {
-        return crate::cache::cached_git_head_matches(root, cache_dir, repo::VERSION) == Some(true);
-    }
-    let (changed_or_added, removed) = git_change_sets(git_state);
+    let (changed_or_added, removed) =
+        repo::git_status_cache_change_sets(root).unwrap_or_else(|| git_change_sets(git_state));
     crate::cache::file_delta_for_known_changes(
         root,
         cache_dir,
@@ -196,6 +294,20 @@ fn lens_cache_matches_current(
         &removed,
     )
     .is_some_and(|delta| delta.is_exact_hit())
+}
+
+fn root_relative_arg(root: &Path, value: &str) -> Result<String> {
+    let path = Path::new(value);
+    let normalized_root = normalize_absolute_arg(root);
+    let absolute = if path.is_absolute() {
+        normalize_absolute_arg(path)
+    } else {
+        normalize_absolute_arg(&normalized_root.join(path))
+    };
+    absolute
+        .strip_prefix(normalized_root)
+        .map(|rel| repo::normalize_rel_path(&rel.to_string_lossy()))
+        .map_err(|_| anyhow::anyhow!("path is outside project root: {value}"))
 }
 
 fn changed_selector_state(args: &ChangedArgs, root: &Path) -> (String, Vec<crate::model::GitChange>) {

@@ -27,7 +27,8 @@ pub use fingerprints::{
     file_delta_for_head_change, file_delta_for_known_changes,
 };
 pub use lens_artifacts::{
-    read_changed_report, read_proof_changed_report, write_changed_report,
+    ConeLensKey, LsLensKey, read_changed_report, read_cone_report, read_ls_report,
+    read_proof_changed_report, write_changed_report, write_cone_report, write_ls_report,
     write_proof_changed_report,
 };
 

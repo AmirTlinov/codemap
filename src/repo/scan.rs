@@ -75,7 +75,13 @@ fn scan_file(root: &Path, rel: &str, stats: &mut ScanStatsBuilder) -> Option<Fil
         visited_route_paths: BTreeSet::new(),
     };
     classify_roles(root, &mut info);
-    extract_imports_exports(root, &mut info);
+    if is_asset_ext(&info.ext) && info.ext != "svg" {
+        if let Ok(bytes) = fs::read(&path) {
+            info.content_hash = Some(scan_content_hash(&bytes));
+        }
+    } else {
+        extract_imports_exports(root, &mut info);
+    }
     if info.has_role("generated") {
         stats.record_generated("generated_path_or_header", rel);
     }

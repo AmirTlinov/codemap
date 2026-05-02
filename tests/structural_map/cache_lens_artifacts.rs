@@ -33,6 +33,37 @@ fn dirty_daily_lens_artifacts_roundtrip_without_output_drift() {
     );
 }
 
+#[test]
+fn navigation_lens_artifacts_roundtrip_without_output_drift() {
+    let (repo, cache) = fixture();
+    let rel = "packages/app/src/useReplay.ts";
+
+    let _ = run_json(repo.path(), cache.path(), &["ls", ".", "--format", "json"]);
+
+    let ls_first = run_lens_stdout(repo.path(), cache.path(), &["ls", rel]);
+    let ls_second = run_lens_stdout(repo.path(), cache.path(), &["ls", rel]);
+    assert_eq!(
+        ls_first, ls_second,
+        "cached ls artifact must preserve markdown output"
+    );
+
+    let cone_first = run_lens_stdout(repo.path(), cache.path(), &["cone", rel]);
+    let cone_second = run_lens_stdout(repo.path(), cache.path(), &["cone", rel]);
+    assert_eq!(
+        cone_first, cone_second,
+        "cached cone artifact must preserve markdown output"
+    );
+
+    assert!(
+        cached_lens_artifact_exists(cache.path(), "ls-current.json"),
+        "ls command should write an external lens artifact"
+    );
+    assert!(
+        cached_lens_artifact_exists(cache.path(), "cone-current.json"),
+        "cone command should write an external lens artifact"
+    );
+}
+
 fn run_lens_stdout(repo: &Path, cache: &Path, args: &[&str]) -> String {
     let output = codemap()
         .current_dir(repo)

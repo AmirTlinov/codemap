@@ -184,7 +184,7 @@ pub struct Unknown {
     pub expand: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct LsReport {
     pub kind: &'static str,
     pub schema_version: &'static str,
@@ -211,7 +211,7 @@ pub struct FileSummary {
     pub imported_by_count: usize,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DirectorySurface {
     pub id: String,
     pub kind: String,

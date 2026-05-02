@@ -1,0 +1,227 @@
+use std::path::Path;
+
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
+
+use crate::model::{
+    ConeReport, DirectorySurface, FileSummary, HiddenGroup, LsReport, StructuralEdge, Unknown,
+};
+
+use super::{LensArtifact, current_status_fingerprint, read_lens_artifact, write_lens_artifact};
+
+pub struct LsLensKey<'a> {
+    pub cache_dir: &'a Path,
+    pub version: &'a str,
+    pub root: &'a Path,
+    pub path: &'a str,
+    pub include_hidden: bool,
+    pub limit: usize,
+}
+
+pub struct ConeLensKey<'a> {
+    pub cache_dir: &'a Path,
+    pub version: &'a str,
+    pub root: &'a Path,
+    pub path: &'a str,
+    pub depth: usize,
+    pub include_hidden: bool,
+    pub limit: usize,
+}
+
+pub fn read_ls_report(key: LsLensKey<'_>) -> Option<LsReport> {
+    let cached: CachedLsLens =
+        read_lens_artifact(key.cache_dir, "ls-current.json", key.version, key.root)?;
+    if cached.path != key.path
+        || cached.include_hidden != key.include_hidden
+        || cached.limit != key.limit
+    {
+        return None;
+    }
+    Some(cached.report.into_report())
+}
+
+pub fn write_ls_report(key: LsLensKey<'_>, report: &LsReport) -> Result<()> {
+    let cached = CachedLsLens {
+        version: key.version.to_string(),
+        root: key.root.to_string_lossy().to_string(),
+        fingerprint: current_status_fingerprint(key.cache_dir).unwrap_or_default(),
+        path: key.path.to_string(),
+        include_hidden: key.include_hidden,
+        limit: key.limit,
+        report: CachedLsReport::from_report(report),
+    };
+    write_lens_artifact(key.cache_dir, "ls-current.json", &cached)
+}
+
+pub fn read_cone_report(key: ConeLensKey<'_>) -> Option<ConeReport> {
+    let cached: CachedConeLens =
+        read_lens_artifact(key.cache_dir, "cone-current.json", key.version, key.root)?;
+    if cached.path != key.path
+        || cached.depth != key.depth
+        || cached.include_hidden != key.include_hidden
+        || cached.limit != key.limit
+    {
+        return None;
+    }
+    Some(cached.report.into_report())
+}
+
+pub fn write_cone_report(key: ConeLensKey<'_>, report: &ConeReport) -> Result<()> {
+    let cached = CachedConeLens {
+        version: key.version.to_string(),
+        root: key.root.to_string_lossy().to_string(),
+        fingerprint: current_status_fingerprint(key.cache_dir).unwrap_or_default(),
+        path: key.path.to_string(),
+        depth: key.depth,
+        include_hidden: key.include_hidden,
+        limit: key.limit,
+        report: CachedConeReport::from_report(report),
+    };
+    write_lens_artifact(key.cache_dir, "cone-current.json", &cached)
+}
+
+#[derive(Deserialize, Serialize)]
+struct CachedLsLens {
+    version: String,
+    root: String,
+    fingerprint: String,
+    path: String,
+    include_hidden: bool,
+    limit: usize,
+    report: CachedLsReport,
+}
+
+impl LensArtifact for CachedLsLens {
+    fn version(&self) -> &str {
+        &self.version
+    }
+
+    fn root(&self) -> &str {
+        &self.root
+    }
+
+    fn fingerprint(&self) -> &str {
+        &self.fingerprint
+    }
+}
+
+#[derive(Deserialize, Serialize)]
+struct CachedConeLens {
+    version: String,
+    root: String,
+    fingerprint: String,
+    path: String,
+    depth: usize,
+    include_hidden: bool,
+    limit: usize,
+    report: CachedConeReport,
+}
+
+impl LensArtifact for CachedConeLens {
+    fn version(&self) -> &str {
+        &self.version
+    }
+
+    fn root(&self) -> &str {
+        &self.root
+    }
+
+    fn fingerprint(&self) -> &str {
+        &self.fingerprint
+    }
+}
+
+#[derive(Deserialize, Serialize)]
+struct CachedLsReport {
+    kind: String,
+    schema_version: String,
+    path: String,
+    mode: String,
+    anchor: Option<FileSummary>,
+    directory: Vec<DirectorySurface>,
+    edges: Vec<StructuralEdge>,
+    hidden: Vec<HiddenGroup>,
+    next: Vec<String>,
+}
+
+impl CachedLsReport {
+    fn from_report(report: &LsReport) -> Self {
+        Self {
+            kind: report.kind.to_string(),
+            schema_version: report.schema_version.to_string(),
+            path: report.path.clone(),
+            mode: report.mode.clone(),
+            anchor: report.anchor.clone(),
+            directory: report.directory.clone(),
+            edges: report.edges.clone(),
+            hidden: report.hidden.clone(),
+            next: report.next.clone(),
+        }
+    }
+
+    fn into_report(self) -> LsReport {
+        LsReport {
+            kind: "ls_report",
+            schema_version: "3",
+            path: self.path,
+            mode: self.mode,
+            anchor: self.anchor,
+            directory: self.directory,
+            edges: self.edges,
+            hidden: self.hidden,
+            next: self.next,
+        }
+    }
+}
+
+#[derive(Deserialize, Serialize)]
+struct CachedConeReport {
+    kind: String,
+    schema_version: String,
+    anchor: FileSummary,
+    depth: usize,
+    outgoing: Vec<StructuralEdge>,
+    incoming: Vec<StructuralEdge>,
+    proof: Vec<StructuralEdge>,
+    contracts: Vec<StructuralEdge>,
+    boundary: Vec<StructuralEdge>,
+    hidden: Vec<HiddenGroup>,
+    unknowns: Vec<Unknown>,
+    expand: Vec<String>,
+}
+
+impl CachedConeReport {
+    fn from_report(report: &ConeReport) -> Self {
+        Self {
+            kind: report.kind.to_string(),
+            schema_version: report.schema_version.to_string(),
+            anchor: report.anchor.clone(),
+            depth: report.depth,
+            outgoing: report.outgoing.clone(),
+            incoming: report.incoming.clone(),
+            proof: report.proof.clone(),
+            contracts: report.contracts.clone(),
+            boundary: report.boundary.clone(),
+            hidden: report.hidden.clone(),
+            unknowns: report.unknowns.clone(),
+            expand: report.expand.clone(),
+        }
+    }
+
+    fn into_report(self) -> ConeReport {
+        ConeReport {
+            kind: "cone_report",
+            schema_version: "3",
+            anchor: self.anchor,
+            depth: self.depth,
+            outgoing: self.outgoing,
+            incoming: self.incoming,
+            proof: self.proof,
+            contracts: self.contracts,
+            boundary: self.boundary,
+            hidden: self.hidden,
+            unknowns: self.unknowns,
+            expand: self.expand,
+        }
+    }
+}

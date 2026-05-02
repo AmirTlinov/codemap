@@ -49,7 +49,9 @@ fn cached_index_cache_delta(
     )
 }
 
-fn git_status_cache_change_sets(root: &Path) -> Option<(BTreeSet<String>, BTreeSet<String>)> {
+pub(crate) fn git_status_cache_change_sets(
+    root: &Path,
+) -> Option<(BTreeSet<String>, BTreeSet<String>)> {
     let output = Command::new("git")
         .arg("-C")
         .arg(root)
