@@ -183,6 +183,9 @@ pub fn flow_report(
                 evidence: "runtime_route_owner".to_string(),
                 locations: vec![EvidenceLocation::path(&route_file, "route_file")],
             });
+            if let Some(handler) = route_handler_step(project, &route) {
+                steps.push(handler);
+            }
             for edge in direct_dependency_edges(project, &route_file) {
                 steps.push(FlowStep {
                     index: steps.len(),
@@ -388,4 +391,19 @@ fn runtime_entrypoint_surface_for_file(project: &Project, rel: &str) -> Option<S
     surfaces
         .into_iter()
         .find(|surface| surface.path.as_deref() == Some(rel))
+}
+
+fn route_handler_step(project: &Project, route: &RuntimeRoute) -> Option<FlowStep> {
+    let handler = route.handler_symbol.as_deref()?;
+    let file = project.files.get(&route.file)?;
+    if !file.symbols.iter().any(|symbol| symbol.name == handler) {
+        return None;
+    }
+    Some(FlowStep {
+        index: 2,
+        anchor: format!("{}#{handler}", route.file),
+        kind: "route_handler".to_string(),
+        evidence: "route_handler_symbol".to_string(),
+        locations: symbol_definition_location(project, &route.file, handler, "route_handler"),
+    })
 }

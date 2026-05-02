@@ -180,6 +180,7 @@ pub struct RuntimeRoute {
     pub method: Option<String>,
     pub path: String,
     pub file: String,
+    pub handler_symbol: Option<String>,
     pub evidence: String,
     pub strength: EvidenceStrength,
     pub locations: Vec<EvidenceLocation>,

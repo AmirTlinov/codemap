@@ -45,6 +45,24 @@ fn runtime_lens_extracts_additional_static_api_forms_and_blind_spots() {
             "runtime lens should expose deterministic route form {method} {path}: {runtime:#}"
         );
     }
+    for (method, path, handler) in [
+        ("GET", "/users/:id", "getUser"),
+        ("DELETE", "/users/:id", "deleteUser"),
+        ("PATCH", "/fastify/users", "patchUser"),
+        ("PUT", "/quoted/users", "putUser"),
+        ("POST", "/single-quoted/users", "postUser"),
+    ] {
+        assert!(
+            runtime["routes"]
+                .as_array()
+                .expect("runtime routes")
+                .iter()
+                .any(|route| route["method"] == method
+                    && route["path"] == path
+                    && route["handler_symbol"] == handler),
+            "runtime lens should stitch static route {method} {path} to handler `{handler}`: {runtime:#}"
+        );
+    }
     for path in [
         "/computed-method",
         "/computed-path",
@@ -175,8 +193,9 @@ fn runtime_lens_reads_go_gorilla_method_chains_without_guessing_missing_methods(
             .iter()
             .any(|route| route["method"] == "GET"
                 && route["path"] == "/health"
+                && route["handler_symbol"] == "health"
                 && route["evidence"] == "go_http_route_registration"),
-        "Gorilla-style `.Methods(\"GET\")` should make the route method exact: {runtime:#}"
+        "Gorilla-style `.Methods(\"GET\")` should make the route method and handler exact: {runtime:#}"
     );
     assert!(
         runtime["routes"]

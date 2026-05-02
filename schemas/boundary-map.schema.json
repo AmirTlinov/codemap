@@ -627,6 +627,7 @@
         "method",
         "path",
         "file",
+        "handler_symbol",
         "evidence",
         "strength",
         "locations"
@@ -647,6 +648,16 @@
         },
         "file": {
           "type": "string"
+        },
+        "handler_symbol": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "evidence": {
           "type": "string"

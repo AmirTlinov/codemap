@@ -12,6 +12,7 @@ fn javascript_route_registrations(rel: &str, line: &str, line_number: usize) -> 
                 method: Some(method.to_ascii_uppercase()),
                 path,
                 file: rel.to_string(),
+                handler_symbol: route_call_second_arg_identifier(line, &code, arg_start),
                 evidence: "javascript_route_registration".to_string(),
                 strength: EvidenceStrength::High,
                 locations: vec![EvidenceLocation::line(
@@ -82,6 +83,12 @@ fn javascript_chained_route_registrations(
                     method: Some(method.to_ascii_uppercase()),
                     path: path.clone(),
                     file: rel.to_string(),
+                    handler_symbol: route_chain_method_handler_identifier(
+                        line,
+                        &code,
+                        arg_start + close + 1,
+                        method,
+                    ),
                     evidence: "javascript_route_chain_registration".to_string(),
                     strength: EvidenceStrength::High,
                     locations: vec![EvidenceLocation::line(
@@ -184,6 +191,7 @@ fn javascript_object_route_registrations(
             method: Some(method.to_ascii_uppercase()),
             path,
             file: rel.to_string(),
+            handler_symbol: object_field_identifier(object_line, object_code, "handler"),
             evidence: "javascript_route_object_registration".to_string(),
             strength: EvidenceStrength::High,
             locations: vec![EvidenceLocation::line(
@@ -217,6 +225,7 @@ fn python_route_decorators(rel: &str, line: &str, line_number: usize) -> Vec<Run
                 method: Some(method.to_ascii_uppercase()),
                 path,
                 file: rel.to_string(),
+                handler_symbol: None,
                 evidence: "python_route_decorator".to_string(),
                 strength: EvidenceStrength::High,
                 locations: vec![EvidenceLocation::line(rel, line_number, "route_decorator")],
@@ -261,6 +270,7 @@ fn go_route_registrations(rel: &str, line: &str, line_number: usize) -> Vec<Runt
         method: Some(method),
         path,
         file: rel.to_string(),
+        handler_symbol: route_call_second_arg_identifier(line, &code, open_paren + 1),
         evidence: "go_http_route_registration".to_string(),
         strength: EvidenceStrength::High,
         locations: vec![EvidenceLocation::line(rel, line_number, "route_registration")],

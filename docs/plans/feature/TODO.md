@@ -65,6 +65,22 @@ repos would add noise instead of proof.
 Slice 06 compact renderer is closed. Do not continue renderer micro-polish
 unless a specific output still confuses the agent or creates a false claim.
 
+Slice 09 second boundary is closed:
+
+```txt
+closed: cache now reuses unchanged cached FileInfo facts, rescans only changed
+or added candidate files, removes deleted files from cached facts, and rebuilds
+derived packages/imports/reverse-imports/domains over the mixed cached plus
+rescanned map. Warm exact hits report scan_ms=0 and scanner.files_visited=0.
+proof: incremental changed/added/deleted/reverse-import fixtures, full local
+gate, and live warm probes on ctx, spritestudio, Sillentway-VPN, and Levelly-1.
+review: not run for this continuation; full gate plus live cache probes covered
+the boundary.
+live: warm_load with scan_ms=0 on all four probed repos.
+next: keep cache work parked until stale-cache or dependency-invalidation bugs
+appear in daily use.
+```
+
 Slice 12 first boundary is closed:
 
 ```txt
@@ -116,13 +132,13 @@ or misleading map.
 | 06 Compact markdown grammar and renderer | closed | live | Daily/focused markdown was compacted within the declared boundary. |
 | 07 Schema rail and golden validation | closed | full | Public JSON reports validate against manifest-selected schemas. |
 | 08 Fast scanner, ignore/generated/vendor detection | closed | live | Shared scanner policy and generated/ignored stats are visible. |
-| 09 Warm cache, indexes, incremental freshness | closed | full | Honest cache diagnostics landed; real warm reuse remains excluded. |
+| 09 Warm cache, indexes, incremental freshness | closed | live | Warm load reuses cached file facts; partial rescan touches only changed/added files. |
 | 10 Git structural events, changed, diff-map | closed | full | Comment-only edits no longer create false structural deltas. |
 | 11 Symbol/import/export extraction matrix | closed | full | Exact file cones surface unresolved local imports as typed unknowns. |
 | 12 Package/workspace graph and boundaries | closed first boundary | full | Deterministic dependency kind on package edges. |
 | 13 `ls`, `graph --lens causal`, root map quality | closed first boundary | focused | Root causal graph normalizes workspace package coordinates. |
 | 14 `cone` exact anchors and directory aggregation | closed first boundary | focused | Missing symbol anchors fail closed without whole-file fallback. |
-| 15 Runtime lens | todo | focused/live | Deterministic execution entrypoints stitch to code where known. |
+| 15 Runtime lens | closed first boundary | focused/live | Static JS/Go/Next routes stitch to handler symbols where deterministic. |
 | 16 Contract lens | todo | focused/live | Public/schema/API surfaces are separated from implementation names. |
 | 17 Proof-map and proof safety | todo | focused/live | Proof is a sensor map; `--run` stays safe by default. |
 | 18 Impact lens | todo | focused/live | Blast radius is derived from structural edges and grouped compactly. |
@@ -233,6 +249,23 @@ proof: controlled fixture and full gate.
 review: PASS.
 live: not required for this boundary; a controlled fixture proves the false
 omission directly.
+```
+
+### Slice 15: Runtime Lens
+
+```txt
+closed: static JavaScript direct/chained/object route registrations, Go
+HandleFunc registrations, and Next route.ts exported HTTP methods carry
+handler_symbol when the handler is a simple deterministic symbol. `flow` adds a
+route_handler step only when that symbol exists in the route owner file.
+excluded: Rust axum/tower route handler extraction, imported handler ownership,
+and multi-line route registration parsing.
+proof: runtime extractor fixtures, Next route flow fixture, schema validation,
+and full local gate.
+review: not required for this first bounded stitching boundary unless the route
+model expands again.
+live: spritestudio `runtime app/api/health/route.ts` reports GET handler_symbol
+GET, and `flow 'GET /api/health'` reaches `app/api/health/route.ts#GET`.
 ```
 
 ## Live Probe Set

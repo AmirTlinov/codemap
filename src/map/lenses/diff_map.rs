@@ -327,6 +327,7 @@ fn runtime_route_from_path_convention(rel: &str) -> Option<RuntimeRoute> {
         },
         path: route,
         file: rel.to_string(),
+        handler_symbol: None,
         evidence: "file_route_convention".to_string(),
         strength: EvidenceStrength::High,
         locations: vec![EvidenceLocation::path(rel, "route_file")],

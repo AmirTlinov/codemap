@@ -1,8 +1,6 @@
 fn runtime_routes_for_file(project: &Project, file: &FileInfo) -> Vec<RuntimeRoute> {
     let mut routes = Vec::new();
-    if let Some(route) = route_from_file_convention(project, file) {
-        routes.push(route);
-    }
+    routes.extend(routes_from_file_convention(project, file));
     routes.extend(framework_routes_for_file(project, file));
     routes
 }

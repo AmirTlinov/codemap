@@ -228,10 +228,16 @@ fn runtime_routes_section(title: &str, routes: &[RuntimeRoute]) {
     println!("\n## {title}\n");
     for route in routes {
         let method = route.method.as_deref().unwrap_or("ANY");
+        let handler = route
+            .handler_symbol
+            .as_ref()
+            .map(|symbol| format!(" handler `{symbol}`"))
+            .unwrap_or_default();
         println!(
-            "- `{method} {}` -> `{}` [{}; {}] {}",
+            "- `{method} {}` -> `{}`{} [{}; {}] {}",
             route.path,
             route.file,
+            handler,
             route.evidence,
             format!("{:?}", route.strength).to_ascii_lowercase(),
             proof_location_summary(&route.locations)

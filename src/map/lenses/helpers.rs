@@ -230,28 +230,73 @@ fn runtime_entrypoint_kind(file: &FileInfo) -> Option<&'static str> {
     }
 }
 
-fn route_from_file_convention(project: &Project, file: &FileInfo) -> Option<RuntimeRoute> {
+fn routes_from_file_convention(project: &Project, file: &FileInfo) -> Vec<RuntimeRoute> {
     let rel = file.rel.as_str();
-    let route = if let Some(rest) = next_app_route_rest(rel) {
+    let Some(route) = (if let Some(rest) = next_app_route_rest(rel) {
         next_app_route(rest)
     } else if let Some(rest) = next_pages_route_rest(rel) {
         next_pages_route(rest)
     } else {
         None
-    }?;
-    Some(RuntimeRoute {
-        method: if rel.ends_with("/route.ts") || rel.ends_with("/route.js") {
-            Some("ANY".to_string())
-        } else {
-            Some("GET".to_string())
-        },
-        path: route,
-        file: rel.to_string(),
-        evidence: "file_route_convention".to_string(),
-        strength: EvidenceStrength::High,
-        locations: vec![EvidenceLocation::path(rel, "route_file")],
-    })
-    .filter(|_| project.files.contains_key(rel))
+    }) else {
+        return Vec::new();
+    };
+    if !project.files.contains_key(rel) {
+        return Vec::new();
+    }
+    let methods = next_route_method_handlers(file);
+    if methods.is_empty() {
+        return vec![RuntimeRoute {
+            method: if rel.ends_with("/route.ts") || rel.ends_with("/route.js") {
+                Some("ANY".to_string())
+            } else {
+                Some("GET".to_string())
+            },
+            path: route,
+            file: rel.to_string(),
+            handler_symbol: None,
+            evidence: "file_route_convention".to_string(),
+            strength: EvidenceStrength::High,
+            locations: vec![EvidenceLocation::path(rel, "route_file")],
+        }];
+    }
+    methods
+        .into_iter()
+        .map(|method| RuntimeRoute {
+            method: Some(method.clone()),
+            path: route.clone(),
+            file: rel.to_string(),
+            handler_symbol: Some(method),
+            evidence: "file_route_convention".to_string(),
+            strength: EvidenceStrength::High,
+            locations: vec![EvidenceLocation::path(rel, "route_file")],
+        })
+        .collect()
+}
+
+fn next_route_method_handlers(file: &FileInfo) -> Vec<String> {
+    if !file.rel.ends_with("/route.ts")
+        && !file.rel.ends_with("/route.js")
+        && !file.rel.ends_with("/route.tsx")
+        && !file.rel.ends_with("/route.jsx")
+    {
+        return Vec::new();
+    }
+    let mut methods = file
+        .symbols
+        .iter()
+        .filter(|symbol| symbol.exported && next_route_method_symbol(&symbol.name))
+        .map(|symbol| symbol.name.clone())
+        .collect::<Vec<_>>();
+    methods.sort();
+    methods
+}
+
+fn next_route_method_symbol(name: &str) -> bool {
+    matches!(
+        name,
+        "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS"
+    )
 }
 
 fn next_app_route(rest: &str) -> Option<String> {

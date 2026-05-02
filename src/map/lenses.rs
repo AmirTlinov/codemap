@@ -14,6 +14,7 @@ include!("lenses/boundary_map.rs");
 include!("lenses/delete_boundary_flow.rs");
 include!("lenses/siblings_place.rs");
 include!("lenses/runtime_code_shape.rs");
+include!("lenses/runtime_route_handlers.rs");
 include!("lenses/runtime_route_forms.rs");
 include!("lenses/runtime_unsupported_routes.rs");
 include!("lenses/runtime_extractors.rs");
