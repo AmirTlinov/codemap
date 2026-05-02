@@ -42,6 +42,9 @@ pub fn run() -> Result<()> {
     if let Some(()) = try_cached_proof_changed_fast_path(&cli.command, &root_selection)? {
         return Ok(());
     }
+    if let Some(()) = try_cached_proof_map_fast_path(&cli.command, &root_selection)? {
+        return Ok(());
+    }
     if let Some(()) = try_runtime_root_fast_path(&cli.command, &root_selection)? {
         return Ok(());
     }
@@ -133,11 +136,18 @@ pub fn run() -> Result<()> {
             let (target, changed, proof_selector) = proof_map_inputs(&project, &args)?;
             let report = map::proof_map_report(
                 &project,
-                target,
+                target.clone(),
                 changed,
-                proof_selector,
+                proof_selector.clone(),
                 args.limit,
                 args.raw_sensors,
+            );
+            maybe_write_proof_map_lens_cache(
+                &project,
+                target.as_deref(),
+                &proof_selector,
+                &args,
+                &report,
             );
             output(args.format, &report, || render::proof_map(&report))
         }

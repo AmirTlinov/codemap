@@ -6,6 +6,7 @@ use serde::{Serialize, de::DeserializeOwned};
 
 mod changed_proof;
 mod navigation;
+mod proof_map;
 
 pub use changed_proof::{
     read_changed_report, read_proof_changed_report, write_changed_report,
@@ -14,6 +15,7 @@ pub use changed_proof::{
 pub use navigation::{
     ConeLensKey, LsLensKey, read_cone_report, read_ls_report, write_cone_report, write_ls_report,
 };
+pub use proof_map::{read_proof_map_report, write_proof_map_report};
 
 fn read_lens_artifact<T>(cache_dir: &Path, name: &str, version: &str, root: &Path) -> Option<T>
 where

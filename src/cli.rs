@@ -1,6 +1,7 @@
 include!("cli/args.rs");
 include!("cli/run.rs");
 include!("cli/fast_paths.rs");
+include!("cli/fast_paths_proof_map.rs");
 include!("cli/schema_and_roots.rs");
 include!("cli/init.rs");
 include!("cli/proof_run.rs");

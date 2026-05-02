@@ -28,8 +28,8 @@ pub use fingerprints::{
 };
 pub use lens_artifacts::{
     ConeLensKey, LsLensKey, read_changed_report, read_cone_report, read_ls_report,
-    read_proof_changed_report, write_changed_report, write_cone_report, write_ls_report,
-    write_proof_changed_report,
+    read_proof_changed_report, read_proof_map_report, write_changed_report, write_cone_report,
+    write_ls_report, write_proof_changed_report, write_proof_map_report,
 };
 
 const CACHE_ARTIFACTS: &[&str] = &[
