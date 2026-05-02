@@ -140,7 +140,7 @@ or misleading map.
 | 14 `cone` exact anchors and directory aggregation | closed first boundary | focused | Missing symbol anchors fail closed without whole-file fallback. |
 | 15 Runtime lens | closed first boundary | focused/live | Static JS/Go/Next routes stitch to handler symbols where deterministic. |
 | 16 Contract lens | todo | focused/live | Public/schema/API surfaces are separated from implementation names. |
-| 17 Proof-map and proof safety | todo | focused/live | Proof is a sensor map; `--run` stays safe by default. |
+| 17 Proof-map and proof safety | closed first boundary | focused | `proof --run` refuses deploy/migrate/unknown shell commands by default. |
 | 18 Impact lens | todo | focused/live | Blast radius is derived from structural edges and grouped compactly. |
 | 19 Delete lens | todo | focused | Deletion blockers are mapped without `safe`/`probably unused` claims. |
 | 20 Boundary-map lens | todo | focused/live | Crossings are read-only facts; forbidden findings require explicit config. |
@@ -274,6 +274,25 @@ parsing.
 proof next: `rust_axum` structural tests plus live SilentWay `runtime
 src/doh-gateway/src/main.rs` and `flow 'POST /dns-query'` reaching
 `src/doh-gateway/src/main.rs#handle_post`.
+```
+
+### Slice 17: Proof-map And Proof Safety
+
+```txt
+closed: `proof --run` now fails closed before execution for placeholder,
+deploy/release/publish, migrate/database mutation, cluster/infra mutation,
+remote shell/copy/sync, broad network, destructive file, service-startup, and
+unknown shell commands. It only runs a bounded set of known test/check/build/lint
+commands and read-only codemap checks by default.
+excluded: full public JSON safety classification and proof-map taxonomy closure;
+this boundary only protects execution safety for `--run`.
+proof: unit tests for placeholder, deploy, unknown shell, shell-control suffix,
+unsafe script name, cd scope escape, dedupe, scoped safe test commands, generated
+JS test runners, and codemap self-command resolution; full gate required because
+this changes command execution behavior.
+review: PASS.
+live: not required; controlled non-execution tests prove the safety boundary
+without touching live repos.
 ```
 
 ## Live Probe Set

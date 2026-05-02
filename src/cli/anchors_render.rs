@@ -110,6 +110,137 @@ mod tests {
     }
 
     #[test]
+    fn run_plan_rejects_deploy_commands_before_running_any_command() {
+        let plan = VerificationPlan {
+            minimal: vec!["npm run deploy".to_string()],
+            supplemental: vec!["cargo test".to_string()],
+            full_only_if_triggered: Vec::new(),
+        };
+
+        let error = planned_run_commands(&plan, true).expect_err("deploy should fail closed");
+
+        assert!(
+            error
+                .to_string()
+                .contains("will not run by default")
+        );
+    }
+
+    #[test]
+    fn run_plan_rejects_unknown_shell_commands_before_running_any_command() {
+        let plan = VerificationPlan {
+            minimal: vec!["sh -c 'touch proof-ran'".to_string()],
+            supplemental: vec!["cargo test".to_string()],
+            full_only_if_triggered: Vec::new(),
+        };
+
+        let error = planned_run_commands(&plan, true).expect_err("unknown shell should fail closed");
+
+        assert!(
+            error
+                .to_string()
+                .contains("will not run by default")
+        );
+    }
+
+    #[test]
+    fn run_plan_rejects_shell_control_after_safe_prefix() {
+        let plan = VerificationPlan {
+            minimal: vec![
+                "cargo test ; rm -rf target/proof-owned".to_string(),
+                "pnpm test $(touch proof-owned)".to_string(),
+                "pnpm run test:e2e -- tests/app.spec.ts ; rm proof-owned".to_string(),
+            ],
+            supplemental: Vec::new(),
+            full_only_if_triggered: Vec::new(),
+        };
+
+        let error = planned_run_commands(&plan, false).expect_err("shell control should fail closed");
+
+        assert!(
+            error
+                .to_string()
+                .contains("will not run by default")
+        );
+    }
+
+    #[test]
+    fn run_plan_rejects_unsafe_test_like_script_names() {
+        let plan = VerificationPlan {
+            minimal: vec!["pnpm run test:deploy".to_string()],
+            supplemental: Vec::new(),
+            full_only_if_triggered: Vec::new(),
+        };
+
+        let error = planned_run_commands(&plan, false).expect_err("deploy script should fail closed");
+
+        assert!(
+            error
+                .to_string()
+                .contains("will not run by default")
+        );
+    }
+
+    #[test]
+    fn run_plan_rejects_cd_scope_escape_before_running_any_command() {
+        for command in [
+            "cd / && cargo test",
+            "cd .. && cargo test",
+            "cd ../pkg && cargo test",
+            "cd ~ && cargo test",
+            "cd packages/app extra && cargo test",
+        ] {
+            let plan = VerificationPlan {
+                minimal: vec![command.to_string()],
+                supplemental: Vec::new(),
+                full_only_if_triggered: Vec::new(),
+            };
+
+            let error = planned_run_commands(&plan, false)
+                .expect_err("cd scope escape should fail closed");
+
+            assert!(
+                error
+                    .to_string()
+                    .contains("will not run by default"),
+                "{command} should be rejected before execution"
+            );
+        }
+    }
+
+    #[test]
+    fn run_plan_allows_scoped_safe_test_commands() {
+        let plan = VerificationPlan {
+            minimal: vec![
+                "cd packages/app && pnpm run test:e2e -- tests/app.spec.ts".to_string(),
+                "cd 'packages/app with spaces' && pnpm test tests/app.test.ts".to_string(),
+                "cargo test --release".to_string(),
+                "pnpm exec jest tests/app.test.ts".to_string(),
+                "pnpm exec node --test tests/app.test.ts".to_string(),
+                "yarn mocha tests/app.test.ts".to_string(),
+                "make test".to_string(),
+            ],
+            supplemental: Vec::new(),
+            full_only_if_triggered: Vec::new(),
+        };
+
+        let commands = planned_run_commands(&plan, false).expect("safe proof commands");
+
+        assert_eq!(
+            commands,
+            vec![
+                "cd packages/app && pnpm run test:e2e -- tests/app.spec.ts",
+                "cd 'packages/app with spaces' && pnpm test tests/app.test.ts",
+                "cargo test --release",
+                "pnpm exec jest tests/app.test.ts",
+                "pnpm exec node --test tests/app.test.ts",
+                "yarn mocha tests/app.test.ts",
+                "make test"
+            ]
+        );
+    }
+
+    #[test]
     fn run_plan_resolves_self_command_to_current_executable() {
         let command = resolve_run_command("codemap boundaries --changed")
             .expect("self command should resolve");
