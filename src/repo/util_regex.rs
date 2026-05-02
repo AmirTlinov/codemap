@@ -112,16 +112,6 @@ fn js_labelledby_local_binding_re() -> &'static Regex {
     })
 }
 
-fn js_method_params_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(
-            r#"(?s)\b(?P<name>[A-Za-z_$][A-Za-z0-9_$]*)\s*\((?P<params>[^)]*)\)\s*(?::\s*[^={]+?)?\{"#,
-        )
-        .expect("valid js method params regex")
-    })
-}
-
 fn js_single_arrow_param_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
@@ -135,14 +125,6 @@ fn js_for_binding_re() -> &'static Regex {
     RE.get_or_init(|| {
         Regex::new(r#"(?s)\bfor\s*(?:await\s*)?\(\s*(?:const|let|var)\s+(?P<binding>[^;)]*?)\s+(?:of|in)\b"#)
             .expect("valid js for binding regex")
-    })
-}
-
-fn js_catch_param_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(r#"(?s)\bcatch\s*\(\s*(?P<param>[^)]*?)\s*\)"#)
-            .expect("valid js catch param regex")
     })
 }
 

@@ -36,12 +36,18 @@ fn extract_surfaces(text: &str, ext: &str) -> SurfaceExtraction {
                 shadowed_playwright_test_bindings.insert(binding.clone());
             }
         }
-        let active_playwright_test_bindings = playwright_test_bindings
-            .difference(&shadowed_playwright_test_bindings)
-            .cloned()
-            .collect::<BTreeSet<_>>();
+        let active_playwright_test_bindings;
+        let active_playwright_test_bindings = if shadowed_playwright_test_bindings.is_empty() {
+            &playwright_test_bindings
+        } else {
+            active_playwright_test_bindings = playwright_test_bindings
+                .difference(&shadowed_playwright_test_bindings)
+                .cloned()
+                .collect::<BTreeSet<_>>();
+            &active_playwright_test_bindings
+        };
         if disabled_playwright_scope_depth.is_none()
-            && line_declares_disabled_playwright_describe(&line, &active_playwright_test_bindings)
+            && line_declares_disabled_playwright_describe(&line, active_playwright_test_bindings)
         {
             pending_disabled_playwright_describe = true;
         }
@@ -55,7 +61,7 @@ fn extract_surfaces(text: &str, ext: &str) -> SurfaceExtraction {
             disabled_playwright_scope_depth.is_some() || pending_disabled_playwright_describe;
         let mut pending_control_flow_set_this_line = false;
         let entered_playwright_page_scope = !disabled_playwright_context
-            && line_declares_playwright_page_fixture(&line, &active_playwright_test_bindings);
+            && line_declares_playwright_page_fixture(&line, active_playwright_test_bindings);
         if entered_playwright_page_scope {
             playwright_page_scope_depth = Some(js_brace_depth + 1);
             playwright_page_shadowed = false;
@@ -154,7 +160,7 @@ fn extract_surfaces(text: &str, ext: &str) -> SurfaceExtraction {
             && !playwright_page_scope_terminated
             && !line_has_playwright_scope_terminator_before_role_name_call(
                 &line,
-                &active_playwright_test_bindings,
+                active_playwright_test_bindings,
             )
         {
             add_playwright_role_name_surfaces(
@@ -210,7 +216,7 @@ fn extract_surfaces(text: &str, ext: &str) -> SurfaceExtraction {
             && playwright_nested_body_depth.is_none()
             && !playwright_nested_expression_arrow
             && !playwright_pending_nested_body
-            && line_terminates_playwright_page_scope(&line, &active_playwright_test_bindings)
+            && line_terminates_playwright_page_scope(&line, active_playwright_test_bindings)
         {
             playwright_page_scope_terminated = true;
             pending_playwright_role_names.clear();

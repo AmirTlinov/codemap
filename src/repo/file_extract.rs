@@ -15,21 +15,33 @@ fn extract_imports_exports(root: &Path, info: &mut FileInfo) {
     if !is_source_ext(&info.ext) {
         return;
     }
+    let js_like = matches!(
+        info.ext.as_str(),
+        "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte"
+    );
+    let cleaned = js_like.then(|| code_without_comments_or_strings(&text, &info.ext));
+    let cleaned_text = cleaned.as_deref().unwrap_or(&text);
     let surfaces = extract_surfaces(&text, &info.ext);
     info.surface_tokens = surfaces.tokens;
     info.surface_phrases = surfaces.phrases;
     info.visited_route_paths = surfaces.visited_routes;
-    info.symbols = extract_symbols(&text, &info.ext);
-    info.references = extract_identifier_references(&text, &info.ext);
-    info.jsx_tags = extract_jsx_tags(&text, &info.ext);
-    info.local_bindings = extract_local_bindings(&text, &info.ext);
+    if js_like {
+        info.symbols = extract_js_symbols_from_cleaned(&text, cleaned_text, &info.ext);
+        info.references = extract_identifier_references_from_cleaned(cleaned_text);
+        info.jsx_tags = extract_jsx_tags_from_cleaned(cleaned_text, &info.ext);
+        info.local_bindings = extract_local_bindings_from_cleaned(cleaned_text, &info.ext);
+    } else {
+        info.symbols = extract_symbols(&text, &info.ext);
+        info.references = extract_identifier_references(&text, &info.ext);
+        info.jsx_tags = extract_jsx_tags(&text, &info.ext);
+        info.local_bindings = extract_local_bindings(&text, &info.ext);
+    }
     match info.ext.as_str() {
         "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte" => {
             info.imports.extend(extract_js_import_specs(&text));
             info.import_bindings = extract_js_import_bindings(&text);
-            let export_text = code_without_comments_or_strings(&text, &info.ext);
             let export_re = js_export_re();
-            for cap in export_re.captures_iter(&export_text) {
+            for cap in export_re.captures_iter(cleaned_text) {
                 if let Some(m) = cap.get(1) {
                     info.exports.insert(m.as_str().trim().to_string());
                 }

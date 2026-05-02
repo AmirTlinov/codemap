@@ -67,67 +67,69 @@ fn line_has_surface_context(line: &str) -> bool {
 }
 
 fn strip_js_comments_from_line(line: &str, in_block_comment: &mut bool) -> String {
-    let chars: Vec<(usize, char)> = line.char_indices().collect();
-    let mut out = String::new();
+    let bytes = line.as_bytes();
+    let mut out = String::with_capacity(line.len());
     let mut index = 0;
-    let mut quote = None;
+    let mut segment_start = 0;
+    let mut quote: Option<u8> = None;
     let mut escaped = false;
-    while index < chars.len() {
-        let (byte, ch) = chars[index];
-        let next = chars.get(index + 1).map(|(_, next)| *next);
+    while index < bytes.len() {
         if *in_block_comment {
-            if ch == '*' && next == Some('/') {
+            if bytes[index] == b'*' && bytes.get(index + 1) == Some(&b'/') {
                 *in_block_comment = false;
-                index += 2;
+                index = (index + 2).min(bytes.len());
+                segment_start = index;
             } else {
                 index += 1;
             }
             continue;
         }
         if let Some(active_quote) = quote {
-            out.push(ch);
-            index += 1;
             if escaped {
                 escaped = false;
+                index += 1;
                 continue;
             }
-            if ch == '\\' {
+            if bytes[index] == b'\\' {
                 escaped = true;
+                index += 1;
                 continue;
             }
-            if ch == active_quote {
+            if bytes[index] == active_quote {
                 quote = None;
             }
+            index += 1;
             continue;
         }
-        if ch == '/'
-            && js_regex_literal_can_start(&out)
-            && let Some(end) = js_regex_literal_end(line.as_bytes(), byte)
-        {
-            out.push_str(&line[byte..end]);
-            while chars
-                .get(index)
-                .map(|(next_byte, _)| *next_byte < end)
-                .unwrap_or(false)
+        if bytes[index] == b'/' {
+            out.push_str(&line[segment_start..index]);
+            if js_regex_literal_can_start(&out)
+                && let Some(end) = js_regex_literal_end(bytes, index)
             {
-                index += 1;
+                out.push_str(&line[index..end]);
+                index = end;
+                segment_start = index;
+                continue;
             }
-            continue;
+            if bytes.get(index + 1) == Some(&b'/') {
+                return out;
+            }
+            if bytes.get(index + 1) == Some(&b'*') {
+                *in_block_comment = true;
+                index += 2;
+                segment_start = index;
+                continue;
+            }
+            segment_start = index;
         }
-        if ch == '/' && next == Some('/') {
-            break;
-        }
-        if ch == '/' && next == Some('*') {
-            *in_block_comment = true;
-            index += 2;
-            continue;
-        }
-        if matches!(ch, '"' | '\'' | '`') {
-            quote = Some(ch);
+        if matches!(bytes[index], b'"' | b'\'' | b'`') {
+            quote = Some(bytes[index]);
             escaped = false;
         }
-        out.push(ch);
         index += 1;
+    }
+    if !*in_block_comment {
+        out.push_str(&line[segment_start..]);
     }
     out
 }
@@ -480,4 +482,3 @@ fn surface_terms(value: &str) -> BTreeSet<String> {
         .filter(|term| term.len() >= 2)
         .collect()
 }
-

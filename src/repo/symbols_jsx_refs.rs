@@ -8,7 +8,7 @@ fn extract_symbols(text: &str, ext: &str) -> Vec<SymbolInfo> {
         "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte"
     ) {
         let cleaned = code_without_comments_or_strings(text, ext);
-        return symbols_with_ranges(extract_js_symbols(&cleaned), text, ext);
+        return extract_js_symbols_from_cleaned(text, &cleaned, ext);
     }
     let starts = match ext {
         "rs" => extract_rust_symbols(text),
@@ -19,14 +19,22 @@ fn extract_symbols(text: &str, ext: &str) -> Vec<SymbolInfo> {
     symbols_with_ranges(starts, text, ext)
 }
 
+fn extract_js_symbols_from_cleaned(text: &str, cleaned: &str, ext: &str) -> Vec<SymbolInfo> {
+    symbols_with_ranges(extract_js_symbols(cleaned), text, ext)
+}
+
 fn extract_identifier_references(text: &str, ext: &str) -> BTreeSet<String> {
     if !is_source_ext(ext) {
         return BTreeSet::new();
     }
     let cleaned = code_without_comments_or_strings(text, ext);
+    extract_identifier_references_from_cleaned(&cleaned)
+}
+
+fn extract_identifier_references_from_cleaned(cleaned: &str) -> BTreeSet<String> {
     identifier_re()
-        .find_iter(&cleaned)
-        .filter(|m| !identifier_is_selector_tail(&cleaned, m.start()))
+        .find_iter(cleaned)
+        .filter(|m| !identifier_is_selector_tail(cleaned, m.start()))
         .map(|m| m.as_str())
         .filter(|name| !language_keyword(name))
         .map(str::to_string)
@@ -38,6 +46,13 @@ fn extract_jsx_tags(text: &str, ext: &str) -> BTreeSet<String> {
         return BTreeSet::new();
     }
     let cleaned = code_without_comments_or_strings(text, ext);
+    extract_jsx_tags_from_cleaned(&cleaned, ext)
+}
+
+fn extract_jsx_tags_from_cleaned(cleaned: &str, ext: &str) -> BTreeSet<String> {
+    if !matches!(ext, "tsx" | "jsx" | "vue" | "svelte") {
+        return BTreeSet::new();
+    }
     let mut out = BTreeSet::new();
     let mut type_brace_depth: Option<usize> = None;
     for line in cleaned.lines() {
@@ -232,31 +247,19 @@ pub(crate) fn extract_local_bindings(text: &str, ext: &str) -> BTreeSet<String> 
         return BTreeSet::new();
     }
     let cleaned = code_without_comments_or_strings(text, ext);
+    extract_local_bindings_from_cleaned(&cleaned, ext)
+}
+
+fn extract_local_bindings_from_cleaned(cleaned: &str, ext: &str) -> BTreeSet<String> {
+    if !matches!(
+        ext,
+        "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte"
+    ) {
+        return BTreeSet::new();
+    }
     let mut out = BTreeSet::new();
-    collect_js_balanced_param_bindings(&cleaned, &mut out);
-    for cap in js_function_params_re().captures_iter(&cleaned) {
-        if let Some(params) = cap.name("params") {
-            collect_js_param_bindings(params.as_str(), &mut out);
-        }
-    }
-    for cap in js_arrow_params_re().captures_iter(&cleaned) {
-        if let Some(params) = cap.name("params") {
-            collect_js_param_bindings(params.as_str(), &mut out);
-        }
-    }
-    for cap in js_method_params_re().captures_iter(&cleaned) {
-        if cap
-            .name("name")
-            .map(|name| language_keyword(name.as_str()))
-            .unwrap_or(true)
-        {
-            continue;
-        }
-        if let Some(params) = cap.name("params") {
-            collect_js_param_bindings(params.as_str(), &mut out);
-        }
-    }
-    for cap in js_single_arrow_param_re().captures_iter(&cleaned) {
+    collect_js_balanced_param_bindings(cleaned, &mut out);
+    for cap in js_single_arrow_param_re().captures_iter(cleaned) {
         if let Some(param) = cap.name("param") {
             let name = param.as_str();
             if !language_keyword(name) {
@@ -264,17 +267,12 @@ pub(crate) fn extract_local_bindings(text: &str, ext: &str) -> BTreeSet<String> 
             }
         }
     }
-    for cap in js_for_binding_re().captures_iter(&cleaned) {
+    for cap in js_for_binding_re().captures_iter(cleaned) {
         if let Some(binding) = cap.name("binding") {
             collect_js_param_bindings(binding.as_str(), &mut out);
         }
     }
-    for cap in js_catch_param_re().captures_iter(&cleaned) {
-        if let Some(param) = cap.name("param") {
-            collect_js_param_bindings(param.as_str(), &mut out);
-        }
-    }
-    for pattern in js_destructuring_binding_patterns(&cleaned) {
+    for pattern in js_destructuring_binding_patterns(cleaned) {
         collect_js_param_bindings(pattern, &mut out);
     }
     out

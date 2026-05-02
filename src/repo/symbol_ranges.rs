@@ -5,6 +5,8 @@ fn symbols_with_ranges(mut starts: Vec<SymbolStart>, text: &str, ext: &str) -> V
             .then_with(|| a.name.cmp(&b.name))
             .then_with(|| a.kind.cmp(&b.kind))
     });
+    let lines = text.lines().collect::<Vec<_>>();
+    let text_line_count = lines.len();
     starts
         .iter()
         .enumerate()
@@ -14,34 +16,33 @@ fn symbols_with_ranges(mut starts: Vec<SymbolStart>, text: &str, ext: &str) -> V
                 .skip(idx + 1)
                 .find(|next| next.indent <= symbol.indent)
                 .and_then(|next| next.line_start.checked_sub(1))
-                .unwrap_or_else(|| line_count(text))
+                .unwrap_or(text_line_count)
                 .max(symbol.line_start);
             SymbolInfo {
                 name: symbol.name.clone(),
                 kind: symbol.kind.clone(),
                 exported: symbol.exported,
                 line_start: symbol.line_start,
-                line_end: symbol_end(text, ext, symbol.line_start, fallback_end),
+                line_end: symbol_end(&lines, ext, symbol.line_start, fallback_end),
             }
         })
         .collect()
 }
 
-fn symbol_end(text: &str, ext: &str, line_start: usize, fallback_end: usize) -> usize {
+fn symbol_end(lines: &[&str], ext: &str, line_start: usize, fallback_end: usize) -> usize {
     match ext {
-        "py" => python_symbol_end(text, line_start, fallback_end),
+        "py" => python_symbol_end(lines, line_start, fallback_end),
         "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte" => {
-            javascript_symbol_end(text, line_start, fallback_end).unwrap_or(line_start)
+            javascript_symbol_end(lines, line_start, fallback_end).unwrap_or(line_start)
         }
         "rs" | "go" | "swift" => {
-            brace_symbol_end(text, line_start, fallback_end).unwrap_or(line_start)
+            brace_symbol_end(lines, line_start, fallback_end).unwrap_or(line_start)
         }
         _ => fallback_end,
     }
 }
 
-fn javascript_symbol_end(text: &str, line_start: usize, scan_end: usize) -> Option<usize> {
-    let lines: Vec<&str> = text.lines().collect();
+fn javascript_symbol_end(lines: &[&str], line_start: usize, scan_end: usize) -> Option<usize> {
     let mut paren_depth = 0usize;
     let mut bracket_depth = 0usize;
     let mut body_depth: Option<isize> = None;
@@ -97,8 +98,7 @@ fn javascript_body_open_context(line: &str, byte_idx: usize) -> bool {
     !matches!(previous_nonspace_byte(before), Some(b':' | b'?'))
 }
 
-fn brace_symbol_end(text: &str, line_start: usize, scan_end: usize) -> Option<usize> {
-    let lines: Vec<&str> = text.lines().collect();
+fn brace_symbol_end(lines: &[&str], line_start: usize, scan_end: usize) -> Option<usize> {
     let mut depth: isize = 0;
     let mut saw_open = false;
     for (idx, line) in lines
@@ -135,8 +135,7 @@ fn brace_symbol_end(text: &str, line_start: usize, scan_end: usize) -> Option<us
     None
 }
 
-fn python_symbol_end(text: &str, line_start: usize, fallback_end: usize) -> usize {
-    let lines: Vec<&str> = text.lines().collect();
+fn python_symbol_end(lines: &[&str], line_start: usize, fallback_end: usize) -> usize {
     let Some(start_line) = lines.get(line_start.saturating_sub(1)) else {
         return fallback_end;
     };
@@ -441,4 +440,3 @@ fn is_uppercase_symbol(name: &str) -> bool {
         .map(|ch| ch.is_ascii_uppercase())
         .unwrap_or(false)
 }
-

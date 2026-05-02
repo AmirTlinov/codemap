@@ -21,58 +21,65 @@ fn code_without_comments_or_strings(text: &str, ext: &str) -> String {
 #[derive(Debug, Default)]
 struct CodeStripState {
     in_block_comment: bool,
-    quote: Option<char>,
+    quote: Option<u8>,
     escaped: bool,
 }
 
 fn strip_c_like_code_line_for_identifier_refs(line: &str, state: &mut CodeStripState) -> String {
-    let chars: Vec<char> = line.chars().collect();
-    let mut out = String::new();
+    let bytes = line.as_bytes();
+    let mut out = String::with_capacity(line.len());
     let mut index = 0;
-    while index < chars.len() {
-        let ch = chars[index];
-        let next = chars.get(index + 1).copied();
+    let mut segment_start = 0;
+    while index < bytes.len() {
         if state.in_block_comment {
-            if ch == '*' && next == Some('/') {
+            if bytes[index] == b'*' && bytes.get(index + 1) == Some(&b'/') {
                 state.in_block_comment = false;
                 index += 2;
+                segment_start = index;
             } else {
                 index += 1;
             }
-            out.push(' ');
             continue;
         }
         if let Some(active_quote) = state.quote {
             if state.escaped {
                 state.escaped = false;
-            } else if ch == '\\' && active_quote != '`' {
+            } else if bytes[index] == b'\\' && active_quote != b'`' {
                 state.escaped = true;
-            } else if ch == active_quote {
+            } else if bytes[index] == active_quote {
                 state.quote = None;
+                index += 1;
+                segment_start = index;
+                continue;
             }
-            out.push(' ');
             index += 1;
             continue;
         }
-        if ch == '/' && next == Some('/') {
-            break;
+        if bytes[index] == b'/' && bytes.get(index + 1) == Some(&b'/') {
+            out.push_str(&line[segment_start..index]);
+            return out;
         }
-        if ch == '/' && next == Some('*') {
+        if bytes[index] == b'/' && bytes.get(index + 1) == Some(&b'*') {
+            out.push_str(&line[segment_start..index]);
+            out.push(' ');
             state.in_block_comment = true;
-            out.push(' ');
-            out.push(' ');
             index += 2;
+            segment_start = index;
             continue;
         }
-        if matches!(ch, '"' | '\'' | '`') {
-            state.quote = Some(ch);
-            state.escaped = false;
+        if matches!(bytes[index], b'"' | b'\'' | b'`') {
+            out.push_str(&line[segment_start..index]);
             out.push(' ');
+            state.quote = Some(bytes[index]);
+            state.escaped = false;
             index += 1;
+            segment_start = index;
             continue;
         }
-        out.push(ch);
         index += 1;
+    }
+    if state.quote.is_none() && !state.in_block_comment {
+        out.push_str(&line[segment_start..]);
     }
     out
 }
