@@ -38,6 +38,7 @@ include!("structural_map/file_summary_markdown.rs");
 include!("structural_map/focused_lens_markdown.rs");
 include!("structural_map/cone_proof_limits.rs");
 include!("structural_map/rust_include_edges.rs");
+include!("structural_map/rust_crate_path_resolution.rs");
 include!("structural_map/next_routes.rs");
 include!("structural_map/anchors_validate_summary.rs");
 include!("structural_map/anchors_validate_details.rs");

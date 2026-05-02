@@ -59,6 +59,9 @@ fn resolve_imports(
 }
 
 fn unresolved_import_should_be_reported(ext: &str, spec: &str) -> bool {
+    if matches!(spec, "crate::" | "self::" | "super::") {
+        return false;
+    }
     if spec.starts_with('.') || spec.starts_with('/') {
         return true;
     }

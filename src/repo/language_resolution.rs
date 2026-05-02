@@ -56,34 +56,100 @@ fn resolve_python_relative(from: &str, spec: &str, paths: &BTreeSet<String>) -> 
     resolve_path_like(&base, paths)
 }
 
-fn resolve_rust(from: &str, spec: &str, paths: &BTreeSet<String>) -> Option<String> {
+fn resolve_rust(
+    from: &str,
+    spec: &str,
+    paths: &BTreeSet<String>,
+    packages: &[PackageInfo],
+) -> Option<String> {
     if let Some(target) = resolve_rust_include_path(from, spec, paths) {
         return Some(target);
     }
-    let raw = spec
-        .strip_prefix("crate::")
-        .map(|s| format!("src/{}", s.replace("::", "/")))
-        .unwrap_or_else(|| spec.replace("::", "/"));
+    let segments = spec
+        .split("::")
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>();
+    if segments.is_empty() {
+        return None;
+    }
+    if let Some(rest) = spec.strip_prefix("crate::") {
+        let crate_root = rust_crate_src_dir(from, packages);
+        let rest_segments = rest
+            .split("::")
+            .filter(|segment| !segment.is_empty())
+            .collect::<Vec<_>>();
+        return resolve_rust_module_segments(&crate_root, &rest_segments, paths);
+    }
+    if let Some(rest) = spec.strip_prefix("super::") {
+        let base = rust_super_base_dir(from);
+        let rest_segments = rest
+            .split("::")
+            .filter(|segment| !segment.is_empty())
+            .collect::<Vec<_>>();
+        return resolve_rust_module_segments(&base, &rest_segments, paths);
+    }
+    if let Some(rest) = spec.strip_prefix("self::") {
+        let base = rust_module_dir(from);
+        let rest_segments = rest
+            .split("::")
+            .filter(|segment| !segment.is_empty())
+            .collect::<Vec<_>>();
+        return resolve_rust_module_segments(&base, &rest_segments, paths);
+    }
     let base_dir = Path::new(from)
         .parent()
         .map(|p| normalize_rel_path(&p.to_string_lossy()))
         .unwrap_or_default();
     let module_dir = rust_module_dir(from);
-    let mut candidates = Vec::new();
-    if spec.starts_with("crate::") {
-        candidates.push(format!("{raw}.rs"));
-        candidates.push(format!("{raw}/mod.rs"));
+    resolve_rust_module_segments(&module_dir, &segments, paths)
+        .or_else(|| resolve_rust_module_segments(&base_dir, &segments, paths))
+}
+
+fn resolve_rust_module_segments(
+    base: &str,
+    segments: &[&str],
+    paths: &BTreeSet<String>,
+) -> Option<String> {
+    for len in (1..=segments.len()).rev() {
+        let joined = segments[..len].join("/");
+        let candidate_base = if base == "." || base.is_empty() {
+            joined
+        } else {
+            format!("{base}/{joined}")
+        };
+        for candidate in [
+            format!("{candidate_base}.rs"),
+            format!("{candidate_base}/mod.rs"),
+        ] {
+            let candidate = normalize_rel_path(&candidate);
+            if paths.contains(&candidate) {
+                return Some(candidate);
+            }
+        }
     }
-    candidates.extend([
-        format!("{module_dir}/{raw}.rs"),
-        format!("{module_dir}/{raw}/mod.rs"),
-        format!("{base_dir}/{raw}.rs"),
-        format!("{base_dir}/{raw}/mod.rs"),
-    ]);
-    candidates
-        .into_iter()
-        .map(|p| normalize_rel_path(&p))
-        .find(|c| paths.contains(c))
+    None
+}
+
+fn rust_crate_src_dir(from: &str, packages: &[PackageInfo]) -> String {
+    let package = packages
+        .iter()
+        .filter(|package| package.ecosystem == "rust")
+        .filter(|package| {
+            package.path == "."
+                || from == package.path
+                || from.starts_with(&format!("{}/", package.path.trim_end_matches('/')))
+        })
+        .max_by_key(|package| {
+            if package.path == "." {
+                0
+            } else {
+                package.path.len()
+            }
+        });
+    match package.map(|package| package.path.as_str()) {
+        Some(".") | None => "src".to_string(),
+        Some(path) => normalize_rel_path(&format!("{path}/src")),
+    }
 }
 
 fn resolve_rust_include_path(from: &str, spec: &str, paths: &BTreeSet<String>) -> Option<String> {
@@ -106,6 +172,21 @@ fn rust_module_dir(from: &str) -> String {
     }
     let stem = path.file_stem().and_then(|name| name.to_str()).unwrap_or("");
     normalize_rel_path(&parent.join(stem).to_string_lossy())
+}
+
+fn rust_super_base_dir(from: &str) -> String {
+    let path = Path::new(from);
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    if matches!(
+        path.file_stem().and_then(|name| name.to_str()),
+        Some("lib" | "main" | "mod")
+    ) {
+        return parent
+            .parent()
+            .map(|parent| normalize_rel_path(&parent.to_string_lossy()))
+            .unwrap_or_else(|| ".".to_string());
+    }
+    normalize_rel_path(&parent.to_string_lossy())
 }
 
 fn resolve_go(spec: &str, paths: &BTreeSet<String>, packages: &[PackageInfo]) -> Option<String> {

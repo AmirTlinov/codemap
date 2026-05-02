@@ -15,7 +15,7 @@ fn resolve_import(
             resolve_javascript(root, from, spec, paths, packages, ts_path_aliases)
         }
         "py" => resolve_python(from, spec, paths, packages),
-        "rs" => resolve_rust(from, spec, paths),
+        "rs" => resolve_rust(from, spec, paths, packages),
         "go" => resolve_go(spec, paths, packages),
         _ => None,
     }
