@@ -36,7 +36,7 @@ fn push_ci_logical_command(
             *pending = Some(CiRunStep { command, line });
         }
         None if !command.is_empty() => {
-            out.push(CiRunStep { command, line });
+            push_ci_run_steps(out, command, line);
         }
         None => {}
     }
@@ -46,8 +46,108 @@ fn flush_ci_pending_command(out: &mut Vec<CiRunStep>, pending: &mut Option<CiRun
     if let Some(step) = pending.take()
         && !step.command.trim().is_empty()
     {
-        out.push(step);
+        push_ci_run_steps(out, step.command, step.line);
     }
+}
+
+fn push_ci_run_steps(out: &mut Vec<CiRunStep>, command: String, line: usize) {
+    let Some(parts) = split_ci_shell_and_commands(&command) else {
+        out.push(CiRunStep { command, line });
+        return;
+    };
+    for part in parts {
+        out.push(CiRunStep {
+            command: part,
+            line,
+        });
+    }
+}
+
+fn split_ci_shell_and_commands(command: &str) -> Option<Vec<String>> {
+    let mut parts = Vec::new();
+    let mut start = 0usize;
+    let mut in_single = false;
+    let mut in_double = false;
+    let mut previous_was_escape = false;
+    let mut chars = command.char_indices().peekable();
+    while let Some((index, ch)) = chars.next() {
+        if previous_was_escape {
+            previous_was_escape = false;
+            continue;
+        }
+        if ch == '\\' && !in_single {
+            previous_was_escape = true;
+            continue;
+        }
+        if ch == '\'' && !in_double {
+            in_single = !in_single;
+            continue;
+        }
+        if ch == '"' && !in_single {
+            in_double = !in_double;
+            continue;
+        }
+        if ch == '&'
+            && !in_single
+            && !in_double
+            && chars.peek().is_some_and(|(_, next)| *next == '&')
+        {
+            chars.next();
+            let part = command[start..index].trim();
+            if part.is_empty() {
+                return None;
+            }
+            parts.push(part.to_string());
+            start = index + 2;
+        }
+    }
+    if parts.is_empty() {
+        return None;
+    }
+    let tail = command[start..].trim();
+    if tail.is_empty() {
+        return None;
+    }
+    parts.push(tail.to_string());
+    if let Some(cd_prefix) = ci_safe_cd_prefix(&parts[0]) {
+        if parts.len() == 2 {
+            return None;
+        }
+        return Some(
+            parts
+                .iter()
+                .skip(1)
+                .map(|part| format!("{cd_prefix} && {part}"))
+                .collect(),
+        );
+    }
+    if parts[0].trim_start().starts_with("cd ") {
+        return None;
+    }
+    Some(parts)
+}
+
+fn ci_safe_cd_prefix(command: &str) -> Option<String> {
+    let command = command.trim();
+    let rest = command.strip_prefix("cd ")?.trim();
+    let path = if let Some(quote) = rest.chars().next().filter(|ch| *ch == '\'' || *ch == '"') {
+        rest.strip_prefix(quote)?.strip_suffix(quote)?.to_string()
+    } else {
+        if rest.chars().any(char::is_whitespace) {
+            return None;
+        }
+        rest.to_string()
+    };
+    if path.is_empty()
+        || path == "~"
+        || path.starts_with('/')
+        || path.starts_with("~/")
+        || path.starts_with('-')
+        || path.split('/').any(|part| part == "..")
+    {
+        return None;
+    }
+    Some(command.to_string())
 }
 
 fn command_has_shell_continuation(command: &str) -> bool {

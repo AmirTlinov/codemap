@@ -80,8 +80,8 @@ fn ls_section_filters_use_stable_rfc_layers() {
     );
     let roles_markdown = String::from_utf8(roles.stdout).expect("roles markdown utf8");
     assert!(
-        roles_markdown.contains("\n## Roles\n") && roles_markdown.contains("manifest"),
-        "ls --section roles should render only the role layer for manifests: {roles_markdown}"
+        roles_markdown.contains("\n## Surface Hints\n") && roles_markdown.contains("manifest"),
+        "ls --section roles should render only the surface-hint layer for manifests: {roles_markdown}"
     );
     assert!(
         !roles_markdown.contains("\n## Observed\n") && !roles_markdown.contains("\n## Links\n"),
@@ -105,7 +105,7 @@ fn ls_section_filters_use_stable_rfc_layers() {
         "ls --section links should keep file link facts: {links_markdown}"
     );
     assert!(
-        !links_markdown.contains("\n## Observed\n") && !links_markdown.contains("\n## Roles\n"),
+        !links_markdown.contains("\n## Observed\n") && !links_markdown.contains("\n## Surface Hints\n"),
         "ls --section links should not dump observed or role layers: {links_markdown}"
     );
 
@@ -137,7 +137,7 @@ fn ls_directory_surfaces_render_as_compact_blocks() {
     assert!(output.status.success());
     let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
     assert!(
-        markdown.contains("\n## Observed\n") && markdown.contains("[role="),
+        markdown.contains("\n## Observed\n") && markdown.contains("[hint="),
         "ls directory markdown should render surfaces as compact blocks: {markdown}"
     );
     assert!(

@@ -28,7 +28,7 @@ fn changed_fail_open_unknowns(project: &Project, changed: &[String]) -> Vec<Unkn
             unknowns.extend(owner_env_unknowns(project, rel));
             unknowns.extend(changed_env_unknowns(project, rel));
         }
-        if file.has_role("build_ci") {
+        if file_uses_ci_run_step_syntax(file) {
             if owner_ci_edges(project, rel).is_empty() {
                 unknowns.push(unknown(
                     "ci_run_step_not_found",
@@ -40,16 +40,51 @@ fn changed_fail_open_unknowns(project: &Project, changed: &[String]) -> Vec<Unkn
                 ));
             } else if !owner_surface_proof_surfaces(project, rel)
                 .iter()
-                .any(|proof| {
-                    proof_base_evidence(&proof.evidence) == "ci_run_step"
-                        && proof.strength >= EvidenceStrength::High
-                })
+                .any(proof_ci_run_step_is_validation)
             {
                 unknowns.push(unknown_ci_validation_step_not_found(rel));
             }
         }
     }
     unknowns
+}
+
+fn file_uses_ci_run_step_syntax(file: &FileInfo) -> bool {
+    if !file.has_role("build_ci") {
+        return false;
+    }
+    let lower = file.rel.to_ascii_lowercase();
+    let name = status_file_name(&lower);
+    matches!(file.ext.as_str(), "yml" | "yaml")
+        && (lower.starts_with(".github/workflows/")
+            || lower.starts_with(".circleci/")
+            || lower.starts_with(".buildkite/")
+            || lower.starts_with(".teamcity/")
+            || matches!(
+                name.as_str(),
+                ".gitlab-ci.yml"
+                    | ".gitlab-ci.yaml"
+                    | ".travis.yml"
+                    | "azure-pipelines.yml"
+                    | "azure-pipelines.yaml"
+                    | "bitbucket-pipelines.yml"
+                    | "bitbucket-pipelines.yaml"
+                    | "cloudbuild.yml"
+                    | "cloudbuild.yaml"
+                    | "codemagic.yml"
+                    | "codemagic.yaml"
+                    | "bitrise.yml"
+                    | "bitrise.yaml"
+                    | ".drone.yml"
+                    | ".drone.yaml"
+                    | ".woodpecker.yml"
+                    | ".woodpecker.yaml"
+            ))
+}
+
+fn proof_ci_run_step_is_validation(proof: &ProofSurface) -> bool {
+    crate::proof_classification::proof_base_evidence(&proof.evidence) == "ci_run_step"
+        && crate::proof_classification::proof_surface_is_runnable_validation(proof)
 }
 
 fn changed_should_check_direct_proof(file: &FileInfo) -> bool {
@@ -75,7 +110,7 @@ fn changed_manifest_unknowns(project: &Project, rel: &str) -> Vec<Unknown> {
         matches!(
             proof.evidence.as_str(),
             "manifest_script" | "cargo_manifest_command"
-        )
+        ) && crate::proof_classification::proof_surface_is_runnable_validation(proof)
     }) {
         unknowns.push(unknown(
             "package_local_script_not_found",
@@ -88,7 +123,10 @@ fn changed_manifest_unknowns(project: &Project, rel: &str) -> Vec<Unknown> {
     }
     if !proofs
         .iter()
-        .any(|proof| proof.evidence == "manifest_ci_reference")
+        .any(|proof| {
+            proof.evidence == "manifest_ci_reference"
+                && crate::proof_classification::proof_surface_is_runnable_validation(proof)
+        })
     {
         unknowns.push(unknown(
             "ci_reference_not_found",
@@ -124,7 +162,10 @@ fn changed_workspace_manifest_unknowns(
     let mut unknowns = Vec::new();
     if !proofs
         .iter()
-        .any(|proof| proof.evidence == "workspace_manifest_script")
+        .any(|proof| {
+            proof.evidence == "workspace_manifest_script"
+                && crate::proof_classification::proof_surface_is_runnable_validation(proof)
+        })
     {
         unknowns.push(unknown(
             "workspace_script_not_found",
@@ -137,7 +178,10 @@ fn changed_workspace_manifest_unknowns(
     }
     if !proofs
         .iter()
-        .any(|proof| proof.evidence == "workspace_manifest_ci_reference")
+        .any(|proof| {
+            proof.evidence == "workspace_manifest_ci_reference"
+                && crate::proof_classification::proof_surface_is_runnable_validation(proof)
+        })
     {
         unknowns.push(unknown(
             "ci_reference_not_found",

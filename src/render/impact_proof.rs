@@ -83,7 +83,13 @@ pub fn proof(report: &ProofReport, section_filter: Option<&str>) {
         && report.unknowns.is_empty()
         && report.expand.is_empty()
     {
-        println!("\nNo proof surface found. Use `codemap cone <path>` to inspect edges first.");
+        if proof_anchor_count(report) == 0 {
+            println!(
+                "\nNo changed anchors selected. `codemap proof changed` has no proof scope in a clean repo."
+            );
+        } else {
+            println!("\nNo proof surface found. Use `codemap cone <path>` to inspect edges first.");
+        }
         println!("\n{}", report.run_hint);
         return;
     }
@@ -163,8 +169,33 @@ fn proof_links_section(report: &ProofReport) {
 }
 
 fn proof_roles_section(report: &ProofReport) {
-    println!("## Roles\n");
+    println!("## Surface Hints\n");
+    println!("Derived from deterministic path/name/extension/manifest patterns. Not intent, correctness, or ownership truth.\n");
+    let runnable = report
+        .proofs
+        .iter()
+        .filter(|proof| crate::proof_classification::proof_surface_is_runnable_validation(proof))
+        .count();
+    let evidence_only = report
+        .proofs
+        .iter()
+        .filter(|proof| crate::proof_classification::proof_surface_is_evidence_only(proof))
+        .count();
+    let setup_or_support = report
+        .proofs
+        .iter()
+        .filter(|proof| crate::proof_classification::proof_surface_is_setup_or_support(proof))
+        .count();
+    let soft = report
+        .proofs
+        .iter()
+        .filter(|proof| crate::proof_classification::proof_surface_is_soft_evidence(proof))
+        .count();
     println!("- proof_surface: `{}`", report.proofs.len());
+    println!("- runnable_proof: `{runnable}`");
+    println!("- evidence_surface: `{evidence_only}`");
+    println!("- setup_support_surface: `{setup_or_support}`");
+    println!("- soft_evidence: `{soft}`");
     println!("- fallback_command: `{}`", report.fallback.len());
     println!("- unknown_gap: `{}`", report.unknowns.len());
     println!("- hidden_group: `{}`", report.hidden.len());
@@ -263,198 +294,4 @@ fn proof_anchor_count(report: &ProofReport) -> usize {
         .as_ref()
         .map(|_| 1)
         .unwrap_or(report.changed.len())
-}
-
-fn proof_plan_surface_sections(report: &ProofReport, force: bool) {
-    let deterministic = report
-        .proofs
-        .iter()
-        .filter(|proof| proof_surface_is_deterministic_for_display(proof))
-        .collect::<Vec<_>>();
-    let soft = report
-        .proofs
-        .iter()
-        .filter(|proof| !proof_surface_is_deterministic_for_display(proof))
-        .collect::<Vec<_>>();
-    if deterministic.is_empty() && force && !soft.is_empty() {
-        proof_empty_section(
-            "Proof",
-            "No deterministic proof surfaces were emitted; soft evidence is shown separately.",
-        );
-    } else if !deterministic.is_empty() {
-        proof_plan_surface_section("Proof", report, &deterministic);
-    }
-    if !soft.is_empty() {
-        proof_plan_surface_section("Soft Evidence", report, &soft);
-        println!(
-            "\nSoft evidence is token/name/path surface overlap. It does not replace deterministic proof or remove Unknown entries."
-        );
-    }
-}
-
-fn proof_plan_surface_section(title: &str, report: &ProofReport, proofs: &[&ProofSurface]) {
-    println!("\n## {title}");
-    let mut grouped: std::collections::BTreeMap<String, Vec<&ProofSurface>> =
-        std::collections::BTreeMap::new();
-    for proof in proofs {
-        grouped
-            .entry(proof_display_command(proof))
-            .or_default()
-            .push(*proof);
-    }
-    for (command, proofs) in grouped {
-        println!("\n### `{command}`");
-        println!("- sensors: `{}`", proofs.len());
-        proof_count_line("evidence", evidence_counts(&proofs));
-        proof_count_line("strength", strength_counts(&proofs));
-        let sample_limit = if proofs.len() <= 6 { proofs.len() } else { 5 };
-        if sample_limit > 0 {
-            println!("- sample:");
-            for proof in proofs.iter().take(sample_limit) {
-                let path = proof
-                    .path
-                    .as_ref()
-                    .map(|path| code(path))
-                    .unwrap_or_else(|| "`none`".to_string());
-                println!(
-                    "  - {path} [{}; {}] {} - {}",
-                    proof.evidence,
-                    format!("{:?}", proof.strength).to_ascii_lowercase(),
-                    proof_location_summary(&proof.locations),
-                    proof.reason
-                );
-            }
-        }
-        let hidden_details = proofs.len().saturating_sub(sample_limit);
-        if hidden_details > 0 {
-            println!("- hidden details: `{hidden_details}` sensors");
-            if let Some(expand) = proof_detail_expand(report, proofs.len()) {
-                println!("  expand: `{}`", root_aware_expand(&expand));
-            }
-        }
-    }
-}
-
-fn proof_surface_is_deterministic_for_display(proof: &ProofSurface) -> bool {
-    if proof.strength >= EvidenceStrength::High {
-        return true;
-    }
-    matches!(
-        proof_base_evidence_for_display(&proof.evidence),
-        "test_import"
-            | "test_imported_symbol_reference"
-            | "test_reexported_symbol_reference"
-            | "test_support_import"
-            | "test_symbol_reference"
-            | "e2e_route"
-    )
-}
-
-fn proof_base_evidence_for_display(evidence: &str) -> &str {
-    evidence
-        .strip_suffix("_owning_file")
-        .or_else(|| evidence.strip_suffix("_via_direct_consumer"))
-        .or_else(|| evidence.strip_suffix("_via_direct_dependency"))
-        .or_else(|| evidence.strip_suffix("_via_local_symbol_consumer"))
-        .unwrap_or(evidence)
-}
-
-fn proof_display_command(proof: &ProofSurface) -> String {
-    let Some(command) = &proof.command else {
-        return "no command".to_string();
-    };
-    let Some(path) = proof.path.as_deref() else {
-        return command.clone();
-    };
-    let mut candidates = Vec::new();
-    candidates.push(path.to_string());
-    let parts = path.split('/').collect::<Vec<_>>();
-    for index in 1..parts.len() {
-        candidates.push(parts[index..].join("/"));
-    }
-    candidates.sort_by_key(|candidate| std::cmp::Reverse(candidate.len()));
-    for candidate in candidates {
-        for suffix in [candidate.clone(), shell_quote_for_markdown(&candidate)] {
-            let suffix = format!(" {suffix}");
-            if let Some(stripped) = command.strip_suffix(&suffix) {
-                return stripped.trim_end_matches(" --").trim_end().to_string();
-            }
-        }
-    }
-    command.clone()
-}
-
-fn evidence_counts(proofs: &[&ProofSurface]) -> Vec<(String, usize)> {
-    let mut counts = std::collections::BTreeMap::new();
-    for proof in proofs {
-        *counts.entry(proof.evidence.clone()).or_insert(0) += 1;
-    }
-    counts.into_iter().collect()
-}
-
-fn strength_counts(proofs: &[&ProofSurface]) -> Vec<(String, usize)> {
-    let mut counts = std::collections::BTreeMap::new();
-    for proof in proofs {
-        *counts
-            .entry(format!("{:?}", proof.strength).to_ascii_lowercase())
-            .or_insert(0) += 1;
-    }
-    counts.into_iter().collect()
-}
-
-fn proof_count_line(label: &str, counts: Vec<(String, usize)>) {
-    if counts.is_empty() {
-        return;
-    }
-    let values = counts
-        .into_iter()
-        .map(|(kind, count)| format!("`{kind}: {count}`"))
-        .collect::<Vec<_>>()
-        .join(", ");
-    println!("- {label}: {values}");
-}
-
-fn proof_detail_expand(report: &ProofReport, limit: usize) -> Option<String> {
-    if let Some(target) = &report.target {
-        return Some(format!(
-            "codemap proof-map {} --raw-sensors --limit {limit}",
-            shell_quote_for_markdown(target)
-        ));
-    }
-    if !report.changed.is_empty() {
-        return Some(format!(
-            "codemap proof-map --changed --raw-sensors --limit {limit}"
-        ));
-    }
-    None
-}
-
-fn shell_quote_for_markdown(value: &str) -> String {
-    if value
-        .chars()
-        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '/' | '.' | '_' | '-' | '#'))
-    {
-        value.to_string()
-    } else {
-        format!("'{}'", value.replace('\'', "'\\''"))
-    }
-}
-
-fn proof_location_summary(locations: &[EvidenceLocation]) -> String {
-    let Some(first) = locations.first() else {
-        return "unknown".to_string();
-    };
-    let suffix = if locations.len() > 1 {
-        format!(" +{}", locations.len() - 1)
-    } else {
-        String::new()
-    };
-    let base = if first.path == "aggregate" {
-        "aggregate".to_string()
-    } else if let Some(line) = first.line_start {
-        format!("{}:{line}", first.path)
-    } else {
-        first.path.clone()
-    };
-    format!("{}{}", code(&base), suffix)
 }

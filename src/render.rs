@@ -1,7 +1,9 @@
 include!("render/status.rs");
 include!("render/ls_cone.rs");
 include!("render/impact_proof.rs");
+include!("render/proof_plan_sections.rs");
 include!("render/changed.rs");
+include!("render/changed_proof.rs");
 include!("render/changed_structural.rs");
 include!("render/changed_sections.rs");
 include!("render/lenses.rs");

@@ -46,7 +46,10 @@ const SOURCE_PATH_ROLE_RULES: &[(&str, &[&str])] = &[
             "manifest",
         ],
     ),
-    ("role_classifier", &["role", "roles", "classifier", "classify"]),
+    (
+        "role_classifier",
+        &["role", "roles", "classifier", "classify", "classification"],
+    ),
     (
         "script_catalog",
         &["script", "scripts", "make", "makefile", "justfile"],

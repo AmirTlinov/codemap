@@ -111,6 +111,307 @@ fn proof_changed_section_filter_works_on_clean_fast_path() {
         !markdown.contains("unexpected argument") && !markdown.contains("## Proof"),
         "proof changed --section unknown should not fall through to CLI errors or proof sections: {markdown}"
     );
+
+    let output = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["proof", "changed"])
+        .output()
+        .expect("clean proof changed should run");
+    assert!(
+        output.status.success(),
+        "clean proof changed failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
+    assert!(
+        markdown.contains("No changed anchors selected.")
+            && !markdown.contains("No proof surface found."),
+        "clean proof changed should explain the empty selector, not imply missing proof: {markdown}"
+    );
+}
+
+#[test]
+fn proof_markdown_separates_evidence_only_surfaces_from_commands() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(&repo.path().join(".env.example"), "DATABASE_URL=\n");
+    write(
+        &repo.path().join("src/config.ts"),
+        "export const databaseUrl = process.env.DATABASE_URL;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "env proof fixture"]);
+
+    let output = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["proof", ".env.example"])
+        .output()
+        .expect("env proof should run");
+    assert!(
+        output.status.success(),
+        "env proof failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
+    assert!(
+        markdown.contains("## Evidence Surfaces")
+            && markdown.contains("env_consumer_reference")
+            && !markdown.contains("### `no command`"),
+        "env consumer references should render as evidence surfaces, not no-command proof: {markdown}"
+    );
+    assert!(
+        !markdown.contains("only soft proof evidence"),
+        "evidence-only env surfaces must not be described as soft-only proof: {markdown}"
+    );
+    assert!(
+        !markdown.contains("## Proof\n\n### `env_consumer_reference`"),
+        "evidence-only env surfaces must not be grouped as runnable proof commands: {markdown}"
+    );
+}
+
+#[test]
+fn changed_proof_section_shows_evidence_only_surfaces() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(&repo.path().join(".env.example"), "DATABASE_URL=\n");
+    write(
+        &repo.path().join("src/config.ts"),
+        "export const databaseUrl = process.env.DATABASE_URL;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "env changed proof fixture"]);
+
+    let output = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["changed", "--files", ".env.example", "--section", "proof"])
+        .output()
+        .expect("changed env proof should run");
+    assert!(
+        output.status.success(),
+        "changed env proof failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
+    assert!(
+        markdown.contains("## Evidence Surfaces")
+            && markdown.contains("env_consumer_reference")
+            && markdown.contains("src/config.ts"),
+        "changed proof should render command-less env consumer evidence, not only sensor counts: {markdown}"
+    );
+    assert!(
+        !markdown.contains("### `no command`")
+            && !markdown.contains("## Soft Evidence\n\n### `env_consumer_reference`"),
+        "changed proof must not misclassify evidence-only env references as no-command proof or soft evidence: {markdown}"
+    );
+}
+
+#[test]
+fn proof_markdown_separates_setup_surfaces_from_runnable_proof() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{"name":"workspace-proof-fixture","private":true,"packageManager":"pnpm@9.15.0","scripts":{"test":"turbo test","verify:local":"pnpm test"}}"#,
+    );
+    write(&repo.path().join("pnpm-workspace.yaml"), "packages:\n  - \"apps/*\"\n");
+    write(
+        &repo.path().join("apps/api/package.json"),
+        r#"{"name":"@fixture/api","scripts":{"test":"vitest run"}}"#,
+    );
+    write(
+        &repo.path().join(".github/workflows/ci.yml"),
+        "name: ci\non: [push]\njobs:\n  verify:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pnpm install --frozen-lockfile\n      - run: pnpm verify:local\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "workspace proof fixture"]);
+
+    let output = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["proof", "pnpm-workspace.yaml"])
+        .output()
+        .expect("workspace proof should run");
+    assert!(
+        output.status.success(),
+        "workspace proof failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
+    assert!(
+        markdown.contains("## Proof") && markdown.contains("pnpm test"),
+        "workspace proof should still show runnable validation commands: {markdown}"
+    );
+    assert!(
+        markdown.contains("## Setup / Support Surfaces")
+            && markdown.contains("pnpm install --frozen-lockfile"),
+        "CI install steps should stay visible as setup/support, not disappear: {markdown}"
+    );
+    let before_support = markdown
+        .split("## Setup / Support Surfaces")
+        .next()
+        .unwrap_or(&markdown);
+    assert!(
+        !before_support.contains("pnpm install --frozen-lockfile"),
+        "install steps must not be rendered under runnable Proof: {markdown}"
+    );
+}
+
+#[test]
+fn schema_db_mutation_scripts_are_setup_support_not_runnable_proof() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("apps/api/package.json"),
+        r#"{"name":"@fixture/api","scripts":{"db:migrate:status":"prisma migrate status --schema prisma/schema.prisma","db:push":"prisma db push","db:normalize-rarity":"node prisma/normalize-achievement-rarity.mjs"}}"#,
+    );
+    write(
+        &repo.path().join("apps/api/prisma/schema.prisma"),
+        "datasource db { provider = \"postgresql\" url = env(\"DATABASE_URL\") }\ngenerator client { provider = \"prisma-client-js\" }\nmodel User { id String @id }\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "schema proof fixture"]);
+
+    let output = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["proof", "apps/api/prisma/schema.prisma"])
+        .output()
+        .expect("schema proof should run");
+    assert!(
+        output.status.success(),
+        "schema proof failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
+    let before_support = markdown
+        .split("## Setup / Support Surfaces")
+        .next()
+        .unwrap_or(&markdown);
+    assert!(
+        before_support.contains("db:migrate:status"),
+        "schema status checks should remain runnable proof: {markdown}"
+    );
+    assert!(
+        !before_support.contains("db:push") && !before_support.contains("db:normalize-rarity"),
+        "schema mutation scripts must not render as runnable Proof: {markdown}"
+    );
+    let support = markdown
+        .split("## Setup / Support Surfaces")
+        .nth(1)
+        .unwrap_or("");
+    assert!(
+        support.contains("db:push") && support.contains("db:normalize-rarity"),
+        "schema mutation scripts should remain visible as setup/support surfaces: {markdown}"
+    );
+}
+
+#[test]
+fn package_watch_scripts_are_setup_support_without_hiding_verify_dev_scripts() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{"name":"watch-proof-fixture","private":true,"scripts":{"test":"vitest run","test:watch":"vitest","verify:dev-fixtures":"node scripts/verify-dev-fixtures.mjs"}}"#,
+    );
+    write(
+        &repo.path().join("scripts/verify-dev-fixtures.mjs"),
+        "console.log('verify dev fixtures');\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "watch proof fixture"]);
+
+    let output = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["proof", "package.json"])
+        .output()
+        .expect("package proof should run");
+    assert!(
+        output.status.success(),
+        "package proof failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
+    let before_support = markdown
+        .split("## Setup / Support Surfaces")
+        .next()
+        .unwrap_or(&markdown);
+    assert!(
+        before_support.contains("npm test")
+            && before_support.contains("verify:dev-fixtures")
+            && !before_support.contains("test:watch"),
+        "watch mode must not be runnable proof, while verify:dev-fixtures remains validation proof: {markdown}"
+    );
+    let support = markdown
+        .split("## Setup / Support Surfaces")
+        .nth(1)
+        .unwrap_or("");
+    assert!(
+        support.contains("test:watch"),
+        "watch mode should stay visible as setup/support: {markdown}"
+    );
+}
+
+#[test]
+fn validation_scripts_with_setup_in_name_remain_runnable_proof() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{"name":"setup-name-proof-fixture","private":true,"packageManager":"pnpm@9.15.0","scripts":{"smoke:e2e:setup-templates":"node node_modules/@playwright/test/cli.js test tests/e2e/setup-templates.ensure.spec.ts","e2e:install":"node node_modules/@playwright/test/cli.js install chromium"}}"#,
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "setup name proof fixture"]);
+
+    let output = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["proof", "package.json"])
+        .output()
+        .expect("package proof should run");
+    assert!(
+        output.status.success(),
+        "package proof failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
+    let before_support = markdown
+        .split("## Setup / Support Surfaces")
+        .next()
+        .unwrap_or(&markdown);
+    assert!(
+        before_support.contains("smoke:e2e:setup-templates"),
+        "a Playwright test script should stay runnable proof even when its name contains setup: {markdown}"
+    );
+    let support = markdown
+        .split("## Setup / Support Surfaces")
+        .nth(1)
+        .unwrap_or("");
+    assert!(
+        support.contains("e2e:install") && !support.contains("smoke:e2e:setup-templates"),
+        "install stays support while setup-named test stays proof: {markdown}"
+    );
 }
 
 #[test]

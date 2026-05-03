@@ -109,7 +109,7 @@ fn first_class_structural_surfaces_do_not_fall_to_unknown_roles() {
     );
     let markdown = String::from_utf8(cargo_cone.stdout).expect("markdown utf8");
     assert!(
-        markdown.contains("## Roles")
+        markdown.contains("## Surface Hints")
             && markdown.contains("`manifest`")
             && markdown.contains("`public_boundary`")
             && markdown.contains("declares_script -> `script:test`")

@@ -67,7 +67,7 @@ pub fn cone(report: &ConeReport, section_filter: Option<&str>) {
         grouped_edge_list("boundary", &report.boundary, 20);
     }
     if matches!(section_filter, None | Some("proof")) {
-        cone_section("Proof", &report.proof);
+        render_cone_proof(&report.proof);
     }
     if matches!(section_filter, None | Some("hidden")) {
         hidden_section(&report.hidden);
@@ -77,6 +77,38 @@ pub fn cone(report: &ConeReport, section_filter: Option<&str>) {
     }
     if section_filter.is_none() {
         section("Expand", &report.expand);
+    }
+}
+
+fn render_cone_proof(edges: &[StructuralEdge]) {
+    if edges.is_empty() {
+        return;
+    }
+    let mut proof = Vec::new();
+    let mut evidence = Vec::new();
+    let mut setup = Vec::new();
+    let mut soft = Vec::new();
+    for edge in edges {
+        match edge.edge_type.as_str() {
+            "evidence_surface" => evidence.push(edge.clone()),
+            "setup_support_surface" => setup.push(edge.clone()),
+            "soft_evidence_surface" => soft.push(edge.clone()),
+            _ => proof.push(edge.clone()),
+        }
+    }
+    cone_section("Proof", &proof);
+    cone_section("Evidence Surfaces", &evidence);
+    cone_section("Setup / Support Surfaces", &setup);
+    cone_section("Soft Evidence", &soft);
+    if !setup.is_empty() {
+        println!(
+            "\nSetup/support surfaces are connected rails such as install, codegen, migration, seed, deploy, release, watch, or dev-server steps. They are not treated as validation proof."
+        );
+    }
+    if !soft.is_empty() {
+        println!(
+            "\nSoft evidence is token/name/path surface overlap. It does not replace deterministic proof or remove Unknown entries."
+        );
     }
 }
 
@@ -138,7 +170,7 @@ fn render_anchor_summary(title: &str, anchor: &crate::model::FileSummary) {
     println!("- language: `{}`", anchor.language);
     println!("- lines: `{}`", anchor.lines);
     if !anchor.roles.is_empty() {
-        println!("- local tags: {}", anchor.roles.join(", "));
+        println!("- surface hints: {}", anchor.roles.join(", "));
     }
     println!("- symbols: `{}`", anchor.symbols.len());
     println!("- imported by: `{}`", anchor.imported_by_count);
@@ -184,7 +216,7 @@ fn render_ls_directory(report: &LsReport, section_filter: Option<&str>) {
         let role = surface.role.as_deref().unwrap_or("none");
         let strength = format!("{:?}", surface.strength).to_ascii_lowercase();
         println!(
-            "- `{}` [role={}; count={}; {}; {}]",
+            "- `{}` [hint={}; count={}; {}; {}]",
             surface.kind, role, surface.count, surface.evidence, strength
         );
         if let Some(path) = &surface.path {
@@ -212,10 +244,11 @@ fn render_ls_directory_roles(report: &LsReport) {
         *roles.entry(role.to_string()).or_default() += surface.count;
     }
     if roles.is_empty() {
-        render_empty_ls_section("Roles", "No directory roles found in this ls report.");
+        render_empty_ls_section("Surface Hints", "No surface hints found in this ls report.");
         return;
     }
-    println!("\n## Roles\n");
+    println!("\n## Surface Hints\n");
+    println!("Derived from deterministic path/name/extension/manifest patterns. Not intent, correctness, or ownership truth.\n");
     for (role, count) in roles {
         println!("- `{role}`: `{count}` surfaces");
     }
@@ -231,7 +264,8 @@ fn render_roles(anchor: &crate::model::FileSummary) {
     if roles.is_empty() {
         return;
     }
-    println!("\n## Roles\n");
+    println!("\n## Surface Hints\n");
+    println!("Derived from deterministic path/name/extension/manifest patterns. Not intent, correctness, or ownership truth.\n");
     println!("{}", bullet(&roles, true, None));
 }
 

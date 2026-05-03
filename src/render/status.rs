@@ -5,9 +5,9 @@ use std::sync::OnceLock;
 use crate::map::StatusReport;
 use crate::model::{
     BoundaryFinding, BoundaryMapReport, ChangedReport, ConeReport, ContractReport, DeleteReport,
-    DiffMapReport, EnvSurface, EvidenceLocation, EvidenceStrength, FlowReport, GraphEdge, GraphLens,
-    ImpactCluster, ImpactReport, LsReport, PlaceReport, ProofMapReport, ProofReport, ProofSurface,
-    RuntimeReport, RuntimeRoute, SiblingsReport, StructuralEdge, Surface, TeachReport, Unknown,
+    DiffMapReport, EnvSurface, EvidenceLocation, FlowReport, GraphEdge, GraphLens, ImpactCluster,
+    ImpactReport, LsReport, PlaceReport, ProofMapReport, ProofReport, ProofSurface, RuntimeReport,
+    RuntimeRoute, SiblingsReport, StructuralEdge, Surface, TeachReport, Unknown,
 };
 
 static EXPAND_ROOT: OnceLock<String> = OnceLock::new();
@@ -328,7 +328,7 @@ pub fn teach(report: &TeachReport) {
                         .unwrap_or_else(|| "zero-config".to_string()),
                 ],
                 vec![
-                    "Role patterns".to_string(),
+                    "Surface hint patterns".to_string(),
                     report.role_patterns.len().to_string(),
                 ],
                 vec![
@@ -339,7 +339,8 @@ pub fn teach(report: &TeachReport) {
         )
     );
     if !report.role_patterns.is_empty() {
-        println!("\n## Roles\n");
+        println!("\n## Surface Hints\n");
+        println!("Derived from deterministic configured patterns. Not intent, correctness, or ownership truth.\n");
         for role in &report.role_patterns {
             println!(
                 "- `{}` -> `{}` [{}; matched: `{}`]",

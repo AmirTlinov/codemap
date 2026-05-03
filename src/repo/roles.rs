@@ -228,10 +228,11 @@ fn add_renderer_ui_role_if(
     tokens: &BTreeSet<String>,
 ) {
     if matches!(ext, "tsx" | "jsx" | "vue" | "svelte")
-        || ["render", "view", "component", "page", "screen"]
-        .iter()
-        .any(|needle| rel.contains(needle))
-        || tokens.contains("ui")
+        || (matches!(ext, "ts" | "js")
+            && (["render", "view", "component", "page", "screen"]
+                .iter()
+                .any(|needle| rel.contains(needle))
+                || tokens.contains("ui")))
     {
         roles.insert("renderer_ui".to_string());
     }

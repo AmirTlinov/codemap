@@ -27,17 +27,7 @@ fn ci_owner_proof_surfaces(project: &Project, file: &FileInfo) -> Vec<ProofSurfa
     };
     ci_run_steps(&text)
         .into_iter()
-        .filter_map(|step| {
-            let reason = ci_owner_validation_step_reason(&step.command)?;
-            Some(ProofSurface {
-                command: Some(step.command),
-                path: Some(file.rel.clone()),
-                evidence: "ci_run_step".to_string(),
-                strength: EvidenceStrength::Hard,
-                reason,
-                locations: vec![EvidenceLocation::line(&file.rel, step.line, "ci_step")],
-            })
-        })
+        .filter_map(|step| ci_owner_proof_surface_for_step(project, &file.rel, step))
         .collect()
 }
 
@@ -63,11 +53,11 @@ fn manifest_script_proof_surfaces(project: &Project, file: &FileInfo) -> Vec<Pro
     }
     package_json_scripts(project, &package.manifest)
         .into_iter()
-        .filter(|(name, command, _)| manifest_script_is_proof_relevant(name, command))
+        .filter(|(name, command, _)| manifest_script_is_proof_or_support_relevant(name, command))
         .map(|(name, command, line)| ProofSurface {
             command: package_script_command(project, package, &name),
             path: Some(package.manifest.clone()),
-            evidence: "manifest_script".to_string(),
+            evidence: manifest_script_evidence(&name, &command).to_string(),
             strength: EvidenceStrength::Hard,
             reason: format!("package manifest defines `{name}` script: {command}"),
             locations: vec![EvidenceLocation::line(&package.manifest, line, "package_script")],
@@ -289,8 +279,21 @@ fn package_json_scripts(project: &Project, manifest: &str) -> Vec<(String, Strin
 }
 
 fn manifest_script_is_proof_relevant(name: &str, command: &str) -> bool {
-    manifest_script_name_is_proof_relevant(name)
-        || manifest_script_command_is_proof_relevant(command)
+    manifest_script_command_body_is_run_safe(command)
+        && (manifest_script_name_is_proof_relevant(name)
+            || manifest_script_command_is_proof_relevant(command))
+}
+
+fn manifest_script_is_proof_or_support_relevant(name: &str, command: &str) -> bool {
+    manifest_script_name_is_proof_relevant(name) || manifest_script_command_is_proof_relevant(command)
+}
+
+fn manifest_script_evidence(name: &str, command: &str) -> &'static str {
+    if manifest_script_is_proof_relevant(name, command) {
+        "manifest_script"
+    } else {
+        "manifest_script_setup"
+    }
 }
 
 fn manifest_script_name_is_proof_relevant(name: &str) -> bool {
@@ -338,6 +341,36 @@ fn manifest_script_command_is_proof_relevant(command: &str) -> bool {
             "test" | "lint" | "typecheck" | "check" | "build" | "verify" | "e2e"
         )
     })
+}
+
+fn manifest_script_command_body_is_run_safe(command: &str) -> bool {
+    let lower = command.to_ascii_lowercase();
+    if crate::proof_classification::proof_text_is_readonly_migration_status(&lower) {
+        return true;
+    }
+    ![
+        "--watch",
+        " watch",
+        ":watch",
+        " dev",
+        " start",
+        " serve",
+        " preview",
+        " install",
+        " codegen",
+        " generate",
+        " seed",
+        " studio",
+        " deploy",
+        " release",
+        " publish",
+        " migrate",
+        " db push",
+        " db:push",
+        " db:normalize",
+    ]
+    .iter()
+    .any(|needle| lower.contains(needle))
 }
 
 fn schema_script_is_proof_relevant(name: &str, command: &str, rel: &str) -> bool {

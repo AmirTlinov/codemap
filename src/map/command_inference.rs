@@ -325,6 +325,7 @@ fn find_script(project: &Project, names: &[&str]) -> Option<String> {
     project
         .scripts
         .iter()
+        .filter(|script| script_info_body_is_run_safe(script))
         .filter_map(|script| {
             script_match_rank(script, names).map(|rank| (rank, script.command.clone()))
         })
@@ -334,6 +335,17 @@ fn find_script(project: &Project, names: &[&str]) -> Option<String> {
                 .then_with(|| left_command.cmp(right_command))
         })
         .map(|(_, command)| command)
+}
+
+fn script_info_body_is_run_safe(script: &crate::model::ScriptInfo) -> bool {
+    if script.path.as_deref().map(manifest_file_name) != Some("package.json") {
+        return true;
+    }
+    script
+        .reason
+        .strip_prefix("package.json script: ")
+        .map(manifest_script_command_body_is_run_safe)
+        .unwrap_or(true)
 }
 
 fn script_match_rank(script: &crate::model::ScriptInfo, names: &[&str]) -> Option<usize> {

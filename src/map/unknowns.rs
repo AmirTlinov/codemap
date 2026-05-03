@@ -83,8 +83,8 @@ fn unknown_missing_deterministic_proof(path: &str, expand: String) -> Unknown {
         "missing_deterministic_proof",
         Some(path),
         None,
-        "only soft proof evidence was found for this proof scope",
-        "token, path, or test-name matches are shown as soft evidence and do not close direct proof discovery",
+        "no runnable or direct deterministic proof sensor was found for this proof scope",
+        "evidence-only, setup/support, and soft surfaces remain visible, but they do not close direct proof discovery",
         Some(expand),
     )
 }

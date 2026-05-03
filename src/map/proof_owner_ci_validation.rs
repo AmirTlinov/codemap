@@ -1,7 +1,11 @@
 fn ci_owner_validation_step_reason(command: &str) -> Option<String> {
     let command = strip_inline_shell_comment(command);
     let command = command.trim();
-    if command.is_empty() || ci_owner_command_is_non_validation(command) {
+    if command.is_empty()
+        || ci_owner_command_has_unsupported_shell_control(command)
+        || ci_owner_command_has_unsupported_shell_composition(command)
+        || ci_owner_command_is_non_validation(command)
+    {
         return None;
     }
     let tokens = command_tokens(command);
@@ -84,6 +88,85 @@ fn ci_owner_command_is_shell_syntax_only(command: &str) -> bool {
         || (command.ends_with(')') && !command.chars().any(char::is_whitespace))
 }
 
+fn ci_owner_command_has_unsupported_shell_control(command: &str) -> bool {
+    let mut chars = command.chars().peekable();
+    let mut in_single = false;
+    let mut in_double = false;
+    let mut previous_was_escape = false;
+    while let Some(ch) = chars.next() {
+        if previous_was_escape {
+            previous_was_escape = false;
+            continue;
+        }
+        if ch == '\\' && !in_single {
+            previous_was_escape = true;
+            continue;
+        }
+        if ch == '\'' && !in_double {
+            in_single = !in_single;
+            continue;
+        }
+        if ch == '"' && !in_single {
+            in_double = !in_double;
+            continue;
+        }
+        if in_single || in_double {
+            continue;
+        }
+        match ch {
+            '\n' | '\r' | ';' | '|' | '`' | '$' | '>' | '<' => return true,
+            '&' if chars.peek() == Some(&'&') => {
+                chars.next();
+            }
+            '&' => return true,
+            _ => {}
+        }
+    }
+    false
+}
+
+fn ci_owner_command_has_unsupported_shell_composition(command: &str) -> bool {
+    let and_count = command.match_indices("&&").count();
+    if and_count == 0 {
+        return false;
+    }
+    and_count != 1 || !ci_owner_safe_scoped_cd_composition(command)
+}
+
+fn ci_owner_safe_scoped_cd_composition(command: &str) -> bool {
+    let Some((prefix, tail)) = command.split_once("&&") else {
+        return false;
+    };
+    !tail.trim().is_empty() && ci_owner_safe_cd_prefix(prefix)
+}
+
+fn ci_owner_safe_cd_prefix(prefix: &str) -> bool {
+    let prefix = prefix.trim();
+    let Some(rest) = prefix.strip_prefix("cd ") else {
+        return false;
+    };
+    let rest = rest.trim();
+    let Some(path) = ci_owner_cd_path(rest) else {
+        return false;
+    };
+    !path.is_empty()
+        && path != "~"
+        && !path.starts_with('/')
+        && !path.starts_with("~/")
+        && !path.starts_with('-')
+        && !path.split('/').any(|part| part == "..")
+}
+
+fn ci_owner_cd_path(rest: &str) -> Option<String> {
+    if let Some(quote) = rest.chars().next().filter(|ch| *ch == '\'' || *ch == '"') {
+        return Some(rest.strip_prefix(quote)?.strip_suffix(quote)?.to_string());
+    }
+    if rest.chars().any(char::is_whitespace) {
+        return None;
+    }
+    Some(rest.to_string())
+}
+
 fn ci_owner_command_is_non_validation(command: &str) -> bool {
     let lower = command.to_ascii_lowercase();
     let first = lower.split_whitespace().next().unwrap_or_default();
@@ -112,7 +195,15 @@ fn ci_owner_command_is_control(command: &str) -> bool {
 }
 
 fn ci_owner_command_is_release_or_mutation(command: &str) -> bool {
-    let lower = command.to_ascii_lowercase();
+    if ci_owner_command_is_readonly_migration_status(command) {
+        return false;
+    }
+    let lower = command
+        .to_ascii_lowercase()
+        .replace(['\'', '"', '`'], " ")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
     lower.contains(" deploy")
         || lower.contains(":deploy")
         || lower.contains(" release")
@@ -123,6 +214,12 @@ fn ci_owner_command_is_release_or_mutation(command: &str) -> bool {
         || lower.contains(":migrate")
         || lower.contains(" db:push")
         || lower.contains(":db:push")
+        || lower.contains(" watch")
+        || lower.contains(":watch")
+        || lower.contains(" run dev")
+        || lower.contains(" run start")
+        || lower.contains(" run serve")
+        || lower.contains(" run preview")
         || lower.contains(" destroy")
         || lower.contains(":destroy")
         || lower.contains(" delete")
@@ -156,9 +253,8 @@ fn ci_owner_cargo_validation(tokens: &[String]) -> bool {
     let Some(subcommand) = ci_owner_cargo_subcommand(tokens) else {
         return false;
     };
-    if ci_owner_cargo_subcommand_is_validation(subcommand) {
-        return true;
-    }
+    if subcommand == "fmt" { return tokens.iter().any(|token| token == "--check"); }
+    if ci_owner_cargo_subcommand_is_validation(subcommand) { return true; }
     subcommand == "run" && tokens.iter().any(|token| token == "doctor")
 }
 
@@ -202,6 +298,9 @@ fn ci_owner_script_name_is_validation(script: &str) -> bool {
     let lower = script
         .trim_matches(|ch| matches!(ch, '"' | '\''))
         .to_ascii_lowercase();
+    if crate::proof_classification::proof_text_is_readonly_migration_status(&lower) {
+        return true;
+    }
     if lower.is_empty()
         || lower.contains("deploy")
         || lower.contains("release")
@@ -212,6 +311,9 @@ fn ci_owner_script_name_is_validation(script: &str) -> bool {
         || lower.contains("setup")
         || lower.contains("install")
         || lower.contains("db:push")
+        || lower.contains("db:normalize")
+        || lower.contains("watch")
+        || ci_owner_lifecycle_script_name(&lower)
         || lower.contains("reset")
         || lower.contains("destroy")
         || lower.contains("delete")
@@ -246,6 +348,21 @@ fn ci_owner_script_name_is_validation(script: &str) -> bool {
         || lower.starts_with("contract")
 }
 
+fn ci_owner_lifecycle_script_name(lower: &str) -> bool {
+    lower == "dev"
+        || lower.starts_with("dev:")
+        || lower.starts_with("dev-")
+        || lower == "start"
+        || lower.starts_with("start:")
+        || lower.starts_with("start-")
+        || lower == "serve"
+        || lower.starts_with("serve:")
+        || lower.starts_with("serve-")
+        || lower == "preview"
+        || lower.starts_with("preview:")
+        || lower.starts_with("preview-")
+}
+
 fn ci_owner_direct_tool_validation(command: &str) -> bool {
     let lower = command.to_ascii_lowercase();
     lower == "go test"
@@ -261,7 +378,25 @@ fn ci_owner_direct_tool_validation(command: &str) -> bool {
         || lower.contains(" jest")
         || lower.contains(" mocha")
         || lower.contains(" node --test")
+        || ci_owner_command_is_readonly_migration_status(command)
         || ci_owner_direct_script_validation(command)
+}
+
+fn ci_owner_command_is_readonly_migration_status(command: &str) -> bool {
+    ci_owner_readonly_migration_status(command)
+        || ci_owner_invokes_readonly_migration_status_script(command)
+}
+
+fn ci_owner_invokes_readonly_migration_status_script(command: &str) -> bool {
+    let tokens = command_tokens(command);
+    tokens.iter().enumerate().any(|(index, token)| {
+        crate::proof_classification::proof_text_is_readonly_migration_status(token)
+            && token_invokes_package_script(&tokens, index)
+    })
+}
+
+fn ci_owner_readonly_migration_status(command: &str) -> bool {
+    crate::proof_classification::proof_command_is_readonly_migration_status(command)
 }
 
 fn ci_owner_direct_script_validation(command: &str) -> bool {

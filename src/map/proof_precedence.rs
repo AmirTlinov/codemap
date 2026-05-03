@@ -96,12 +96,9 @@ fn proof_surface_precedence(value: &ProofSurface) -> (EvidenceStrength, usize) {
     (value.strength, proof_evidence_precedence(&value.evidence))
 }
 
-fn proof_surface_is_deterministic(proof: &ProofSurface) -> bool {
-    proof.strength >= EvidenceStrength::High
-}
-
 fn proof_surface_satisfies_specific_proof(proof: &ProofSurface) -> bool {
-    proof_surface_is_deterministic(proof) || proof_surface_command_closes_fallback(proof)
+    crate::proof_classification::proof_surface_is_runnable_validation(proof)
+        || proof_surface_command_closes_fallback(proof)
 }
 
 fn proof_surface_is_soft_structural_match(proof: &ProofSurface) -> bool {
@@ -112,21 +109,7 @@ fn proof_surface_is_soft_structural_match(proof: &ProofSurface) -> bool {
 }
 
 fn proof_surface_command_closes_fallback(proof: &ProofSurface) -> bool {
-    if proof.command.is_none() {
-        return false;
-    }
-    if proof_surface_is_deterministic(proof) {
-        return true;
-    }
-    matches!(
-        proof_base_evidence(&proof.evidence),
-        "test_import"
-            | "test_imported_symbol_reference"
-            | "test_reexported_symbol_reference"
-            | "test_support_import"
-            | "test_symbol_reference"
-            | "e2e_route"
-    )
+    crate::proof_classification::proof_surface_is_runnable_validation(proof)
 }
 
 fn proof_evidence_precedence(evidence: &str) -> usize {

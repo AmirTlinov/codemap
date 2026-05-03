@@ -44,10 +44,19 @@ fn cone_owner_proof_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {
                 .clone()
                 .or_else(|| proof.path.clone())
                 .unwrap_or_else(|| rel.to_string());
+            let edge_type = if crate::proof_classification::proof_surface_is_runnable_validation(&proof) {
+                "proof_surface"
+            } else if crate::proof_classification::proof_surface_is_setup_or_support(&proof) {
+                "setup_support_surface"
+            } else if crate::proof_classification::proof_surface_is_evidence_only(&proof) {
+                "evidence_surface"
+            } else {
+                "soft_evidence_surface"
+            };
             structural_edge_with_locations(
                 from,
                 to,
-                "proof_surface",
+                edge_type,
                 proof.evidence,
                 proof.strength,
                 proof.locations,
@@ -373,7 +382,7 @@ fn owner_ci_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {
     ci_run_steps(&text)
         .into_iter()
         .filter_map(|step| {
-            let kind = ci_owner_step_kind(&step.command)?;
+            let kind = ci_owner_step_kind_for_project(project, &step.command)?;
             Some(structural_edge_with_locations(
                 rel.to_string(),
                 step.command,

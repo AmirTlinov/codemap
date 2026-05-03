@@ -353,7 +353,15 @@ fn script_is_disallowed_role_proof_text(text: &str) -> bool {
         text,
         &[
             "deploy", "release", "publish", "migrate", "codegen", "generate", "setup",
-            "install", "db:push", "reset", "destroy", "delete", "drop", "prune",
+            "install",
+            "db:push",
+            "db:normalize",
+            "watch",
+            "reset",
+            "destroy",
+            "delete",
+            "drop",
+            "prune",
         ],
     )
 }

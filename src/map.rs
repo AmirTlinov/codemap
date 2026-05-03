@@ -52,6 +52,7 @@ include!("map/proof_owner_surfaces.rs");
 include!("map/proof_owner_ci_parse.rs");
 include!("map/proof_owner_ci.rs");
 include!("map/proof_owner_ci_validation.rs");
+include!("map/proof_owner_ci_script_body.rs");
 include!("map/proof_surfaces.rs");
 include!("map/proof_commands.rs");
 include!("map/impact.rs");

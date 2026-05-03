@@ -7,6 +7,7 @@ include!("cli/fast_paths_siblings_place.rs");
 include!("cli/schema_and_roots.rs");
 include!("cli/init.rs");
 include!("cli/proof_run.rs");
+include!("cli/proof_run_safety.rs");
 include!("cli/diff_args.rs");
 include!("cli/files.rs");
 include!("cli/anchors_models.rs");

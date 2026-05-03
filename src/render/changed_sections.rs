@@ -24,8 +24,8 @@ fn changed_roles_section(report: &ChangedReport, force: bool, compact: bool) {
     }
     if grouped.is_empty() {
         if force {
-            println!("\n## Mutation Roles\n");
-            println!("No changed surfaces to classify.");
+            println!("\n## Surface Hints\n");
+            println!("No changed surface hints found.");
         }
         return;
     }
@@ -33,7 +33,8 @@ fn changed_roles_section(report: &ChangedReport, force: bool, compact: bool) {
         entries.sort();
         entries.dedup();
     }
-    println!("\n## Mutation Roles\n");
+    println!("\n## Surface Hints\n");
+    println!("Derived from deterministic path/name/extension/manifest/git patterns. Not change intent, correctness, or proof sufficiency.\n");
     let paths = grouped
         .values()
         .flat_map(|entries| entries.iter().map(|(path, _)| path.as_str()))

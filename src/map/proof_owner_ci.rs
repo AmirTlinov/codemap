@@ -49,10 +49,7 @@ fn ci_run_steps(text: &str) -> Vec<CiRunStep> {
         }
         let command = trim_yaml_scalar(&spec.value);
         if !command.is_empty() {
-            out.push(CiRunStep {
-                command,
-                line: index + 1,
-            });
+            push_ci_run_steps(&mut out, command, index + 1);
         }
         index += 1;
     }

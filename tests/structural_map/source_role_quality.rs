@@ -42,6 +42,10 @@ fn source_role_classifiers_keep_doctor_unclassified_noise_low() {
         "pub fn make_targets() {}\n",
     );
     write(
+        &repo.path().join("src/proof_classification.rs"),
+        "pub fn classify_proof() {}\n",
+    );
+    write(
         &repo.path().join("src/cli/args.rs"),
         "pub fn parse_args() {}\n",
     );
@@ -66,6 +70,7 @@ fn source_role_classifiers_keep_doctor_unclassified_noise_low() {
         ("src/repo/surfaces_core.rs", "extractor"),
         ("src/repo/js_imports.rs", "extractor"),
         ("src/repo/scripts_make.rs", "script_catalog"),
+        ("src/proof_classification.rs", "role_classifier"),
         ("src/cli/args.rs", "cli_surface"),
         ("src/repo/project.rs", "state_model"),
         ("src/repo/tests.rs", "test_support"),

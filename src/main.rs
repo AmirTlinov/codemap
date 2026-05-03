@@ -3,6 +3,7 @@ mod cli;
 mod evidence;
 mod map;
 mod model;
+mod proof_classification;
 mod render;
 mod repo;
 

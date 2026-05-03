@@ -76,7 +76,7 @@ fn changed_section_filters_use_stable_rfc_names() {
     for (section, heading) in [
         ("observed", "## Observed"),
         ("links", "## Links"),
-        ("roles", "## Mutation Roles"),
+        ("roles", "## Surface Hints"),
         ("proof", "## Proof"),
         ("unknown", "## Unknown"),
         ("hidden", "## Hidden"),

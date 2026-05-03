@@ -155,6 +155,41 @@ mod tests {
     }
 
     #[test]
+    fn proof_run_uses_fallback_when_only_setup_surface_exists() {
+        let report = ProofReport {
+            kind: "proof_plan",
+            schema_version: "6",
+            target: Some("pnpm-workspace.yaml".to_string()),
+            changed: Vec::new(),
+            risk: "medium".to_string(),
+            proofs: vec![ProofSurface {
+                command: Some("pnpm install --frozen-lockfile".to_string()),
+                path: Some(".github/workflows/ci.yml".to_string()),
+                evidence: "workspace_manifest_ci_reference".to_string(),
+                strength: EvidenceStrength::Hard,
+                reason: "CI run step references workspace setup".to_string(),
+                locations: vec![EvidenceLocation::line(
+                    ".github/workflows/ci.yml",
+                    7,
+                    "ci_step",
+                )],
+            }],
+            fallback: vec!["pnpm test".to_string()],
+            unknowns: Vec::new(),
+            hidden: Vec::new(),
+            expand: Vec::new(),
+            run_hint: "codemap proof prints only by default; use --run to execute proof commands"
+                .to_string(),
+        };
+
+        assert_eq!(
+            proof_plan_commands_for_run(&report),
+            vec!["pnpm test"],
+            "setup/install surfaces must not become the direct --run command"
+        );
+    }
+
+    #[test]
     fn run_plan_rejects_deploy_commands_before_running_any_command() {
         let plan = VerificationPlan {
             minimal: vec!["npm run deploy".to_string()],
@@ -269,6 +304,17 @@ mod tests {
             minimal: vec![
                 "cd packages/app && pnpm run test:e2e -- tests/app.spec.ts".to_string(),
                 "cd 'packages/app with spaces' && pnpm test tests/app.test.ts".to_string(),
+                "cd apps/api && pnpm run 'db:migrate:status'".to_string(),
+                "cd apps/control-center && pnpm run 'smoke:e2e'".to_string(),
+                "pnpm --filter @venorus/control-center run smoke:e2e:visual".to_string(),
+                "pnpm --filter=@venorus/control-center test".to_string(),
+                "cargo fmt --check".to_string(),
+                "vitest run".to_string(),
+                "playwright test tests/app.spec.ts".to_string(),
+                "./scripts/e2e_smoke.sh --headed".to_string(),
+                "scripts/verify-local.mjs".to_string(),
+                "prisma migrate status --schema prisma/schema.prisma".to_string(),
+                "pnpm exec prisma migrate status --schema prisma/schema.prisma".to_string(),
                 "cargo test --release".to_string(),
                 "pnpm exec jest tests/app.test.ts".to_string(),
                 "pnpm exec node --test tests/app.test.ts".to_string(),
@@ -288,6 +334,17 @@ mod tests {
             vec![
                 "cd packages/app && pnpm run test:e2e -- tests/app.spec.ts",
                 "cd 'packages/app with spaces' && pnpm test tests/app.test.ts",
+                "cd apps/api && pnpm run 'db:migrate:status'",
+                "cd apps/control-center && pnpm run 'smoke:e2e'",
+                "pnpm --filter @venorus/control-center run smoke:e2e:visual",
+                "pnpm --filter=@venorus/control-center test",
+                "cargo fmt --check",
+                "vitest run",
+                "playwright test tests/app.spec.ts",
+                "./scripts/e2e_smoke.sh --headed",
+                "scripts/verify-local.mjs",
+                "prisma migrate status --schema prisma/schema.prisma",
+                "pnpm exec prisma migrate status --schema prisma/schema.prisma",
                 "cargo test --release",
                 "pnpm exec jest tests/app.test.ts",
                 "pnpm exec node --test tests/app.test.ts",
@@ -297,6 +354,32 @@ mod tests {
                 "just doctor"
             ]
         );
+    }
+
+    #[test]
+    fn run_plan_rejects_mutating_and_watch_package_scripts() {
+        let plan = VerificationPlan {
+            minimal: vec![
+                "cd apps/api && pnpm run 'db:push'".to_string(),
+                "cd apps/api && pnpm run 'db:normalize-rarity'".to_string(),
+                "pnpm run test:watch".to_string(),
+                "pnpm run e2e:install".to_string(),
+                "pnpm --filter @fixture/api db:migrate:deploy".to_string(),
+                "pnpm --filter=@fixture/api db:migrate:deploy".to_string(),
+                "pnpm --filter @fixture/api e2e:install".to_string(),
+                "cargo fmt".to_string(),
+                "./scripts/deploy_test.sh".to_string(),
+                "../scripts/e2e_smoke.sh".to_string(),
+                "prisma migrate deploy --schema prisma/schema.prisma".to_string(),
+            ],
+            supplemental: Vec::new(),
+            full_only_if_triggered: Vec::new(),
+        };
+
+        let error =
+            planned_run_commands(&plan, false).expect_err("mutating/watch scripts should fail");
+
+        assert!(error.to_string().contains("will not run by default"));
     }
 
     #[test]

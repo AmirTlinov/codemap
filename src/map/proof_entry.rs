@@ -194,11 +194,10 @@ pub fn proof_report(
     }
     if let Some(target) = target.as_ref()
         && let Some(file) = project.files.get(target)
-        && file.has_role("build_ci")
-        && !all_proofs.iter().any(|proof| {
-            proof_base_evidence(&proof.evidence) == "ci_run_step"
-                && proof.strength >= EvidenceStrength::High
-        })
+        && file_uses_ci_run_step_syntax(file)
+        && !all_proofs
+            .iter()
+            .any(proof_ci_run_step_is_validation)
     {
         unknowns.push(unknown_ci_validation_step_not_found(target));
     }

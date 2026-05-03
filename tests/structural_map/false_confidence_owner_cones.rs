@@ -11,7 +11,7 @@ fn owner_surface_cones_expose_manifest_schema_env_and_ci_neighborhoods() {
     );
     write(
         &repo.path().join("apps/api/package.json"),
-        r#"{"name":"@fixture/api","scripts":{"test":"vitest run","db:generate":"prisma generate","db:migrate:deploy":"prisma migrate deploy"},"dependencies":{"@prisma/client":"^5.0.0"}}"#,
+        r#"{"name":"@fixture/api","scripts":{"test":"vitest run","test:watch":"vitest","db:generate":"prisma generate","db:migrate:deploy":"prisma migrate deploy"},"dependencies":{"@prisma/client":"^5.0.0"}}"#,
     );
     write(
         &repo.path().join("apps/api/prisma/schema.prisma"),
@@ -50,8 +50,12 @@ fn owner_surface_cones_expose_manifest_schema_env_and_ci_neighborhoods() {
     assert!(
         manifest_markdown.contains("declares_script -> `script:db:generate`")
             && manifest_markdown.contains("runs_command -> `command:prisma generate`")
-            && manifest_markdown.contains("proof_surface -> `cd apps/api && npm test`"),
-        "manifest cone should show package-local scripts and proof surfaces: {manifest_markdown}"
+            && manifest_markdown.contains("proof_surface -> `cd apps/api && npm test`")
+            && manifest_markdown.contains("## Setup / Support Surfaces")
+            && manifest_markdown
+                .contains("setup_support_surface -> `cd apps/api && npm run 'test:watch'`")
+            && !manifest_markdown.contains("proof_surface -> `cd apps/api && npm run 'test:watch'`"),
+        "manifest cone should separate runnable proof from setup/support surfaces: {manifest_markdown}"
     );
     let manifest_roles = codemap()
         .current_dir(repo.path())
@@ -73,7 +77,7 @@ fn owner_surface_cones_expose_manifest_schema_env_and_ci_neighborhoods() {
     );
     let manifest_roles_markdown = String::from_utf8(manifest_roles.stdout).expect("markdown utf8");
     assert!(
-        manifest_roles_markdown.contains("## Roles")
+        manifest_roles_markdown.contains("## Surface Hints")
             && manifest_roles_markdown.contains("`manifest`")
             && !manifest_roles_markdown.contains("## Links")
             && !manifest_roles_markdown.contains("## Proof"),
