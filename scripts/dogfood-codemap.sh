@@ -281,14 +281,14 @@ run_probe() {
     progress "repo-missing index=$index/$total name=$name path=$target"
     return 0
   fi
-  run_probe_command "$target" "$name" "$summary" "$log" doctor doctor
   run_probe_command "$target" "$name" "$summary" "$log" ls_root ls .
+  run_probe_command "$target" "$name" "$summary" "$log" changed changed
+  run_probe_command "$target" "$name" "$summary" "$log" proof_changed proof changed
+  run_probe_command "$target" "$name" "$summary" "$log" doctor doctor
   run_probe_command "$target" "$name" "$summary" "$log" ls_links ls . --section links
   run_probe_command "$target" "$name" "$summary" "$log" graph_causal graph --lens causal
   run_probe_command "$target" "$name" "$summary" "$log" runtime_root runtime .
   run_probe_command "$target" "$name" "$summary" "$log" proof_map_root proof-map .
-  run_probe_command "$target" "$name" "$summary" "$log" changed changed
-  run_probe_command "$target" "$name" "$summary" "$log" proof_changed proof changed
 
   local source_anchor contract_anchor owner_anchor source_scope
   source_anchor="$(first_source_anchor "$target")"

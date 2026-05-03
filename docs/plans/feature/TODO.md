@@ -162,6 +162,34 @@ timed out and did not return a PASS/BLOCK verdict. This is not counted as an
 independent PASS.
 ```
 
+Dogfood cache order 2026-05-03 is closed:
+
+```txt
+status: closed
+tier: focused/full/live
+closed: live dogfood now starts with the agent preflight map order:
+`ls_root`, `changed`, `proof_changed`, then read-only `doctor`. This keeps
+`doctor` diagnostic/read-only while avoiding a duplicate cold scan before the
+first cache-writing map command.
+guardrails: target repos remain read-only; outputs and dogfood cache stay under
+`target/dogfood-cache-order-20260503`. The change is harness ordering only, not
+a new map fact, ranking, score, or recommendation.
+proof: `bash -n scripts/dogfood-codemap.sh`, focused dogfood order regression,
+`cargo fmt --check`, `cargo test --quiet`, `cargo clippy --all-targets -- -D
+warnings`, `cargo run --quiet --bin codemap -- doctor`, and `git diff --check`.
+live: current repo, spritestudio, Sillentway-VPN, main_cluster, and Levelly-1
+dogfood with `target/debug/codemap` produced 108 probes, 0 failures, and 0
+over-budget outputs. Every repo started `ls_root -> changed -> proof_changed ->
+doctor`. Warm doctor timings after `ls_root`: current repo 179ms, spritestudio
+369ms, Sillentway-VPN 557ms, main_cluster 2489ms, Levelly-1 253ms.
+review: independent reviewer PASS. Optional test hardening was applied by
+asserting the first four dogfood labels exactly.
+next: focused lenses on large repos are still too expensive in some cases:
+main_cluster `flow_anchor` about 21.2s, `delete_anchor` about 20.7s,
+`siblings_scope` about 13.9s, and `proof_map_root` about 13.5s. Treat that as
+the next performance blind spot, not as closure for all latency work.
+```
+
 Slice 30P is closed:
 
 ```txt

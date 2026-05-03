@@ -57,6 +57,37 @@ fn dogfood_script_runs_daily_and_focused_probes_read_only() {
 
     let summary_path = out.path().join("summary.jsonl");
     let summary = fs::read_to_string(&summary_path).expect("summary jsonl");
+    let rows: Vec<Value> = summary
+        .lines()
+        .map(|line| serde_json::from_str(line).expect("summary line json"))
+        .collect();
+    assert_eq!(
+        rows.first().and_then(|value| value["label"].as_str()),
+        Some("ls_root"),
+        "dogfood should start with a cache-writing agent map command, not read-only doctor: {summary}"
+    );
+    let first_four: Vec<_> = rows
+        .iter()
+        .take(4)
+        .filter_map(|value| value["label"].as_str())
+        .collect();
+    assert_eq!(
+        first_four,
+        ["ls_root", "changed", "proof_changed", "doctor"],
+        "dogfood daily probes should follow the agent preflight order before diagnostics: {summary}"
+    );
+    let ls_root_index = rows
+        .iter()
+        .position(|value| value["label"] == "ls_root")
+        .expect("ls_root summary row");
+    let doctor_index = rows
+        .iter()
+        .position(|value| value["label"] == "doctor")
+        .expect("doctor summary row");
+    assert!(
+        ls_root_index < doctor_index,
+        "dogfood should warm cache before read-only doctor diagnostics: {summary}"
+    );
     for label in [
         "doctor",
         "ls_root",
@@ -82,8 +113,7 @@ fn dogfood_script_runs_daily_and_focused_probes_read_only() {
             "dogfood summary should include {label}: {summary}"
         );
     }
-    for line in summary.lines() {
-        let value: Value = serde_json::from_str(line).expect("summary line json");
+    for value in rows {
         if value.get("command").is_some() {
             assert_eq!(
                 value["status"], 0,
