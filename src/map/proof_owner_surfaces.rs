@@ -118,6 +118,9 @@ fn env_consumer_proof_surfaces(project: &Project, file: &FileInfo) -> Vec<ProofS
             continue;
         };
         for (line_number, line) in text.lines().enumerate() {
+            if !line_may_contain_static_env_reference(line) {
+                continue;
+            }
             let mut names = static_env_names(line);
             names.extend(prisma_env_names(line));
             names.sort();

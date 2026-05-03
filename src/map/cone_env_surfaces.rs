@@ -46,6 +46,9 @@ fn owner_env_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {
             continue;
         };
         for (index, line) in text.lines().enumerate() {
+            if !line_may_contain_static_env_reference(line) {
+                continue;
+            }
             let mut names = static_env_names(line);
             names.extend(prisma_env_names(line));
             names.sort();

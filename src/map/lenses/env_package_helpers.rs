@@ -33,6 +33,21 @@ fn static_env_names(line: &str) -> Vec<String> {
     names.into_iter().collect()
 }
 
+fn line_may_contain_static_env_reference(line: &str) -> bool {
+    [
+        "process.env.",
+        "import.meta.env.",
+        "Deno.env.get(",
+        "std::env::var(",
+        "env::var(",
+        "os.getenv(",
+        "os.environ[",
+        "env(",
+    ]
+    .iter()
+    .any(|needle| line.contains(needle))
+}
+
 fn find_all(value: &str, needle: &str) -> Vec<usize> {
     let mut out = Vec::new();
     let mut offset = 0;

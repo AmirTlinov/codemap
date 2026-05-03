@@ -254,6 +254,9 @@ fn owner_schema_env_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {
     };
     let mut edges = Vec::new();
     for (index, line) in text.lines().enumerate() {
+        if !line.contains("env(") {
+            continue;
+        }
         for name in prisma_env_names(line) {
             edges.push(structural_edge_with_locations(
                 rel.to_string(),

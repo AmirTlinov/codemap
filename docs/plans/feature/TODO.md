@@ -107,6 +107,37 @@ next: only pursue new extractor/performance work from live pain in the primary
 daily path.
 ```
 
+Dogfood polish 2026-05-03 is closed:
+
+```txt
+status: closed
+tier: full/live
+closed: live dogfood found and fixed three agent-visible gaps: `doctor` quality
+checks no longer rebuild expensive per-env cones on large repos; contract tests
+are not reported as schema owners missing schema roles; root `ls .` no longer
+prints deterministic generated/docs/config/build surfaces as `role=none`.
+Default `changed` now keeps JSON proof data complete while collapsing extra
+proof command groups behind `changed --section proof`, so large dirty repos stay
+inside the readable line budget.
+excluded: cold full scans on large repos are still expensive, and
+`scripts/dogfood-codemap.sh` is still too silent during long runs. Those are
+live-harness/performance follow-ups, not map-truth regressions.
+proof: `cargo fmt --check`, `cargo test --quiet`, `cargo clippy --all-targets
+-- -D warnings`, `cargo run --quiet --bin codemap -- doctor`, focused
+regressions for doctor map-quality, generated role rendering, and compact
+changed proof command groups.
+live: six-repo dogfood with `target/debug/codemap` on current repo, Levelly-1,
+Sillentway-VPN, spritestudio, main_cluster, and Artifact produced 126 probes, 0
+command failures, and 0 line-budget failures. Manual `main_cluster changed`
+fell from 161 lines to 110/120 with hidden proof command expand; warm
+`main_cluster changed` was about 0.22s and warm `doctor` about 2.46s after a
+cold scan.
+review: subagent review was attempted, but the local subagent review loop timed
+out and did not return a PASS/BLOCK verdict. This is not counted as an
+independent PASS; the slice is supported by full gates, self-review, and live
+dogfood evidence.
+```
+
 Slice 30P is closed:
 
 ```txt

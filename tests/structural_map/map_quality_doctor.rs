@@ -56,6 +56,48 @@ fn doctor_reports_map_quality_warnings_for_incomplete_owner_surfaces() {
 }
 
 #[test]
+fn doctor_env_quality_counts_missing_static_readers_without_per_env_cone_scan() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join(".env.example"),
+        "SHARED_KEY=\nROOT_ONLY_KEY=\n",
+    );
+    write(
+        &repo.path().join("apps/api/.env.example"),
+        "SHARED_KEY=\nAPI_ONLY_KEY=\n",
+    );
+    write(
+        &repo.path().join("apps/api/src/main.ts"),
+        "export const shared = process.env.SHARED_KEY;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "env quality"]);
+
+    let doctor = run_json(repo.path(), cache.path(), &["doctor", "--format", "json"]);
+    assert_schema("schemas/status.schema.json", &doctor);
+    let warning = doctor["map_quality"]
+        .as_array()
+        .expect("map_quality")
+        .iter()
+        .find(|warning| warning["kind"] == "env_config_without_consumers")
+        .unwrap_or_else(|| panic!("env map-quality warning should be present: {doctor:#}"));
+    let examples = warning["examples"].as_array().expect("examples");
+    for expected in [
+        ".env.example (1 keys without static readers)",
+        "apps/api/.env.example (1 keys without static readers)",
+    ] {
+        assert!(
+            examples.iter().any(|example| example.as_str() == Some(expected)),
+            "doctor should count missing env readers per env owner without requiring a full cone proof scan: {doctor:#}"
+        );
+    }
+}
+
+#[test]
 fn doctor_schema_proof_warning_skips_schema_contracts_without_owner_detector() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");
@@ -84,6 +126,36 @@ fn doctor_schema_proof_warning_skips_schema_contracts_without_owner_detector() {
             .iter()
             .all(|warning| warning["kind"] != "schema_without_deterministic_proof"),
         "doctor should not ask DB-schema proof sensors from JSON schemas or TS type contracts: {doctor:#}"
+    );
+}
+
+#[test]
+fn doctor_schema_role_warning_does_not_flag_contract_tests() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{"name":"contract-test-fixture","scripts":{"test":"vitest run"}}"#,
+    );
+    write(
+        &repo.path().join("packages/contracts/tests/http/envelope.contract.test.ts"),
+        "import { describe, it } from 'vitest';\ndescribe('contract', () => { it('checks envelope', () => {}); });\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "contract test"]);
+
+    let doctor = run_json(repo.path(), cache.path(), &["doctor", "--format", "json"]);
+    assert_schema("schemas/status.schema.json", &doctor);
+    assert!(
+        !doctor["map_quality"]
+            .as_array()
+            .expect("map_quality")
+            .iter()
+            .any(|warning| warning["kind"] == "schema_role_missing"),
+        "contract tests are proof surfaces, not schema owners missing schema roles: {doctor:#}"
     );
 }
 

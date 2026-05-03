@@ -51,6 +51,8 @@ pub fn changed(report: &ChangedReport, section_filter: Option<&str>) {
     }
 }
 
+const COMPACT_CHANGED_PROOF_COMMAND_LIMIT: usize = 3;
+
 fn changed_render_hidden(report: &ChangedReport, compact: bool) -> Vec<crate::model::HiddenGroup> {
     let mut hidden = report.hidden.clone();
     let render_limit = changed_render_limit(report, compact);
@@ -76,6 +78,19 @@ fn changed_render_hidden(report: &ChangedReport, compact: bool) -> Vec<crate::mo
                 structural_group_count
             ),
         });
+    }
+    if compact {
+        let proof_group_count = changed_proof_command_groups(report).len();
+        if proof_group_count > COMPACT_CHANGED_PROOF_COMMAND_LIMIT {
+            hidden.push(crate::model::HiddenGroup {
+                reason: "proof command groups hidden by compact changed view".to_string(),
+                count: proof_group_count - COMPACT_CHANGED_PROOF_COMMAND_LIMIT,
+                expand: format!(
+                    "codemap changed{} --section proof",
+                    changed_selector_suffix(&report.selector)
+                ),
+            });
+        }
     }
     hidden
 }
@@ -308,6 +323,59 @@ fn changed_proof_section(report: &ChangedReport, compact: bool) {
     if report.proof.commands.is_empty() && report.proof.fallback.is_empty() {
         println!("No proof command inferred.");
     }
+    let grouped = changed_proof_command_groups(report);
+    let visible_group_limit = if compact {
+        COMPACT_CHANGED_PROOF_COMMAND_LIMIT
+    } else {
+        usize::MAX
+    };
+    let total_group_count = grouped.len();
+    let visible_group_count = total_group_count.min(visible_group_limit);
+    for (command, (sensors, hidden_count)) in grouped.iter().take(visible_group_count) {
+        println!("\n### `{command}`");
+        changed_proof_command_group_details(sensors, *hidden_count, compact, &report.selector);
+    }
+    if compact && total_group_count > visible_group_count {
+        let hidden_command_groups = total_group_count - visible_group_count;
+        println!("\n- hidden proof command groups: `{hidden_command_groups}`");
+        println!(
+            "  expand: `{}`",
+            root_aware_expand(&format!(
+                "codemap changed{} --section proof",
+                changed_selector_suffix(&report.selector)
+            ))
+        );
+    }
+    if !report.proof.fallback.is_empty() {
+        println!("\n### Fallback");
+        println!("{}", code_block("bash", &report.proof.fallback));
+    }
+    println!("\n### Sensor Counts");
+    if compact {
+        println!(
+            "- direct: `{}`; indirect: `{}`; e2e: `{}`; contract: `{}`; missing_direct: `{}`",
+            report.proof.direct.len(),
+            report.proof.indirect.len(),
+            report.proof.e2e.len(),
+            report.proof.contract.len(),
+            report.proof.missing_direct.len()
+        );
+    } else {
+        for (kind, count) in [
+            ("direct", report.proof.direct.len()),
+            ("indirect", report.proof.indirect.len()),
+            ("e2e", report.proof.e2e.len()),
+            ("contract", report.proof.contract.len()),
+            ("missing_direct", report.proof.missing_direct.len()),
+        ] {
+            println!("- {kind}: `{count}`");
+        }
+    }
+}
+
+fn changed_proof_command_groups(
+    report: &ChangedReport,
+) -> std::collections::BTreeMap<String, (Vec<&ProofSurface>, usize)> {
     let mut grouped: std::collections::BTreeMap<String, (Vec<&ProofSurface>, usize)> =
         std::collections::BTreeMap::new();
     for command in &report.proof.commands {
@@ -337,71 +405,52 @@ fn changed_proof_section(report: &ChangedReport, compact: bool) {
                 .1 += command.hidden_count;
         }
     }
-    for (command, (sensors, hidden_count)) in grouped {
-        println!("\n### `{command}`");
-        if sensors.is_empty() {
-            println!("- no sensor details");
+    grouped
+}
+
+fn changed_proof_command_group_details(
+    sensors: &[&ProofSurface],
+    hidden_count: usize,
+    compact: bool,
+    selector: &str,
+) {
+    if sensors.is_empty() {
+        println!("- no sensor details");
+    } else {
+        println!("- sensors: `{}`", sensors.len());
+        proof_count_line("evidence", evidence_counts(sensors));
+        proof_count_line("strength", strength_counts(sensors));
+        let sample_limit = if compact {
+            sensors.len().min(3)
+        } else if sensors.len() <= 6 {
+            sensors.len()
         } else {
-            println!("- sensors: `{}`", sensors.len());
-            proof_count_line("evidence", evidence_counts(&sensors));
-            proof_count_line("strength", strength_counts(&sensors));
-            let sample_limit = if compact {
-                sensors.len().min(3)
-            } else if sensors.len() <= 6 {
-                sensors.len()
-            } else {
-                5
-            };
-            println!("- sample:");
-            for sensor in sensors.iter().take(sample_limit) {
-                let path = sensor.path.as_deref().unwrap_or("none");
-                println!(
-                    "  - `{}` [{}; {}] {}",
-                    path,
-                    sensor.evidence,
-                    format!("{:?}", sensor.strength).to_ascii_lowercase(),
-                    proof_location_summary(&sensor.locations)
-                );
-            }
-            let hidden_details = sensors.len().saturating_sub(sample_limit);
-            if hidden_details > 0 {
-                println!("- hidden details: `{hidden_details}` sensors");
-            }
-        }
-        if hidden_count > 0 {
-            println!("- hidden: {hidden_count} sensors");
+            5
+        };
+        println!("- sample:");
+        for sensor in sensors.iter().take(sample_limit) {
+            let path = sensor.path.as_deref().unwrap_or("none");
             println!(
-                "  expand: `{}`",
-                root_aware_expand(&format!(
-                    "codemap proof-map --changed --raw-sensors --limit {}",
-                    sensors.len() + hidden_count
-                ))
+                "  - `{}` [{}; {}] {}",
+                path,
+                sensor.evidence,
+                format!("{:?}", sensor.strength).to_ascii_lowercase(),
+                proof_location_summary(&sensor.locations)
             );
         }
-    }
-    if !report.proof.fallback.is_empty() {
-        println!("\n### Fallback");
-        println!("{}", code_block("bash", &report.proof.fallback));
-    }
-    println!("\n### Sensor Counts");
-    if compact {
-        println!(
-            "- direct: `{}`; indirect: `{}`; e2e: `{}`; contract: `{}`; missing_direct: `{}`",
-            report.proof.direct.len(),
-            report.proof.indirect.len(),
-            report.proof.e2e.len(),
-            report.proof.contract.len(),
-            report.proof.missing_direct.len()
-        );
-    } else {
-        for (kind, count) in [
-            ("direct", report.proof.direct.len()),
-            ("indirect", report.proof.indirect.len()),
-            ("e2e", report.proof.e2e.len()),
-            ("contract", report.proof.contract.len()),
-            ("missing_direct", report.proof.missing_direct.len()),
-        ] {
-            println!("- {kind}: `{count}`");
+        let hidden_details = sensors.len().saturating_sub(sample_limit);
+        if hidden_details > 0 {
+            println!("- hidden details: `{hidden_details}` sensors");
         }
+    }
+    if hidden_count > 0 {
+        println!("- hidden: {hidden_count} sensors");
+        println!(
+            "  expand: `{}`",
+            root_aware_expand(&format!(
+                "codemap proof-map {selector} --raw-sensors --limit {}",
+                sensors.len() + hidden_count
+            ))
+        );
     }
 }

@@ -67,6 +67,7 @@ include!("structural_map/lens_commands.rs");
 include!("structural_map/impact_limits.rs");
 include!("structural_map/diff_map_limits.rs");
 include!("structural_map/changed_lens.rs");
+include!("structural_map/changed_proof_compact.rs");
 include!("structural_map/changed_git_events.rs");
 include!("structural_map/changed_anchor_markdown.rs");
 include!("structural_map/lens_budget.rs");

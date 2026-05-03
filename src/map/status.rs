@@ -130,6 +130,8 @@ fn map_quality_warnings(project: &Project) -> Vec<MapQualityWarning> {
         |file| {
             let name = status_file_name(&file.rel);
             !file.has_role("manifest")
+                && !file.has_role("test")
+                && !file.has_role("e2e_test")
                 && !repo::is_package_manifest_name(&name)
                 && repo::is_schema_contract_surface(&file.rel.to_ascii_lowercase(), &name, &file.ext)
                 && !file.has_role("migration")
@@ -193,7 +195,7 @@ fn push_owner_surface_proof_warning(
         .filter(|file| file.has_role(role))
         .filter(|file| !is_support_artifact_path(&file.rel))
         .filter(|file| candidate(file))
-        .filter(|file| owner_surface_proof_surfaces(project, &file.rel).is_empty())
+        .filter(|file| !owner_surface_has_deterministic_proof(project, file))
         .map(|file| file.rel.clone())
         .collect::<Vec<_>>();
     let expand = examples
@@ -202,11 +204,43 @@ fn push_owner_surface_proof_warning(
     push_map_quality_warning(warnings, kind, examples, reason, effect, expand);
 }
 
+fn owner_surface_has_deterministic_proof(project: &Project, file: &FileInfo) -> bool {
+    if file.has_role("manifest") {
+        if !manifest_script_proof_surfaces(project, file).is_empty() {
+            return true;
+        }
+        if !manifest_ci_reference_proof_surfaces(project, file).is_empty() {
+            return true;
+        }
+    }
+    if file.has_role("schema_contract") || schema_owner_path(&file.rel) {
+        if !schema_script_proof_surfaces(project, file).is_empty() {
+            return true;
+        }
+        if !schema_ci_reference_proof_surfaces(project, file).is_empty() {
+            return true;
+        }
+    }
+    if file.has_role("env_config") {
+        if !env_consumer_proof_surfaces(project, file).is_empty() {
+            return true;
+        }
+        if !env_ci_reference_proof_surfaces(project, file).is_empty() {
+            return true;
+        }
+    }
+    if file.has_role("build_ci") {
+        return !ci_owner_proof_surfaces(project, file).is_empty();
+    }
+    false
+}
+
 fn schema_proof_warning_candidate(file: &FileInfo) -> bool {
     schema_owner_path(&file.rel)
 }
 
 fn push_env_quality_warning(project: &Project, warnings: &mut Vec<MapQualityWarning>) {
+    let env_reader_keys = status_env_reader_keys(project);
     let examples = project
         .files
         .values()
@@ -217,7 +251,10 @@ fn push_env_quality_warning(project: &Project, warnings: &mut Vec<MapQualityWarn
             if keys.is_empty() {
                 return Some(format!("{} (no declared keys)", file.rel));
             }
-            let missing_consumers = owner_env_unknowns(project, &file.rel).len();
+            let missing_consumers = keys
+                .iter()
+                .filter(|(key, _)| !env_reader_keys.contains(key.as_str()))
+                .count();
             (missing_consumers > 0)
                 .then(|| format!("{} ({missing_consumers} keys without static readers)", file.rel))
         })
@@ -234,6 +271,26 @@ fn push_env_quality_warning(project: &Project, warnings: &mut Vec<MapQualityWarn
         "runtime config cone has missing-consumer unknowns for at least one key",
         expand,
     );
+}
+
+fn status_env_reader_keys(project: &Project) -> BTreeSet<String> {
+    let mut keys = BTreeSet::new();
+    for file in project.files.values() {
+        if file.has_role("generated") || file.has_role("fixture") || file.has_role("archive") {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(project.root.join(&file.rel)) else {
+            continue;
+        };
+        for line in text.lines() {
+            if !line_may_contain_static_env_reference(line) {
+                continue;
+            }
+            keys.extend(static_env_names(line));
+            keys.extend(prisma_env_names(line));
+        }
+    }
+    keys
 }
 
 fn push_stale_lens_artifact_warning(project: &Project, warnings: &mut Vec<MapQualityWarning>) {
