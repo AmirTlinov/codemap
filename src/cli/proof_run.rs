@@ -59,22 +59,58 @@ fn run_proof_plan(
     project: &crate::model::Project,
     report: &crate::model::ProofReport,
 ) -> Result<()> {
-    let proof_commands = report
-        .proofs
-        .iter()
-        .filter_map(|proof| proof.command.clone())
-        .collect::<Vec<_>>();
-    let commands = if proof_commands.is_empty() {
-        report.fallback.clone()
-    } else {
-        proof_commands
-    };
+    let commands = proof_plan_commands_for_run(report);
     let plan = crate::model::VerificationPlan {
         minimal: commands,
         supplemental: Vec::new(),
         full_only_if_triggered: Vec::new(),
     };
     run_plan(project, &plan, false)
+}
+
+fn proof_plan_commands_for_run(report: &crate::model::ProofReport) -> Vec<String> {
+    let proof_commands = proof_run_commands(report);
+    if proof_commands.is_empty() {
+        report.fallback.clone()
+    } else {
+        proof_commands
+    }
+}
+
+fn proof_run_commands(report: &crate::model::ProofReport) -> Vec<String> {
+    report
+        .proofs
+        .iter()
+        .filter(|proof| proof_surface_command_closes_run(proof))
+        .filter_map(|proof| proof.command.clone())
+        .collect()
+}
+
+fn proof_surface_command_closes_run(proof: &crate::model::ProofSurface) -> bool {
+    if proof.command.is_none() {
+        return false;
+    }
+    if proof.strength >= crate::model::EvidenceStrength::High {
+        return true;
+    }
+    matches!(
+        proof_base_evidence_for_run(&proof.evidence),
+        "test_import"
+            | "test_imported_symbol_reference"
+            | "test_reexported_symbol_reference"
+            | "test_support_import"
+            | "test_symbol_reference"
+            | "e2e_route"
+    )
+}
+
+fn proof_base_evidence_for_run(evidence: &str) -> &str {
+    evidence
+        .strip_suffix("_owning_file")
+        .or_else(|| evidence.strip_suffix("_via_direct_consumer"))
+        .or_else(|| evidence.strip_suffix("_via_direct_dependency"))
+        .or_else(|| evidence.strip_suffix("_via_local_symbol_consumer"))
+        .unwrap_or(evidence)
 }
 
 fn run_plan(

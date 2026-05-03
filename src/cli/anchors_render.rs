@@ -73,9 +73,11 @@ fn anchors_markdown(report: &AnchorValidation) {
 
 #[cfg(test)]
 mod tests {
-    use crate::model::VerificationPlan;
+    use crate::model::{
+        EvidenceLocation, EvidenceStrength, ProofReport, ProofSurface, VerificationPlan,
+    };
 
-    use super::{planned_run_commands, resolve_run_command};
+    use super::{planned_run_commands, proof_plan_commands_for_run, resolve_run_command};
 
     #[test]
     fn run_plan_dedupes_minimal_and_supplemental_commands() {
@@ -114,6 +116,41 @@ mod tests {
             error
                 .to_string()
                 .contains("verification plan contains non-runnable placeholder commands")
+        );
+    }
+
+    #[test]
+    fn proof_run_uses_fallback_when_only_soft_evidence_exists() {
+        let report = ProofReport {
+            kind: "proof_plan",
+            schema_version: "6",
+            target: Some("src/routes.ts".to_string()),
+            changed: Vec::new(),
+            risk: "medium".to_string(),
+            proofs: vec![ProofSurface {
+                command: Some("pnpm exec vitest run tests/routes.test.ts".to_string()),
+                path: Some("tests/routes.test.ts".to_string()),
+                evidence: "test_surface_tokens".to_string(),
+                strength: EvidenceStrength::Medium,
+                reason: "test path/symbols match anchor surface".to_string(),
+                locations: vec![EvidenceLocation::line(
+                    "tests/routes.test.ts",
+                    1,
+                    "test_surface",
+                )],
+            }],
+            fallback: vec!["pnpm test".to_string()],
+            unknowns: Vec::new(),
+            hidden: Vec::new(),
+            expand: Vec::new(),
+            run_hint: "codemap proof prints only by default; use --run to execute proof commands"
+                .to_string(),
+        };
+
+        assert_eq!(
+            proof_plan_commands_for_run(&report),
+            vec!["pnpm test"],
+            "soft token/path evidence must not become the direct --run command"
         );
     }
 

@@ -66,6 +66,33 @@ No broad numbered slice is active after the 2026-05-03 closure audit. Pick the
 next boundary from the largest daily-workflow gap observed in live use, not by
 continuing the slice number ritual.
 
+Depth/proof confidence 2026-05-03 is closed:
+
+```txt
+status: closed
+tier: focused/full/live
+closed: `codemap ls . --depth 1` and `codemap changed --depth 1` now parse as
+no-friction daily commands. Expanded `--depth > 1` on those fixed-depth maps
+fails closed and points to `cone` or `proof`. `proof` markdown now separates
+deterministic proof from token/name/path `Soft Evidence`, and `proof --run`
+uses fallback commands when only soft evidence exists.
+guardrails: `--depth` stays hidden on `ls`/`changed`; JSON schemas are not
+changed; soft evidence does not clear `Unknown`, execute as hard proof, or
+introduce ranking/recommendation language.
+proof: focused depth compatibility/fail-closed tests, soft-proof regression,
+`proof --run` fallback unit test, `cargo fmt --check`, `cargo test --quiet`,
+`cargo clippy --all-targets -- -D warnings`, `cargo run --quiet --bin codemap
+-- doctor`, and `git diff --check`.
+live: dogfood with `target/debug/codemap` on current repo, Levelly-1, and
+Sillentway-VPN produced 64 probes, 0 failures, and 0 over-budget outputs.
+Installed PATH smoke covered `ls --depth 1`, `changed --depth 1`,
+`changed --depth 2`, `proof changed`, Levelly root orientation, and Levelly
+Prisma proof separation.
+review: first reviewer CHANGES found missing negative depth coverage; the
+fail-closed regression was added, the full gate rerun, and final reviewer PASS
+confirmed the CLI/proof contract.
+```
+
 Closure audit 2026-05-03 is closed:
 
 ```txt

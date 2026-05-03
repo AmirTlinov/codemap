@@ -82,6 +82,7 @@ pub fn run() -> Result<()> {
         CommandKind::Ls(args) => {
             ensure_valid_config(&project)?;
             let path = project_relative_arg(&project, &args.path)?;
+            accept_depth_compat(args.depth, "ls")?;
             let report = map::ls_report(&project, &path, args.include_hidden, args.limit);
             maybe_write_ls_lens_cache(&project, &path, &args, &report);
             output(args.format, &report, || {
@@ -109,6 +110,7 @@ pub fn run() -> Result<()> {
         }
         CommandKind::Changed(args) => {
             ensure_valid_config(&project)?;
+            accept_depth_compat(args.depth, "changed")?;
             let (changed, selector, mode, git_state) = changed_inputs(&project, &args)?;
             let limit = if args.include_hidden {
                 usize::MAX / 2
@@ -296,4 +298,13 @@ pub fn run() -> Result<()> {
             }
         },
     }
+}
+
+fn accept_depth_compat(depth: usize, command: &str) -> Result<()> {
+    if depth <= 1 {
+        return Ok(());
+    }
+    bail!(
+        "codemap {command} currently keeps depth fixed at 1; use `codemap cone <anchor> --depth {depth}` or `codemap proof <anchor|changed> --depth {depth}` for expanded neighborhoods"
+    );
 }

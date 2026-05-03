@@ -5,6 +5,7 @@ fn try_cached_ls_fast_path(
     let CommandKind::Ls(args) = command else {
         return Ok(None);
     };
+    accept_depth_compat(args.depth, "ls")?;
     let cwd = env::current_dir()?;
     let root = repo::resolve_root(root_selection, &cwd)?;
     let path = root_relative_arg(&root, &args.path)?;
@@ -70,6 +71,7 @@ fn try_clean_changed_fast_path(
     let CommandKind::Changed(args) = command else {
         return Ok(None);
     };
+    accept_depth_compat(args.depth, "changed")?;
     ensure_single_diff_selector(
         args.changed,
         args.staged,
@@ -101,6 +103,7 @@ fn try_cached_changed_fast_path(
     let CommandKind::Changed(args) = command else {
         return Ok(None);
     };
+    accept_depth_compat(args.depth, "changed")?;
     ensure_single_diff_selector(
         args.changed,
         args.staged,

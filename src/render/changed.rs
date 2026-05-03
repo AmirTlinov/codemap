@@ -418,6 +418,14 @@ fn changed_proof_command_group_details(
         println!("- no sensor details");
     } else {
         println!("- sensors: `{}`", sensors.len());
+        let deterministic = sensors
+            .iter()
+            .filter(|sensor| proof_surface_is_deterministic_for_display(sensor))
+            .count();
+        let soft = sensors.len().saturating_sub(deterministic);
+        if soft > 0 {
+            println!("- proof class: `deterministic: {deterministic}`, `soft_evidence: {soft}`");
+        }
         proof_count_line("evidence", evidence_counts(sensors));
         proof_count_line("strength", strength_counts(sensors));
         let sample_limit = if compact {

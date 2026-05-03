@@ -133,6 +133,8 @@ struct FilesArgs {
 struct LsArgs {
     #[arg(default_value = ".")]
     path: String,
+    #[arg(long, default_value_t = 1, hide = true)]
+    depth: usize,
     #[arg(long, value_enum)]
     section: Option<LsSection>,
     #[arg(long = "all", alias = "include-hidden")]
@@ -234,6 +236,8 @@ struct ChangedArgs {
     files: Option<String>,
     #[arg(hide = true)]
     positional_files: Vec<String>,
+    #[arg(long, default_value_t = 1, hide = true)]
+    depth: usize,
     #[arg(long, value_enum)]
     section: Option<ChangedSection>,
     #[arg(long = "all", alias = "include-hidden")]

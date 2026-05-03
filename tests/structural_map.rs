@@ -4,6 +4,7 @@ include!("structural_map/support_assertions.rs");
 include!("structural_map/support_js_symbol_fixture.rs");
 include!("structural_map/support_barrel_negative_fixture.rs");
 include!("structural_map/cli_map_core.rs");
+include!("structural_map/cli_depth_compat.rs");
 include!("structural_map/product_invariants.rs");
 include!("structural_map/cognitive_gates.rs");
 include!("structural_map/fact_constructor_guards.rs");

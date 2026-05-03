@@ -5,8 +5,8 @@ use std::sync::OnceLock;
 use crate::map::StatusReport;
 use crate::model::{
     BoundaryFinding, BoundaryMapReport, ChangedReport, ConeReport, ContractReport, DeleteReport,
-    DiffMapReport, EnvSurface, EvidenceLocation, FlowReport, GraphEdge, GraphLens, ImpactCluster,
-    ImpactReport, LsReport, PlaceReport, ProofMapReport, ProofReport, ProofSurface,
+    DiffMapReport, EnvSurface, EvidenceLocation, EvidenceStrength, FlowReport, GraphEdge, GraphLens,
+    ImpactCluster, ImpactReport, LsReport, PlaceReport, ProofMapReport, ProofReport, ProofSurface,
     RuntimeReport, RuntimeRoute, SiblingsReport, StructuralEdge, Surface, TeachReport, Unknown,
 };
 

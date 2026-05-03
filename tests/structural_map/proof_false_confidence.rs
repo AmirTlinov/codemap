@@ -127,8 +127,10 @@ fn soft_token_proof_does_not_hide_missing_deterministic_proof_or_fallback() {
     );
     let proof_only_markdown = String::from_utf8(proof_only.stdout).expect("proof markdown utf8");
     assert!(
-        proof_only_markdown.contains("## Proof") && proof_only_markdown.contains("## Fallback"),
-        "proof --section proof should show proof surfaces and fallback commands: {proof_only_markdown}"
+        proof_only_markdown.contains("## Soft Evidence")
+            && proof_only_markdown.contains("## Fallback")
+            && proof_only_markdown.contains("does not replace deterministic proof"),
+        "proof --section proof should label soft proof separately and keep fallback commands: {proof_only_markdown}"
     );
     assert!(
         !proof_only_markdown.contains("## Unknown"),

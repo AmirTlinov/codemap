@@ -88,7 +88,7 @@ pub fn proof(report: &ProofReport, section_filter: Option<&str>) {
         return;
     }
     if !report.proofs.is_empty() {
-        proof_plan_surface_section("Proofs", report);
+        proof_plan_surface_sections(report, false);
     }
     if !report.fallback.is_empty() {
         println!("\n## Fallback\n");
@@ -172,7 +172,7 @@ fn proof_roles_section(report: &ProofReport) {
 
 fn proof_plan_section(report: &ProofReport, force: bool) {
     if !report.proofs.is_empty() {
-        proof_plan_surface_section("Proof", report);
+        proof_plan_surface_sections(report, force);
     }
     if !report.fallback.is_empty() {
         println!("\n## Fallback\n");
@@ -265,15 +265,42 @@ fn proof_anchor_count(report: &ProofReport) -> usize {
         .unwrap_or(report.changed.len())
 }
 
-fn proof_plan_surface_section(title: &str, report: &ProofReport) {
+fn proof_plan_surface_sections(report: &ProofReport, force: bool) {
+    let deterministic = report
+        .proofs
+        .iter()
+        .filter(|proof| proof_surface_is_deterministic_for_display(proof))
+        .collect::<Vec<_>>();
+    let soft = report
+        .proofs
+        .iter()
+        .filter(|proof| !proof_surface_is_deterministic_for_display(proof))
+        .collect::<Vec<_>>();
+    if deterministic.is_empty() && force && !soft.is_empty() {
+        proof_empty_section(
+            "Proof",
+            "No deterministic proof surfaces were emitted; soft evidence is shown separately.",
+        );
+    } else if !deterministic.is_empty() {
+        proof_plan_surface_section("Proof", report, &deterministic);
+    }
+    if !soft.is_empty() {
+        proof_plan_surface_section("Soft Evidence", report, &soft);
+        println!(
+            "\nSoft evidence is token/name/path surface overlap. It does not replace deterministic proof or remove Unknown entries."
+        );
+    }
+}
+
+fn proof_plan_surface_section(title: &str, report: &ProofReport, proofs: &[&ProofSurface]) {
     println!("\n## {title}");
     let mut grouped: std::collections::BTreeMap<String, Vec<&ProofSurface>> =
         std::collections::BTreeMap::new();
-    for proof in &report.proofs {
+    for proof in proofs {
         grouped
             .entry(proof_display_command(proof))
             .or_default()
-            .push(proof);
+            .push(*proof);
     }
     for (command, proofs) in grouped {
         println!("\n### `{command}`");
@@ -306,6 +333,30 @@ fn proof_plan_surface_section(title: &str, report: &ProofReport) {
             }
         }
     }
+}
+
+fn proof_surface_is_deterministic_for_display(proof: &ProofSurface) -> bool {
+    if proof.strength >= EvidenceStrength::High {
+        return true;
+    }
+    matches!(
+        proof_base_evidence_for_display(&proof.evidence),
+        "test_import"
+            | "test_imported_symbol_reference"
+            | "test_reexported_symbol_reference"
+            | "test_support_import"
+            | "test_symbol_reference"
+            | "e2e_route"
+    )
+}
+
+fn proof_base_evidence_for_display(evidence: &str) -> &str {
+    evidence
+        .strip_suffix("_owning_file")
+        .or_else(|| evidence.strip_suffix("_via_direct_consumer"))
+        .or_else(|| evidence.strip_suffix("_via_direct_dependency"))
+        .or_else(|| evidence.strip_suffix("_via_local_symbol_consumer"))
+        .unwrap_or(evidence)
 }
 
 fn proof_display_command(proof: &ProofSurface) -> String {
