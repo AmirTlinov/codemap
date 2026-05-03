@@ -46,6 +46,14 @@ fn dogfood_script_runs_daily_and_focused_probes_read_only() {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("[dogfood] repo-start")
+            && stderr.contains("[dogfood] run repo=")
+            && stderr.contains("[dogfood] done repo=")
+            && stderr.contains("[dogfood] summary probes="),
+        "dogfood script should expose live progress on stderr: {stderr}"
+    );
 
     let summary_path = out.path().join("summary.jsonl");
     let summary = fs::read_to_string(&summary_path).expect("summary jsonl");

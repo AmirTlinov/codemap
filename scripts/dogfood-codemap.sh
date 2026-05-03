@@ -59,6 +59,10 @@ safe_label() {
   tr -c 'A-Za-z0-9_.-' '_' <<<"$1"
 }
 
+progress() {
+  printf '[dogfood] %s\n' "$*" >&2
+}
+
 line_budget_for() {
   case "$1" in
     doctor) echo 180 ;;
@@ -227,13 +231,15 @@ run_probe_command() {
   shift 5
   local command_text="$*"
   local output_path="$out_dir/$name.$(safe_label "$label").md"
-  local start end status line_count hidden_lines unknown_lines map_quality_lines budget budget_status
+  local start end elapsed_ms status line_count hidden_lines unknown_lines map_quality_lines budget budget_status
+  progress "run repo=$name label=$label command=$command_text"
   start="$(python3 -c 'import time; print(time.time_ns())')"
   set +e
   CODEMAP_CACHE_DIR="$cache_dir" "${codemap_bin[@]}" --root "$target" "$@" >"$output_path" 2>>"$log"
   status=$?
   set -e
   end="$(python3 -c 'import time; print(time.time_ns())')"
+  elapsed_ms="$(((end - start) / 1000000))"
   line_count="$(wc -l <"$output_path" | tr -d ' ')"
   hidden_lines="$(count_output_lines_matching 'hidden|Hidden' "$output_path")"
   unknown_lines="$(count_output_lines_matching 'unknown|Unknown|No deterministic proof sensor' "$output_path")"
@@ -249,25 +255,30 @@ run_probe_command() {
     "$(printf '%s' "$label" | json_escape)" \
     "$(printf '%s' "$command_text" | json_escape)" \
     "$status" \
-    "$(((end - start) / 1000000))" \
+    "$elapsed_ms" \
     "$line_count" \
     "$budget" \
     "$hidden_lines" \
     "$unknown_lines" \
     "$map_quality_lines" \
     "$(printf '%s' "$budget_status" | json_escape)" >>"$summary"
+  progress "done repo=$name label=$label status=$status elapsed_ms=$elapsed_ms lines=$line_count/$budget budget=$budget_status output=$(basename "$output_path")"
 }
 
 run_probe() {
   local target="$1"
+  local index="${2:-?}"
+  local total="${3:-?}"
   local name
   name="$(basename "$target" | tr -c 'A-Za-z0-9_.-' '_')"
   local log="$out_dir/$name.log"
   local summary="$out_dir/$name.summary.jsonl"
   : >"$log"
   : >"$summary"
+  progress "repo-start index=$index/$total name=$name path=$target"
   if [[ ! -d "$target" ]]; then
     printf '{"repo":%s,"status":"missing"}\n' "$(printf '%s' "$target" | json_escape)" >>"$summary"
+    progress "repo-missing index=$index/$total name=$name path=$target"
     return 0
   fi
   run_probe_command "$target" "$name" "$summary" "$log" doctor doctor
@@ -321,14 +332,35 @@ run_probe() {
     run_probe_command "$target" "$name" "$summary" "$log" cone_owner_ci cone "$ci_owner"
     run_probe_command "$target" "$name" "$summary" "$log" proof_owner_ci proof "$ci_owner"
   fi
+  progress "repo-done index=$index/$total name=$name summary=$(basename "$summary")"
 }
 
+progress "start targets=${#targets[@]} out=$out_dir cache=$cache_dir"
+target_index=0
 for target in "${targets[@]}"; do
-  run_probe "$target"
+  target_index=$((target_index + 1))
+  run_probe "$target" "$target_index" "${#targets[@]}"
 done
 
 : >"$out_dir/summary.jsonl"
 while IFS= read -r summary_file; do
   cat "$summary_file" >>"$out_dir/summary.jsonl"
 done < <(find "$out_dir" -maxdepth 1 -type f -name '*.summary.jsonl' ! -name 'summary.jsonl' | sort)
+summary_counts="$(python3 - "$out_dir/summary.jsonl" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+rows = []
+with open(path, encoding="utf-8") as fh:
+    for line in fh:
+        line = line.strip()
+        if line:
+            rows.append(json.loads(line))
+failures = sum(1 for row in rows if row.get("status", 0) != 0)
+over = sum(1 for row in rows if row.get("budget_status") == "over")
+print(f"probes={len(rows)} failures={failures} over_budget={over}")
+PY
+)"
+progress "summary $summary_counts path=$out_dir/summary.jsonl"
 echo "dogfood summary: $out_dir/summary.jsonl"

@@ -138,6 +138,30 @@ independent PASS; the slice is supported by full gates, self-review, and live
 dogfood evidence.
 ```
 
+Dogfood progress 2026-05-03 is closed:
+
+```txt
+status: closed
+tier: focused/full/live
+closed: `scripts/dogfood-codemap.sh` no longer becomes a silent long-running
+black box. It prints live progress to stderr for repo start, probe start, probe
+completion with elapsed time and line budget, repo completion, and final
+probe/failure/over-budget summary. Stdout remains the stable summary path.
+excluded: this does not optimize cold scan speed; it only makes live dogfood
+observable enough to drive the next performance slice from facts.
+proof: `bash -n scripts/dogfood-codemap.sh`, focused dogfood harness regression,
+`cargo fmt --check`, `cargo test --quiet`, `cargo clippy --all-targets -- -D
+warnings`, `cargo run --quiet --bin codemap -- doctor`, and `git diff --check`.
+live: current repo, Levelly-1, and main_cluster dogfood with
+`target/debug/codemap` produced 68 probes, 0 failures, 0 over-budget outputs.
+The progress stream exposed slow probes directly, including main_cluster
+`ls_root` around 22.5s, `doctor` around 17.2s, `proof_map_root` around 13.3s,
+and `flow_anchor` around 11.2s.
+review: short reviewer pass was attempted, but the local subagent review loop
+timed out and did not return a PASS/BLOCK verdict. This is not counted as an
+independent PASS.
+```
+
 Slice 30P is closed:
 
 ```txt
