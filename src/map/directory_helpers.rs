@@ -19,9 +19,12 @@ fn edge_type_priority(edge_type: &str) -> usize {
         "workspace_member" | "declares_workspace_pattern" => 1,
         "uses_lockfile" | "schema_migration" | "env_consumer" => 2,
         "declares_env" => 3,
-        "ci_calls_script" | "ci_runs_command" => 4,
-        "declares_script" => 5,
-        "runs_command" => 6,
+        "ci_calls_script" | "ci_runs_command" | "ci_validation_step" => 4,
+        "ci_release_step" => 5,
+        "ci_setup_step" => 6,
+        "ci_control_step" => 7,
+        "declares_script" => 8,
+        "runs_command" => 9,
         _ => 10,
     }
 }
@@ -70,6 +73,54 @@ fn balanced_edge_prefix_by_source(edges: &[StructuralEdge], limit: usize) -> Vec
     balanced
 }
 
+struct EdgeLimitBucket {
+    first_index: usize,
+    edges: VecDeque<StructuralEdge>,
+}
+
+fn balanced_edge_prefix_for_limit(edges: &[StructuralEdge], limit: usize) -> Vec<StructuralEdge> {
+    if edges.len() <= limit {
+        return edges.to_vec();
+    }
+
+    let mut buckets: BTreeMap<(String, String), EdgeLimitBucket> = BTreeMap::new();
+    for (index, edge) in edges.iter().cloned().enumerate() {
+        let edge_kind = if edge.edge_type.starts_with("ci_") {
+            edge.edge_type.clone()
+        } else {
+            String::new()
+        };
+        let entry = buckets
+            .entry((edge.from.clone(), edge_kind))
+            .or_insert_with(|| EdgeLimitBucket {
+                first_index: index,
+                edges: VecDeque::new(),
+            });
+        entry.edges.push_back(edge);
+    }
+
+    let mut buckets = buckets.into_values().collect::<Vec<_>>();
+    buckets.sort_by_key(|bucket| bucket.first_index);
+    let mut balanced = Vec::with_capacity(limit);
+    while balanced.len() < limit && !buckets.is_empty() {
+        let mut progressed = false;
+        for bucket in &mut buckets {
+            if balanced.len() == limit {
+                break;
+            }
+            if let Some(edge) = bucket.edges.pop_front() {
+                balanced.push(edge);
+                progressed = true;
+            }
+        }
+        buckets.retain(|bucket| !bucket.edges.is_empty());
+        if !progressed {
+            break;
+        }
+    }
+    balanced
+}
+
 fn limit_edge_section(
     edges: &mut Vec<StructuralEdge>,
     hidden: &mut Vec<HiddenGroup>,
@@ -82,7 +133,7 @@ fn limit_edge_section(
         return;
     }
     let count = edges.len();
-    edges.truncate(limit);
+    *edges = balanced_edge_prefix_for_limit(edges, limit);
     if count > edges.len() {
         hidden.push(HiddenGroup {
             reason: reason.to_string(),

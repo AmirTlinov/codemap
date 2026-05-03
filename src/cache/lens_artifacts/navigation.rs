@@ -230,7 +230,7 @@ impl CachedConeReport {
     fn into_report(self) -> ConeReport {
         ConeReport {
             kind: "cone_report",
-            schema_version: "4",
+            schema_version: "5",
             anchor: self.anchor,
             depth: self.depth,
             declared_env: self.declared_env,

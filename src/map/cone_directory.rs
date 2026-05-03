@@ -81,7 +81,7 @@ fn cone_directory_report(
 
     ConeReport {
         kind: "cone_report",
-        schema_version: "4",
+        schema_version: "5",
         anchor,
         depth,
         declared_env: Vec::new(),

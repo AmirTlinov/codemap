@@ -1363,6 +1363,34 @@ indexed, Prisma scripts are hard proof surfaces, `.env.example` Observed has
 24 source env declarations, and Links shows static env readers first.
 ```
 
+### Slice 30: Classified CI Owner Cones And Hard CI Proof
+
+```txt
+closed: CI owner cones now classify workflow logical `run` commands as
+validation, release, setup, or control edges with line provenance instead of
+flattening all commands into `ci_run_step` or treating shell-continuation
+fragments, heredoc payloads, or shell syntax-only markers as commands. CI owner
+proof now uses only hard validation run steps; generic medium role/script token
+matches no longer appear as workflow proof. Release-only workflows fail open
+with `ci_validation_step_not_found` plus fallback commands. Direct e2e/smoke
+scripts count as hard validation proof; support artifacts such as captured test
+output files do not.
+excluded: no new commands, flags, ranking, recommendations, or semantic CI
+judgment. Link-section hidden hints for very long workflows remain a separate
+compactness polish item.
+proof: focused CI owner cone/proof regressions, shell-continuation regression,
+support-artifact false-positive regression, cone/proof schema rails, stale lens
+artifact regression for lens format v13, and live probes on this repo,
+Levelly-1, and Sillentway-VPN.
+live: this repo `.github/workflows/ci.yml` proof shows only hard Cargo
+validation run steps. Levelly-1 deploy workflow cone separates
+`pnpm verify:*` validation, `pnpm release:prod` release, setup, and shell
+control lines; proof shows only hard `pnpm verify:local` and `pnpm verify:prod`.
+Sillentway-VPN proof includes e2e/smoke scripts as hard proof but excludes
+test-output aggregation lines. Final dogfood covered 64 probes across the three
+repos with 0 failures and 0 over-budget outputs.
+```
+
 ## Live Probe Set
 
 Use this only for live-relevant slices:

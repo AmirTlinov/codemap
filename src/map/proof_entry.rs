@@ -193,6 +193,16 @@ pub fn proof_report(
         ));
     }
     if let Some(target) = target.as_ref()
+        && let Some(file) = project.files.get(target)
+        && file.has_role("build_ci")
+        && !all_proofs.iter().any(|proof| {
+            proof_base_evidence(&proof.evidence) == "ci_run_step"
+                && proof.strength >= EvidenceStrength::High
+        })
+    {
+        unknowns.push(unknown_ci_validation_step_not_found(target));
+    }
+    if let Some(target) = target.as_ref()
         && (project.files.contains_key(target) || directory_has_files(project, target))
         && (proof_missing_should_surface(project, target)
             || all_proofs.iter().any(proof_surface_is_soft_structural_match))

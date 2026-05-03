@@ -35,7 +35,7 @@
       "kind": "cone",
       "file": "schemas/cone.schema.json",
       "contract": "structural_output",
-      "schema_version": "4",
+      "schema_version": "5",
       "json_kind": "cone_report"
     },
     {

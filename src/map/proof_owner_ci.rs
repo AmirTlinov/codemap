@@ -15,9 +15,18 @@ fn ci_run_steps(text: &str) -> Vec<CiRunStep> {
         };
         if ci_value_is_block_scalar(&spec.value) {
             index += 1;
+            let mut pending: Option<CiRunStep> = None;
+            let mut heredoc_until: Option<String> = None;
             while index < lines.len() {
                 let line = lines[index];
                 if line.trim().is_empty() {
+                    index += 1;
+                    continue;
+                }
+                if let Some(delimiter) = heredoc_until.as_deref() {
+                    if line.trim() == delimiter {
+                        heredoc_until = None;
+                    }
                     index += 1;
                     continue;
                 }
@@ -27,13 +36,15 @@ fn ci_run_steps(text: &str) -> Vec<CiRunStep> {
                 }
                 let command = trim_yaml_scalar(line.trim());
                 if !command.is_empty() && !command.starts_with('#') {
-                    out.push(CiRunStep {
-                        command,
-                        line: index + 1,
-                    });
+                    let heredoc_delimiter = shell_heredoc_delimiter(&command);
+                    push_ci_logical_command(&mut out, &mut pending, command, index + 1);
+                    if pending.is_none() {
+                        heredoc_until = heredoc_delimiter;
+                    }
                 }
                 index += 1;
             }
+            flush_ci_pending_command(&mut out, &mut pending);
             continue;
         }
         let command = trim_yaml_scalar(&spec.value);

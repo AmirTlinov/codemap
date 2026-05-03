@@ -188,12 +188,13 @@ fn owner_surface_cones_expose_manifest_schema_env_and_ci_neighborhoods() {
     );
     let ci_markdown = String::from_utf8(ci.stdout).expect("markdown utf8");
     assert!(
-        ci_markdown.contains("ci_run_step -> `pnpm --filter @fixture/api db:generate`")
-            && ci_markdown.contains("ci_run_step -> `pnpm --filter @fixture/api test`"),
-        "CI cone should show workflow run steps as deterministic edges: {ci_markdown}"
+        ci_markdown.contains("ci_control_step -> `test -n \"${DATABASE_URL}\" || exit 1`")
+            && ci_markdown.contains("ci_setup_step -> `pnpm --filter @fixture/api db:generate`")
+            && ci_markdown.contains("ci_validation_step -> `pnpm --filter @fixture/api test`"),
+        "CI cone should classify workflow run steps without losing provenance: {ci_markdown}"
     );
     assert!(
-        !ci_markdown.contains("ci_run_step -> `|`"),
+        !ci_markdown.contains("ci_control_step -> `|`"),
         "CI cone must not treat YAML block scalar markers as commands: {ci_markdown}"
     );
 }

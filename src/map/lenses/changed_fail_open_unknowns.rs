@@ -28,15 +28,25 @@ fn changed_fail_open_unknowns(project: &Project, changed: &[String]) -> Vec<Unkn
             unknowns.extend(owner_env_unknowns(project, rel));
             unknowns.extend(changed_env_unknowns(project, rel));
         }
-        if file.has_role("build_ci") && owner_ci_edges(project, rel).is_empty() {
-            unknowns.push(unknown(
-                "ci_run_step_not_found",
-                Some(rel),
-                None,
-                "no deterministic CI run step was found in this CI surface",
-                "CI cone cannot connect this workflow to scripts or validation commands",
-                Some(format!("codemap cone {}", shell_quote(rel))),
-            ));
+        if file.has_role("build_ci") {
+            if owner_ci_edges(project, rel).is_empty() {
+                unknowns.push(unknown(
+                    "ci_run_step_not_found",
+                    Some(rel),
+                    None,
+                    "no deterministic CI run step was found in this CI surface",
+                    "CI cone cannot connect this workflow to scripts or validation commands",
+                    Some(format!("codemap cone {}", shell_quote(rel))),
+                ));
+            } else if !owner_surface_proof_surfaces(project, rel)
+                .iter()
+                .any(|proof| {
+                    proof_base_evidence(&proof.evidence) == "ci_run_step"
+                        && proof.strength >= EvidenceStrength::High
+                })
+            {
+                unknowns.push(unknown_ci_validation_step_not_found(rel));
+            }
         }
     }
     unknowns

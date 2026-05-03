@@ -4,8 +4,14 @@ fn proof_surfaces_for_anchor(
     depth: usize,
     limit: usize,
 ) -> Vec<ProofSurface> {
+    let is_ci_owner = project
+        .files
+        .get(anchor)
+        .is_some_and(|file| file.has_role("build_ci"));
     let mut out = owner_surface_proof_surfaces(project, anchor);
-    out.extend(role_aware_command_proof_surfaces(project, anchor));
+    if !is_ci_owner {
+        out.extend(role_aware_command_proof_surfaces(project, anchor));
+    }
     for (test, evidence, strength) in strict_test_edges_for_file(project, anchor, limit) {
         out.push(ProofSurface {
             command: proof_command_for_test(project, &test),

@@ -369,15 +369,16 @@ fn owner_ci_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {
     };
     ci_run_steps(&text)
         .into_iter()
-        .map(|step| {
-            structural_edge_with_locations(
+        .filter_map(|step| {
+            let kind = ci_owner_step_kind(&step.command)?;
+            Some(structural_edge_with_locations(
                 rel.to_string(),
                 step.command,
-                "ci_run_step",
-                "ci_run",
+                kind.edge_type(),
+                kind.evidence(),
                 EvidenceStrength::Hard,
                 vec![EvidenceLocation::line(rel, step.line, "ci_step")],
-            )
+            ))
         })
         .collect()
 }

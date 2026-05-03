@@ -58,7 +58,7 @@ fn cone_symbol_report(
     }
     Some(ConeReport {
         kind: "cone_report",
-        schema_version: "4",
+        schema_version: "5",
         anchor,
         depth,
         declared_env: Vec::new(),
@@ -89,7 +89,7 @@ fn cone_missing_symbol_report(
     let anchor_path = symbol_anchor_path(&info.rel, symbol_name);
     ConeReport {
         kind: "cone_report",
-        schema_version: "4",
+        schema_version: "5",
         anchor: FileSummary {
             path: anchor_path.clone(),
             kind: "missing_symbol".to_string(),

@@ -21,7 +21,7 @@
   ],
   "properties": {
     "kind": { "const": "cone_report" },
-    "schema_version": { "const": "4" },
+    "schema_version": { "const": "5" },
     "anchor": { "$ref": "#/$defs/file_summary" },
     "depth": { "type": "integer", "minimum": 0 },
     "declared_env": {

@@ -89,6 +89,20 @@ fn unknown_missing_deterministic_proof(path: &str, expand: String) -> Unknown {
     )
 }
 
+fn unknown_ci_validation_step_not_found(path: &str) -> Unknown {
+    unknown(
+        "ci_validation_step_not_found",
+        Some(path),
+        None,
+        "no deterministic validation run step was found in this CI surface",
+        "CI proof can show fallback commands, but no workflow validation step was proven from a CI run line",
+        Some(format!(
+            "codemap cone {} --section links",
+            shell_quote(path)
+        )),
+    )
+}
+
 fn unresolved_import_unknowns(project: &Project, file: &FileInfo) -> Vec<Unknown> {
     file.unresolved_imports
         .iter()

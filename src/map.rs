@@ -49,6 +49,7 @@ include!("map/manifest_owner_surfaces.rs");
 include!("map/scope_repair.rs");
 include!("map/proof_entry.rs");
 include!("map/proof_owner_surfaces.rs");
+include!("map/proof_owner_ci_parse.rs");
 include!("map/proof_owner_ci.rs");
 include!("map/proof_owner_ci_validation.rs");
 include!("map/proof_surfaces.rs");
