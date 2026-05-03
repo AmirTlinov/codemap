@@ -99,6 +99,10 @@ fn cache_candidate_files(root: &Path) -> Vec<String> {
     files
 }
 
+pub(crate) fn structural_inventory_candidate_files(root: &Path) -> Vec<String> {
+    cache_candidate_files(root)
+}
+
 fn is_cache_candidate_file(root: &Path, rel: &str) -> bool {
     if should_ignore_rel(rel) {
         return false;

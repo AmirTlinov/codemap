@@ -394,6 +394,9 @@ fn directory_surface_role(kind: &str) -> Option<String> {
             | "owner_doc"
             | "migration"
             | "build_output"
+            | "agent_support"
+            | "file"
+            | "style"
     ) {
         Some(kind.to_string())
     } else {

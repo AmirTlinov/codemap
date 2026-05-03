@@ -27,6 +27,8 @@ include!("map/status.rs");
 include!("map/teach.rs");
 include!("map/entry.rs");
 include!("map/ls.rs");
+include!("map/root_inventory_ls.rs");
+include!("map/root_inventory_ls_helpers.rs");
 include!("map/directory_edges.rs");
 include!("map/directory_owner_edges.rs");
 include!("map/cone_directory.rs");

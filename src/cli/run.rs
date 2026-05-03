@@ -27,6 +27,9 @@ pub fn run() -> Result<()> {
     if let Some(()) = try_cached_ls_fast_path(&cli.command, &root_selection)? {
         return Ok(());
     }
+    if let Some(()) = try_cold_root_ls_fast_path(&cli.command, &root_selection)? {
+        return Ok(());
+    }
     if let Some(()) = try_cached_cone_fast_path(&cli.command, &root_selection)? {
         return Ok(());
     }

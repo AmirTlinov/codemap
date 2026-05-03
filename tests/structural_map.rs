@@ -31,6 +31,7 @@ include!("structural_map/swift_symbol_reference.rs");
 include!("structural_map/ui_surface_literals.rs");
 include!("structural_map/root_inventory.rs");
 include!("structural_map/root_ls_edges.rs");
+include!("structural_map/root_ls_cold_inventory.rs");
 include!("structural_map/root_ls_owner_links.rs");
 include!("structural_map/root_ls_workspace_roles.rs");
 include!("structural_map/contract_role_precision.rs");

@@ -62,9 +62,37 @@ repos would add noise instead of proof.
 
 ## Current Boundary
 
-No broad numbered slice is active after the 2026-05-03 closure audit. Pick the
-next boundary from the largest daily-workflow gap observed in live use, not by
-continuing the slice number ritual.
+Cold root orientation 2026-05-04 is closed:
+
+```txt
+status: closed
+tier: focused/full/live
+closed: cold `codemap ls .` on large repos now returns a bounded current-level
+inventory map before building the full source import index. The fast path is
+limited to `ls .` without `--all`, uses live git/filesystem inventory rather
+than stale lens cache, and exposes package manifests, root scripts, CI run
+steps, workspace members, env/config/schema/lockfile/docs/CI rails, and
+container hints with provenance. It does not emit fake `command:|` for
+multiline CI blocks, and it explicitly hides full source import edges behind
+`full-index source edges hidden by bounded root inventory`.
+guardrails: no new CLI command or flag, no ranking/recommendation language, no
+stale cache serving, no claim that inventory edges replace the full graph. The
+full-index escape hatch remains `codemap ls . --all`.
+proof: `cargo fmt --check`, `cargo test --quiet`, `cargo clippy --all-targets
+-- -D warnings`, `cargo run --quiet --bin codemap -- doctor`,
+`scripts/check-version-bump.sh`, `git diff --check`, and focused regression for
+large cold root inventory shape.
+review: bounded reviewer PASS; reviewer also checked a temp large-repo
+same-cache script mutation did not serve stale output.
+live: installed PATH `codemap 0.2.9` smoke passed. Dogfood on current repo,
+main_cluster, and Levelly-1 produced 68 probes, 0 failures, 0 over-budget
+outputs, and 0 trust wording violations. `main_cluster` fresh-cache `ls_root`
+was 247ms and `ls_links` 218ms. Remaining slow diagnostics were `doctor`,
+`graph_causal`, `proof_map_root`, and `siblings_scope`, which stay separate
+performance follow-ups rather than closure blockers for this root-ls slice.
+next: pursue non-primary-lens performance only when dogfood shows it blocking
+daily use.
+```
 
 Root LS and dogfood latency truth 2026-05-03 is closed:
 
