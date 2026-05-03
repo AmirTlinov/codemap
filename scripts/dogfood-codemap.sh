@@ -66,8 +66,8 @@ line_budget_for() {
     ls_links) echo 120 ;;
     changed) echo 120 ;;
     proof_changed) echo 120 ;;
-    cone_owner) echo 160 ;;
-    proof_owner) echo 140 ;;
+    cone_owner*) echo 160 ;;
+    proof_owner*) echo 140 ;;
     *) echo 180 ;;
   esac
 }
@@ -138,6 +138,64 @@ first_owner_anchor() {
       -path '*/.github/workflows/*.yml' -o \
       -path '*/.github/workflows/*.yaml' \
     \) -print 2>/dev/null \
+    | sed "s#^$target/##" \
+    | sort \
+    | head -n 1
+}
+
+first_manifest_owner_anchor() {
+  local target="$1"
+  for candidate in pnpm-workspace.yaml pnpm-workspace.yml Cargo.toml package.json pyproject.toml go.mod package.swift; do
+    if [[ -f "$target/$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+}
+
+first_schema_owner_anchor() {
+  local target="$1"
+  for candidate in apps/api/prisma/schema.prisma prisma/schema.prisma schema.prisma; do
+    if [[ -f "$target/$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  find "$target" \
+    \( -path '*/node_modules' -o -path '*/target' -o -path '*/dist' -o -path '*/build' -o -path '*/.git' \) -prune \
+    -o -type f \( -name 'schema.prisma' -o -path '*/migrations/*.sql' \) -print 2>/dev/null \
+    | sed "s#^$target/##" \
+    | sort \
+    | head -n 1
+}
+
+first_env_owner_anchor() {
+  local target="$1"
+  for candidate in .env.example .env.sample .env.production.example .env.development.example; do
+    if [[ -f "$target/$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  find "$target" \
+    \( -path '*/node_modules' -o -path '*/target' -o -path '*/dist' -o -path '*/build' -o -path '*/.git' \) -prune \
+    -o -type f \( -name '.env.example' -o -name '.env.sample' -o -name '.env.*.example' \) -print 2>/dev/null \
+    | sed "s#^$target/##" \
+    | sort \
+    | head -n 1
+}
+
+first_ci_owner_anchor() {
+  local target="$1"
+  for candidate in .github/workflows/ci.yml .github/workflows/ci.yaml .github/workflows/test.yml .github/workflows/test.yaml; do
+    if [[ -f "$target/$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  find "$target" \
+    \( -path '*/node_modules' -o -path '*/target' -o -path '*/dist' -o -path '*/build' -o -path '*/.git' \) -prune \
+    -o -type f \( -path '*/.github/workflows/*.yml' -o -path '*/.github/workflows/*.yaml' \) -print 2>/dev/null \
     | sed "s#^$target/##" \
     | sort \
     | head -n 1
@@ -241,6 +299,27 @@ run_probe() {
   if [[ -n "$owner_anchor" ]]; then
     run_probe_command "$target" "$name" "$summary" "$log" cone_owner cone "$owner_anchor"
     run_probe_command "$target" "$name" "$summary" "$log" proof_owner proof "$owner_anchor"
+  fi
+  local manifest_owner schema_owner env_owner ci_owner
+  manifest_owner="$(first_manifest_owner_anchor "$target")"
+  schema_owner="$(first_schema_owner_anchor "$target")"
+  env_owner="$(first_env_owner_anchor "$target")"
+  ci_owner="$(first_ci_owner_anchor "$target")"
+  if [[ -n "$manifest_owner" ]]; then
+    run_probe_command "$target" "$name" "$summary" "$log" cone_owner_manifest cone "$manifest_owner"
+    run_probe_command "$target" "$name" "$summary" "$log" proof_owner_manifest proof "$manifest_owner"
+  fi
+  if [[ -n "$schema_owner" ]]; then
+    run_probe_command "$target" "$name" "$summary" "$log" cone_owner_schema cone "$schema_owner"
+    run_probe_command "$target" "$name" "$summary" "$log" proof_owner_schema proof "$schema_owner"
+  fi
+  if [[ -n "$env_owner" ]]; then
+    run_probe_command "$target" "$name" "$summary" "$log" cone_owner_env cone "$env_owner"
+    run_probe_command "$target" "$name" "$summary" "$log" proof_owner_env proof "$env_owner"
+  fi
+  if [[ -n "$ci_owner" ]]; then
+    run_probe_command "$target" "$name" "$summary" "$log" cone_owner_ci cone "$ci_owner"
+    run_probe_command "$target" "$name" "$summary" "$log" proof_owner_ci proof "$ci_owner"
   fi
 }
 

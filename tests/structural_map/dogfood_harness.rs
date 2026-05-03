@@ -17,6 +17,18 @@ fn dogfood_script_runs_daily_and_focused_probes_read_only() {
         &repo.path().join("tests/session.test.ts"),
         "import { sessionValue } from '../src/session';\n\ntest('session value', () => {\n  expect(sessionValue()).toBe(1);\n});\n",
     );
+    write(
+        &repo.path().join(".env.example"),
+        "DATABASE_URL=\nSESSION_SECRET=\n",
+    );
+    write(
+        &repo.path().join("prisma/schema.prisma"),
+        "datasource db { provider = \"postgresql\" url = env(\"DATABASE_URL\") }\ngenerator client { provider = \"prisma-client-js\" }\nmodel Session { id String @id }\n",
+    );
+    write(
+        &repo.path().join(".github/workflows/ci.yml"),
+        "name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm test\n",
+    );
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["commit", "-qm", "dogfood fixture"]);
 
@@ -46,6 +58,14 @@ fn dogfood_script_runs_daily_and_focused_probes_read_only() {
         "cone_anchor",
         "cone_owner",
         "proof_owner",
+        "cone_owner_manifest",
+        "proof_owner_manifest",
+        "cone_owner_schema",
+        "proof_owner_schema",
+        "cone_owner_env",
+        "proof_owner_env",
+        "cone_owner_ci",
+        "proof_owner_ci",
         "contract_anchor",
         "delete_anchor",
     ] {
