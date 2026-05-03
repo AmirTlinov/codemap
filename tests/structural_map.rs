@@ -92,6 +92,7 @@ include!("structural_map/false_confidence_surfaces.rs");
 include!("structural_map/proof_false_confidence.rs");
 include!("structural_map/false_confidence_owner_cones.rs");
 include!("structural_map/false_confidence_ci_and_deleted_env.rs");
+include!("structural_map/ci_owner_proof.rs");
 include!("structural_map/role_aware_proof_planner.rs");
 include!("structural_map/receipt_changed_map.rs");
 include!("structural_map/source_role_quality.rs");

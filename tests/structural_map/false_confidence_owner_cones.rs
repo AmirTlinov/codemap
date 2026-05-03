@@ -30,7 +30,7 @@ fn owner_surface_cones_expose_manifest_schema_env_and_ci_neighborhoods() {
     write(&repo.path().join(".env.example"), "DATABASE_URL=\nUNUSED_ENV=\n");
     write(
         &repo.path().join(".github/workflows/ci.yml"),
-        "name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: |\n          pnpm --filter @fixture/api db:generate\n          pnpm --filter @fixture/api test\n",
+        "name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: test -n \"${DATABASE_URL}\" || exit 1\n      - run: |\n          pnpm --filter @fixture/api db:generate\n          pnpm --filter @fixture/api test\n",
     );
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["commit", "-qm", "owner surface cones"]);

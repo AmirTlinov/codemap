@@ -15,7 +15,30 @@ fn owner_surface_proof_surfaces(project: &Project, anchor: &str) -> Vec<ProofSur
         out.extend(env_consumer_proof_surfaces(project, file));
         out.extend(env_ci_reference_proof_surfaces(project, file));
     }
+    if file.has_role("build_ci") {
+        out.extend(ci_owner_proof_surfaces(project, file));
+    }
     out
+}
+
+fn ci_owner_proof_surfaces(project: &Project, file: &FileInfo) -> Vec<ProofSurface> {
+    let Ok(text) = std::fs::read_to_string(project.root.join(&file.rel)) else {
+        return Vec::new();
+    };
+    ci_run_steps(&text)
+        .into_iter()
+        .filter_map(|step| {
+            let reason = ci_owner_validation_step_reason(&step.command)?;
+            Some(ProofSurface {
+                command: Some(step.command),
+                path: Some(file.rel.clone()),
+                evidence: "ci_run_step".to_string(),
+                strength: EvidenceStrength::Hard,
+                reason,
+                locations: vec![EvidenceLocation::line(&file.rel, step.line, "ci_step")],
+            })
+        })
+        .collect()
 }
 
 fn manifest_script_proof_surfaces(project: &Project, file: &FileInfo) -> Vec<ProofSurface> {

@@ -207,7 +207,7 @@ fn role_aware_script_rank(
     context: &ProofRoleContext,
 ) -> Option<usize> {
     let text = script_search_text(script);
-    if script_is_mutating_without_validation(&text) {
+    if script_is_disallowed_role_proof_text(&text) || script_is_mutating_without_validation(&text) {
         return None;
     }
     let token_hits = context
@@ -336,7 +336,7 @@ fn role_keyword_ranks(text: &str, keywords: &[&str], offset: usize) -> Vec<usize
 }
 
 fn script_is_validation_surface_text(text: &str) -> bool {
-    if script_is_mutating_without_validation(text) {
+    if script_is_disallowed_role_proof_text(text) || script_is_mutating_without_validation(text) {
         return false;
     }
     script_text_has_any(
@@ -344,6 +344,16 @@ fn script_is_validation_surface_text(text: &str) -> bool {
         &[
             "test", "check", "lint", "type", "doctor", "verify", "validate", "proof", "receipt",
             "witness", "qwen", "next", "schema", "migration", "migrate", "db", "build",
+        ],
+    )
+}
+
+fn script_is_disallowed_role_proof_text(text: &str) -> bool {
+    script_text_has_any(
+        text,
+        &[
+            "deploy", "release", "publish", "migrate", "codegen", "generate", "setup",
+            "install", "db:push", "reset", "destroy", "delete", "drop", "prune",
         ],
     )
 }

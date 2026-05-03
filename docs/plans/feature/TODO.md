@@ -107,6 +107,37 @@ next: only pursue new extractor/performance work from live pain in the primary
 daily path.
 ```
 
+Slice 30P is closed:
+
+```txt
+status: closed
+tier: focused/full/live
+closed: CI owner proof now reuses deterministic workflow run-step evidence that
+CI cones already expose. `proof .github/workflows/ci.yml` shows validation-like
+run steps such as `cargo fmt`, `cargo test`, `cargo clippy`, `cargo run ...
+doctor`, and package validation scripts as hard `ci_run_step` proof surfaces
+with workflow line provenance. Soft role matches no longer create a
+`missing_deterministic_proof` Unknown when hard CI run-step proof exists.
+guardrails: arbitrary shell/control/setup lines, shell builtin `test`, codegen,
+deploy, release, publish, and migration commands are not promoted into CI owner
+proof commands by this slice. `cone` remains the broader CI step map.
+excluded: richer shell parsing, job-name extraction, and a separate
+runnable-vs-release-gate proof display remain future live-gap work.
+proof: focused CI owner proof regression, owner cone regression, full
+`cargo fmt --check`, `cargo test --quiet`, `cargo clippy --all-targets -- -D
+warnings`, `cargo run --quiet --bin codemap -- doctor`, and `git diff --check`.
+live: dogfood with `target/debug/codemap` on current repo, Levelly-1, and
+Sillentway-VPN finished with 0 failures and 0 over-budget outputs. Current and
+Levelly CI owner proof Unknown counts dropped to 0 while staying compact.
+review: PASS after two reviewer blockers were fixed: Cargo proof detection now
+uses the actual Cargo subcommand, and role-aware proof filtering rejects
+deploy/release/migrate/publish/codegen/generate/setup/install/reset/prune-style
+commands across all proof surfaces.
+next: continue from live daily-path blind spots; likely candidates are CI cone
+noise/job structure or runnable-vs-support proof wording if they confuse agents
+in real use.
+```
+
 Slice 30O is closed:
 
 ```txt
