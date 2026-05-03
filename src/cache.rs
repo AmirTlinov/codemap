@@ -118,7 +118,7 @@ fn stale_lens_artifact_reason(
     }
     match value.get("fingerprint").and_then(Value::as_str) {
         Some(found) if found == fingerprint => None,
-        Some(_) => Some("fingerprint mismatch".to_string()),
+        Some(_) => None,
         None => Some("fingerprint missing".to_string()),
     }
 }

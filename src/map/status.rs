@@ -248,7 +248,7 @@ fn push_stale_lens_artifact_warning(project: &Project, warnings: &mut Vec<MapQua
         warnings,
         "stale_lens_artifact",
         examples,
-        "cached agent-facing lens artifact does not match current artifact format, binary version, root, or structural fingerprint",
+        "cached agent-facing lens artifact does not match current artifact format, binary version, root, or metadata",
         "that lens artifact is ignored and the next matching lens command rebuilds it instead of serving stale map output",
         None,
     );

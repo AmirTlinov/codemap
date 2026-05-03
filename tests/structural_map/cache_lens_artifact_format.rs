@@ -27,6 +27,29 @@ fn stale_lens_artifact_format_is_not_served_and_is_visible_in_doctor() {
     );
 }
 
+#[test]
+fn lens_artifact_fingerprint_mismatch_is_normal_invalidation_not_doctor_noise() {
+    let (repo, cache) = fixture();
+    let rel = "packages/app/src/useReplay.ts";
+
+    let _ = run_json(repo.path(), cache.path(), &["ls", ".", "--format", "json"]);
+    write(
+        &repo.path().join(rel),
+        "import { seek } from '@fixture/replay';\n\nexport const changedFrame = seek(71).frame;\n",
+    );
+
+    let doctor = run_json(repo.path(), cache.path(), &["doctor", "--format", "json"]);
+    assert_schema("schemas/status.schema.json", &doctor);
+    assert!(
+        doctor["map_quality"]
+            .as_array()
+            .expect("map_quality")
+            .iter()
+            .all(|warning| warning["kind"] != "stale_lens_artifact"),
+        "ordinary lens artifact fingerprint mismatch should be ignored, not surfaced as quality noise: {doctor:#}"
+    );
+}
+
 fn stale_lens_warning_mentions_cone(warning: &Value) -> bool {
     warning["kind"] == "stale_lens_artifact"
         && warning["examples"]

@@ -62,9 +62,66 @@ repos would add noise instead of proof.
 
 ## Current Boundary
 
-No broad numbered slice is active after Slice 30M. Pick the next boundary from
+No broad numbered slice is active after Slice 30O. Pick the next boundary from
 the largest daily-workflow gap observed in live use, not by continuing the slice
 number ritual.
+
+Slice 30O is closed:
+
+```txt
+status: closed
+tier: focused/full/live
+closed: `doctor` no longer reports ordinary lens artifact fingerprint mismatch
+as `stale_lens_artifact` map-quality noise. Fingerprint mismatch remains a
+normal cache invalidation path: fast paths still refuse to serve lens artifacts
+whose fingerprint differs from current `status.json`. `doctor` continues to
+warn on artifact format, binary version, root, unreadable JSON, invalid JSON, or
+missing fingerprint metadata.
+guardrails: this reduces false diagnostic noise only. It does not weaken cache
+serving correctness and does not hide format/version/root incompatibility.
+excluded: automatic cache pruning and richer cache repair UX remain later work.
+proof: `cargo test lens_artifact -- --nocapture`; full `cargo fmt --check`,
+`cargo test --quiet`, clippy, warm doctor, diff-check; current-repo `doctor`
+smoke.
+review: PASS as part of the Slice 30N/30O combined reviewer pass. Reviewer
+confirmed fingerprint mismatch is only silenced as doctor noise, while lens
+serving still rejects mismatched artifacts through `read_lens_artifact` /
+fast-path cache gates.
+live: current repo `doctor` stays quiet after normal source edits with
+fingerprint-mismatched lens artifacts; format/version/root stale artifacts still
+surface as warnings in fixtures.
+next: continue with the next live false-confidence or section-symmetry gap.
+```
+
+Slice 30N is closed:
+
+```txt
+status: closed
+tier: focused/full/live
+closed: `codemap proof` now accepts the same stable RFC section filter as
+`ls`, `cone`, and `changed`: `--section observed|links|roles|proof|unknown|hidden`.
+The filter is renderer-only for readable output; JSON reports remain complete.
+`proof changed --section unknown` works through the clean fast path instead of
+failing as an unexpected argument. Empty Unknown output distinguishes no selected
+proof anchors from a detector result, avoiding decorative certainty.
+guardrails: no new proof detector, ranking, recommendation, or safety verdict.
+This only makes the daily proof map focusable and symmetric. `--section` is a
+readable-output filter; it does not change JSON or proof detection facts, and it
+refuses `--run` instead of executing a full proof plan behind a filtered view.
+excluded: full per-section richness for every future proof role remains later
+work; this slice keeps links/roles as compact factual counts and locations.
+proof: focused section tests, `cargo test proof_ -- --nocapture`, full
+`cargo fmt --check`, `cargo test --quiet`, clippy, warm doctor, diff-check, and
+live proof-section smoke.
+review: PASS as part of the Slice 30N/30O combined reviewer pass.
+live: current repo `proof changed --section unknown` renders the Unknown layer
+instead of CLI error; `main_cluster proof pnpm-workspace.yaml --section proof`
+and `--section hidden` render focused proof/hidden layers with root-aware
+expand; `Sillentway-VPN proof changed --section proof|unknown` renders focused
+layers.
+next: pick the next boundary from live daily workflow gaps; do not continue
+renderer symmetry unless a command still creates agent confusion.
+```
 
 Slice 30M is closed:
 
