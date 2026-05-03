@@ -62,6 +62,39 @@ repos would add noise instead of proof.
 
 ## Current Boundary
 
+Cold root causal graph 2026-05-04 is closed:
+
+```txt
+status: closed
+tier: focused/full/live
+closed: cold `codemap graph --lens causal` at repo root now uses a bounded
+current-level inventory fast path for large repos, before full project/cache
+load. Compact output is balanced across representative structural surfaces
+before edge expansion, so one CI/source cannot dominate the default graph.
+guardrails: no new CLI command or flag, no stale cache serving, no
+ranking/recommendation language, and no claim that inventory graph edges are a
+full import graph. Hidden material must disclose when full-index source edges
+are omitted.
+proof: focused regression covers large cold root graph shape, representative
+compact surfaces, provenance edges, multiline CI blocks, workspace edges, and
+hidden full-index disclosure. Full gates passed: `cargo fmt --check`,
+`cargo test --quiet`, `cargo clippy --all-targets -- -D warnings`, `cargo run
+--quiet --bin codemap -- doctor`, `scripts/check-version-bump.sh`, and
+`git diff --check`.
+review: bounded reviewer PASS.
+live: installed PATH `codemap 0.2.10` dogfood on current repo, main_cluster,
+and Levelly-1 produced 68 probes, 0 failures, 0 over-budget outputs, and 0
+trust wording violations. Root `graph_causal` was 119ms on ctx, 101ms on
+main_cluster, and 140ms on Levelly-1; main_cluster compact graph exposed
+package, directory, script, source, CI, config, runtime, migration, env, docs,
+lockfile, and deploy surfaces with hidden full-index disclosure.
+excluded: remaining slow probes on main_cluster are `doctor`, `runtime .`,
+`proof-map .`, `siblings agents`, and env cone; those are separate follow-up
+performance slices.
+next: speed the next dogfood-blocking non-primary lens only when it affects
+daily agent flow.
+```
+
 Cold root orientation 2026-05-04 is closed:
 
 ```txt

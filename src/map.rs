@@ -10,10 +10,10 @@ use crate::model::{
     ChangedProofSummary, ChangedReport, ChangedSymbol, ConeReport, ContractReport, DeleteReport,
     DiffMapReport, DirectorySurface, Domain, DomainRef, EnvDeclaration, EnvSurface,
     EvidenceLocation, EvidenceStrength, FileInfo, FileSummary, FlowReport, FlowStep, GitChange,
-    HiddenGroup, ImpactCluster, ImpactReport, LsReport, PackageDependency, PlaceReport, Project,
-    ProofMapReport, ProofReport, ProofSurface, Risk, RuntimeReport, RuntimeRoute, SiblingsReport,
-    StructuralEdge, Surface, TeachProofCommand, TeachReport, TeachRolePattern, Unknown,
-    VerificationPlan,
+    GraphEdge, GraphLens, HiddenGroup, ImpactCluster, ImpactReport, LsReport, PackageDependency,
+    PlaceReport, Project, ProofMapReport, ProofReport, ProofSurface, Risk, RuntimeReport,
+    RuntimeRoute, SiblingsReport, StructuralEdge, Surface, TeachProofCommand, TeachReport,
+    TeachRolePattern, Unknown, VerificationPlan,
 };
 use crate::repo;
 
