@@ -241,3 +241,54 @@ fn ls_treats_snapshots_as_first_class_non_code_anchors() {
         "snapshot role should be explicit: {ls:#}"
     );
 }
+
+#[test]
+fn ls_and_changed_treat_shell_scripts_as_first_class_script_surfaces() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("scripts/dogfood-codemap.sh"),
+        "#!/usr/bin/env bash\nset -euo pipefail\ncodemap ls .\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "script fixture"]);
+
+    let ls = run_json(
+        repo.path(),
+        cache.path(),
+        &["ls", "scripts/dogfood-codemap.sh", "--format", "json"],
+    );
+    assert_schema("schemas/ls.schema.json", &ls);
+    assert_eq!(ls["mode"], "file");
+    assert_eq!(ls["anchor"]["kind"], "script");
+    assert_eq!(ls["anchor"]["language"], "shell");
+    assert_eq!(ls["anchor"]["lines"], 3);
+    assert!(
+        ls["anchor"]["symbols"].as_array().expect("symbols").is_empty(),
+        "shell script anchors should not pretend to expose code symbols: {ls:#}"
+    );
+    assert!(
+        ls["anchor"]["roles"]
+            .as_array()
+            .expect("roles")
+            .iter()
+            .any(|role| role == "script"),
+        "shell script role should be explicit: {ls:#}"
+    );
+
+    write(
+        &repo.path().join("scripts/dogfood-codemap.sh"),
+        "#!/usr/bin/env bash\nset -euo pipefail\ncodemap ls .\ncodemap changed\n",
+    );
+    let changed = run_json(repo.path(), cache.path(), &["changed", "--format", "json"]);
+    assert_schema("schemas/changed.schema.json", &changed);
+    assert!(
+        changed["changed"]
+            .as_array()
+            .expect("changed")
+            .iter()
+            .any(|file| file["path"] == "scripts/dogfood-codemap.sh"
+                && file["kind"] == "script"
+                && file["language"] == "shell"),
+        "changed script anchors should be indexed surfaces, not missing unknown rows: {changed:#}"
+    );
+}

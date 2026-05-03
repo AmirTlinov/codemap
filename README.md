@@ -202,7 +202,7 @@ This writes a tiny `AGENTS.md` that tells agents to call `codemap`. It is not a 
 
 ## Optional `.ctx.yml`
 
-Zero-config works from files, manifests, imports, tests, scripts, and git diff. Use `.ctx.yml` only for semantic facts code cannot reliably reveal: explicit domains, concepts, forbidden boundaries, and verification defaults.
+Zero-config works from files, manifests, imports, tests, scripts, and git diff. Use `.ctx.yml` only for semantic facts code cannot reliably reveal: explicit domains, concepts, role patterns, forbidden boundaries, and proof commands for custom repos.
 
 ```yaml
 version: 1
@@ -233,9 +233,18 @@ boundaries:
 verification:
   default:
     - pnpm test domains/replay
+
+roles:
+  "experiments/receipts/*.json": receipt
+  "tools/run_*.py": proof_runner
+
+proof:
+  changed:
+    - make validate-receipts
+    - make doctor
 ```
 
-Unknown `.ctx.yml` fields are rejected. Invalid anchors fail closed for map commands, while `codemap anchors validate` remains available for diagnosis.
+Unknown `.ctx.yml` fields are rejected. Invalid anchors fail closed for map commands, while `codemap anchors validate` remains available for diagnosis. `codemap teach` prints a read-only dialect draft from deterministic patterns; it does not write config.
 
 ## Development
 

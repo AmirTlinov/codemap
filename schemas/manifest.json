@@ -137,6 +137,13 @@
       "json_kind": "boundary_report"
     },
     {
+      "kind": "teach",
+      "file": "schemas/teach.schema.json",
+      "contract": "structural_output",
+      "schema_version": "1",
+      "json_kind": "teach_report"
+    },
+    {
       "kind": "anchors",
       "file": "schemas/anchors.schema.json",
       "contract": "semantic_anchor_config"

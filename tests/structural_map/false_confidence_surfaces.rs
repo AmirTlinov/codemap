@@ -17,6 +17,7 @@ fn first_class_structural_surfaces_do_not_fall_to_unknown_roles() {
         &repo.path().join("Cargo.toml"),
         "[package]\nname = \"false-confidence-fixture\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
     );
+    write(&repo.path().join("Cargo.lock"), "# lock\n");
     write(
         &repo.path().join("apps/api/prisma/schema.prisma"),
         "datasource db { provider = \"postgresql\" url = env(\"DATABASE_URL\") }\ngenerator client { provider = \"prisma-client-js\" }\nmodel User { id String @id }\n",
@@ -111,8 +112,11 @@ fn first_class_structural_surfaces_do_not_fall_to_unknown_roles() {
         markdown.contains("## Roles")
             && markdown.contains("`manifest`")
             && markdown.contains("`public_boundary`")
+            && markdown.contains("declares_script -> `script:test`")
+            && markdown.contains("runs_command -> `command:cargo test`")
+            && markdown.contains("uses_lockfile -> `Cargo.lock`")
             && !markdown.contains("`unknown`"),
-        "Cargo.toml cone should expose manifest/public boundary roles, not unknown: {markdown}"
+        "Cargo.toml cone should expose manifest owner facts, not only roles: {markdown}"
     );
 }
 

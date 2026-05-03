@@ -148,7 +148,7 @@ fn owner_workspace_manifest_edges(project: &Project, rel: &str) -> Vec<Structura
             ));
             edges.push(structural_edge_with_locations(
                 format!("script:{name}"),
-                command,
+                command_target(&command),
                 "runs_command",
                 "workspace_root_package_script",
                 EvidenceStrength::Hard,

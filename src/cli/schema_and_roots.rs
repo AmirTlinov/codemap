@@ -31,6 +31,7 @@ fn schema_text(kind: SchemaKind) -> &'static str {
         SchemaKind::AnchorValidation => include_str!("../../schemas/anchor-validation.schema.json"),
         SchemaKind::Graph => include_str!("../../schemas/graph.schema.json"),
         SchemaKind::Boundaries => include_str!("../../schemas/boundaries.schema.json"),
+        SchemaKind::Teach => include_str!("../../schemas/teach.schema.json"),
     }
 }
 

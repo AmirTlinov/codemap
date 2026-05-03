@@ -62,9 +62,50 @@ repos would add noise instead of proof.
 
 ## Current Boundary
 
-No broad numbered slice is active after Slice 30O. Pick the next boundary from
-the largest daily-workflow gap observed in live use, not by continuing the slice
-number ritual.
+No broad numbered slice is active after the 2026-05-03 closure audit. Pick the
+next boundary from the largest daily-workflow gap observed in live use, not by
+continuing the slice number ritual.
+
+Closure audit 2026-05-03 is closed:
+
+```txt
+status: closed
+tier: full/live
+closed: the current daily path is materially tighter end-to-end: explicit
+`.ctx.yml` role patterns and `proof.changed` commands are indexed as hard
+repo-dialect facts; `codemap teach` prints a read-only dialect draft; shell
+scripts are first-class `script`/`shell` anchors instead of missing rows; wide
+`changed` markdown keeps JSON completeness but compresses default overview
+events, roles, proof, unknowns, and anchors behind exact root-aware expand.
+Exact manifest cones expose owner facts that root `ls --section links` knows:
+scripts, command targets, lockfiles, package exports, and incoming package
+consumers with provenance. Owner proof Unknown stays fail-open when no
+deterministic direct test sensor exists.
+guardrails: no writable teach, no task start/router, no embeddings, no ranking,
+no confidence score, and no claim of full callgraph/dataflow.
+excluded: custom writable dialect adoption, broader extractor families,
+cross-language bridges, and deeper proof command safety stay live-gap-driven
+follow-up, not active numbered ritual.
+proof: `cargo fmt --check`, `cargo test --quiet`, `cargo clippy --all-targets
+-- -D warnings`, `cargo run --quiet --bin codemap -- doctor`, `git diff
+--check`, plus focused tests for shell script anchors, manifest owner cones,
+compact `changed`, schema parity, role-aware proof planner, and read-only
+`teach`.
+live: read-only probes on `main_cluster`, `Sillentway-VPN`, and `Levelly-1`.
+Warm daily probes were fast after artifact rebuild: `main_cluster changed` and
+`proof changed` about 0.12s, `main_cluster ls .` about 0.20s after first
+artifact rebuild, `Sillentway-VPN changed` about 0.09s and 113 lines, and
+`Sillentway-VPN` Rust `flow vpn_server.rs` reached Cargo bin -> `main` ->
+`run_diagnostics`/`run_vpn_server` -> direct imports with bounded hidden.
+Current repo, Levelly, and Sillentway dogfood finished with 16 probes, 0
+failures, and 0 over-budget outputs; Levelly kept useful env-consumer
+map-quality warnings.
+review: first reviewer BLOCK found `src/render/changed.rs` over the 500-line
+budget; renderer structure was split without weakening the rail, then the full
+gate passed.
+next: only pursue new extractor/performance work from live pain in the primary
+daily path.
+```
 
 Slice 30O is closed:
 
@@ -454,22 +495,23 @@ next: choose the next product gap after using `ls -> cone -> changed -> proof`
 on a real task.
 ```
 
-Post-final repair wave is active:
+Post-final repair wave is closed by Slices 29A-30O:
 
 ```txt
-status: active
-tier: full/live
-boundary: false-confidence closure after live dogfood found first-class
-structural surfaces that were skipped or rendered as unknown. Slice 28 remains a
-historical final audit for the previous product boundary, but its broad trust
-claim is reopened until `.prisma`, `.env*`, package manifests, docs, and CI
-surfaces are indexed, role-consistent, proof-honest, and useful in exact cones.
-proof: regression fixtures plus live read-only Levelly probes for
-schema.prisma, .env.example, package.json, and current-repo Cargo.toml.
-review: required after each repair slice because scanner, public lens behavior,
-and proof/unknown semantics are changing.
-live: required where the bug was found in Levelly or current installed PATH use.
-next: map-quality P1/P2 cleanup after slices 29A-29C are verified and reviewed.
+status: closed
+tier: historical/full/live
+closed: the false-confidence repair wave that reopened the Slice 28 final audit
+is historical, not active. Later boundaries 29A-30O closed the concrete live
+gaps found there: first-class `.prisma`, `.env*`, package/workspace manifests,
+docs/CI owner surfaces, proof-honest map-quality warnings, cache correctness,
+section symmetry, and stale-lens diagnostic noise.
+excluded: broader ecosystem extractors, deeper custom repo dialects, and
+performance work remain live-gap-driven follow-up, not an active numbered wave.
+proof: see closed Slice 29/30 entries below and above.
+review: covered by the relevant slice reviews.
+live: covered by the relevant live probes.
+next: pick the next boundary from current daily workflow evidence, not from this
+historical wave.
 ```
 
 Slice 06 compact renderer is closed. Do not continue renderer micro-polish
@@ -828,7 +870,7 @@ closed: doctor/status reports deterministic map-quality warnings for indexed
 manifest/schema/env surfaces that lack direct proof or consumer evidence. The
 warnings carry count, examples, reason, effect, and exact expand command when a
 focused expansion exists.
-excluded: quality scoring, confidence, semantic advice, and repo-specific
+excluded: quality scoring, confidence, semantic advice, and writable repo-local
 teaching.
 proof: `doctor_reports_map_quality_warnings_for_incomplete_owner_surfaces`,
 schema manifest/status version bump, current-repo doctor smoke, and full local
@@ -1238,17 +1280,25 @@ proof: `cargo fmt --check`, `cargo test --quiet`, `cargo clippy --all-targets
 public help inspection, docs/product invariant audit, fixture/schema/cognitive
 test inspection, and live read-only dogfood on spritestudio, Sillentway-VPN,
 and Levelly-1.
-review: final reviewer returned CHANGES, not BLOCK; required corrections were
-ledger-only: mark Slice 28 closed, record that the cache boundary was reviewed,
-and record the parked dirty-repo performance gap.
+review: final reviewer returned PASS after targeted re-review of the remaining
+closure blockers: stale `.ctx.yml` role overlays in warm cache, hidden owner
+edge omissions, and exact-HEAD cache refresh for lens fast paths.
 live: dogfood summary contained 39 probe rows, 0 command failures, and 0
 line-budget failures. Additional navigation probes showed SpriteStudio
 root/app/cone/proof orientation, SilentWay runtime -> flow stitching for
 `src/masque-core`, and Levelly package/boundary orientation.
-parked: dirty live `changed` remains about 1-3s on larger repos, and first
-cold scans are still several seconds on large repos. Warm `ls`/focused commands
-are acceptable enough for daily use, but future work should target changed
-latency only when measured daily pain recurs.
+closure fixes: cache inventory stores base roles and applies `.ctx.yml` roles as
+a runtime overlay; current-level owner edges now rely on report-level
+hidden/expand accounting instead of internal pre-caps; write-enabled exact-hit
+cache loads refresh stale git HEAD metadata so clean lens fast paths recover
+after branch/head changes.
+live after fixes: main_cluster clean `ls .` warm is about 0.27s after one cache
+refresh and `changed` about 0.08s; Sillentway-VPN dirty `changed` about 0.41s,
+`proof changed` about 1.7s, and `flow src/masque-core/src/bin/vpn_server.rs`
+renders a bounded 44-line path.
+parked: first cold scans on large repos are still several seconds, and deeper
+extractor coverage remains intentionally live-pain driven. No parked item is a
+known false structural claim in the daily workflow.
 done: no known false structural claim remains from the final audit.
 ```
 

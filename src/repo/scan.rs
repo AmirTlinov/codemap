@@ -315,6 +315,7 @@ fn language_for(path: &Path) -> String {
         "prisma" | "graphql" | "gql" | "proto" | "avsc" => "schema",
         "sql" => "sql",
         "css" | "scss" | "sass" | "less" => "style",
+        ext if is_script_ext(ext) => "shell",
         ext if is_asset_ext(ext) => "asset",
         ext if is_snapshot_ext(ext) => "snapshot",
         "md" => "markdown",

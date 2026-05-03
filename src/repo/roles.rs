@@ -72,6 +72,9 @@ fn classify_roles(root: &Path, info: &mut FileInfo) {
     if is_docs_surface(&rel, &name, &info.ext) {
         info.roles.insert("docs".to_string());
     }
+    if is_script_ext(&info.ext) {
+        info.roles.insert("script".to_string());
+    }
     if is_receipt_surface(&rel, &name, &info.ext) {
         info.roles.insert("receipt".to_string());
     }
@@ -193,6 +196,7 @@ fn classify_roles(root: &Path, info: &mut FileInfo) {
             "cli_surface",
             "build_ci",
             "proof_runner",
+            "script",
             "entrypoint",
             "runtime_surface",
             "public_api",
@@ -202,6 +206,13 @@ fn classify_roles(root: &Path, info: &mut FileInfo) {
             info.roles.remove(role);
         }
     }
+}
+
+pub(crate) fn base_roles_for_cache(root: &Path, info: &FileInfo) -> BTreeSet<String> {
+    let mut base = info.clone();
+    base.roles.clear();
+    classify_roles(root, &mut base);
+    base.roles
 }
 
 fn add_role_if(roles: &mut BTreeSet<String>, haystack: &str, needles: &[&str], role: &str) {

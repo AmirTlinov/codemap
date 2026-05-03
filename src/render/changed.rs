@@ -13,7 +13,7 @@ pub fn changed(report: &ChangedReport, section_filter: Option<&str>) {
     if report.changed.is_empty() && report.git_state.is_empty() {
         println!("\nNo changed anchors detected.");
         if section_filter == Some("hidden") {
-            changed_hidden_section(&changed_render_hidden(report), true);
+            changed_hidden_section(report, &changed_render_hidden(report, false), true, false);
             return;
         }
         if section_filter.is_some() {
@@ -22,39 +22,42 @@ pub fn changed(report: &ChangedReport, section_filter: Option<&str>) {
         section("Expand", &report.expand);
         return;
     }
-    let hidden = changed_render_hidden(report);
     if section_filter == Some("hidden") {
-        changed_hidden_section(&hidden, true);
+        let hidden = changed_render_hidden(report, false);
+        changed_hidden_section(report, &hidden, true, false);
         return;
     }
     let show_all = section_filter.is_none();
+    let compact = show_all && changed_should_compact(report);
+    let hidden = changed_render_hidden(report, compact);
     if matches!(section_filter, None | Some("observed")) {
-        changed_observed_section(report, true);
+        changed_observed_section(report, true, compact);
     }
     if matches!(section_filter, None | Some("roles")) {
-        changed_roles_section(report, true);
+        changed_roles_section(report, true, compact);
     }
     if matches!(section_filter, None | Some("links")) {
         changed_links_section(report, show_all, true);
     }
     if matches!(section_filter, None | Some("proof")) {
-        changed_proof_section(report);
+        changed_proof_section(report, compact);
     }
     if matches!(section_filter, None | Some("unknown")) {
-        changed_unknown_section(&report.unknowns, true);
+        changed_unknown_section(report, true, compact);
     }
     if show_all {
-        changed_hidden_section(&hidden, false);
+        changed_hidden_section(report, &hidden, false, compact);
         section("Expand", &report.expand);
     }
 }
 
-fn changed_render_hidden(report: &ChangedReport) -> Vec<crate::model::HiddenGroup> {
+fn changed_render_hidden(report: &ChangedReport, compact: bool) -> Vec<crate::model::HiddenGroup> {
     let mut hidden = report.hidden.clone();
-    if report.git_state.len() > report.display_limit {
+    let render_limit = changed_render_limit(report, compact);
+    if report.git_state.len() > render_limit {
         hidden.push(crate::model::HiddenGroup {
             reason: "git state rows hidden by limit".to_string(),
-            count: report.git_state.len() - report.display_limit,
+            count: report.git_state.len() - render_limit,
             expand: format!(
                 "codemap changed{} --section observed --limit {}",
                 changed_selector_suffix(&report.selector),
@@ -62,21 +65,34 @@ fn changed_render_hidden(report: &ChangedReport) -> Vec<crate::model::HiddenGrou
             ),
         });
     }
-    if report.structural_events.len() > report.display_limit {
+    let structural_group_count = changed_structural_event_groups(report).len();
+    if structural_group_count > render_limit {
         hidden.push(crate::model::HiddenGroup {
-            reason: "structural events hidden by limit".to_string(),
-            count: report.structural_events.len() - report.display_limit,
+            reason: "structural event groups hidden by limit".to_string(),
+            count: structural_group_count - render_limit,
             expand: format!(
                 "codemap changed{} --section observed --limit {}",
                 changed_selector_suffix(&report.selector),
-                report.structural_events.len()
+                structural_group_count
             ),
         });
     }
     hidden
 }
 
-fn changed_observed_section(report: &ChangedReport, force: bool) {
+fn changed_render_limit(report: &ChangedReport, compact: bool) -> usize {
+    if compact && report.display_limit >= 30 {
+        report.display_limit.min(5)
+    } else {
+        report.display_limit
+    }
+}
+
+fn changed_should_compact(report: &ChangedReport) -> bool {
+    report.display_limit >= 30 && (report.total_changed_count > 20 || report.changed.len() > 5)
+}
+
+fn changed_observed_section(report: &ChangedReport, force: bool, compact: bool) {
     if report.git_state.is_empty()
         && report.changed.is_empty()
         && report.structural_events.is_empty()
@@ -94,7 +110,7 @@ fn changed_observed_section(report: &ChangedReport, force: bool) {
         let visible_changes = report
             .git_state
             .iter()
-            .take(visible_git_state_count(report))
+            .take(visible_git_state_count(report, compact))
             .collect::<Vec<_>>();
         let prefix = changed_common_dir_prefix(
             &visible_changes
@@ -116,13 +132,13 @@ fn changed_observed_section(report: &ChangedReport, force: bool) {
             }
         }
     }
-    changed_structural_events_section(report);
-    changed_anchor_section(&report.changed);
-    changed_delta_section(report);
+    changed_structural_events_section(report, compact);
+    changed_anchor_section(report, compact);
+    changed_delta_section(report, compact);
 }
 
-fn visible_git_state_count(report: &ChangedReport) -> usize {
-    report.display_limit.min(report.git_state.len())
+fn visible_git_state_count(report: &ChangedReport, compact: bool) -> usize {
+    changed_render_limit(report, compact).min(report.git_state.len())
 }
 
 fn changed_selector_suffix(selector: &str) -> String {
@@ -133,34 +149,8 @@ fn changed_selector_suffix(selector: &str) -> String {
     }
 }
 
-fn changed_structural_events_section(report: &ChangedReport) {
-    if report.structural_events.is_empty() {
-        return;
-    }
-    println!("\nstructural events:");
-    for event in report
-        .structural_events
-        .iter()
-        .take(report.display_limit)
-    {
-        println!(
-            "- `{}` [{}; evidence={}]",
-            event.path, event.kind, event.evidence
-        );
-        if !event.locations.is_empty() {
-            println!("  at: {}", proof_location_summary(&event.locations));
-        }
-        if let Some(old_path) = &event.old_path {
-            println!("  old: `{old_path}`");
-        }
-        println!("  effect: {}", event.effect);
-        if let Some(expand) = &event.expand {
-            println!("  expand: `{}`", root_aware_expand(expand));
-        }
-    }
-}
-
-fn changed_anchor_section(files: &[crate::model::FileSummary]) {
+fn changed_anchor_section(report: &ChangedReport, compact: bool) {
+    let files = &report.changed;
     if files.is_empty() {
         return;
     }
@@ -174,27 +164,49 @@ fn changed_anchor_section(files: &[crate::model::FileSummary]) {
     if let Some(prefix) = &prefix {
         println!("prefix: `{prefix}`");
     }
-    for file in files {
+    let limit = changed_render_limit(report, compact);
+    for file in files.iter().take(limit) {
         let package = file.package.as_deref().unwrap_or("none");
         let path = changed_relative_path(&file.path, prefix.as_deref());
-        println!(
-            "- `{}` [{}; {}; package={}; lines={}; symbols={}; exports={}; imports={}; imported_by={}]",
-            path,
-            file.kind,
-            file.language,
-            package,
-            file.lines,
-            file.symbols.len(),
-            file.exports.len(),
-            file.imports.len(),
-            file.imported_by_count
-        );
-        if !file.roles.is_empty() {
+        if compact {
+            let role_hint = if file.roles.is_empty() {
+                String::new()
+            } else {
+                format!("; roles={}", changed_preview_list(&file.roles, 3))
+            };
+            println!("- `{path}` [{}; {}{}]", file.kind, file.language, role_hint);
+        } else {
+            println!(
+                "- `{}` [{}; {}; package={}; lines={}; symbols={}; exports={}; imports={}; imported_by={}]",
+                path,
+                file.kind,
+                file.language,
+                package,
+                file.lines,
+                file.symbols.len(),
+                file.exports.len(),
+                file.imports.len(),
+                file.imported_by_count
+            );
+        }
+        if !compact && !file.roles.is_empty() {
             println!("  roles: {}", file.roles.join(", "));
         }
-        if !file.exports.is_empty() {
+        if !compact && !file.exports.is_empty() {
             println!("  exports: {}", changed_preview_list(&file.exports, 6));
         }
+    }
+    let hidden = files.len().saturating_sub(limit);
+    if hidden > 0 {
+        println!("- hidden changed anchors: `{hidden}`");
+        println!(
+            "  expand: `{}`",
+            root_aware_expand(&format!(
+                "codemap changed{} --section observed --limit {}",
+                changed_selector_suffix(&report.selector),
+                report.total_changed_count
+            ))
+        );
     }
 }
 
@@ -245,10 +257,10 @@ fn changed_preview_list(values: &[String], limit: usize) -> String {
     }
 }
 
-fn changed_delta_section(report: &ChangedReport) {
+fn changed_delta_section(report: &ChangedReport, compact: bool) {
     let delta = &report.map_delta;
     println!("\nmap delta:");
-    for (label, count) in [
+    let entries = [
         ("added imports/exports", delta.added_edges),
         ("removed imports/exports", delta.removed_edges),
         ("changed symbols", delta.changed_symbols),
@@ -261,8 +273,17 @@ fn changed_delta_section(report: &ChangedReport) {
         ("added proof sensors", delta.added_proof_surfaces),
         ("removed proof sensors", delta.removed_proof_surfaces),
         ("new unknowns", delta.new_unknowns),
-    ] {
+    ];
+    let mut printed = 0;
+    for (label, count) in entries {
+        if compact && count == 0 {
+            continue;
+        }
         println!("- {label}: `{count}`");
+        printed += 1;
+    }
+    if compact && printed == 0 {
+        println!("- no structural delta detected");
     }
 }
 
@@ -282,8 +303,8 @@ fn changed_map_delta_is_empty(delta: &crate::model::ChangedMapDelta) -> bool {
 }
 
 
-fn changed_proof_section(report: &ChangedReport) {
-    println!("\n## Proof\n");
+fn changed_proof_section(report: &ChangedReport, compact: bool) {
+    println!("\n## Proof");
     if report.proof.commands.is_empty() && report.proof.fallback.is_empty() {
         println!("No proof command inferred.");
     }
@@ -324,7 +345,13 @@ fn changed_proof_section(report: &ChangedReport) {
             println!("- sensors: `{}`", sensors.len());
             proof_count_line("evidence", evidence_counts(&sensors));
             proof_count_line("strength", strength_counts(&sensors));
-            let sample_limit = if sensors.len() <= 6 { sensors.len() } else { 5 };
+            let sample_limit = if compact {
+                sensors.len().min(3)
+            } else if sensors.len() <= 6 {
+                sensors.len()
+            } else {
+                5
+            };
             println!("- sample:");
             for sensor in sensors.iter().take(sample_limit) {
                 let path = sensor.path.as_deref().unwrap_or("none");
@@ -357,13 +384,24 @@ fn changed_proof_section(report: &ChangedReport) {
         println!("{}", code_block("bash", &report.proof.fallback));
     }
     println!("\n### Sensor Counts");
-    for (kind, count) in [
-        ("direct", report.proof.direct.len()),
-        ("indirect", report.proof.indirect.len()),
-        ("e2e", report.proof.e2e.len()),
-        ("contract", report.proof.contract.len()),
-        ("missing_direct", report.proof.missing_direct.len()),
-    ] {
-        println!("- {kind}: `{count}`");
+    if compact {
+        println!(
+            "- direct: `{}`; indirect: `{}`; e2e: `{}`; contract: `{}`; missing_direct: `{}`",
+            report.proof.direct.len(),
+            report.proof.indirect.len(),
+            report.proof.e2e.len(),
+            report.proof.contract.len(),
+            report.proof.missing_direct.len()
+        );
+    } else {
+        for (kind, count) in [
+            ("direct", report.proof.direct.len()),
+            ("indirect", report.proof.indirect.len()),
+            ("e2e", report.proof.e2e.len()),
+            ("contract", report.proof.contract.len()),
+            ("missing_direct", report.proof.missing_direct.len()),
+        ] {
+            println!("- {kind}: `{count}`");
+        }
     }
 }

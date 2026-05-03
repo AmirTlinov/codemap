@@ -13,12 +13,20 @@ fn anchors_markdown(report: &AnchorValidation) {
                 vec!["Domains".to_string(), report.summary.domains.to_string()],
                 vec!["Concepts".to_string(), report.summary.concepts.to_string()],
                 vec![
+                    "Role patterns".to_string(),
+                    report.summary.role_patterns.to_string()
+                ],
+                vec![
                     "Forbidden boundaries".to_string(),
                     report.summary.forbidden_boundaries.to_string()
                 ],
                 vec![
                     "Verification defaults".to_string(),
                     report.summary.verification_defaults.to_string()
+                ],
+                vec![
+                    "Proof changed".to_string(),
+                    report.summary.proof_changed_commands.to_string()
                 ],
             ],
         )
@@ -167,12 +175,22 @@ mod tests {
     #[test]
     fn run_plan_rejects_unsafe_test_like_script_names() {
         let plan = VerificationPlan {
-            minimal: vec!["pnpm run test:deploy".to_string()],
+            minimal: vec![
+                "pnpm run test:deploy".to_string(),
+                "pnpm run validate-destroy".to_string(),
+                "npm run verify:drop".to_string(),
+                "yarn proof:delete".to_string(),
+                "bun run validate-reset".to_string(),
+                "make validate-destroy".to_string(),
+                "make verify:drop".to_string(),
+                "just proof:delete".to_string(),
+            ],
             supplemental: Vec::new(),
             full_only_if_triggered: Vec::new(),
         };
 
-        let error = planned_run_commands(&plan, false).expect_err("deploy script should fail closed");
+        let error =
+            planned_run_commands(&plan, false).expect_err("unsafe scripts should fail closed");
 
         assert!(
             error
@@ -219,6 +237,8 @@ mod tests {
                 "pnpm exec node --test tests/app.test.ts".to_string(),
                 "yarn mocha tests/app.test.ts".to_string(),
                 "make test".to_string(),
+                "make validate-receipts".to_string(),
+                "just doctor".to_string(),
             ],
             supplemental: Vec::new(),
             full_only_if_triggered: Vec::new(),
@@ -235,9 +255,25 @@ mod tests {
                 "pnpm exec jest tests/app.test.ts",
                 "pnpm exec node --test tests/app.test.ts",
                 "yarn mocha tests/app.test.ts",
-                "make test"
+                "make test",
+                "make validate-receipts",
+                "just doctor"
             ]
         );
+    }
+
+    #[test]
+    fn run_plan_rejects_non_validation_make_targets() {
+        let plan = VerificationPlan {
+            minimal: vec!["make qwen-sparse-compute-admission-v0-00675".to_string()],
+            supplemental: Vec::new(),
+            full_only_if_triggered: Vec::new(),
+        };
+
+        let error = planned_run_commands(&plan, false)
+            .expect_err("non-validation make target should fail closed");
+
+        assert!(error.to_string().contains("will not run by default"));
     }
 
     #[test]

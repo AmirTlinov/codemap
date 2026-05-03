@@ -331,3 +331,168 @@ fn changed_proof_section_reuses_role_aware_commands() {
         "changed proof should stay fail-open when only role-aware soft evidence exists: {markdown}"
     );
 }
+
+#[test]
+fn ctx_roles_and_changed_proof_are_explicit_repo_dialect() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join(".ctx.yml"),
+        r#"version: 1
+roles:
+  "lab/custom/*.json": receipt
+  "runner/run_*.py": proof_runner
+proof:
+  changed:
+    - make validate-receipts
+    - make doctor
+    - make qwen-sparse-compute-admission-v0-00675
+"#,
+    );
+    write(
+        &repo.path().join("Makefile"),
+        "validate-receipts:\n\tpython3 runner/validate.py\n\ndoctor:\n\tpython3 runner/doctor.py\n\nqwen-sparse-compute-admission-v0-00675:\n\tpython3 runner/run_qwen.py\n",
+    );
+    write(&repo.path().join("lab/custom/a.json"), "{\"claim_status\":\"open\"}\n");
+    write(&repo.path().join("runner/run_qwen.py"), "print('qwen')\n");
+    write(&repo.path().join("runner/validate.py"), "print('validate')\n");
+    write(&repo.path().join("runner/doctor.py"), "print('doctor')\n");
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "ctx dialect fixture"]);
+
+    let ls = run_json(
+        repo.path(),
+        cache.path(),
+        &["ls", "lab/custom/a.json", "--format", "json"],
+    );
+    assert_schema("schemas/ls.schema.json", &ls);
+    assert_eq!(ls["anchor"]["kind"], "receipt", "ctx role should shape file kind: {ls:#}");
+
+    let proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "--files",
+            "lab/custom/a.json",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &proof);
+    for command in [
+        "make validate-receipts",
+        "make doctor",
+        "make qwen-sparse-compute-admission-v0-00675",
+    ] {
+        assert!(
+            proof_surfaces(&proof).iter().any(|surface| {
+                surface["command"] == command
+                    && surface["evidence"] == "ctx_proof_changed"
+                    && surface["strength"] == "hard"
+            }),
+            "missing hard ctx proof surface for {command}: {proof:#}"
+        );
+    }
+
+    let validation = run_json(
+        repo.path(),
+        cache.path(),
+        &["anchors", "validate", "--format", "json"],
+    );
+    assert_schema("schemas/anchor-validation.schema.json", &validation);
+    assert_eq!(validation["summary"]["role_patterns"], 2);
+    assert_eq!(validation["summary"]["proof_changed_commands"], 3);
+}
+
+#[test]
+fn ctx_role_removal_does_not_leave_stale_warm_cache_roles() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join(".ctx.yml"),
+        r#"version: 1
+roles:
+  "lab/custom/*.json": receipt
+"#,
+    );
+    write(&repo.path().join("lab/custom/a.json"), "{\"claim_status\":\"open\"}\n");
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "ctx role cache fixture"]);
+
+    let first = run_json(
+        repo.path(),
+        cache.path(),
+        &["ls", "lab/custom/a.json", "--format", "json"],
+    );
+    assert_schema("schemas/ls.schema.json", &first);
+    assert_eq!(
+        first["anchor"]["kind"], "receipt",
+        "ctx role should apply before cache reuse: {first:#}"
+    );
+
+    write(
+        &repo.path().join(".ctx.yml"),
+        r#"version: 1
+roles: {}
+"#,
+    );
+    let second = run_json(
+        repo.path(),
+        cache.path(),
+        &["ls", "lab/custom/a.json", "--format", "json"],
+    );
+    assert_schema("schemas/ls.schema.json", &second);
+    assert_ne!(
+        second["anchor"]["kind"], "receipt",
+        "removing the ctx role must remove it from reused cached file facts: {second:#}"
+    );
+    assert!(
+        second["anchor"]["roles"]
+            .as_array()
+            .expect("roles")
+            .iter()
+            .all(|role| role.as_str() != Some("receipt")),
+        "receipt role must not survive as a stale cache overlay: {second:#}"
+    );
+}
+
+#[test]
+fn teach_prints_read_only_ctx_dialect_draft() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write_role_aware_lab_fixture(repo.path());
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "role aware lab"]);
+
+    let teach = run_json(repo.path(), cache.path(), &["teach", "--format", "json"]);
+    assert_schema("schemas/teach.schema.json", &teach);
+    let role_patterns = teach["role_patterns"].as_array().expect("role patterns");
+    assert!(
+        role_patterns.iter().any(|entry| {
+            entry["pattern"] == "experiments/receipts/*.json" && entry["role"] == "receipt"
+        }),
+        "teach should expose deterministic receipt role pattern: {teach:#}"
+    );
+    let commands = teach["proof_changed"]
+        .as_array()
+        .expect("proof commands")
+        .iter()
+        .filter_map(|entry| entry["command"].as_str())
+        .collect::<Vec<_>>();
+    assert!(commands.contains(&"make validate-receipts"));
+    assert!(commands.contains(&"make doctor"));
+    assert!(
+        commands.iter().all(|command| !command.contains("deploy") && !command.contains("qwen")),
+        "teach proof draft should stay bounded to validation-looking commands: {teach:#}"
+    );
+}

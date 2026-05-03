@@ -44,28 +44,31 @@ pub(super) fn write_inventory(project: &Project, version: &str) -> Result<()> {
         files: project
             .files
             .values()
-            .map(|file| CachedFile {
-                path: file.rel.clone(),
-                language: file.language.clone(),
-                ext: file.ext.clone(),
-                size: file.size,
-                content_hash: file.content_hash.clone(),
-                line_count: file.line_count,
-                roles: file.roles.iter().cloned().collect(),
-                imports: file.imports.iter().cloned().collect(),
-                import_bindings: cache_bindings(&file.import_bindings),
-                resolved_imports: file.resolved_imports.iter().cloned().collect(),
-                unresolved_imports: file.unresolved_imports.iter().cloned().collect(),
-                resolved_import_bindings: cache_bindings(&file.resolved_import_bindings),
-                exports: file.exports.iter().cloned().collect(),
-                symbols: file.symbols.clone(),
-                tokens: file.tokens.iter().cloned().collect(),
-                references: file.references.iter().cloned().collect(),
-                jsx_tags: file.jsx_tags.iter().cloned().collect(),
-                local_bindings: file.local_bindings.iter().cloned().collect(),
-                surface_tokens: file.surface_tokens.iter().cloned().collect(),
-                surface_phrases: file.surface_phrases.iter().cloned().collect(),
-                visited_route_paths: file.visited_route_paths.iter().cloned().collect(),
+            .map(|file| {
+                let base_roles = crate::repo::base_roles_for_cache(&project.root, file);
+                CachedFile {
+                    path: file.rel.clone(),
+                    language: file.language.clone(),
+                    ext: file.ext.clone(),
+                    size: file.size,
+                    content_hash: file.content_hash.clone(),
+                    line_count: file.line_count,
+                    roles: base_roles.into_iter().collect(),
+                    imports: file.imports.iter().cloned().collect(),
+                    import_bindings: cache_bindings(&file.import_bindings),
+                    resolved_imports: file.resolved_imports.iter().cloned().collect(),
+                    unresolved_imports: file.unresolved_imports.iter().cloned().collect(),
+                    resolved_import_bindings: cache_bindings(&file.resolved_import_bindings),
+                    exports: file.exports.iter().cloned().collect(),
+                    symbols: file.symbols.clone(),
+                    tokens: file.tokens.iter().cloned().collect(),
+                    references: file.references.iter().cloned().collect(),
+                    jsx_tags: file.jsx_tags.iter().cloned().collect(),
+                    local_bindings: file.local_bindings.iter().cloned().collect(),
+                    surface_tokens: file.surface_tokens.iter().cloned().collect(),
+                    surface_phrases: file.surface_phrases.iter().cloned().collect(),
+                    visited_route_paths: file.visited_route_paths.iter().cloned().collect(),
+                }
             })
             .collect(),
         packages: project.packages.clone(),

@@ -24,8 +24,16 @@
       "type": "object",
       "additionalProperties": { "$ref": "#/$defs/concept" }
     },
+    "roles": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[a-z0-9_]+$"
+      }
+    },
     "boundaries": { "$ref": "#/$defs/boundaries" },
-    "verification": { "$ref": "#/$defs/verification" }
+    "verification": { "$ref": "#/$defs/verification" },
+    "proof": { "$ref": "#/$defs/proof" }
   },
   "$defs": {
     "domain": {
@@ -102,6 +110,16 @@
       "additionalProperties": false,
       "properties": {
         "default": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "proof": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "changed": {
           "type": "array",
           "items": { "type": "string" }
         }

@@ -26,7 +26,7 @@ fn is_owner_doc_surface(rel: &str, name: &str, ext: &str) -> bool {
 }
 
 fn is_proof_runner_surface(rel: &str, name: &str, ext: &str, tokens: &BTreeSet<String>) -> bool {
-    is_source_ext(ext)
+    (is_source_ext(ext) || is_script_ext(ext))
         && (rel.starts_with("tools/")
             || rel.starts_with("scripts/")
             || rel.contains("/tools/")

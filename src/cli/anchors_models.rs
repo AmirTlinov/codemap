@@ -14,8 +14,10 @@ struct AnchorValidation {
 struct AnchorValidationSummary {
     domains: usize,
     concepts: usize,
+    role_patterns: usize,
     forbidden_boundaries: usize,
     verification_defaults: usize,
+    proof_changed_commands: usize,
 }
 
 #[derive(serde::Serialize)]
@@ -26,4 +28,3 @@ struct AnchorValidationDetail {
     message: String,
     next: Vec<String>,
 }
-

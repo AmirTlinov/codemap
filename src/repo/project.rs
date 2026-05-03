@@ -92,8 +92,14 @@ pub fn load_project_with_cache(
                     .cache_artifacts
                     .iter()
                     .any(|artifact| artifact.fingerprint_match != Some(true));
+                let cached_head_mismatch =
+                    cache::cached_git_head_matches(&project.root, &project.cache_dir, VERSION)
+                        == Some(false);
                 if cache_write == CacheWriteMode::Enabled
-                    && (!scan_candidates.is_empty() || !delta.is_exact_hit() || cache_needs_refresh)
+                    && (!scan_candidates.is_empty()
+                        || !delta.is_exact_hit()
+                        || cache_needs_refresh
+                        || cached_head_mismatch)
                 {
                     let git_status_change_sets = git_status_cache_change_sets(&project.root);
                     cache::write_status_with_change_sets(
@@ -124,6 +130,7 @@ pub fn load_project_with_cache(
     let scan_ms = scan_started.elapsed().as_millis();
 
     let facts_started = Instant::now();
+    apply_ctx_config_roles(&mut files, &anchors);
     let packages = detect_packages(&root, &files);
     let ts_path_aliases = detect_ts_path_aliases(&root, &files);
     resolve_imports(&root, &mut files, &packages, &ts_path_aliases);
@@ -237,6 +244,7 @@ struct ProjectBuildInput {
 fn build_project_from_files(input: ProjectBuildInput) -> Project {
     let facts_started = Instant::now();
     let mut files = input.files;
+    apply_ctx_config_roles(&mut files, &input.anchors);
     let packages = detect_packages(&input.root, &files);
     let ts_path_aliases = detect_ts_path_aliases(&input.root, &files);
     resolve_imports(&input.root, &mut files, &packages, &ts_path_aliases);

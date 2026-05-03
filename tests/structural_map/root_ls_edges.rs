@@ -361,4 +361,3 @@ fn root_ls_collapses_nested_manifest_edges_to_current_level_package() {
         "scoped maps should still expose the nested relation once the agent drills into that level: {scoped:#}"
     );
 }
-

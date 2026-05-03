@@ -34,6 +34,47 @@ fn daily_workflow_markdown_stays_compact_and_non_ritualistic() {
     );
 }
 
+#[test]
+fn changed_large_schema_and_script_slice_stays_compact() {
+    let (repo, cache) = fixture();
+    let schema_body = (0..36)
+        .map(|index| format!(r#""field{index}": {{"type": "string"}}"#))
+        .collect::<Vec<_>>()
+        .join(",\n");
+    write(
+        &repo.path().join("schemas/large.schema.json"),
+        &format!(
+            "{{\n  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n  \"type\": \"object\",\n  \"properties\": {{\n{schema_body}\n  }}\n}}\n"
+        ),
+    );
+    write(
+        &repo.path().join("scripts/dogfood-codemap.sh"),
+        "#!/usr/bin/env bash\nset -euo pipefail\ncodemap changed\n",
+    );
+    for index in 0..24 {
+        write(
+            &repo
+                .path()
+                .join(format!("packages/replay/src/generated-{index}.ts")),
+            &format!("export const generated{index} = {index};\n"),
+        );
+    }
+
+    let markdown = run_markdown(repo.path(), cache.path(), &["changed"]);
+    assert!(
+        markdown.lines().count() <= 120,
+        "large changed overview should stay compact and push detail into expand: {markdown}"
+    );
+    assert!(
+        markdown.contains("hidden changed anchors") && markdown.contains("codemap changed --section observed"),
+        "large changed overview should expose exact detail expansion: {markdown}"
+    );
+    assert!(
+        markdown.contains("scripts/dogfood-codemap.sh") && !markdown.contains("[missing; unknown"),
+        "script changes should stay first-class in compact changed output: {markdown}"
+    );
+}
+
 fn run_markdown(repo: &Path, cache: &Path, args: &[&str]) -> String {
     let output = codemap()
         .current_dir(repo)

@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AmirTlinov/codemap/schemas/teach.schema.json",
+  "title": "codemap teach report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "schema_version",
+    "config",
+    "role_patterns",
+    "proof_changed",
+    "ctx_yml",
+    "expand"
+  ],
+  "properties": {
+    "kind": { "const": "teach_report" },
+    "schema_version": { "const": "1" },
+    "config": { "type": ["string", "null"] },
+    "role_patterns": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/role_pattern" }
+    },
+    "proof_changed": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/proof_command" }
+    },
+    "ctx_yml": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "expand": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "role_pattern": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pattern", "role", "evidence", "matched", "examples"],
+      "properties": {
+        "pattern": { "type": "string" },
+        "role": { "type": "string" },
+        "evidence": { "type": "string" },
+        "matched": { "type": "integer", "minimum": 0 },
+        "examples": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "proof_command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command", "evidence", "source", "line_start"],
+      "properties": {
+        "command": { "type": "string" },
+        "evidence": { "type": "string" },
+        "source": { "type": ["string", "null"] },
+        "line_start": { "type": ["integer", "null"], "minimum": 1 }
+      }
+    }
+  }
+}

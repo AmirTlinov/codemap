@@ -40,9 +40,12 @@ fn dogfood_script_runs_daily_and_focused_probes_read_only() {
     for label in [
         "doctor",
         "ls_root",
+        "ls_links",
         "changed",
         "proof_changed",
         "cone_anchor",
+        "cone_owner",
+        "proof_owner",
         "contract_anchor",
         "delete_anchor",
     ] {
@@ -54,10 +57,17 @@ fn dogfood_script_runs_daily_and_focused_probes_read_only() {
     for line in summary.lines() {
         let value: Value = serde_json::from_str(line).expect("summary line json");
         if value.get("command").is_some() {
+            assert_eq!(
+                value["status"], 0,
+                "dogfood probes should succeed in the controlled fixture: {value:#}"
+            );
             assert!(
                 value.get("elapsed_ms").is_some()
                     && value.get("lines").is_some()
                     && value.get("line_budget").is_some()
+                    && value.get("hidden_lines").is_some()
+                    && value.get("unknown_lines").is_some()
+                    && value.get("map_quality_lines").is_some()
                     && value.get("budget_status").is_some(),
                 "dogfood command summaries should include timing and line-budget fields: {value:#}"
             );

@@ -123,6 +123,7 @@ pub fn proof_report(
                 discovery_limit,
             ));
         }
+        proofs.extend(ctx_changed_proof_surfaces(project));
     } else {
         for anchor in &anchors {
             if let Some((file_rel, symbol_name)) = split_symbol_anchor(anchor) {
@@ -172,6 +173,25 @@ pub fn proof_report(
     let all_proofs = unique_proof_surfaces(proofs);
     let fallback = proof_fallback_commands(project, &anchors, &changed, &all_proofs);
     let mut unknowns = Vec::new();
+    if target.is_none() && !changed.is_empty() {
+        unknowns.extend(changed_fail_open_unknowns(project, &changed));
+    }
+    if let Some(target) = target.as_ref()
+        && let Some(file) = project.files.get(target)
+        && changed_should_check_direct_proof(file)
+        && !strict_test_edges_for_file(project, target, usize::MAX)
+            .iter()
+            .any(|(_, _, strength)| *strength >= EvidenceStrength::High)
+    {
+        unknowns.push(unknown(
+            "direct_test_import_not_found",
+            Some(target),
+            None,
+            "no direct test import, symbol reference, support import, or e2e route visit was found for this proof anchor",
+            "proof surfaces may still include scripts, CI, contract checks, or soft evidence, but no deterministic direct test sensor was found",
+            Some(format!("codemap proof-map {} --raw-sensors", shell_quote(target))),
+        ));
+    }
     if let Some(target) = target.as_ref()
         && (project.files.contains_key(target) || directory_has_files(project, target))
         && (proof_missing_should_surface(project, target)

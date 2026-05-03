@@ -225,6 +225,7 @@ pub struct DirectorySurface {
 }
 
 include!("model/lens_reports.rs");
+include!("model/teach_reports.rs");
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ProofReport {
@@ -306,9 +307,13 @@ pub struct CtxConfig {
     #[serde(default)]
     pub concepts: BTreeMap<String, AnchorConcept>,
     #[serde(default)]
+    pub roles: BTreeMap<String, String>,
+    #[serde(default)]
     pub boundaries: AnchorBoundaries,
     #[serde(default)]
     pub verification: AnchorVerification,
+    #[serde(default)]
+    pub proof: AnchorProof,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
@@ -370,6 +375,13 @@ pub struct BoundaryRule {
 pub struct AnchorVerification {
     #[serde(default)]
     pub default: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AnchorProof {
+    #[serde(default)]
+    pub changed: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq, PartialOrd, Ord)]

@@ -68,6 +68,10 @@ pub fn is_source_ext(ext: &str) -> bool {
     SOURCE_EXTS.iter().any(|x| x == &ext)
 }
 
+pub fn is_script_ext(ext: &str) -> bool {
+    SCRIPT_EXTS.iter().any(|x| x == &ext)
+}
+
 pub fn is_asset_ext(ext: &str) -> bool {
     ASSET_EXTS.iter().any(|x| x == &ext)
 }

@@ -12,7 +12,7 @@ use crate::model::{
     EvidenceStrength, FileInfo, FileSummary, FlowReport, FlowStep, GitChange, HiddenGroup,
     ImpactCluster, ImpactReport, LsReport, PackageDependency, PlaceReport, Project, ProofMapReport,
     ProofReport, ProofSurface, Risk, RuntimeReport, RuntimeRoute, SiblingsReport, StructuralEdge,
-    Surface, Unknown, VerificationPlan,
+    Surface, TeachProofCommand, TeachReport, TeachRolePattern, Unknown, VerificationPlan,
 };
 use crate::repo;
 
@@ -23,9 +23,11 @@ include!("map/edges.rs");
 include!("map/facts.rs");
 include!("map/unknowns.rs");
 include!("map/status.rs");
+include!("map/teach.rs");
 include!("map/entry.rs");
 include!("map/ls.rs");
 include!("map/directory_edges.rs");
+include!("map/directory_owner_edges.rs");
 include!("map/cone_directory.rs");
 include!("map/cone_traversal.rs");
 include!("map/cone_owner_surfaces.rs");

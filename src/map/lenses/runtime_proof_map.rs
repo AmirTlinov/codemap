@@ -210,6 +210,9 @@ pub fn proof_map_report(
         proof_map_current_level_containers(project, scope.as_deref(), raw_sensors);
     direct.extend(current_direct);
     e2e.extend(current_e2e);
+    if scope.is_none() && !changed.is_empty() {
+        direct.extend(ctx_changed_proof_surfaces(project));
+    }
     for seed in &seeds {
         if let Some(file) = project.files.get(seed) {
             unknowns.extend(unknowns_for_file(project, file));

@@ -27,14 +27,18 @@
       "required": [
         "domains",
         "concepts",
+        "role_patterns",
         "forbidden_boundaries",
-        "verification_defaults"
+        "verification_defaults",
+        "proof_changed_commands"
       ],
       "properties": {
         "domains": { "type": "integer", "minimum": 0 },
         "concepts": { "type": "integer", "minimum": 0 },
+        "role_patterns": { "type": "integer", "minimum": 0 },
         "forbidden_boundaries": { "type": "integer", "minimum": 0 },
-        "verification_defaults": { "type": "integer", "minimum": 0 }
+        "verification_defaults": { "type": "integer", "minimum": 0 },
+        "proof_changed_commands": { "type": "integer", "minimum": 0 }
       }
     },
     "problems": {

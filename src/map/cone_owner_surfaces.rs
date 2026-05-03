@@ -24,6 +24,9 @@ fn cone_owner_incoming_edges(project: &Project, rel: &str) -> Vec<StructuralEdge
         return Vec::new();
     };
     let mut edges = Vec::new();
+    if file.has_role("manifest") {
+        edges.extend(owner_manifest_incoming_edges(project, rel));
+    }
     if file.has_role("schema_contract") || schema_owner_path(rel) {
         edges.extend(owner_schema_incoming_edges(project, rel));
     }
@@ -118,18 +121,57 @@ fn owner_manifest_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {
         EvidenceStrength::Hard,
         vec![EvidenceLocation::line(rel, package_line, "package_manifest")],
     ));
-    for (name, command, line) in package_json_scripts(project, rel) {
+    for script in project
+        .scripts
+        .iter()
+        .filter(|script| script.path.as_deref() == Some(rel))
+        .filter(|_| manifest_file_name(rel) != "package.json")
+    {
+        let line = script.line_start.unwrap_or(1);
+        let script_id = script_target_for_path(rel, &script.name);
         edges.push(structural_edge_with_locations(
             rel.to_string(),
-            format!("script:{name}"),
+            script_id.clone(),
+            "declares_script",
+            "script_manifest",
+            EvidenceStrength::Hard,
+            vec![EvidenceLocation::line(rel, line, "script_manifest")],
+        ));
+        edges.push(structural_edge_with_locations(
+            script_id,
+            command_target(&script.command),
+            "runs_command",
+            "script_manifest",
+            EvidenceStrength::Hard,
+            vec![EvidenceLocation::line(rel, line, "script_manifest")],
+        ));
+    }
+    for lockfile in lockfiles_for_package(project, package) {
+        edges.push(structural_edge_with_locations(
+            rel.to_string(),
+            lockfile.rel.clone(),
+            "uses_lockfile",
+            "lockfile",
+            EvidenceStrength::High,
+            vec![
+                EvidenceLocation::path(rel, "package_manifest"),
+                EvidenceLocation::path(&lockfile.rel, "lockfile"),
+            ],
+        ));
+    }
+    for (name, command, line) in package_json_scripts(project, rel) {
+        let script_id = format!("script:{name}");
+        edges.push(structural_edge_with_locations(
+            rel.to_string(),
+            script_id.clone(),
             "declares_script",
             "manifest_script",
             EvidenceStrength::Hard,
             vec![EvidenceLocation::line(rel, line, "package_script")],
         ));
         edges.push(structural_edge_with_locations(
-            format!("script:{name}"),
-            command,
+            script_id,
+            command_target(&command),
             "runs_command",
             "manifest_script",
             EvidenceStrength::Hard,
@@ -170,6 +212,32 @@ fn owner_manifest_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {
         ));
     }
     edges
+}
+
+fn owner_manifest_incoming_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {
+    project
+        .package_edges
+        .iter()
+        .filter(|edge| edge.to_manifest.as_deref() == Some(rel))
+        .map(|edge| {
+            structural_edge_with_locations(
+                edge.from_manifest.clone(),
+                rel.to_string(),
+                "package_consumer",
+                edge.source.clone(),
+                EvidenceStrength::Hard,
+                vec![EvidenceLocation::line(
+                    &edge.from_manifest,
+                    owner_line_containing(
+                        project,
+                        &edge.from_manifest,
+                        &[&format!("\"{}\"", edge.dependency), &edge.dependency],
+                    ),
+                    "package_dependency",
+                )],
+            )
+        })
+        .collect()
 }
 
 fn owner_schema_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {

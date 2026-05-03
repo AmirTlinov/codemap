@@ -117,6 +117,11 @@ fn normalize_ctx_config(config: &mut CtxConfig, base: &str) {
             .map(|file| prefix_config_path(base, file))
             .collect();
     }
+    config.roles = config
+        .roles
+        .iter()
+        .map(|(pattern, role)| (prefix_config_path(base, pattern), role.clone()))
+        .collect();
     for rule in &mut config.boundaries.forbidden {
         rule.from = prefix_config_path(base, &rule.from);
         rule.to = prefix_config_path(base, &rule.to);
@@ -177,6 +182,7 @@ fn merge_ctx_config(merged: &mut CtxConfig, mut config: CtxConfig, base: &str) {
     merged.owns.extend(config.owns);
     merged.does_not_own.extend(config.does_not_own);
     merged.concepts.extend(config.concepts);
+    merged.roles.extend(config.roles);
     merged
         .boundaries
         .forbidden
@@ -185,4 +191,43 @@ fn merge_ctx_config(merged: &mut CtxConfig, mut config: CtxConfig, base: &str) {
         .verification
         .default
         .extend(config.verification.default);
+    merged.proof.changed.extend(config.proof.changed);
+}
+
+fn apply_ctx_config_roles(files: &mut BTreeMap<String, FileInfo>, config: &CtxConfig) {
+    if config.roles.is_empty() {
+        return;
+    }
+    for file in files.values_mut() {
+        for (pattern, role) in &config.roles {
+            if ctx_role_pattern_matches(pattern, &file.rel) {
+                file.roles.insert(role.clone());
+            }
+        }
+    }
+}
+
+fn ctx_role_pattern_matches(pattern: &str, rel: &str) -> bool {
+    let pattern = pattern.trim();
+    if pattern.is_empty() {
+        return false;
+    }
+    if !ctx_pattern_is_glob_like(pattern) {
+        return repo_path_equals_or_contains(pattern, rel);
+    }
+    GlobBuilder::new(pattern)
+        .literal_separator(true)
+        .build()
+        .ok()
+        .is_some_and(|glob| glob.compile_matcher().is_match(rel))
+}
+
+fn ctx_pattern_is_glob_like(pattern: &str) -> bool {
+    pattern.contains('*') || pattern.contains('?') || pattern.contains('[')
+}
+
+fn repo_path_equals_or_contains(pattern: &str, rel: &str) -> bool {
+    let pattern = normalize_rel_path(pattern);
+    let rel = normalize_rel_path(rel);
+    rel == pattern || rel.starts_with(&format!("{}/", pattern.trim_end_matches('/')))
 }

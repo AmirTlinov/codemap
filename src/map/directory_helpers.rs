@@ -2,6 +2,7 @@ fn sort_edges(edges: &mut Vec<StructuralEdge>) {
     edges.sort_by(|a, b| {
         a.from
             .cmp(&b.from)
+            .then_with(|| edge_type_priority(&a.edge_type).cmp(&edge_type_priority(&b.edge_type)))
             .then_with(|| a.edge_type.cmp(&b.edge_type))
             .then_with(|| a.to.cmp(&b.to))
             .then_with(|| a.evidence.cmp(&b.evidence))
@@ -9,6 +10,20 @@ fn sort_edges(edges: &mut Vec<StructuralEdge>) {
     edges.dedup_by(|a, b| {
         a.from == b.from && a.to == b.to && a.edge_type == b.edge_type && a.evidence == b.evidence
     });
+}
+
+fn edge_type_priority(edge_type: &str) -> usize {
+    match edge_type {
+        "outgoing_import" | "incoming_import" | "package_internal" | "package_outgoing"
+        | "package_incoming" => 0,
+        "workspace_member" | "declares_workspace_pattern" => 1,
+        "uses_lockfile" | "schema_migration" | "env_consumer" => 2,
+        "declares_env" => 3,
+        "ci_calls_script" | "ci_runs_command" => 4,
+        "declares_script" => 5,
+        "runs_command" => 6,
+        _ => 10,
+    }
 }
 
 fn balanced_edge_prefix_by_source(edges: &[StructuralEdge], limit: usize) -> Vec<StructuralEdge> {

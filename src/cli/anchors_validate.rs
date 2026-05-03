@@ -16,8 +16,10 @@ fn validate_anchors(project: &crate::model::Project) -> AnchorValidation {
         summary: AnchorValidationSummary {
             domains: project.anchors.domain.iter().count() + project.anchors.domains.len(),
             concepts: project.anchors.concepts.len(),
+            role_patterns: project.anchors.roles.len(),
             forbidden_boundaries: project.anchors.boundaries.forbidden.len(),
             verification_defaults: project.anchors.verification.default.len(),
+            proof_changed_commands: project.anchors.proof.changed.len(),
         },
         problems,
         warnings,
@@ -62,6 +64,22 @@ fn semantic_anchor_problems(project: &crate::model::Project) -> Vec<String> {
             }
         }
     }
+    for (pattern, role) in &project.anchors.roles {
+        if pattern.trim().is_empty() {
+            problems.push("roles contains an empty path pattern".to_string());
+        }
+        if role.trim().is_empty() {
+            problems.push(format!("roles pattern `{pattern}` has an empty role"));
+        }
+        if !role
+            .chars()
+            .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '_')
+        {
+            problems.push(format!(
+                "roles pattern `{pattern}` has unsupported role `{role}`; use snake_case"
+            ));
+        }
+    }
     for (idx, edge) in project.anchors.boundaries.forbidden.iter().enumerate() {
         let number = idx + 1;
         if edge.from.trim().is_empty() {
@@ -85,6 +103,14 @@ fn semantic_anchor_problems(project: &crate::model::Project) -> Vec<String> {
         if command.trim().is_empty() {
             problems.push(format!(
                 "verification.default #{} is empty",
+                index.saturating_add(1)
+            ));
+        }
+    }
+    for (index, command) in project.anchors.proof.changed.iter().enumerate() {
+        if command.trim().is_empty() {
+            problems.push(format!(
+                "proof.changed #{} is empty",
                 index.saturating_add(1)
             ));
         }
@@ -133,6 +159,12 @@ fn semantic_anchor_warnings(project: &crate::model::Project) -> Vec<String> {
             ));
         }
     }
+    for pattern in project.anchors.roles.keys() {
+        if !anchor_pattern_matches_project(project, pattern) {
+            warnings.push(format!(
+                "roles pattern `{pattern}` matches no indexed files"
+            ));
+        }
+    }
     warnings
 }
-

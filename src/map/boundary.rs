@@ -34,7 +34,14 @@ pub fn verification_plan(
         .max()
         .unwrap_or(Risk::Low);
 
-    let mut minimal = project.anchors.verification.default.clone();
+    let mut minimal = if changed.is_empty() {
+        project.anchors.verification.default.clone()
+    } else {
+        project.anchors.proof.changed.clone()
+    };
+    if minimal.is_empty() {
+        minimal = project.anchors.verification.default.clone();
+    }
     if minimal.is_empty() {
         minimal = infer_minimal_commands(project, &domains, &all_files, changed);
     }

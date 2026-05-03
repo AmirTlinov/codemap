@@ -117,7 +117,16 @@ fn directory_edges_at_depth(
             },
         )
         .collect::<Vec<_>>();
+    edges.extend(current_level_owner_edges(
+        project,
+        rel,
+        include_hidden,
+        endpoint_depth,
+    ));
     sort_edges(&mut edges);
+    edges.dedup_by(|a, b| {
+        a.from == b.from && a.to == b.to && a.edge_type == b.edge_type && a.evidence == b.evidence
+    });
     edges
 }
 
@@ -247,4 +256,165 @@ fn path_under_scope(path: &str, scope: &str) -> bool {
     let path = repo::normalize_rel_path(path);
     let scope = repo::normalize_rel_path(scope);
     scope == "." || path == scope || path.starts_with(&format!("{}/", scope.trim_end_matches('/')))
+}
+
+fn script_target_for_path(path: &str, name: &str) -> String {
+    let scope = manifest_dir_for_rel(path);
+    if scope == "." {
+        format!("script:{name}")
+    } else {
+        format!("script:{scope}:{name}")
+    }
+}
+
+fn script_target_for_package(package: &crate::model::PackageInfo, name: &str) -> String {
+    if package.path == "." {
+        format!("script:{name}")
+    } else {
+        format!("script:{}:{name}", package.path)
+    }
+}
+
+fn command_target(command: &str) -> String {
+    format!("command:{}", command.trim())
+}
+
+fn include_package_script_command_edge(scope: &str) -> bool {
+    repo::normalize_rel_path(scope) != "."
+}
+
+fn command_invokes_script_surface(command: &str, script: &crate::model::ScriptInfo) -> bool {
+    if command_invokes_script(command, &script.name) {
+        return true;
+    }
+    let command_parts = command_tokens(command);
+    let script_tokens = command_tokens(&script.command);
+    !script_tokens.is_empty()
+        && command_parts
+            .windows(script_tokens.len())
+            .any(|window| window == script_tokens.as_slice())
+}
+
+fn validation_command_like(command: &str) -> bool {
+    let tokens = command_tokens(command);
+    if tokens.is_empty() {
+        return false;
+    }
+    tokens.windows(2).any(|window| {
+        matches!(
+            (window[0].as_str(), window[1].as_str()),
+            ("cargo", "test")
+                | ("cargo", "check")
+                | ("cargo", "clippy")
+                | ("cargo", "fmt")
+                | ("go", "test")
+                | ("swift", "test")
+                | ("swift", "build")
+                | ("python", "-m")
+        )
+    }) || tokens.iter().any(|token| {
+        matches!(
+            token.as_str(),
+            "pytest"
+                | "vitest"
+                | "jest"
+                | "eslint"
+                | "biome"
+                | "typecheck"
+                | "svelte-check"
+                | "doctor"
+        )
+    }) || command_uses_e2e_runner(&tokens)
+        || tokens.iter().enumerate().any(|(index, token)| {
+        matches!(token.as_str(), "test" | "lint" | "check" | "build" | "verify" | "e2e")
+            && token_invokes_package_script(&tokens, index)
+    })
+}
+
+fn command_uses_e2e_runner(tokens: &[String]) -> bool {
+    tokens
+        .iter()
+        .enumerate()
+        .any(|(index, token)| matches!(token.as_str(), "playwright" | "cypress")
+            && tokens[index + 1..]
+                .iter()
+                .any(|later| matches!(later.as_str(), "test" | "e2e" | "run")))
+}
+
+fn workspace_edge_directory_target(
+    project: &Project,
+    scope: &str,
+    target: &str,
+    endpoint_depth: usize,
+) -> String {
+    if project.files.contains_key(target)
+        || project
+            .packages
+            .iter()
+            .any(|package| package.path == target || package.manifest == target)
+    {
+        directory_edge_endpoint_at_depth(project, scope, target, endpoint_depth)
+    } else {
+        target.to_string()
+    }
+}
+
+fn lockfiles_for_package<'a>(
+    project: &'a Project,
+    package: &crate::model::PackageInfo,
+) -> Vec<&'a FileInfo> {
+    let package_dir = package.path.trim_end_matches('/');
+    project
+        .files
+        .values()
+        .filter(|file| file.has_role("lockfile"))
+        .filter(|file| match package.ecosystem.as_str() {
+            "rust" => {
+                if package.path == "." {
+                    file.rel == "Cargo.lock"
+                } else {
+                    file.rel == format!("{package_dir}/Cargo.lock")
+                }
+            }
+            "javascript" => {
+                matches!(
+                    Path::new(&file.rel).file_name().and_then(|name| name.to_str()),
+                    Some(
+                        "pnpm-lock.yaml"
+                            | "pnpm-lock.yml"
+                            | "package-lock.json"
+                            | "yarn.lock"
+                            | "bun.lock"
+                            | "bun.lockb"
+                    )
+                ) && ((package.path == "." && !file.rel.contains('/'))
+                    || file.rel == format!("{package_dir}/pnpm-lock.yaml")
+                    || file.rel == format!("{package_dir}/package-lock.json")
+                    || file.rel == format!("{package_dir}/yarn.lock"))
+            }
+            "python" => matches!(
+                Path::new(&file.rel).file_name().and_then(|name| name.to_str()),
+                Some("poetry.lock" | "pdm.lock" | "uv.lock")
+            ),
+            _ => false,
+        })
+        .collect()
+}
+
+fn should_hide_owner_edge_path(path: &str, scope_is_support: bool) -> bool {
+    !scope_is_support && is_support_artifact_path(path)
+}
+
+fn schema_owner_directory(rel: &str) -> String {
+    let dir = manifest_dir_for_rel(rel);
+    if dir.ends_with("/prisma") || dir.ends_with("/db") || dir.ends_with("/schema") {
+        dir
+    } else if rel.contains("/migrations/") {
+        rel.split("/migrations/")
+            .next()
+            .map(repo::normalize_rel_path)
+            .unwrap_or(dir)
+    } else {
+        dir
+    }
 }

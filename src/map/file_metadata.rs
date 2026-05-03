@@ -43,6 +43,7 @@ fn file_kind_for_ls(info: &FileInfo) -> String {
         "receipt",
         "witness",
         "proof_runner",
+        "script",
         "owner_doc",
         "migration",
         "manifest",
@@ -95,6 +96,8 @@ fn file_kind_for_ls(info: &FileInfo) -> String {
         "lockfile".to_string()
     } else if info.language == "markdown" {
         "docs".to_string()
+    } else if info.language == "shell" {
+        "script".to_string()
     } else {
         "file".to_string()
     }

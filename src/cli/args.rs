@@ -94,6 +94,9 @@ enum CommandKind {
     #[command(about = "Show repo, cache, language, domain, and verification status")]
     Status(FormatArgs),
     #[command(hide = true)]
+    #[command(about = "Print a read-only .ctx.yml dialect draft from deterministic repo patterns")]
+    Teach(FormatArgs),
+    #[command(hide = true)]
     #[command(about = "List indexed project files without writing to the project")]
     Files(FilesArgs),
     #[command(hide = true)]
@@ -440,6 +443,7 @@ enum SchemaKind {
     AnchorValidation,
     Graph,
     Boundaries,
+    Teach,
 }
 
 fn default_output_format() -> OutputFormat {

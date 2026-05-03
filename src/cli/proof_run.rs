@@ -389,7 +389,10 @@ fn package_runner_and_script<'a>(parts: &'a [&str]) -> Option<(&'a str, &'a str)
 fn safe_script_name(script: &str) -> bool {
     let script = script.trim_matches('\'').trim_matches('"');
     let lower = script.to_ascii_lowercase();
-    if ["deploy", "release", "publish", "migrate", "db:push"]
+    if [
+        "deploy", "release", "publish", "migrate", "db:push", "destroy", "delete", "drop",
+        "reset", "truncate", "wipe", "remove", "prune",
+    ]
         .iter()
         .any(|marker| lower.contains(marker))
     {
@@ -399,6 +402,11 @@ fn safe_script_name(script: &str) -> bool {
         || script.starts_with("typecheck")
         || script == "check"
         || script.starts_with("check:")
+        || script.contains("validate")
+        || script.contains("verify")
+        || script == "doctor"
+        || script.starts_with("doctor:")
+        || script.contains("proof")
         || script == "lint"
         || script.starts_with("lint:")
         || script == "build"

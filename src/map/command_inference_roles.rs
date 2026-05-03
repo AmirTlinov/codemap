@@ -3,6 +3,9 @@ fn role_aware_minimal_commands(
     files: &[String],
     changed: &[String],
 ) -> Vec<String> {
+    if !changed.is_empty() && !project.anchors.proof.changed.is_empty() {
+        return project.anchors.proof.changed.clone();
+    }
     let anchors = if changed.is_empty() { files } else { changed };
     let Some(context) = proof_role_context(project, anchors) else {
         return Vec::new();
@@ -26,6 +29,37 @@ fn role_aware_minimal_commands(
     .into_iter()
     .take(3)
     .collect()
+}
+
+fn ctx_changed_proof_surfaces(project: &Project) -> Vec<ProofSurface> {
+    project
+        .anchors
+        .proof
+        .changed
+        .iter()
+        .filter_map(|command| {
+            let command = command.trim();
+            if command.is_empty() {
+                return None;
+            }
+            Some(ProofSurface {
+                command: Some(command.to_string()),
+                path: project.config_path.clone(),
+                evidence: "ctx_proof_changed".to_string(),
+                strength: EvidenceStrength::Hard,
+                reason: ".ctx.yml proof.changed command".to_string(),
+                locations: ctx_config_locations(project, "ctx_proof_changed"),
+            })
+        })
+        .collect()
+}
+
+fn ctx_config_locations(project: &Project, kind: &str) -> Vec<EvidenceLocation> {
+    project
+        .config_path
+        .as_ref()
+        .map(|path| vec![EvidenceLocation::path(path, kind)])
+        .unwrap_or_default()
 }
 
 fn role_aware_command_proof_surfaces(project: &Project, anchor: &str) -> Vec<ProofSurface> {

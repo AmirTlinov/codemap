@@ -94,7 +94,7 @@ pub fn proof(report: &ProofReport, section_filter: Option<&str>) {
         println!("\n## Fallback\n");
         println!("{}", code_block("bash", &report.fallback));
     }
-    unknown_section(&report.unknowns);
+    proof_unknowns_section(report);
     hidden_section(&report.hidden);
     section("Expand", &report.expand);
     println!("\n{}", report.run_hint);
@@ -196,7 +196,52 @@ fn proof_unknown_section(report: &ProofReport) {
         proof_empty_section("Unknown", detail);
         return;
     }
-    unknown_section(&report.unknowns);
+    proof_unknowns_section(report);
+}
+
+fn proof_unknowns_section(report: &ProofReport) {
+    if proof_unknowns_should_compact(report) {
+        proof_compact_unknowns_section(report);
+    } else {
+        unknown_section(&report.unknowns);
+    }
+}
+
+fn proof_unknowns_should_compact(report: &ProofReport) -> bool {
+    report.target.is_none() && report.changed.len() > 5 && report.unknowns.len() > 5
+}
+
+fn proof_compact_unknowns_section(report: &ProofReport) {
+    println!("\n## Unknown\n");
+    let mut grouped: std::collections::BTreeMap<&str, Vec<&Unknown>> =
+        std::collections::BTreeMap::new();
+    for unknown in &report.unknowns {
+        grouped.entry(unknown.kind.as_str()).or_default().push(unknown);
+    }
+    for (kind, unknowns) in grouped {
+        let sample = unknowns
+            .iter()
+            .take(5)
+            .map(|unknown| format!("`{}`", unknown_where(unknown)))
+            .collect::<Vec<_>>()
+            .join(", ");
+        if sample.is_empty() {
+            println!("- `{kind}`: `{}`", unknowns.len());
+        } else {
+            println!("- `{kind}`: `{}`; sample: {sample}", unknowns.len());
+        }
+        let hidden = unknowns.len().saturating_sub(5);
+        if hidden > 0 {
+            println!("  hidden: `{hidden}` unknowns");
+            println!(
+                "  expand: `{}`",
+                root_aware_expand(&format!(
+                    "codemap changed --section unknown --limit {}",
+                    unknowns.len()
+                ))
+            );
+        }
+    }
 }
 
 fn proof_hidden_section(report: &ProofReport) {

@@ -1,4 +1,4 @@
-fn changed_roles_section(report: &ChangedReport, force: bool) {
+fn changed_roles_section(report: &ChangedReport, force: bool, compact: bool) {
     let mut paths_with_summaries = std::collections::BTreeSet::new();
     let mut grouped: std::collections::BTreeMap<String, Vec<(String, String)>> =
         std::collections::BTreeMap::new();
@@ -45,7 +45,13 @@ fn changed_roles_section(report: &ChangedReport, force: bool) {
     let mut rendered = std::collections::BTreeSet::new();
     for role in CHANGED_ROLE_ORDER {
         if let Some(entries) = grouped.get(*role) {
-            changed_role_entries(role, entries, prefix.as_deref(), report.display_limit);
+            changed_role_entries(
+                role,
+                entries,
+                prefix.as_deref(),
+                changed_render_limit(report, compact),
+                compact,
+            );
             rendered.insert((*role).to_string());
         }
     }
@@ -53,7 +59,13 @@ fn changed_roles_section(report: &ChangedReport, force: bool) {
         if rendered.contains(&role) {
             continue;
         }
-        changed_role_entries(&role, &entries, prefix.as_deref(), report.display_limit);
+        changed_role_entries(
+            &role,
+            &entries,
+            prefix.as_deref(),
+            changed_render_limit(report, compact),
+            compact,
+        );
     }
 }
 
@@ -97,7 +109,28 @@ fn changed_role_entries(
     entries: &[(String, String)],
     prefix: Option<&str>,
     limit: usize,
+    compact: bool,
 ) {
+    if compact {
+        let sample = entries
+            .iter()
+            .take(3)
+            .map(|(path, _)| format!("`{}`", changed_relative_path(path, prefix)))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let hidden = entries.len().saturating_sub(3);
+        if sample.is_empty() {
+            println!("- `{role}`: `{}`", entries.len());
+        } else if hidden > 0 {
+            println!(
+                "- `{role}`: `{}`; sample: {sample}; hidden: `{hidden}` surfaces",
+                entries.len()
+            );
+        } else {
+            println!("- `{role}`: `{}`; sample: {sample}", entries.len());
+        }
+        return;
+    }
     println!("- `{role}`: `{}`", entries.len());
     for (path, meta) in entries.iter().take(limit) {
         println!("  - `{}` {}", changed_relative_path(path, prefix), meta);
@@ -295,7 +328,7 @@ fn changed_links_section(report: &ChangedReport, compact: bool, force: bool) {
     }
     println!("\n## Links\n");
     if compact {
-        changed_link_summary_lines(&report.impact);
+        changed_link_summary_lines(report, changed_render_limit(report, true));
         return;
     }
     for cluster in &report.impact {
@@ -317,7 +350,8 @@ fn changed_links_section(report: &ChangedReport, compact: bool, force: bool) {
     }
 }
 
-fn changed_link_summary_lines(clusters: &[ImpactCluster]) {
+fn changed_link_summary_lines(report: &ChangedReport, limit: usize) {
+    let clusters = &report.impact;
     let paths = clusters
         .iter()
         .filter_map(|cluster| cluster.id.strip_prefix("changed:"))
@@ -326,7 +360,7 @@ fn changed_link_summary_lines(clusters: &[ImpactCluster]) {
     if let Some(prefix) = &prefix {
         println!("prefix: `{prefix}`");
     }
-    for cluster in clusters {
+    for cluster in clusters.iter().take(limit) {
         let label = cluster
             .id
             .strip_prefix("changed:")
@@ -344,9 +378,22 @@ fn changed_link_summary_lines(clusters: &[ImpactCluster]) {
             println!("  facts: {}", cluster.reasons.join("; "));
         }
     }
+    let hidden = clusters.len().saturating_sub(limit);
+    if hidden > 0 {
+        println!("- hidden link clusters: `{hidden}`");
+        println!(
+            "  expand: `{}`",
+            root_aware_expand(&format!(
+                "codemap changed{} --section links --limit {}",
+                changed_selector_suffix(&report.selector),
+                clusters.len()
+            ))
+        );
+    }
 }
 
-fn changed_unknown_section(values: &[Unknown], force: bool) {
+fn changed_unknown_section(report: &ChangedReport, force: bool, compact: bool) {
+    let values = &report.unknowns;
     if values.is_empty() {
         if force {
             println!("\n## Unknown\n");
@@ -354,15 +401,73 @@ fn changed_unknown_section(values: &[Unknown], force: bool) {
         }
         return;
     }
-    unknown_section(values);
+    if !compact {
+        unknown_section(values);
+        return;
+    }
+    println!("\n## Unknown\n");
+    let limit = changed_render_limit(report, true);
+    let mut grouped: std::collections::BTreeMap<&str, Vec<&Unknown>> =
+        std::collections::BTreeMap::new();
+    for unknown in values {
+        grouped.entry(unknown.kind.as_str()).or_default().push(unknown);
+    }
+    for (kind, unknowns) in grouped {
+        let sample = unknowns
+            .iter()
+            .take(limit)
+            .map(|unknown| format!("`{}`", unknown_where(unknown)))
+            .collect::<Vec<_>>()
+            .join(", ");
+        if sample.is_empty() {
+            println!("- `{kind}`: `{}`", unknowns.len());
+        } else {
+            println!("- `{kind}`: `{}`; sample: {sample}", unknowns.len());
+        }
+        let hidden = unknowns.len().saturating_sub(limit);
+        if hidden > 0 {
+            println!("  hidden: `{hidden}` unknowns");
+            println!(
+                "  expand: `{}`",
+                root_aware_expand(&format!(
+                    "codemap changed{} --section unknown --limit {}",
+                    changed_selector_suffix(&report.selector),
+                    unknowns.len()
+                ))
+            );
+        }
+    }
 }
 
-fn changed_hidden_section(hidden: &[crate::model::HiddenGroup], force: bool) {
+fn changed_hidden_section(
+    report: &ChangedReport,
+    hidden: &[crate::model::HiddenGroup],
+    force: bool,
+    compact: bool,
+) {
     if hidden.is_empty() {
         if force {
             println!("\n## Hidden\n");
             println!("No hidden material.");
         }
+        return;
+    }
+    if compact && !force && hidden.len() > 5 {
+        println!("\n## Hidden\n");
+        let visible_hidden_groups = 5;
+        for hidden in hidden.iter().take(visible_hidden_groups) {
+            println!("- {}: {}", hidden.reason, hidden.count);
+            println!("  expand: `{}`", root_aware_expand(&hidden.expand));
+        }
+        let collapsed = hidden.len().saturating_sub(visible_hidden_groups);
+        println!("- hidden groups collapsed: `{collapsed}`");
+        println!(
+            "  expand: `{}`",
+            root_aware_expand(&format!(
+                "codemap changed{} --section hidden",
+                changed_selector_suffix(&report.selector)
+            ))
+        );
         return;
     }
     hidden_section(hidden);

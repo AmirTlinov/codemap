@@ -21,6 +21,11 @@ fn public_json_reports_validate_against_manifest_schemas() {
             allow_failure: false,
         },
         PublicJsonReport {
+            manifest_kind: "teach",
+            args: &["teach", "--format", "json"],
+            allow_failure: false,
+        },
+        PublicJsonReport {
             manifest_kind: "files",
             args: &["files", "--format", "json"],
             allow_failure: false,
@@ -140,6 +145,11 @@ fn public_json_reports_validate_against_manifest_schemas() {
         PublicJsonReport {
             manifest_kind: "anchor-validation",
             args: &["anchors", "validate", "--format", "json"],
+            allow_failure: false,
+        },
+        PublicJsonReport {
+            manifest_kind: "teach",
+            args: &["teach", "--format", "json"],
             allow_failure: false,
         },
     ];

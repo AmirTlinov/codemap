@@ -114,6 +114,48 @@ fn proof_changed_section_filter_works_on_clean_fast_path() {
 }
 
 #[test]
+fn proof_changed_unknown_stays_fail_open_for_changed_source_without_direct_test() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{"name":"proof-unknown-fixture","private":true,"scripts":{"test":"vitest run"}}"#,
+    );
+    write(
+        &repo.path().join("src/runtime.ts"),
+        "export function runtimeValue() {\n  return 1;\n}\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "proof unknown fixture"]);
+    write(
+        &repo.path().join("src/runtime.ts"),
+        "export function runtimeValue() {\n  return 2;\n}\n",
+    );
+
+    let output = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["proof", "changed", "--section", "unknown"])
+        .output()
+        .expect("proof changed unknown should run");
+    assert!(
+        output.status.success(),
+        "proof changed unknown failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
+    assert!(
+        markdown.contains("direct_test_import_not_found")
+            && markdown.contains("src/runtime.ts")
+            && !markdown.contains("No Unknown entries were emitted"),
+        "proof changed must not hide missing direct proof just because script proof exists: {markdown}"
+    );
+}
+
+#[test]
 fn proof_section_filter_is_display_only_and_refuses_run() {
     let (repo, cache) = fixture();
 

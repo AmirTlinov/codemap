@@ -49,7 +49,7 @@ fn owner_surface_cones_expose_manifest_schema_env_and_ci_neighborhoods() {
     let manifest_markdown = String::from_utf8(manifest.stdout).expect("markdown utf8");
     assert!(
         manifest_markdown.contains("declares_script -> `script:db:generate`")
-            && manifest_markdown.contains("runs_command -> `prisma generate`")
+            && manifest_markdown.contains("runs_command -> `command:prisma generate`")
             && manifest_markdown.contains("proof_surface -> `cd apps/api && npm test`"),
         "manifest cone should show package-local scripts and proof surfaces: {manifest_markdown}"
     );
@@ -104,6 +104,29 @@ fn owner_surface_cones_expose_manifest_schema_env_and_ci_neighborhoods() {
             && !schema_markdown.contains("pnpm run lint")
             && !schema_markdown.contains("pnpm test"),
         "schema proof should not treat generic package scripts as schema proof: {schema_markdown}"
+    );
+    let schema_proof_unknown = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args([
+            "proof",
+            "apps/api/prisma/schema.prisma",
+            "--section",
+            "unknown",
+        ])
+        .output()
+        .expect("schema proof unknown should run");
+    assert!(
+        schema_proof_unknown.status.success(),
+        "schema proof unknown failed: {}",
+        String::from_utf8_lossy(&schema_proof_unknown.stderr)
+    );
+    let schema_proof_unknown =
+        String::from_utf8(schema_proof_unknown.stdout).expect("markdown utf8");
+    assert!(
+        schema_proof_unknown.contains("direct_test_import_not_found")
+            && !schema_proof_unknown.contains("No Unknown entries were emitted"),
+        "proof --section unknown should stay fail-open even when schema scripts exist: {schema_proof_unknown}"
     );
 
     let env = codemap()
@@ -176,6 +199,97 @@ fn owner_surface_cones_expose_manifest_schema_env_and_ci_neighborhoods() {
 }
 
 #[test]
+fn package_manifest_cone_exposes_package_consumers() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{"name":"manifest-consumer-root","private":true,"workspaces":["apps/*","packages/*"]}"#,
+    );
+    write(
+        &repo.path().join("packages/shared/package.json"),
+        r#"{"name":"@fixture/shared","version":"1.0.0","exports":{"./index":"./src/index.ts"}}"#,
+    );
+    write(&repo.path().join("packages/shared/src/index.ts"), "export const shared = 1;\n");
+    write(
+        &repo.path().join("apps/api/package.json"),
+        r#"{"name":"@fixture/api","dependencies":{"@fixture/shared":"workspace:*"},"scripts":{"test":"vitest run"}}"#,
+    );
+    write(&repo.path().join("apps/api/src/index.ts"), "import { shared } from '@fixture/shared';\n");
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "package consumer cone"]);
+
+    let links = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args([
+            "cone",
+            "packages/shared/package.json",
+            "--depth",
+            "1",
+            "--section",
+            "links",
+        ])
+        .output()
+        .expect("consumer cone should run");
+    assert!(
+        links.status.success(),
+        "consumer cone failed: {}",
+        String::from_utf8_lossy(&links.stderr)
+    );
+    let links = String::from_utf8(links.stdout).expect("markdown utf8");
+    assert!(
+        links.contains("package_export -> `packages/shared/src/index.ts`")
+            && links.contains("incoming:")
+            && links.contains("`apps/api/package.json`")
+            && links.contains("package_consumer -> `packages/shared/package.json`")
+            && links.contains("apps/api/package.json:1"),
+        "package manifest cone should expose exports and deterministic package consumers: {links}"
+    );
+}
+
+#[test]
+fn env_cone_links_prioritize_static_consumers_over_long_declaration_lists() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+
+    let env_body = (0..25)
+        .map(|index| format!("KEY_{index}=\n"))
+        .collect::<String>();
+    write(&repo.path().join(".env.example"), &env_body);
+    write(
+        &repo.path().join("src/config.ts"),
+        "export const value = process.env.KEY_24;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "env cone links"]);
+
+    let output = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["cone", ".env.example", "--section", "links"])
+        .output()
+        .expect("env cone links should run");
+    assert!(
+        output.status.success(),
+        "env cone links failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
+    assert!(
+        markdown.contains("env_consumer -> `src/config.ts`")
+            && markdown.contains("declares_env -> `env:KEY_0`"),
+        "env cone links should keep static consumer evidence visible even when declarations exceed the default limit: {markdown}"
+    );
+}
+
+#[test]
 fn pnpm_workspace_manifest_cone_exposes_members_scripts_and_proof() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");
@@ -226,7 +340,7 @@ fn pnpm_workspace_manifest_cone_exposes_members_scripts_and_proof() {
             && links.contains("workspace_member -> `apps/api/package.json`")
             && links.contains("workspace_member -> `packages/ui/package.json`")
             && links.contains("workspace_script -> `script:test`")
-            && links.contains("runs_command -> `turbo test`"),
+            && links.contains("runs_command -> `command:turbo test`"),
         "workspace cone should expose patterns, member manifests, and root scripts: {links}"
     );
     assert!(

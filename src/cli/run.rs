@@ -56,7 +56,9 @@ pub fn run() -> Result<()> {
     }
 
     let cache_write = match &cli.command {
-        CommandKind::Doctor(_) | CommandKind::Status(_) => repo::CacheWriteMode::ReadOnly,
+        CommandKind::Doctor(_) | CommandKind::Status(_) | CommandKind::Teach(_) => {
+            repo::CacheWriteMode::ReadOnly
+        }
         _ => repo::CacheWriteMode::Enabled,
     };
     let project = repo::load_project_with_cache(root_selection, cache_write)?;
@@ -68,6 +70,10 @@ pub fn run() -> Result<()> {
         CommandKind::Status(args) => {
             let report = map::status_report(&project);
             output(args.format, &report, || render::status(&report, false))
+        }
+        CommandKind::Teach(args) => {
+            let report = map::teach_report(&project);
+            output(args.format, &report, || render::teach(&report))
         }
         CommandKind::Files(args) => {
             let report = files_report(&project, args.path.as_deref(), args.limit)?;
