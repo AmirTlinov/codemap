@@ -130,14 +130,16 @@ pub fn cone_report(
             shell_quote(&rel)
         ),
     );
+    let declared_env = cone_declared_env(project, &rel);
     if seed_files.is_empty() {
         unknowns.push(unknown_unindexed_anchor(&rel));
     }
     ConeReport {
         kind: "cone_report",
-        schema_version: "3",
+        schema_version: "4",
         anchor,
         depth,
+        declared_env,
         outgoing,
         incoming,
         proof,

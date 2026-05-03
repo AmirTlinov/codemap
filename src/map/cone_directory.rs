@@ -81,9 +81,10 @@ fn cone_directory_report(
 
     ConeReport {
         kind: "cone_report",
-        schema_version: "3",
+        schema_version: "4",
         anchor,
         depth,
+        declared_env: Vec::new(),
         outgoing,
         incoming,
         proof,

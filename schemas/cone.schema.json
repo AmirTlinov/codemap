@@ -9,6 +9,7 @@
     "schema_version",
     "anchor",
     "depth",
+    "declared_env",
     "outgoing",
     "incoming",
     "proof",
@@ -20,9 +21,13 @@
   ],
   "properties": {
     "kind": { "const": "cone_report" },
-    "schema_version": { "const": "3" },
+    "schema_version": { "const": "4" },
     "anchor": { "$ref": "#/$defs/file_summary" },
     "depth": { "type": "integer", "minimum": 0 },
+    "declared_env": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/env_declaration" }
+    },
     "outgoing": {
       "type": "array",
       "items": { "$ref": "#/$defs/structural_edge" }
@@ -86,6 +91,16 @@
         "exported": { "type": "boolean" },
         "line_start": { "type": "integer", "minimum": 1 },
         "line_end": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "env_declaration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "path", "line_start"],
+      "properties": {
+        "key": { "type": "string" },
+        "path": { "type": "string" },
+        "line_start": { "type": "integer", "minimum": 1 }
       }
     },
     "file_summary": {

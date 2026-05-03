@@ -4,7 +4,8 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::model::{
-    ConeReport, DirectorySurface, FileSummary, HiddenGroup, LsReport, StructuralEdge, Unknown,
+    ConeReport, DirectorySurface, EnvDeclaration, FileSummary, HiddenGroup, LsReport,
+    StructuralEdge, Unknown,
 };
 
 use super::{
@@ -195,6 +196,8 @@ struct CachedConeReport {
     schema_version: String,
     anchor: FileSummary,
     depth: usize,
+    #[serde(default)]
+    declared_env: Vec<EnvDeclaration>,
     outgoing: Vec<StructuralEdge>,
     incoming: Vec<StructuralEdge>,
     proof: Vec<StructuralEdge>,
@@ -212,6 +215,7 @@ impl CachedConeReport {
             schema_version: report.schema_version.to_string(),
             anchor: report.anchor.clone(),
             depth: report.depth,
+            declared_env: report.declared_env.clone(),
             outgoing: report.outgoing.clone(),
             incoming: report.incoming.clone(),
             proof: report.proof.clone(),
@@ -226,9 +230,10 @@ impl CachedConeReport {
     fn into_report(self) -> ConeReport {
         ConeReport {
             kind: "cone_report",
-            schema_version: "3",
+            schema_version: "4",
             anchor: self.anchor,
             depth: self.depth,
+            declared_env: self.declared_env,
             outgoing: self.outgoing,
             incoming: self.incoming,
             proof: self.proof,

@@ -166,6 +166,13 @@ pub struct StructuralEdge {
     pub locations: Vec<EvidenceLocation>,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct EnvDeclaration {
+    pub key: String,
+    pub path: String,
+    pub line_start: usize,
+}
+
 #[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct HiddenGroup {

@@ -8,11 +8,12 @@ use crate::evidence::{import_statement_locations, line_looks_like_import_or_reex
 use crate::model::{
     BoundaryFinding, BoundaryMapReport, BoundaryReport, ChangedMapDelta, ChangedProofCommand,
     ChangedProofSummary, ChangedReport, ChangedSymbol, ConeReport, ContractReport, DeleteReport,
-    DiffMapReport, DirectorySurface, Domain, DomainRef, EnvSurface, EvidenceLocation,
-    EvidenceStrength, FileInfo, FileSummary, FlowReport, FlowStep, GitChange, HiddenGroup,
-    ImpactCluster, ImpactReport, LsReport, PackageDependency, PlaceReport, Project, ProofMapReport,
-    ProofReport, ProofSurface, Risk, RuntimeReport, RuntimeRoute, SiblingsReport, StructuralEdge,
-    Surface, TeachProofCommand, TeachReport, TeachRolePattern, Unknown, VerificationPlan,
+    DiffMapReport, DirectorySurface, Domain, DomainRef, EnvDeclaration, EnvSurface,
+    EvidenceLocation, EvidenceStrength, FileInfo, FileSummary, FlowReport, FlowStep, GitChange,
+    HiddenGroup, ImpactCluster, ImpactReport, LsReport, PackageDependency, PlaceReport, Project,
+    ProofMapReport, ProofReport, ProofSurface, Risk, RuntimeReport, RuntimeRoute, SiblingsReport,
+    StructuralEdge, Surface, TeachProofCommand, TeachReport, TeachRolePattern, Unknown,
+    VerificationPlan,
 };
 use crate::repo;
 
@@ -31,6 +32,7 @@ include!("map/directory_owner_edges.rs");
 include!("map/cone_directory.rs");
 include!("map/cone_traversal.rs");
 include!("map/cone_owner_surfaces.rs");
+include!("map/cone_env_surfaces.rs");
 include!("map/proof_edges.rs");
 include!("map/directory_helpers.rs");
 include!("map/symbol_summary.rs");

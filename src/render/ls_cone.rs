@@ -146,21 +146,20 @@ fn render_anchor_summary(title: &str, anchor: &crate::model::FileSummary) {
 
 fn render_cone_observed(report: &ConeReport) {
     render_anchor_summary("Observed", &report.anchor);
-    render_declared_env_keys(&report.outgoing);
+    render_declared_env_keys(&report.declared_env);
 }
 
-fn render_declared_env_keys(edges: &[StructuralEdge]) {
-    let keys = edges
-        .iter()
-        .filter(|edge| edge.edge_type == "declares_env")
-        .filter_map(|edge| edge.to.strip_prefix("env:").map(|key| (key, edge)))
-        .collect::<Vec<_>>();
+fn render_declared_env_keys(keys: &[crate::model::EnvDeclaration]) {
     if keys.is_empty() {
         return;
     }
     println!("- declared env keys: `{}`", keys.len());
-    for (key, edge) in keys.iter().take(12) {
-        println!("  - `{key}` {}", edge_location_summary(edge));
+    for declaration in keys.iter().take(12) {
+        println!(
+            "  - `{}` {}",
+            declaration.key,
+            code(&format!("{}:{}", declaration.path, declaration.line_start))
+        );
     }
     let hidden = keys.len().saturating_sub(12);
     if hidden > 0 {

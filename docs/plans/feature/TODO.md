@@ -1302,6 +1302,36 @@ known false structural claim in the daily workflow.
 done: no known false structural claim remains from the final audit.
 ```
 
+### Slice 29: False-Confidence Closure For Proof, Env, And Cache
+
+```txt
+closed: `proof changed --section unknown` now aggregates the same fail-open
+changed Unknowns instead of reporting none; `proof --run` rejects unsafe
+validate/verify/proof-like script names; default `changed` and `proof changed`
+stay under the dogfood line budget; env owner cones show static readers in
+Links while Observed counts declared env keys from source facts, not truncated
+edge output; lens cache format moved to v7 so stale v6 maps cannot hide new
+semantics.
+excluded: no embeddings, ranking, recommendations, semantic guessing, or wider
+CLI expansion. Remaining frontier is more repo-shape dogfood, not opinionated
+routing.
+proof: `cargo fmt --check`, `cargo test --quiet`, `cargo clippy --all-targets
+-- -D warnings`, `cargo run --quiet --bin codemap -- doctor`, `git diff
+--check`; focused regressions for proof Unknown, unsafe proof-run script names,
+env cone long declaration lists, schema rails, and cache lens format; fresh v7
+dogfood on current repo, Levelly-1, and Sillentway-VPN.
+review: reviewer returned BLOCK for env Observed false counts; fixed with
+`ConeReport.declared_env`, cone schema v4, cache format v7, and a 41-key env
+regression. Follow-up reviewer returned PASS.
+live: current repo dogfood v7 had 16 probes, 0 failures, 0 over-budget,
+`changed` 109/120 and `proof changed` 54/120; Levelly-1 had 16 probes, 0
+failures, 0 over-budget, and useful `env_config_without_consumers` warnings;
+Sillentway-VPN had 16 probes, 0 failures, 0 over-budget, `changed` 113/120 and
+`proof changed` 57/120. Manual Levelly checks confirmed `schema.prisma` is
+indexed, Prisma scripts are hard proof surfaces, `.env.example` Observed has
+24 source env declarations, and Links shows static env readers first.
+```
+
 ## Live Probe Set
 
 Use this only for live-relevant slices:

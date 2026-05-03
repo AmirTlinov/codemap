@@ -259,7 +259,7 @@ fn env_cone_links_prioritize_static_consumers_over_long_declaration_lists() {
     git(repo.path(), &["config", "user.email", "a@example.com"]);
     git(repo.path(), &["config", "user.name", "a"]);
 
-    let env_body = (0..25)
+    let env_body = (0..41)
         .map(|index| format!("KEY_{index}=\n"))
         .collect::<String>();
     write(&repo.path().join(".env.example"), &env_body);
@@ -286,6 +286,25 @@ fn env_cone_links_prioritize_static_consumers_over_long_declaration_lists() {
         markdown.contains("env_consumer -> `src/config.ts`")
             && markdown.contains("declares_env -> `env:KEY_0`"),
         "env cone links should keep static consumer evidence visible even when declarations exceed the default limit: {markdown}"
+    );
+
+    let observed = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["cone", ".env.example", "--section", "observed"])
+        .output()
+        .expect("env cone observed should run");
+    assert!(
+        observed.status.success(),
+        "env cone observed failed: {}",
+        String::from_utf8_lossy(&observed.stderr)
+    );
+    let observed = String::from_utf8(observed.stdout).expect("markdown utf8");
+    assert!(
+        observed.contains("declared env keys: `41`")
+            && observed.contains("hidden: 29 env keys")
+            && observed.contains("`KEY_0` `.env.example:1`"),
+        "env cone observed should count source env declarations, not the truncated link budget: {observed}"
     );
 }
 

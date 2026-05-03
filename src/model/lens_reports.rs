@@ -17,6 +17,7 @@ pub struct ConeReport {
     pub schema_version: &'static str,
     pub anchor: FileSummary,
     pub depth: usize,
+    pub declared_env: Vec<EnvDeclaration>,
     pub outgoing: Vec<StructuralEdge>,
     pub incoming: Vec<StructuralEdge>,
     pub proof: Vec<StructuralEdge>,
