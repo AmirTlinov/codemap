@@ -126,8 +126,13 @@ fn dogfood_script_runs_daily_and_focused_probes_read_only() {
                     && value.get("hidden_lines").is_some()
                     && value.get("unknown_lines").is_some()
                     && value.get("map_quality_lines").is_some()
+                    && value.get("trust_violations").is_some()
                     && value.get("budget_status").is_some(),
                 "dogfood command summaries should include timing and line-budget fields: {value:#}"
+            );
+            assert_eq!(
+                value["trust_violations"], 0,
+                "dogfood fixture should not emit legacy role/verdict wording in agent-facing output: {value:#}"
             );
         }
     }

@@ -13,7 +13,7 @@ fn anchors_markdown(report: &AnchorValidation) {
                 vec!["Domains".to_string(), report.summary.domains.to_string()],
                 vec!["Concepts".to_string(), report.summary.concepts.to_string()],
                 vec![
-                    "Role patterns".to_string(),
+                    "Surface hint patterns".to_string(),
                     report.summary.role_patterns.to_string()
                 ],
                 vec![

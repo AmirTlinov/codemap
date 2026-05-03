@@ -51,7 +51,7 @@ Focused lenses remain public and supported, but they are deep map targets:
 
 `codemap diff-map --changed|--files` shows map-level changes: structural import/export lines, changed exported symbol surfaces, and new unknowns. It does not print textual diff.
 
-`codemap changed` is the daily after-edit map. It uses stable readable sections: observed facts, deterministic links, mutation roles, proof sensors, unknowns, hidden counts, and expand targets without running commands.
+`codemap changed` is the daily after-edit map. It uses stable readable sections: observed facts, deterministic links, Surface Hints, proof sensors, unknowns, hidden counts, and expand targets without running commands.
 
 `codemap contract <anchor>` shows exported/schema/package/public surfaces, producers, consumers, cross-package consumers, and proof edges.
 
@@ -59,7 +59,7 @@ Focused lenses remain public and supported, but they are deep map targets:
 
 `codemap proof <anchor|changed>` returns the smallest structural proof surfaces it can justify. It prefers adjacent/importing tests and package-local commands before broad fallbacks. It never runs by default.
 
-`codemap proof-map <scope>|--changed` shows proof coverage surfaces around an area: direct, indirect, e2e, contract, missing direct proof for important surfaces, and commands.
+`codemap proof-map <scope>|--changed` shows observed proof surfaces around an area: direct, indirect, e2e, contract, missing direct proof evidence for important surfaces, and commands.
 
 `codemap delete <anchor>` shows deletion blockers and mechanical cleanup hints from references, reexports, package exports, tests, and runtime refs. It must not say “safe to delete”.
 
@@ -67,7 +67,7 @@ Focused lenses remain public and supported, but they are deep map targets:
 
 `codemap flow <anchor>` shows bounded structural steps and deterministic side-effect surfaces. It must stop at unknowns instead of claiming full callgraph or dataflow.
 
-`codemap siblings <scope>` and `codemap place <scope> --kind <kind>` show local structural conventions from same directory/kind/proof patterns, including route/service/test triplets when naming and roles prove them. They are not semantic search or ranking.
+`codemap siblings <scope>` and `codemap place <scope> --kind <kind>` show local structural conventions from same directory/kind/proof patterns, including route/service/test triplets when deterministic names and file surfaces expose them. They are not semantic search or ranking.
 
 `codemap graph` is a small lens renderer for humans. It is not the primary product surface and must stay bounded.
 

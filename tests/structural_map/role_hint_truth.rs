@@ -57,3 +57,110 @@ fn rust_text_renderers_do_not_become_renderer_ui_from_render_path() {
         "Rust text renderers must not become renderer_ui from render path: {ls:#}"
     );
 }
+
+#[test]
+fn doctor_source_only_hints_are_not_semantic_verdicts() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("src/plain.rs"),
+        "pub fn plain_source() {}\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "plain source"]);
+
+    let output = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["doctor"])
+        .output()
+        .expect("doctor should run");
+    assert!(
+        output.status.success(),
+        "doctor failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
+    assert!(
+        markdown.contains("## Source Files With Only Generic Hints (1)")
+            && markdown.contains("not an intent, ownership, or correctness verdict")
+            && markdown.contains("src/plain.rs"),
+        "doctor should frame source-only files as map visibility, not semantic truth: {markdown}"
+    );
+    assert!(
+        !markdown.contains("Unclassified Source Files"),
+        "doctor should not use legacy unclassified wording in agent-facing output: {markdown}"
+    );
+}
+
+#[test]
+fn changed_inline_changed_anchors_use_hint_wording() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("src/orders.service.ts"),
+        "export function listOrders() { return []; }\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "service source"]);
+    write(
+        &repo.path().join("src/orders.service.ts"),
+        "export function listOrders() { return ['changed']; }\n",
+    );
+
+    let output = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["changed"])
+        .output()
+        .expect("changed should run");
+    assert!(
+        output.status.success(),
+        "changed failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
+    assert!(
+        (markdown.contains("hints=") || markdown.contains("surface hints:"))
+            && !markdown.contains("roles="),
+        "changed output should expose hints without role-verdict wording: {markdown}"
+    );
+}
+
+#[test]
+fn current_public_docs_do_not_restore_role_or_coverage_verdict_wording() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut public_docs = String::new();
+    for rel in ["README.md", "docs/PRODUCT.md", "docs/IMPLEMENTATION.md"] {
+        public_docs.push_str(rel);
+        public_docs.push('\n');
+        public_docs.push_str(
+            &fs::read_to_string(root.join(rel)).unwrap_or_else(|error| {
+                panic!("failed to read public doc {rel}: {error}");
+            }),
+        );
+        public_docs.push('\n');
+    }
+    for forbidden in [
+        "mutation roles",
+        "proof coverage surfaces",
+        "roles prove",
+        "Role patterns",
+        "Unclassified Source Files",
+    ] {
+        assert!(
+            !public_docs.contains(forbidden),
+            "public docs should not restore legacy trust-boundary wording `{forbidden}`"
+        );
+    }
+    assert!(
+        public_docs.contains("Surface Hints"),
+        "public docs should teach the compatibility section as Surface Hints"
+    );
+}

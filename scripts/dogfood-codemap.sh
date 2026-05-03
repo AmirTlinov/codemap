@@ -222,6 +222,31 @@ except FileNotFoundError:
 PY
 }
 
+count_trust_violations() {
+  local path="$1"
+  python3 - "$path" <<'PY'
+import re
+import sys
+
+patterns = [
+    re.compile(r"##\s+Mutation Roles"),
+    re.compile(r"\[role="),
+    re.compile(r"\broles="),
+    re.compile(r"^\s+roles:\s"),
+    re.compile(r"\bRole patterns\b"),
+    re.compile(r"##\s+Unclassified Source Files"),
+]
+count = 0
+try:
+    with open(sys.argv[1], encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            count += sum(1 for pattern in patterns if pattern.search(line))
+except FileNotFoundError:
+    pass
+print(count)
+PY
+}
+
 run_probe_command() {
   local target="$1"
   local name="$2"
@@ -231,7 +256,7 @@ run_probe_command() {
   shift 5
   local command_text="$*"
   local output_path="$out_dir/$name.$(safe_label "$label").md"
-  local start end elapsed_ms status line_count hidden_lines unknown_lines map_quality_lines budget budget_status
+  local start end elapsed_ms status line_count hidden_lines unknown_lines map_quality_lines trust_violations budget budget_status
   progress "run repo=$name label=$label command=$command_text"
   start="$(python3 -c 'import time; print(time.time_ns())')"
   set +e
@@ -244,13 +269,14 @@ run_probe_command() {
   hidden_lines="$(count_output_lines_matching 'hidden|Hidden' "$output_path")"
   unknown_lines="$(count_output_lines_matching 'unknown|Unknown|No deterministic proof sensor' "$output_path")"
   map_quality_lines="$(count_output_lines_matching 'Map Quality|map_quality|without static readers|without deterministic proof|stale_lens_artifact' "$output_path")"
+  trust_violations="$(count_trust_violations "$output_path")"
   budget="$(line_budget_for "$label")"
   if (( line_count <= budget )); then
     budget_status="ok"
   else
     budget_status="over"
   fi
-  printf '{"repo":%s,"label":%s,"command":%s,"status":%s,"elapsed_ms":%s,"lines":%s,"line_budget":%s,"hidden_lines":%s,"unknown_lines":%s,"map_quality_lines":%s,"budget_status":%s}\n' \
+  printf '{"repo":%s,"label":%s,"command":%s,"status":%s,"elapsed_ms":%s,"lines":%s,"line_budget":%s,"hidden_lines":%s,"unknown_lines":%s,"map_quality_lines":%s,"trust_violations":%s,"budget_status":%s}\n' \
     "$(printf '%s' "$target" | json_escape)" \
     "$(printf '%s' "$label" | json_escape)" \
     "$(printf '%s' "$command_text" | json_escape)" \
@@ -261,8 +287,9 @@ run_probe_command() {
     "$hidden_lines" \
     "$unknown_lines" \
     "$map_quality_lines" \
+    "$trust_violations" \
     "$(printf '%s' "$budget_status" | json_escape)" >>"$summary"
-  progress "done repo=$name label=$label status=$status elapsed_ms=$elapsed_ms lines=$line_count/$budget budget=$budget_status output=$(basename "$output_path")"
+  progress "done repo=$name label=$label status=$status elapsed_ms=$elapsed_ms lines=$line_count/$budget budget=$budget_status trust_violations=$trust_violations output=$(basename "$output_path")"
 }
 
 run_probe() {
@@ -359,7 +386,8 @@ with open(path, encoding="utf-8") as fh:
             rows.append(json.loads(line))
 failures = sum(1 for row in rows if row.get("status", 0) != 0)
 over = sum(1 for row in rows if row.get("budget_status") == "over")
-print(f"probes={len(rows)} failures={failures} over_budget={over}")
+trust = sum(int(row.get("trust_violations", 0) or 0) for row in rows)
+print(f"probes={len(rows)} failures={failures} over_budget={over} trust_violations={trust}")
 PY
 )"
 progress "summary $summary_counts path=$out_dir/summary.jsonl"

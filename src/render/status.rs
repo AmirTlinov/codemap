@@ -301,8 +301,11 @@ pub fn status(report: &StatusReport, doctor: bool) {
     }
     if report.unclassified_count > 0 {
         println!(
-            "\n## Unclassified Source Files ({})\n",
+            "\n## Source Files With Only Generic Hints ({})\n",
             report.unclassified_count
+        );
+        println!(
+            "These files are indexed as source, but codemap found no stronger deterministic path/name/manifest pattern. This is not an intent, ownership, or correctness verdict.\n"
         );
         println!(
             "{}",

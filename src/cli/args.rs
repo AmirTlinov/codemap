@@ -46,7 +46,7 @@ enum CommandKind {
     Ls(LsArgs),
     #[command(about = "Show a bounded structural edge cone around an exact anchor")]
     Cone(ConeArgs),
-    #[command(about = "Show one compact after-edit structural map: observed facts, links, roles, proof, unknown gaps")]
+    #[command(about = "Show one compact after-edit structural map: observed facts, links, surface hints, proof, unknown gaps")]
     Changed(ChangedArgs),
     #[command(about = "Print structural proof surfaces, or run them only with --run")]
     Proof(ProofArgs),
@@ -66,7 +66,7 @@ enum CommandKind {
     #[command(about = "Show runtime entrypoints, routes, scripts, and env surfaces for a scope")]
     Runtime(RuntimeArgs),
     #[command(hide = true)]
-    #[command(about = "Show proof coverage surfaces around a scope or diff")]
+    #[command(about = "Show proof surfaces around a scope or diff")]
     ProofMap(ProofMapArgs),
     #[command(hide = true)]
     #[command(about = "Show structural blockers and cleanup map before deleting an anchor")]

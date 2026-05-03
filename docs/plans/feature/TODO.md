@@ -66,6 +66,34 @@ No broad numbered slice is active after the 2026-05-03 closure audit. Pick the
 next boundary from the largest daily-workflow gap observed in live use, not by
 continuing the slice number ritual.
 
+Trust boundary wording 2026-05-03 is closed:
+
+```txt
+status: closed
+tier: focused/full/live
+closed: agent-facing output and current public docs no longer present surface
+hints as semantic roles or proof judgment. `--section roles` remains a
+compatibility selector, but readable output renders `Surface Hints`. Doctor now
+prints `Source Files With Only Generic Hints` with an explicit non-verdict
+boundary. Dogfood records `trust_violations` for legacy role/verdict wording,
+and public docs have a regression test against stale `mutation roles`,
+`proof coverage surfaces`, and `roles prove` language.
+guardrails: no new classifier to hide the issue, no ranking, no hidden score,
+no proof sufficiency claim, no primary CLI expansion.
+proof: focused trust-boundary regressions, `cargo fmt --check`, `cargo test
+--quiet`, `cargo clippy --all-targets -- -D warnings`, `cargo run --quiet
+--bin codemap -- doctor`, `scripts/check-version-bump.sh`, and `git diff
+--check`.
+review: first reviewer BLOCK found stale current-doc wording; docs were fixed,
+public-doc regression added, full gates rerun, and final reviewer PASS.
+live: installed PATH `codemap 0.2.7` smoke plus current repo, Levelly-1,
+Sillentway-VPN, and main_cluster dogfood produced 88 probes, 0 failures, 0
+over-budget outputs, and 0 trust wording violations. Manual Levelly smoke
+confirmed `schema.prisma` is indexed as schema, Prisma proof separates
+validation proof from setup/support rails, and `.env.example` exposes declared
+keys, consumers, and fail-open Unknowns for keys without static readers.
+```
+
 Version visibility 2026-05-03 is closed:
 
 ```txt

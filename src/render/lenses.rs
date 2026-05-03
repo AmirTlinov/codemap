@@ -278,7 +278,7 @@ fn render_file_summaries(title: &str, files: &[crate::model::FileSummary]) {
             file.path, file.kind, file.language, package, file.lines
         );
         if !file.roles.is_empty() {
-            println!("  roles: {}", file.roles.join(", "));
+            println!("  surface hints: {}", file.roles.join(", "));
         }
         if !file.exports.is_empty() {
             println!("  exports: {}", file.exports.join(", "));

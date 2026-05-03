@@ -119,7 +119,7 @@ codemap cone <file-or-dir> [--depth 1]
 codemap changed
 codemap changed --section observed
 codemap changed --section links
-codemap changed --section roles
+codemap changed --section roles   # compatibility name; renders Surface Hints
 codemap changed --section proof
 codemap changed --section unknown
 codemap changed --section hidden
@@ -202,7 +202,7 @@ This writes a tiny `AGENTS.md` that tells agents to call `codemap`. It is not a 
 
 ## Optional `.ctx.yml`
 
-Zero-config works from files, manifests, imports, tests, scripts, and git diff. Use `.ctx.yml` only for semantic facts code cannot reliably reveal: explicit domains, concepts, role patterns, forbidden boundaries, and proof commands for custom repos.
+Zero-config works from files, manifests, imports, tests, scripts, and git diff. Use `.ctx.yml` only for semantic facts code cannot reliably reveal: explicit domains, concepts, surface hint patterns, forbidden boundaries, and proof commands for custom repos.
 
 ```yaml
 version: 1

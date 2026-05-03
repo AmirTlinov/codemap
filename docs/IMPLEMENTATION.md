@@ -33,7 +33,7 @@ Keep new implementation under the existing owner folders. Do not create a second
 - git-root-first repo resolution with non-git fallback;
 - file inventory through git tracked/untracked files or ignored filesystem scan;
 - common build/cache/vendor ignores;
-- lightweight role classification;
+- lightweight surface hint classification;
 - lightweight symbol extraction for JS/TS, Rust, Python, and Go;
 - UI/test-facing surface phrase/token extraction from selectors, test ids, aria labels, and routes;
 - JS/TS, Rust, Python, and Go import extraction;
@@ -53,7 +53,7 @@ Keep new implementation under the existing owner folders. Do not create a second
 - `contract` for exported/schema/package/public surfaces and their consumers/proof;
 - `runtime` for deterministic entrypoints, Next file-convention routes, static JS/Python/Go route registrations, scripts, env references, workers/jobs, CI, typed runtime unknowns, and proof;
 - structural `proof` from adjacent/importing tests and package-local commands;
-- `proof-map` for direct/indirect/e2e/contract proof coverage and typed blind spots around a scope or diff;
+- `proof-map` for direct/indirect/e2e/contract proof surfaces and typed blind spots around a scope or diff;
 - `delete` for deletion blockers, dynamic-reference blind spots, and cleanup hints without safety claims;
 - `boundary-map` as read-only package/domain crossing map separate from boundary checks;
 - `flow` as bounded structural steps, side-effect surfaces, and unknown stops;
@@ -76,14 +76,14 @@ Hard evidence:
 - tests that import an anchor;
 - explicit semantic anchors;
 - git changed-file inputs;
-- schema/config file roles.
+- schema/config file identification.
 
 Soft evidence:
 
 - file names;
 - UI/test-facing string surfaces such as selectors, test ids, aria labels, and routes;
 - nearby test names;
-- directory roles;
+- directory naming hints;
 - script names.
 
 Soft evidence may explain hidden or secondary surfaces. It must not become a ranked task route.

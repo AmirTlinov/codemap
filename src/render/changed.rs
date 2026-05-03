@@ -187,7 +187,7 @@ fn changed_anchor_section(report: &ChangedReport, compact: bool) {
             let role_hint = if file.roles.is_empty() {
                 String::new()
             } else {
-                format!("; roles={}", changed_preview_list(&file.roles, 3))
+                format!("; hints={}", changed_preview_list(&file.roles, 3))
             };
             println!("- `{path}` [{}; {}{}]", file.kind, file.language, role_hint);
         } else {
@@ -205,7 +205,7 @@ fn changed_anchor_section(report: &ChangedReport, compact: bool) {
             );
         }
         if !compact && !file.roles.is_empty() {
-            println!("  roles: {}", file.roles.join(", "));
+            println!("  surface hints: {}", file.roles.join(", "));
         }
         if !compact && !file.exports.is_empty() {
             println!("  exports: {}", changed_preview_list(&file.exports, 6));
