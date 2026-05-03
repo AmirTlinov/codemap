@@ -66,6 +66,24 @@ No broad numbered slice is active after the 2026-05-03 closure audit. Pick the
 next boundary from the largest daily-workflow gap observed in live use, not by
 continuing the slice number ritual.
 
+Version visibility 2026-05-03 is closed:
+
+```txt
+status: closed
+tier: focused/full/live
+closed: codemap moved from `0.2.0` to `0.2.1`, and shipped changes now have a
+local/CI version guard. The guard compares changed committed, staged,
+unstaged, and untracked files against the resolved base and fails unless
+Cargo.toml package version is higher than the base version.
+guardrails: this is a change-set guard, not a per-commit history auditor or a
+release platform. It adds no repo writes, no new agent-facing command, and no
+map semantics.
+proof: focused guard regression, `scripts/check-version-bump.sh`, `cargo fmt
+--check`, `cargo test --quiet`, `cargo clippy --all-targets -- -D warnings`,
+`cargo run --quiet --bin codemap -- doctor`, and `git diff --check`.
+review: PASS.
+```
+
 Depth/proof confidence 2026-05-03 is closed:
 
 ```txt

@@ -28,5 +28,7 @@ Before finishing:
 ```bash
 cargo fmt --check
 cargo test
+cargo clippy --all-targets -- -D warnings
+scripts/check-version-bump.sh
 cargo run --bin codemap -- doctor
 ```

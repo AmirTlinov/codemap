@@ -252,5 +252,6 @@ Unknown `.ctx.yml` fields are rejected. Invalid anchors fail closed for map comm
 cargo fmt --check
 cargo test
 cargo clippy --all-targets -- -D warnings
+scripts/check-version-bump.sh
 cargo run --bin codemap -- doctor
 ```

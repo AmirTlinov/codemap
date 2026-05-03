@@ -26,6 +26,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Install stable Rust
         run: |
@@ -34,6 +36,9 @@ jobs:
           rustup component add rustfmt clippy
           rustc --version
           cargo --version
+
+      - name: Version bump guard
+        run: scripts/check-version-bump.sh
 
       - name: Format
         run: cargo fmt --check
