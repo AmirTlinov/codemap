@@ -241,41 +241,6 @@ struct ChangedArgs {
     format: OutputFormat,
 }
 
-#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
-enum ChangedSection {
-    #[value(alias = "overview", alias = "diff")]
-    Observed,
-    #[value(alias = "impact")]
-    Links,
-    Roles,
-    Proof,
-    #[value(alias = "unknowns")]
-    Unknown,
-    Hidden,
-}
-
-#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
-enum LsSection {
-    Observed,
-    Links,
-    Roles,
-    Proof,
-    #[value(alias = "unknowns")]
-    Unknown,
-    Hidden,
-}
-
-#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
-enum ConeSection {
-    Observed,
-    Links,
-    Roles,
-    Proof,
-    #[value(alias = "unknowns")]
-    Unknown,
-    Hidden,
-}
-
 #[derive(Debug, Args)]
 struct ContractArgs {
     path: String,
@@ -312,6 +277,8 @@ struct ProofArgs {
     files: Option<String>,
     #[arg(long, default_value_t = 1)]
     depth: usize,
+    #[arg(long, value_enum)]
+    section: Option<ProofSection>,
     #[arg(long, default_value_t = DEFAULT_PROOF_LIMIT, hide = true)]
     limit: usize,
     #[arg(long)]

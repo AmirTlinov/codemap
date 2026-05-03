@@ -56,8 +56,12 @@ fn render_impact_cluster(cluster: &ImpactCluster) {
     grouped_edge_list("proof", &cluster.proof, 12);
 }
 
-pub fn proof(report: &ProofReport) {
+pub fn proof(report: &ProofReport, section_filter: Option<&str>) {
     println!("# Proof Plan\n");
+    if let Some(section) = section_filter {
+        render_proof_filtered_section(report, section);
+        return;
+    }
     if let Some(target) = &report.target {
         println!("Target: `{target}`\n");
     }
@@ -94,6 +98,126 @@ pub fn proof(report: &ProofReport) {
     hidden_section(&report.hidden);
     section("Expand", &report.expand);
     println!("\n{}", report.run_hint);
+}
+
+fn render_proof_filtered_section(report: &ProofReport, section: &str) {
+    match section {
+        "observed" => proof_observed_section(report),
+        "links" => proof_links_section(report),
+        "roles" => proof_roles_section(report),
+        "proof" => proof_plan_section(report, true),
+        "unknown" => proof_unknown_section(report),
+        "hidden" => proof_hidden_section(report),
+        _ => {}
+    }
+}
+
+fn proof_observed_section(report: &ProofReport) {
+    println!("## Observed\n");
+    if let Some(target) = &report.target {
+        println!("- target: `{target}`");
+    }
+    if !report.changed.is_empty() {
+        println!("- changed anchors: `{}`", report.changed.len());
+        println!("{}", bullet(&report.changed, true, Some(20)));
+    }
+    if report.target.is_none() && report.changed.is_empty() {
+        println!("- selected anchors: `0`");
+    }
+    println!("- proof surfaces: `{}`", report.proofs.len());
+    println!("- fallback commands: `{}`", report.fallback.len());
+    println!("- unknown entries: `{}`", report.unknowns.len());
+    println!("- hidden groups: `{}`", report.hidden.len());
+}
+
+fn proof_links_section(report: &ProofReport) {
+    if report.proofs.is_empty() {
+        proof_empty_section(
+            "Links",
+            "No proof surface links were emitted by proof detectors for this report.",
+        );
+        return;
+    }
+    println!("## Links\n");
+    for proof in report.proofs.iter().take(20) {
+        let path = proof
+            .path
+            .as_ref()
+            .map(|path| code(path))
+            .unwrap_or_else(|| "`none`".to_string());
+        println!(
+            "- {path} [{}; {}] {} - {}",
+            proof.evidence,
+            format!("{:?}", proof.strength).to_ascii_lowercase(),
+            proof_location_summary(&proof.locations),
+            proof.reason
+        );
+    }
+    let hidden = report.proofs.len().saturating_sub(20);
+    if hidden > 0 {
+        println!("- hidden proof links: `{hidden}`");
+        if let Some(expand) = proof_detail_expand(report, report.proofs.len()) {
+            println!("  expand: `{}`", root_aware_expand(&expand));
+        }
+    }
+}
+
+fn proof_roles_section(report: &ProofReport) {
+    println!("## Roles\n");
+    println!("- proof_surface: `{}`", report.proofs.len());
+    println!("- fallback_command: `{}`", report.fallback.len());
+    println!("- unknown_gap: `{}`", report.unknowns.len());
+    println!("- hidden_group: `{}`", report.hidden.len());
+}
+
+fn proof_plan_section(report: &ProofReport, force: bool) {
+    if !report.proofs.is_empty() {
+        proof_plan_surface_section("Proof", report);
+    }
+    if !report.fallback.is_empty() {
+        println!("\n## Fallback\n");
+        println!("{}", code_block("bash", &report.fallback));
+    }
+    if force && report.proofs.is_empty() && report.fallback.is_empty() {
+        proof_empty_section(
+            "Proof",
+            "No proof surfaces or fallback commands were emitted by proof detectors for this report.",
+        );
+    }
+}
+
+fn proof_unknown_section(report: &ProofReport) {
+    if report.unknowns.is_empty() {
+        let detail = if proof_anchor_count(report) == 0 {
+            "No proof anchors selected; proof Unknown checks did not run."
+        } else {
+            "No Unknown entries were emitted by proof detectors for this report."
+        };
+        proof_empty_section("Unknown", detail);
+        return;
+    }
+    unknown_section(&report.unknowns);
+}
+
+fn proof_hidden_section(report: &ProofReport) {
+    if report.hidden.is_empty() {
+        proof_empty_section("Hidden", "No hidden proof material in this report.");
+        return;
+    }
+    hidden_section(&report.hidden);
+}
+
+fn proof_empty_section(title: &str, detail: &str) {
+    println!("## {title}\n");
+    println!("{detail}");
+}
+
+fn proof_anchor_count(report: &ProofReport) -> usize {
+    report
+        .target
+        .as_ref()
+        .map(|_| 1)
+        .unwrap_or(report.changed.len())
 }
 
 fn proof_plan_surface_section(title: &str, report: &ProofReport) {

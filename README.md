@@ -125,8 +125,14 @@ codemap changed --section unknown
 codemap changed --section hidden
 codemap proof <file-or-dir>
 codemap proof changed
+codemap proof changed --section proof
+codemap proof changed --section unknown
+codemap proof changed --section hidden
 codemap proof changed --run
 ```
+
+`proof --section ...` is display-only; combine `proof` with `--run` only when
+you want the full proof plan to execute.
 
 Focused expand targets:
 

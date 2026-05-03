@@ -155,7 +155,9 @@ fn try_clean_proof_changed_fast_path(
         return Ok(None);
     }
     let report = map::clean_proof_report(selector);
-    output(args.format, &report, || render::proof(&report))?;
+    output(args.format, &report, || {
+        render::proof(&report, proof_section_name(args.section))
+    })?;
     Ok(Some(()))
 }
 
@@ -194,7 +196,9 @@ fn try_cached_proof_changed_fast_path(
     ) else {
         return Ok(None);
     };
-    output(args.format, &report, || render::proof(&report))?;
+    output(args.format, &report, || {
+        render::proof(&report, proof_section_name(args.section))
+    })?;
     Ok(Some(()))
 }
 

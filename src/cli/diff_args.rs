@@ -159,6 +159,18 @@ fn cone_section_name(section: Option<ConeSection>) -> Option<&'static str> {
     }
 }
 
+fn proof_section_name(section: Option<ProofSection>) -> Option<&'static str> {
+    match section {
+        Some(ProofSection::Observed) => Some("observed"),
+        Some(ProofSection::Links) => Some("links"),
+        Some(ProofSection::Roles) => Some("roles"),
+        Some(ProofSection::Proof) => Some("proof"),
+        Some(ProofSection::Unknown) => Some("unknown"),
+        Some(ProofSection::Hidden) => Some("hidden"),
+        None => None,
+    }
+}
+
 fn proof_map_inputs(
     project: &crate::model::Project,
     args: &ProofMapArgs,

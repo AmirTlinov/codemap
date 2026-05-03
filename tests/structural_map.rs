@@ -10,6 +10,7 @@ include!("structural_map/fact_constructor_guards.rs");
 include!("structural_map/proof_core.rs");
 include!("structural_map/proof_budget.rs");
 include!("structural_map/proof_markdown_compact.rs");
+include!("structural_map/proof_section_cli.rs");
 include!("structural_map/role_name_positive.rs");
 include!("structural_map/role_name_dialog_rejects_1.rs");
 include!("structural_map/role_name_dialog_rejects_2.rs");

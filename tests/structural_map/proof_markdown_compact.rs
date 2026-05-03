@@ -86,3 +86,50 @@ fn proof_changed_markdown_summarizes_sensors_by_command() {
         "changed proof section should sample, not dump every direct sensor: {changed_markdown}"
     );
 }
+
+#[test]
+fn proof_changed_section_filter_works_on_clean_fast_path() {
+    let (repo, cache) = fixture();
+
+    let output = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["proof", "changed", "--section", "unknown"])
+        .output()
+        .expect("proof changed unknown section should run");
+    assert!(
+        output.status.success(),
+        "proof changed --section unknown should run through the clean fast path: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
+    assert!(
+        markdown.contains("# Proof Plan") && markdown.contains("## Unknown"),
+        "proof changed --section unknown should render a stable Unknown layer: {markdown}"
+    );
+    assert!(
+        !markdown.contains("unexpected argument") && !markdown.contains("## Proof"),
+        "proof changed --section unknown should not fall through to CLI errors or proof sections: {markdown}"
+    );
+}
+
+#[test]
+fn proof_section_filter_is_display_only_and_refuses_run() {
+    let (repo, cache) = fixture();
+
+    let output = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["proof", "changed", "--section", "unknown", "--run"])
+        .output()
+        .expect("proof section run guard should execute");
+    assert!(
+        !output.status.success(),
+        "proof --run must not execute with a display-only section filter"
+    );
+    let stderr = String::from_utf8(output.stderr).expect("stderr utf8");
+    assert!(
+        stderr.contains("--section is display-only"),
+        "guard should explain the conflict without running commands: {stderr}"
+    );
+}

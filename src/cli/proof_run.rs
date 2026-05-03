@@ -1,13 +1,18 @@
 fn proof(project: &crate::model::Project, args: ProofArgs) -> Result<()> {
     ensure_valid_config(project)?;
+    if args.run && args.section.is_some() {
+        bail!("--section is display-only and cannot be combined with --run");
+    }
     let (target, changed, selector) = proof_inputs(project, &args)?;
     let report = map::proof_report(project, target, changed, selector, args.depth, args.limit);
     maybe_write_proof_changed_lens_cache(project, &args, &report);
     if args.run {
-        render::proof(&report);
+        render::proof(&report, proof_section_name(args.section));
         return run_proof_plan(project, &report);
     }
-    output(args.format, &report, || render::proof(&report))
+    output(args.format, &report, || {
+        render::proof(&report, proof_section_name(args.section))
+    })
 }
 
 fn maybe_write_proof_changed_lens_cache(

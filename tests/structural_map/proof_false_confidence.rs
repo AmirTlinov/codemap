@@ -89,4 +89,49 @@ fn soft_token_proof_does_not_hide_missing_deterministic_proof_or_fallback() {
         markdown.contains("- missing_direct: `1`") && markdown.contains("### Fallback"),
         "changed proof should show missing deterministic proof and fallback with soft evidence: {markdown}"
     );
+
+    let proof_unknown = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["proof", "src/routes.ts", "--section", "unknown"])
+        .output()
+        .expect("proof unknown section should run");
+    assert!(
+        proof_unknown.status.success(),
+        "proof unknown section failed: {}",
+        String::from_utf8_lossy(&proof_unknown.stderr)
+    );
+    let proof_unknown_markdown =
+        String::from_utf8(proof_unknown.stdout).expect("unknown markdown utf8");
+    assert!(
+        proof_unknown_markdown.contains("## Unknown")
+            && proof_unknown_markdown.contains("missing_deterministic_proof"),
+        "proof --section unknown should isolate proof Unknown entries: {proof_unknown_markdown}"
+    );
+    assert!(
+        !proof_unknown_markdown.contains("## Proof")
+            && !proof_unknown_markdown.contains("## Fallback"),
+        "proof --section unknown should not dump proof/fallback sections: {proof_unknown_markdown}"
+    );
+
+    let proof_only = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["proof", "src/routes.ts", "--section", "proof"])
+        .output()
+        .expect("proof section should run");
+    assert!(
+        proof_only.status.success(),
+        "proof section failed: {}",
+        String::from_utf8_lossy(&proof_only.stderr)
+    );
+    let proof_only_markdown = String::from_utf8(proof_only.stdout).expect("proof markdown utf8");
+    assert!(
+        proof_only_markdown.contains("## Proof") && proof_only_markdown.contains("## Fallback"),
+        "proof --section proof should show proof surfaces and fallback commands: {proof_only_markdown}"
+    );
+    assert!(
+        !proof_only_markdown.contains("## Unknown"),
+        "proof --section proof should not dump Unknown entries: {proof_only_markdown}"
+    );
 }
