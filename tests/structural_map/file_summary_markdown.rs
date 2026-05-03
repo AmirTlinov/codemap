@@ -147,6 +147,12 @@ fn ls_directory_surfaces_render_as_compact_blocks() {
         "ls directory surface blocks should preserve count, evidence, and strength: {markdown}"
     );
     assert!(
+        markdown.contains("[hint=container;")
+            && markdown.contains("directory_inventory")
+            && !markdown.contains("[hint=none;"),
+        "ls directory containers should expose deterministic container hints, not none: {markdown}"
+    );
+    assert!(
         markdown.contains("examples: `"),
         "ls directory markdown should preserve visible surface examples: {markdown}"
     );

@@ -66,6 +66,31 @@ No broad numbered slice is active after the 2026-05-03 closure audit. Pick the
 next boundary from the largest daily-workflow gap observed in live use, not by
 continuing the slice number ritual.
 
+Root LS and dogfood latency truth 2026-05-03 is closed:
+
+```txt
+status: closed
+tier: focused/full/live
+closed: directory containers now render as deterministic `container` hints
+backed by `directory_inventory`, not `hint=none`. Dogfood summaries now record
+`latency_budget_ms`, `latency_status`, and total `slow` probes beside existing
+failure, line-budget, and trust-violation counts.
+guardrails: latency is a dogfood diagnostic, not a user-facing score or safety
+verdict. No new CLI command, no ranking, no recommendation, no cache rewrite.
+proof: focused root-ls and dogfood harness regressions, `cargo fmt --check`,
+`cargo test --quiet`, `cargo clippy --all-targets -- -D warnings`, `cargo run
+--quiet --bin codemap -- doctor`, `scripts/check-version-bump.sh`, and `git
+diff --check`.
+review: first reviewer attempt timed out without verdict and was not counted;
+second bounded reviewer PASS.
+live: installed PATH `codemap 0.2.8` smoke showed root `dir` as
+`hint=container` / `directory_inventory`. Dogfood on current repo and
+main_cluster produced 44 probes, 0 failures, 0 over-budget outputs, 0 trust
+violations, and 3 slow probes (`main_cluster` root `ls`, root `proof-map`, and
+`siblings agents`), making the next performance gap visible without failing the
+diagnostic run.
+```
+
 Trust boundary wording 2026-05-03 is closed:
 
 ```txt

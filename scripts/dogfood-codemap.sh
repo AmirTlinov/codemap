@@ -76,6 +76,19 @@ line_budget_for() {
   esac
 }
 
+latency_budget_for() {
+  case "$1" in
+    ls_root) echo 5000 ;;
+    changed) echo 3000 ;;
+    proof_changed) echo 2000 ;;
+    doctor) echo 3000 ;;
+    proof_map_root) echo 2000 ;;
+    graph_causal|runtime_root) echo 3000 ;;
+    flow_anchor|delete_anchor|siblings_scope|cone_owner_env|proof_owner_env) echo 2000 ;;
+    *) echo 3000 ;;
+  esac
+}
+
 first_source_anchor() {
   python3 - "$1" <<'PY'
 import os
@@ -256,7 +269,7 @@ run_probe_command() {
   shift 5
   local command_text="$*"
   local output_path="$out_dir/$name.$(safe_label "$label").md"
-  local start end elapsed_ms status line_count hidden_lines unknown_lines map_quality_lines trust_violations budget budget_status
+  local start end elapsed_ms status line_count hidden_lines unknown_lines map_quality_lines trust_violations budget budget_status latency_budget latency_status
   progress "run repo=$name label=$label command=$command_text"
   start="$(python3 -c 'import time; print(time.time_ns())')"
   set +e
@@ -271,17 +284,25 @@ run_probe_command() {
   map_quality_lines="$(count_output_lines_matching 'Map Quality|map_quality|without static readers|without deterministic proof|stale_lens_artifact' "$output_path")"
   trust_violations="$(count_trust_violations "$output_path")"
   budget="$(line_budget_for "$label")"
+  latency_budget="$(latency_budget_for "$label")"
   if (( line_count <= budget )); then
     budget_status="ok"
   else
     budget_status="over"
   fi
-  printf '{"repo":%s,"label":%s,"command":%s,"status":%s,"elapsed_ms":%s,"lines":%s,"line_budget":%s,"hidden_lines":%s,"unknown_lines":%s,"map_quality_lines":%s,"trust_violations":%s,"budget_status":%s}\n' \
+  if (( elapsed_ms <= latency_budget )); then
+    latency_status="ok"
+  else
+    latency_status="slow"
+  fi
+  printf '{"repo":%s,"label":%s,"command":%s,"status":%s,"elapsed_ms":%s,"latency_budget_ms":%s,"latency_status":%s,"lines":%s,"line_budget":%s,"hidden_lines":%s,"unknown_lines":%s,"map_quality_lines":%s,"trust_violations":%s,"budget_status":%s}\n' \
     "$(printf '%s' "$target" | json_escape)" \
     "$(printf '%s' "$label" | json_escape)" \
     "$(printf '%s' "$command_text" | json_escape)" \
     "$status" \
     "$elapsed_ms" \
+    "$latency_budget" \
+    "$(printf '%s' "$latency_status" | json_escape)" \
     "$line_count" \
     "$budget" \
     "$hidden_lines" \
@@ -289,7 +310,7 @@ run_probe_command() {
     "$map_quality_lines" \
     "$trust_violations" \
     "$(printf '%s' "$budget_status" | json_escape)" >>"$summary"
-  progress "done repo=$name label=$label status=$status elapsed_ms=$elapsed_ms lines=$line_count/$budget budget=$budget_status trust_violations=$trust_violations output=$(basename "$output_path")"
+  progress "done repo=$name label=$label status=$status elapsed_ms=$elapsed_ms/$latency_budget latency=$latency_status lines=$line_count/$budget budget=$budget_status trust_violations=$trust_violations output=$(basename "$output_path")"
 }
 
 run_probe() {
@@ -387,7 +408,8 @@ with open(path, encoding="utf-8") as fh:
 failures = sum(1 for row in rows if row.get("status", 0) != 0)
 over = sum(1 for row in rows if row.get("budget_status") == "over")
 trust = sum(int(row.get("trust_violations", 0) or 0) for row in rows)
-print(f"probes={len(rows)} failures={failures} over_budget={over} trust_violations={trust}")
+slow = sum(1 for row in rows if row.get("latency_status") == "slow")
+print(f"probes={len(rows)} failures={failures} over_budget={over} slow={slow} trust_violations={trust}")
 PY
 )"
 progress "summary $summary_counts path=$out_dir/summary.jsonl"

@@ -51,7 +51,9 @@ fn dogfood_script_runs_daily_and_focused_probes_read_only() {
         stderr.contains("[dogfood] repo-start")
             && stderr.contains("[dogfood] run repo=")
             && stderr.contains("[dogfood] done repo=")
-            && stderr.contains("[dogfood] summary probes="),
+            && stderr.contains("latency=")
+            && stderr.contains("[dogfood] summary probes=")
+            && stderr.contains("slow="),
         "dogfood script should expose live progress on stderr: {stderr}"
     );
 
@@ -121,6 +123,8 @@ fn dogfood_script_runs_daily_and_focused_probes_read_only() {
             );
             assert!(
                 value.get("elapsed_ms").is_some()
+                    && value.get("latency_budget_ms").is_some()
+                    && value.get("latency_status").is_some()
                     && value.get("lines").is_some()
                     && value.get("line_budget").is_some()
                     && value.get("hidden_lines").is_some()
@@ -133,6 +137,10 @@ fn dogfood_script_runs_daily_and_focused_probes_read_only() {
             assert_eq!(
                 value["trust_violations"], 0,
                 "dogfood fixture should not emit legacy role/verdict wording in agent-facing output: {value:#}"
+            );
+            assert!(
+                matches!(value["latency_status"].as_str(), Some("ok" | "slow")),
+                "dogfood latency status should be explicit and bounded: {value:#}"
             );
         }
     }

@@ -334,6 +334,8 @@ fn directory_surface_role(kind: &str) -> Option<String> {
         Some("domain".to_string())
     } else if kind == "script" {
         Some("script".to_string())
+    } else if kind == "dir" {
+        Some("container".to_string())
     } else if kind.starts_with("package:") || kind.starts_with("support_package:") {
         Some("package".to_string())
     } else if matches!(
@@ -404,6 +406,8 @@ fn directory_surface_evidence(kind: &str) -> String {
         "domain_boundary".to_string()
     } else if kind == "script" {
         "package_script".to_string()
+    } else if kind == "dir" {
+        "directory_inventory".to_string()
     } else if kind.starts_with("package:") || kind.starts_with("support_package:") {
         "package_manifest".to_string()
     } else if kind == "manifest" {
