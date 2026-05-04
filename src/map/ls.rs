@@ -9,11 +9,12 @@ fn ls_symbol_report(
     let Some(anchor) = symbol_file_summary(project, info, symbol_name) else {
         return LsReport {
             kind: "ls_report",
-            schema_version: "4",
+            schema_version: "5",
             path: anchor_path.clone(),
             mode: "missing".to_string(),
             anchor: None,
             directory: Vec::new(),
+            boundary_facts: BoundaryFacts::default(),
             edges: Vec::new(),
             hidden: Vec::new(),
             next: vec![format!("codemap ls {}", shell_quote(&info.rel))],
@@ -39,11 +40,12 @@ fn ls_symbol_report(
     }
     LsReport {
         kind: "ls_report",
-        schema_version: "4",
+        schema_version: "5",
         path: anchor_path.clone(),
         mode: "file".to_string(),
         anchor: Some(anchor),
         directory: Vec::new(),
+        boundary_facts: BoundaryFacts::default(),
         edges,
         hidden,
         next: vec![format!("codemap cone {}", shell_quote(&anchor_path))],
@@ -119,11 +121,12 @@ fn ls_file_report(
     );
     LsReport {
         kind: "ls_report",
-        schema_version: "4",
+        schema_version: "5",
         path: info.rel.clone(),
         mode: "file".to_string(),
         anchor: Some(anchor),
         directory: Vec::new(),
+        boundary_facts: BoundaryFacts::default(),
         edges,
         hidden,
         next: vec![format!("codemap cone {}", shell_quote(&info.rel))],
@@ -296,11 +299,12 @@ fn ls_directory_report(
     }
     LsReport {
         kind: "ls_report",
-        schema_version: "4",
+        schema_version: "5",
         path: rel.to_string(),
         mode: "directory".to_string(),
         anchor: None,
         directory: surfaces,
+        boundary_facts: boundary_facts_for_ls(project, rel),
         edges,
         hidden,
         next: directory_next_commands(rel),

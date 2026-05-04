@@ -13,11 +13,12 @@ pub fn ls_report(project: &Project, path: &str, include_hidden: bool, limit: usi
     }
     LsReport {
         kind: "ls_report",
-        schema_version: "4",
+        schema_version: "5",
         path: rel.clone(),
         mode: "missing".to_string(),
         anchor: None,
         directory: Vec::new(),
+        boundary_facts: BoundaryFacts::default(),
         edges: Vec::new(),
         hidden: Vec::new(),
         next: missing_ls_next(&rel),

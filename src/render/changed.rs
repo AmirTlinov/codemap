@@ -36,6 +36,7 @@ pub fn changed(report: &ChangedReport, section_filter: Option<&str>) {
     let hidden = changed_render_hidden(report, compact);
     if matches!(section_filter, None | Some("observed")) {
         changed_worktree_section(report, compact);
+        boundary_facts_section(&report.boundary_facts, false, compact);
     }
     if matches!(section_filter, None | Some("roles")) {
         changed_roles_section(report, true, compact);

@@ -30,13 +30,18 @@ fn unknown_section(values: &[Unknown]) {
     }
     for (kind, unknowns) in grouped {
         println!("- `{kind}`");
-        for unknown in unknowns {
+        let visible = unknowns.len().min(5);
+        for unknown in unknowns.iter().take(visible) {
             println!("  - where: {}", unknown_where(unknown));
             println!("    reason: {}", unknown.reason);
             println!("    effect: {}", unknown.effect);
             if let Some(expand) = &unknown.expand {
                 println!("    expand: `{}`", root_aware_expand(expand));
             }
+        }
+        let hidden = unknowns.len().saturating_sub(visible);
+        if hidden > 0 {
+            println!("  - hidden unknowns: `{hidden}`");
         }
     }
 }
@@ -198,7 +203,7 @@ fn cone_section(title: &str, edges: &[StructuralEdge]) {
         return;
     }
     println!("\n## {title}\n");
-    grouped_edge_list(&title.to_ascii_lowercase(), edges, 20);
+    grouped_edge_list(&title.to_ascii_lowercase(), edges, 10);
 }
 
 pub(crate) fn table(headers: &[&str], rows: Vec<Vec<String>>) -> String {

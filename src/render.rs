@@ -1,5 +1,6 @@
 include!("render/status.rs");
 include!("render/prelude.rs");
+include!("render/boundary_facts.rs");
 include!("render/ls_cone.rs");
 include!("render/cone_xray.rs");
 include!("render/impact_proof.rs");

@@ -70,10 +70,10 @@ pub fn cone(report: &ConeReport, section_filter: Option<&str>) {
             || !report.boundary.is_empty())
     {
         println!("\n## Links\n");
-        grouped_edge_list("outgoing", &report.outgoing, 20);
-        grouped_edge_list("incoming", &report.incoming, 20);
-        grouped_edge_list("contracts", &report.contracts, 20);
-        grouped_edge_list("boundary", &report.boundary, 20);
+        grouped_edge_list("outgoing", &report.outgoing, 12);
+        grouped_edge_list("incoming", &report.incoming, 12);
+        grouped_edge_list("contracts", &report.contracts, 12);
+        grouped_edge_list("boundary", &report.boundary, 12);
     }
     if matches!(section_filter, None | Some("proof")) {
         render_cone_proof(&report.proof);
@@ -224,14 +224,15 @@ fn render_declared_env_keys(keys: &[crate::model::EnvDeclaration]) {
         return;
     }
     println!("- declared env keys: `{}`", keys.len());
-    for declaration in keys.iter().take(12) {
+    const DECLARED_ENV_RENDER_LIMIT: usize = 12;
+    for declaration in keys.iter().take(DECLARED_ENV_RENDER_LIMIT) {
         println!(
             "  - `{}` {}",
             declaration.key,
             code(&format!("{}:{}", declaration.path, declaration.line_start))
         );
     }
-    let hidden = keys.len().saturating_sub(12);
+    let hidden = keys.len().saturating_sub(DECLARED_ENV_RENDER_LIMIT);
     if hidden > 0 {
         println!("  - additional env keys: {hidden}");
     }
@@ -276,6 +277,9 @@ fn render_ls_directory(report: &LsReport, section_filter: Option<&str>) {
         if surface.hidden_count > 0 {
             println!("  additional examples: {}", surface.hidden_count);
         }
+    }
+    if report.path == "." {
+        boundary_facts_section(&report.boundary_facts, false, false);
     }
 }
 

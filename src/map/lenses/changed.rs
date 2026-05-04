@@ -25,7 +25,7 @@ pub fn changed_report(
     if total_changed_count == 0 && git_state.is_empty() {
         return ChangedReport {
             kind: "changed_report",
-            schema_version: "6",
+            schema_version: "7",
             selector: selector.clone(),
             display_limit: limit,
             proof_plan_cache: None,
@@ -49,6 +49,7 @@ pub fn changed_report(
             },
             risks: Vec::new(),
             coupling: Vec::new(),
+            boundary_facts: boundary_facts_for_changed(project, &changed_paths),
             impact: Vec::new(),
             proof: ChangedProofSummary {
                 commands: Vec::new(),
@@ -104,7 +105,7 @@ pub fn changed_report(
     );
     ChangedReport {
         kind: "changed_report",
-        schema_version: "6",
+        schema_version: "7",
         selector: selector.clone(),
         display_limit: limit,
         proof_plan_cache: Some(Box::new(proof_plan_cache)),
@@ -176,6 +177,7 @@ pub fn changed_report(
         },
         risks,
         coupling,
+        boundary_facts: boundary_facts_for_changed(project, &changed_paths),
         impact: impact.clusters,
         proof: changed_proof_summary(proof_map, limit),
         unknowns,
@@ -187,7 +189,7 @@ pub fn changed_report(
 pub fn clean_changed_report(selector: String, limit: usize) -> ChangedReport {
     ChangedReport {
         kind: "changed_report",
-        schema_version: "6",
+        schema_version: "7",
         selector: selector.clone(),
         display_limit: limit.max(1),
         proof_plan_cache: None,
@@ -211,6 +213,7 @@ pub fn clean_changed_report(selector: String, limit: usize) -> ChangedReport {
         },
         risks: Vec::new(),
         coupling: Vec::new(),
+        boundary_facts: BoundaryFacts::default(),
         impact: Vec::new(),
         proof: ChangedProofSummary {
             commands: Vec::new(),

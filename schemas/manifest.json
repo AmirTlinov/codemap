@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "structural_schema_version": "4",
+  "structural_schema_version": "5",
   "anchor_config_version": 1,
   "schemas": [
     {
@@ -28,7 +28,7 @@
       "kind": "ls",
       "file": "schemas/ls.schema.json",
       "contract": "structural_output",
-      "schema_version": "4",
+      "schema_version": "5",
       "json_kind": "ls_report"
     },
     {
@@ -49,7 +49,7 @@
       "kind": "changed",
       "file": "schemas/changed.schema.json",
       "contract": "structural_output",
-      "schema_version": "6",
+      "schema_version": "7",
       "json_kind": "changed_report"
     },
     {

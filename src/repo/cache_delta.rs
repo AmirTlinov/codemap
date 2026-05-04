@@ -52,58 +52,28 @@ fn cached_index_cache_delta(
 pub(crate) fn git_status_cache_change_sets(
     root: &Path,
 ) -> Option<(BTreeSet<String>, BTreeSet<String>)> {
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(["status", "--porcelain=v1", "-z", "-uall", "--", "."])
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let root_prefix = git_status_root_prefix(root);
+    let snapshot = git_status_snapshot(root)?;
     let mut changed_or_added = BTreeSet::new();
     let mut removed = BTreeSet::new();
-    let mut entries = output.stdout.split(|byte| *byte == 0).filter(|entry| !entry.is_empty());
-    while let Some(entry) = entries.next() {
-        if entry.len() < 4 {
-            continue;
-        }
-        let record = String::from_utf8_lossy(entry);
-        let index_status = record.chars().next().unwrap_or(' ');
-        let worktree_status = record.chars().nth(1).unwrap_or(' ');
-        let status = porcelain_status(index_status, worktree_status);
-        if status == "conflicted" {
+    for change in snapshot.changes {
+        if change.status == "conflicted" {
             return None;
         }
-        let raw = &record[3..];
-        let path = normalize_status_path(raw, root_prefix.as_deref());
-        let old_path = if index_status == 'R' || index_status == 'C' {
-            entries.next().and_then(|entry| {
-                normalize_status_path(&String::from_utf8_lossy(entry), root_prefix.as_deref())
-            })
-        } else {
-            None
-        };
-        if index_status == 'R'
-            && let Some(old_path) = old_path
+        if change.status == "renamed"
+            && let Some(old_path) = change.old_path
             && !should_ignore_rel(&old_path)
         {
             removed.insert(old_path);
         }
-        let Some(path) = path else {
+        if should_ignore_rel(&change.path) {
             continue;
-        };
-        if status == "deleted" {
-            if !should_ignore_rel(&path) {
-                removed.insert(path);
-            }
-        } else if should_ignore_rel(&path) {
-            continue;
-        } else if is_cache_candidate_file(root, &path) {
-            changed_or_added.insert(path);
+        }
+        if change.status == "deleted" {
+            removed.insert(change.path);
+        } else if is_cache_candidate_file(root, &change.path) {
+            changed_or_added.insert(change.path);
         } else {
-            removed.insert(path);
+            removed.insert(change.path);
         }
     }
     Some((changed_or_added, removed))

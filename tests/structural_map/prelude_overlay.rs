@@ -139,6 +139,41 @@ fn prelude_rename_old_path_is_not_counted_as_status_record() {
 }
 
 #[test]
+fn prelude_handles_unborn_and_detached_git_states_from_local_status_only() {
+    let unborn = TempDir::new().expect("unborn repo tempdir");
+    let unborn_cache = TempDir::new().expect("unborn cache tempdir");
+    git(unborn.path(), &["init", "-q"]);
+    write(&unborn.path().join("README.md"), "# unborn\n");
+
+    let unborn_report = run_json(unborn.path(), unborn_cache.path(), &["ls", ".", "--format", "json"]);
+    assert_schema("schemas/ls.schema.json", &unborn_report);
+    assert_eq!(unborn_report["prelude"]["head"]["unborn"], true);
+    assert_eq!(unborn_report["prelude"]["head"]["oid"], serde_json::Value::Null);
+    assert_eq!(unborn_report["prelude"]["worktree"]["untracked"], 1);
+    assert_eq!(unborn_report["prelude"]["freshness"]["network_used"], false);
+
+    let detached = TempDir::new().expect("detached repo tempdir");
+    let detached_cache = TempDir::new().expect("detached cache tempdir");
+    git(detached.path(), &["init", "-q"]);
+    git(detached.path(), &["config", "user.email", "a@example.com"]);
+    git(detached.path(), &["config", "user.name", "a"]);
+    write(&detached.path().join("README.md"), "# detached\n");
+    git(detached.path(), &["add", "."]);
+    git(detached.path(), &["commit", "-qm", "detached fixture"]);
+    git(detached.path(), &["checkout", "--detach", "HEAD"]);
+
+    let detached_report = run_json(
+        detached.path(),
+        detached_cache.path(),
+        &["changed", "--format", "json"],
+    );
+    assert_schema("schemas/changed.schema.json", &detached_report);
+    assert_eq!(detached_report["prelude"]["head"]["detached"], true);
+    assert_eq!(detached_report["prelude"]["branch"]["name"], serde_json::Value::Null);
+    assert_eq!(detached_report["prelude"]["freshness"]["network_used"], false);
+}
+
+#[test]
 fn empty_non_git_root_stays_directory_anchor() {
     let repo = TempDir::new().expect("empty non-git tempdir");
     let cache = TempDir::new().expect("cache tempdir");

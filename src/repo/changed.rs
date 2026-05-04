@@ -29,63 +29,9 @@ pub fn git_changes(root: &Path, staged_only: bool, since: Option<&str>) -> Vec<G
 }
 
 fn git_status_changes(root: &Path) -> Vec<GitChange> {
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(["status", "--porcelain=v1", "-z", "-uall", "--", "."])
-        .output();
-    let Ok(output) = output else {
-        return Vec::new();
-    };
-    if !output.status.success() {
-        return Vec::new();
-    }
-    let root_prefix = git_status_root_prefix(root);
-    let mut out = Vec::new();
-    let mut entries = output.stdout.split(|byte| *byte == 0).filter(|entry| !entry.is_empty());
-    while let Some(entry) = entries.next() {
-        if entry.len() < 4 {
-            continue;
-        }
-        let record = String::from_utf8_lossy(entry);
-        let index_status = record.chars().next().unwrap_or(' ');
-        let worktree_status = record.chars().nth(1).unwrap_or(' ');
-        let raw_path = &record[3..];
-        let old_path = if index_status == 'R' || index_status == 'C' {
-            entries.next().and_then(|entry| {
-                normalize_status_path(&String::from_utf8_lossy(entry), root_prefix.as_deref())
-            })
-        } else {
-            None
-        };
-        let Some(path) = normalize_status_path(raw_path, root_prefix.as_deref()) else {
-            continue;
-        };
-        if should_ignore_rel(&path) {
-            if matches!(index_status, 'R' | 'C')
-                && let Some(old_path) = old_path
-                && !should_ignore_rel(&old_path)
-            {
-                out.push(GitChange {
-                    path: old_path,
-                    old_path: None,
-                    status: "deleted".to_string(),
-                    staged: index_status != ' ' && index_status != '?',
-                    unstaged: worktree_status != ' ' || index_status == '?',
-                });
-            }
-            continue;
-        }
-        out.push(GitChange {
-            path,
-            old_path,
-            status: porcelain_status(index_status, worktree_status).to_string(),
-            staged: index_status != ' ' && index_status != '?',
-            unstaged: worktree_status != ' ' || index_status == '?',
-        });
-    }
-    out.sort_by(|a, b| a.path.cmp(&b.path).then_with(|| a.status.cmp(&b.status)));
-    out
+    git_status_snapshot(root)
+        .map(|snapshot| snapshot.changes)
+        .unwrap_or_default()
 }
 
 fn git_name_status(root: &Path, args: &[&str]) -> Vec<GitChange> {
@@ -170,42 +116,4 @@ fn name_status_kind(status: &str) -> &str {
         'U' => "conflicted",
         _ => "modified",
     }
-}
-
-fn normalize_status_path(path: &str, root_prefix: Option<&str>) -> Option<String> {
-    let rel = normalize_rel_path(path);
-    if let Some(prefix) = root_prefix {
-        return rel.strip_prefix(prefix).map(normalize_rel_path);
-    }
-    (!rel.is_empty()).then_some(rel)
-}
-
-fn porcelain_status(index_status: char, worktree_status: char) -> &'static str {
-    if matches!((index_status, worktree_status), ('U', _) | (_, 'U') | ('A', 'A') | ('D', 'D')) {
-        "conflicted"
-    } else if index_status == '?' {
-        "untracked"
-    } else if index_status == 'R' {
-        "renamed"
-    } else if index_status == 'D' || worktree_status == 'D' {
-        "deleted"
-    } else if index_status == 'T' || worktree_status == 'T' {
-        "typechanged"
-    } else {
-        "modified"
-    }
-}
-
-fn git_status_root_prefix(root: &Path) -> Option<String> {
-    let git_root = git_root(root)?;
-    let root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
-    let git_root = git_root
-        .canonicalize()
-        .unwrap_or_else(|_| git_root.to_path_buf());
-    if root == git_root {
-        return None;
-    }
-    let rel = root.strip_prefix(git_root).ok()?;
-    let rel = normalize_rel_path(&rel.to_string_lossy());
-    (!rel.is_empty()).then(|| format!("{}/", rel.trim_end_matches('/')))
 }

@@ -55,7 +55,11 @@ pub fn map_prelude(root: &Path) -> crate::model::MapPrelude {
         unknowns: Vec::new(),
     };
 
-    if !parse_git_status_v2(&root, &mut prelude) {
+    if let Some(snapshot) = git_status_snapshot(&root) {
+        prelude.head = snapshot.head;
+        prelude.branch = snapshot.branch;
+        prelude.worktree = snapshot.worktree;
+    } else {
         prelude.unknowns.push(crate::model::PreludeUnknown {
             kind: "git_status_unavailable".to_string(),
             effect: "worktree, branch, head, and ahead/behind are unknown from local git status"
@@ -83,110 +87,6 @@ pub fn map_prelude(root: &Path) -> crate::model::MapPrelude {
         && prelude.worktree.untracked == 0
         && prelude.worktree.conflicted == 0;
     prelude
-}
-
-fn parse_git_status_v2(root: &Path, prelude: &mut crate::model::MapPrelude) -> bool {
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(["status", "--porcelain=v2", "--branch", "-z", "-uall"])
-        .output();
-    let Ok(output) = output else {
-        return false;
-    };
-    if !output.status.success() {
-        return false;
-    }
-    let mut entries = output
-        .stdout
-        .split(|byte| *byte == 0)
-        .filter(|entry| !entry.is_empty())
-        .peekable();
-    while let Some(entry) = entries.next() {
-        let record = String::from_utf8_lossy(entry);
-        if let Some(header) = record.strip_prefix("# ") {
-            parse_status_header(header, prelude);
-            continue;
-        }
-        if record.starts_with("2 ") {
-            count_status_record(&record, &mut prelude.worktree);
-            let _ = entries.next();
-            continue;
-        }
-        count_status_record(&record, &mut prelude.worktree);
-    }
-    true
-}
-
-fn parse_status_header(header: &str, prelude: &mut crate::model::MapPrelude) {
-    if let Some(oid) = header.strip_prefix("branch.oid ") {
-        if oid == "(initial)" {
-            prelude.head.unborn = true;
-            prelude.head.oid = None;
-            prelude.head.short = None;
-        } else {
-            prelude.head.oid = Some(oid.to_string());
-            prelude.head.short = Some(oid.chars().take(12).collect());
-        }
-    } else if let Some(head) = header.strip_prefix("branch.head ") {
-        if head == "(detached)" {
-            prelude.head.detached = true;
-            prelude.branch.name = None;
-        } else {
-            prelude.branch.name = Some(head.to_string());
-        }
-    } else if let Some(upstream) = header.strip_prefix("branch.upstream ") {
-        prelude.branch.upstream = Some(upstream.to_string());
-    } else if let Some(ab) = header.strip_prefix("branch.ab ") {
-        let mut parts = ab.split_whitespace();
-        prelude.branch.ahead = parse_ab_count(parts.next(), '+');
-        prelude.branch.behind = parse_ab_count(parts.next(), '-');
-    }
-}
-
-fn parse_ab_count(value: Option<&str>, prefix: char) -> Option<u32> {
-    let value = value?;
-    value.strip_prefix(prefix)?.parse().ok()
-}
-
-fn count_status_record(record: &str, worktree: &mut crate::model::WorktreePrelude) {
-    if let Some(path) = record.strip_prefix("? ") {
-        if !should_ignore_rel(&normalize_rel_path(path)) {
-            worktree.untracked += 1;
-        }
-        return;
-    }
-    if record.starts_with("! ") {
-        return;
-    }
-    let mut parts = record.split_whitespace();
-    let kind = parts.next().unwrap_or_default();
-    let xy = parts.next().unwrap_or_default();
-    if kind == "u" {
-        worktree.conflicted += 1;
-        return;
-    }
-    let mut chars = xy.chars();
-    let index = chars.next().unwrap_or('.');
-    let tree = chars.next().unwrap_or('.');
-    if matches!((index, tree), ('U', _) | (_, 'U') | ('A', 'A') | ('D', 'D')) {
-        worktree.conflicted += 1;
-    }
-    if index != '.' && index != '?' {
-        worktree.staged += 1;
-    }
-    if tree != '.' {
-        worktree.unstaged += 1;
-    }
-    if index == 'R' {
-        worktree.renamed += 1;
-    }
-    if index == 'D' || tree == 'D' {
-        worktree.deleted += 1;
-    }
-    if index == 'T' || tree == 'T' {
-        worktree.typechanged += 1;
-    }
 }
 
 fn remote_prelude(root: &Path) -> crate::model::RemotePrelude {

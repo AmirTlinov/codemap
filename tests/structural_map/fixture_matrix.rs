@@ -20,6 +20,12 @@ fn named_fixture_matrix_covers_public_lenses() {
 
         let root_ls = run_json(repo.path(), cache.path(), &["ls", ".", "--format", "json"]);
         assert_schema("schemas/ls.schema.json", &root_ls);
+        assert_daily_prelude(case.name, &root_ls);
+        assert!(
+            root_ls["boundary_facts"].is_object(),
+            "root ls should carry boundary facts for {}: {root_ls:#}",
+            case.name
+        );
         assert!(
             root_ls["directory"].as_array().expect("root directory").len() <= 20,
             "root ls for {} must stay bounded: {root_ls:#}",
@@ -50,6 +56,8 @@ fn named_fixture_matrix_covers_public_lenses() {
             &["cone", case.file_anchor, "--format", "json"],
         );
         assert_schema("schemas/cone.schema.json", &file_cone);
+        assert_daily_prelude(case.name, &file_cone);
+        assert_cone_xray_has_core_sections(case.name, &file_cone);
         assert_ne!(
             file_cone["anchor"]["kind"], "missing",
             "file cone anchor should exist for {}: {file_cone:#}",
@@ -242,6 +250,17 @@ fn named_fixture_matrix_covers_public_lenses() {
 
         let changed = run_json(repo.path(), cache.path(), &["changed", "--format", "json"]);
         assert_schema("schemas/changed.schema.json", &changed);
+        assert_daily_prelude(case.name, &changed);
+        assert!(
+            changed["boundary_facts"].is_object(),
+            "changed should carry boundary facts for {}: {changed:#}",
+            case.name
+        );
+        assert_eq!(
+            changed["prelude"]["worktree"]["clean"], false,
+            "changed should include fresh dirty worktree truth for {}: {changed:#}",
+            case.name
+        );
         assert!(
             changed["changed"]
                 .as_array()
@@ -254,6 +273,7 @@ fn named_fixture_matrix_covers_public_lenses() {
 
         let proof = run_json(repo.path(), cache.path(), &["proof", "changed", "--format", "json"]);
         assert_schema("schemas/proof.schema.json", &proof);
+        assert_daily_prelude(case.name, &proof);
         assert!(
             proof["changed"]
                 .as_array()
@@ -264,6 +284,35 @@ fn named_fixture_matrix_covers_public_lenses() {
             case.name
         );
     }
+}
+
+fn assert_daily_prelude(name: &str, report: &Value) {
+    let prelude = &report["prelude"];
+    assert!(prelude.is_object(), "daily report should carry prelude for {name}: {report:#}");
+    assert!(
+        prelude["freshness"]["network_used"] == false
+            && prelude["freshness"]["remote_currentness"] == "unknown",
+        "prelude should be local-only fresh repo truth for {name}: {report:#}"
+    );
+    assert!(
+        prelude["root"].as_str().is_some_and(|root| !root.is_empty())
+            && prelude["cwd"].as_str().is_some_and(|cwd| !cwd.is_empty()),
+        "prelude should expose root/cwd for {name}: {report:#}"
+    );
+}
+
+fn assert_cone_xray_has_core_sections(name: &str, cone: &Value) {
+    let xray = &cone["xray"];
+    for section in ["roles", "outputs", "flow", "nearby", "unknowns"] {
+        assert!(
+            xray[section].is_array(),
+            "cone xray should carry `{section}` section for {name}: {cone:#}"
+        );
+    }
+    assert!(
+        xray["side_effects"].is_array() && xray["state"].is_array(),
+        "cone xray should carry state/effects sections for {name}: {cone:#}"
+    );
 }
 
 fn assert_root_ls_has_no_recursive_source_examples(name: &str, root_ls: &Value) {

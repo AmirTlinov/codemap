@@ -31,6 +31,8 @@ Keep new implementation under the existing owner folders. Do not create a second
 - `codemap doctor` and `codemap status`;
 - external cache with `CODEMAP_CACHE_DIR` and `CODEMAP_NO_CACHE`;
 - git-root-first repo resolution with non-git fallback;
+- fresh local `MapPrelude` from one `git status --porcelain=v2 --branch -z`
+  snapshot source over cacheable structural report bodies;
 - file inventory through git tracked/untracked files or ignored filesystem scan;
 - common build/cache/vendor ignores;
 - lightweight surface hint classification;
@@ -46,13 +48,15 @@ Keep new implementation under the existing owner folders. Do not create a second
 - domain discovery from common workspace folders and explicit `.ctx.yml`;
 - root/directory `ls` surfaces with bounded domain/package/script/test map;
 - file `ls` with symbols, exports, imports, incoming count, adjacent tests, and next command;
-- `cone` with outgoing, incoming, proof, contract, boundary, hidden, unknown, and expand sections;
+- `ls .` and `changed` Boundary Facts for instruction files, repo-local guard files, and protected-looking paths;
+- `cone` with X-Ray Card role, inputs, outputs, state, side effects, consumers, structural flow, nearby surfaces, proof buckets, unknowns, plus outgoing/incoming/proof/contract/boundary links;
 - first-class edge evidence locations and typed unknowns;
 - structural `impact` by changed anchors, direct consumers, cross-boundary consumers, contract links, and proof edges;
 - `diff-map` for map-level changed structural lines, exported symbol surfaces, and new unknowns;
 - `contract` for exported/schema/package/public surfaces and their consumers/proof;
 - `runtime` for deterministic entrypoints, Next file-convention routes, static JS/Python/Go route registrations, scripts, env references, workers/jobs, CI, typed runtime unknowns, and proof;
 - structural `proof` from adjacent/importing tests and package-local commands;
+- `proof changed` coverage summary for runnable, evidence-only, setup/support, soft-only, and missing direct proof buckets;
 - `proof-map` for direct/indirect/e2e/contract proof surfaces and typed blind spots around a scope or diff;
 - `delete` for deletion blockers, dynamic-reference blind spots, and cleanup hints without safety claims;
 - `boundary-map` as read-only package/domain crossing map separate from boundary checks;
@@ -76,6 +80,7 @@ Hard evidence:
 - tests that import an anchor;
 - explicit semantic anchors;
 - git changed-file inputs;
+- local git branch/head/worktree state from porcelain v2;
 - schema/config file identification.
 
 Soft evidence:

@@ -11,16 +11,10 @@ codemap schema <kind>
 codemap schema manifest
 ```
 
-Core edge-based structural outputs currently use:
-
-```json
-"schema_version": "3"
-```
-
 Each manifest entry is the authority for that output's exact version. Individual
-outputs may advance independently when their emitted JSON contract changes.
+outputs advance independently when their emitted JSON contract changes.
 The schema manifest is the source of truth for mixed-version surfaces such as
-`proof`, `proof-map`, `siblings`, and `place`.
+`ls`, `changed`, `proof`, `proof-map`, `siblings`, and `place`.
 
 Semantic anchor config uses:
 

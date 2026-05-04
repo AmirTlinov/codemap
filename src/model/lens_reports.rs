@@ -113,6 +113,7 @@ pub struct ChangedReport {
     pub map_delta: ChangedMapDelta,
     pub risks: Vec<ChangedRisk>,
     pub coupling: Vec<ChangedCouplingFact>,
+    pub boundary_facts: BoundaryFacts,
     pub impact: Vec<ImpactCluster>,
     pub proof: ChangedProofSummary,
     pub unknowns: Vec<Unknown>,

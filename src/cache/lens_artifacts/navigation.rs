@@ -4,8 +4,8 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::model::{
-    ConeReport, DirectorySurface, EnvDeclaration, FileSummary, HiddenGroup, LsReport,
-    StructuralEdge, Unknown, XrayCard,
+    BoundaryFacts, ConeReport, DirectorySurface, EnvDeclaration, FileSummary, HiddenGroup,
+    LsReport, StructuralEdge, Unknown, XrayCard,
 };
 
 use super::{
@@ -155,6 +155,8 @@ struct CachedLsReport {
     mode: String,
     anchor: Option<FileSummary>,
     directory: Vec<DirectorySurface>,
+    #[serde(default)]
+    boundary_facts: BoundaryFacts,
     edges: Vec<StructuralEdge>,
     hidden: Vec<HiddenGroup>,
     next: Vec<String>,
@@ -169,6 +171,7 @@ impl CachedLsReport {
             mode: report.mode.clone(),
             anchor: report.anchor.clone(),
             directory: report.directory.clone(),
+            boundary_facts: report.boundary_facts.clone(),
             edges: report.edges.clone(),
             hidden: report.hidden.clone(),
             next: report.next.clone(),
@@ -178,11 +181,12 @@ impl CachedLsReport {
     fn into_report(self) -> LsReport {
         LsReport {
             kind: "ls_report",
-            schema_version: "4",
+            schema_version: "5",
             path: self.path,
             mode: self.mode,
             anchor: self.anchor,
             directory: self.directory,
+            boundary_facts: self.boundary_facts,
             edges: self.edges,
             hidden: self.hidden,
             next: self.next,

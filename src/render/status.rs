@@ -79,7 +79,7 @@ fn set_map_snapshot_full(
     };
     let cache_location = cache_location.unwrap_or("unknown");
     let _ = MAP_SNAPSHOT.set(format!(
-        "Map Snapshot: root=`{}`; head=`{}`; branch=`{}`; dirty=`{}`; fingerprint=`{}`; cache=`{}` strategy=`{}` external_cache=`{}` location=`{}`; schema=`structural:4`; repo_footprint=`zero`",
+        "Map Snapshot: root=`{}`; head=`{}`; branch=`{}`; dirty=`{}`; fingerprint=`{}`; cache=`{}` strategy=`{}` external_cache=`{}` location=`{}`; schema=`structural:5`; repo_footprint=`zero`",
         root.to_string_lossy(),
         head,
         branch,

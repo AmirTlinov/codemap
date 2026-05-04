@@ -67,15 +67,15 @@ It must not:
 
 ## Surfaces
 
-`codemap ls <file-or-dir>` shows what exists at that level: file symbols, package/domain surfaces, imports, incoming counts, tests, hidden generic counts, and the next useful map command.
+`codemap ls <file-or-dir>` shows what exists at that level: file symbols, package/domain surfaces, imports, incoming counts, tests, hidden generic counts, Boundary Facts at the repo root, and the next useful map command.
 
-`codemap cone <anchor>` shows a bounded structural cone around one anchor: outgoing imports, incoming consumers, proof edges, contracts, boundaries, hidden counts, and unknowns.
+`codemap cone <anchor>` shows a bounded structural cone around one anchor: an X-Ray Card with role, inputs, outputs, state, side effects, consumers, structural flow, nearby implemented surfaces, proof buckets, unknowns, plus outgoing imports, incoming consumers, proof edges, contracts, boundaries, hidden counts, and expand commands.
 
 `codemap impact --changed|--files` clusters changed anchors by structural blast radius. It is edge-first: reverse imports, package consumers, contract/schema/public surfaces, and proof candidates.
 
 `codemap diff-map --changed|--files` shows map-level changes: structural import/export lines, changed exported symbol surfaces, and new unknowns. It does not print textual diff.
 
-`codemap changed` is the daily after-edit map. It uses stable readable sections: observed facts, deterministic links, Surface Hints, proof sensors, unknowns, hidden counts, and expand targets without running commands.
+`codemap changed` is the daily after-edit map. It uses stable readable sections: Worktree, Boundary Facts, Surface Hints, Coupling, Risks, Observed, Links, Proof, Unknown, Hidden, and expand targets without running commands.
 
 `codemap contract <anchor>` shows exported/schema/package/public surfaces, producers, consumers, cross-package consumers, and proof edges.
 

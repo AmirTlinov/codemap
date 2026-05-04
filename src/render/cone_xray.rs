@@ -36,7 +36,8 @@ fn render_xray_surfaces(title: &str, surfaces: &[crate::model::Surface]) {
         return;
     }
     println!("{title}:");
-    for surface in surfaces.iter().take(8) {
+    const XRAY_SURFACE_LIMIT: usize = 5;
+    for surface in surfaces.iter().take(XRAY_SURFACE_LIMIT) {
         let label = surface
             .path
             .as_ref()
@@ -68,7 +69,7 @@ fn render_xray_surfaces(title: &str, surfaces: &[crate::model::Surface]) {
             println!("  additional examples: {}", surface.hidden_count);
         }
     }
-    let hidden = surfaces.len().saturating_sub(8);
+    let hidden = surfaces.len().saturating_sub(XRAY_SURFACE_LIMIT);
     if hidden > 0 {
         println!("- [Unknown] {hidden} more {title} entries hidden by compact x-ray limit");
     }
@@ -79,7 +80,8 @@ fn render_xray_edges(title: &str, edges: &[StructuralEdge]) {
         return;
     }
     println!("{title}:");
-    for edge in edges.iter().take(8) {
+    const XRAY_EDGE_LIMIT: usize = 5;
+    for edge in edges.iter().take(XRAY_EDGE_LIMIT) {
         println!(
             "- [{}] `{}` --{}--> `{}` [{}] {}",
             xray_edge_label(edge),
@@ -90,7 +92,7 @@ fn render_xray_edges(title: &str, edges: &[StructuralEdge]) {
             edge_location_summary(edge)
         );
     }
-    let hidden = edges.len().saturating_sub(8);
+    let hidden = edges.len().saturating_sub(XRAY_EDGE_LIMIT);
     if hidden > 0 {
         println!("- [Unknown] {hidden} more {title} edges hidden by compact x-ray limit");
     }
@@ -101,7 +103,8 @@ fn render_xray_flow(steps: &[crate::model::FlowStep]) {
         return;
     }
     println!("Structural Flow:");
-    for step in steps.iter().take(8) {
+    const XRAY_FLOW_LIMIT: usize = 5;
+    for step in steps.iter().take(XRAY_FLOW_LIMIT) {
         let where_hint = step
             .locations
             .first()
@@ -121,7 +124,7 @@ fn render_xray_flow(steps: &[crate::model::FlowStep]) {
             where_hint
         );
     }
-    let hidden = steps.len().saturating_sub(8);
+    let hidden = steps.len().saturating_sub(XRAY_FLOW_LIMIT);
     if hidden > 0 {
         println!("- [Unknown] {hidden} more structural flow steps hidden by compact x-ray limit");
     }
@@ -148,7 +151,8 @@ fn render_xray_proof(xray: &crate::model::XrayCard) {
 }
 
 fn render_xray_proof_bucket(label: &str, edges: &[StructuralEdge]) {
-    for edge in edges.iter().take(5) {
+    const XRAY_PROOF_LIMIT: usize = 3;
+    for edge in edges.iter().take(XRAY_PROOF_LIMIT) {
         println!(
             "- [{label}] `{}` --{}--> `{}` [{}] {}",
             edge.from,
@@ -158,7 +162,7 @@ fn render_xray_proof_bucket(label: &str, edges: &[StructuralEdge]) {
             edge_location_summary(edge)
         );
     }
-    let hidden = edges.len().saturating_sub(5);
+    let hidden = edges.len().saturating_sub(XRAY_PROOF_LIMIT);
     if hidden > 0 {
         println!("- [Unknown] {hidden} more {label} proof sensors hidden by compact x-ray limit");
     }

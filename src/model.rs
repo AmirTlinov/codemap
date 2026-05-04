@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 pub type ImportBindingMap = BTreeMap<String, String>;
 pub type ImportBindingsBySpec = BTreeMap<String, ImportBindingMap>;
 
+include!("model/boundary_facts.rs");
+
 #[derive(Debug, Clone, Serialize)]
 pub struct Project {
     pub root: PathBuf,
@@ -199,6 +201,7 @@ pub struct LsReport {
     pub mode: String,
     pub anchor: Option<FileSummary>,
     pub directory: Vec<DirectorySurface>,
+    pub boundary_facts: BoundaryFacts,
     pub edges: Vec<StructuralEdge>,
     pub hidden: Vec<HiddenGroup>,
     pub next: Vec<String>,

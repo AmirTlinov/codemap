@@ -12,13 +12,14 @@
     "mode",
     "anchor",
     "directory",
+    "boundary_facts",
     "edges",
     "hidden",
     "next"
   ],
   "properties": {
     "kind": { "const": "ls_report" },
-    "schema_version": { "const": "4" },
+    "schema_version": { "const": "5" },
     "prelude": { "$ref": "#/$defs/map_prelude" },
     "path": { "type": "string" },
     "mode": { "type": "string", "enum": ["file", "directory", "missing"] },
@@ -29,6 +30,7 @@
       "type": "array",
       "items": { "$ref": "#/$defs/directory_surface" }
     },
+    "boundary_facts": { "$ref": "#/$defs/boundary_facts" },
     "edges": {
       "type": "array",
       "items": { "$ref": "#/$defs/structural_edge" }
@@ -234,6 +236,26 @@
           "items": { "type": "string" }
         },
         "hidden_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "boundary_facts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["instruction_files", "protected_looking_paths", "repo_local_guard_files"],
+      "properties": {
+        "instruction_files": { "type": "array", "items": { "$ref": "#/$defs/boundary_fact" } },
+        "protected_looking_paths": { "type": "array", "items": { "$ref": "#/$defs/boundary_fact" } },
+        "repo_local_guard_files": { "type": "array", "items": { "$ref": "#/$defs/boundary_fact" } }
+      }
+    },
+    "boundary_fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "evidence", "effect"],
+      "properties": {
+        "path": { "type": "string" },
+        "evidence": { "type": "string" },
+        "effect": { "type": "string" }
       }
     },
     "structural_edge": {

@@ -5,8 +5,10 @@
 It is not a task router, ranking engine, search replacement, embedding index, or generated architecture document. It reads a repository as data and returns a bounded map at the level you ask for:
 
 - what is here;
+- current local repo/worktree truth;
 - which code imports or references it;
 - which tests prove it;
+- which boundary and guard surfaces are visible;
 - which package/domain boundaries it crosses;
 - what changed and what can break.
 
@@ -82,6 +84,9 @@ codemap ls .
 ```
 
 This returns a bounded top-level map: domains, packages, scripts, test surfaces, and cross-scope edges. It does not print the whole project galaxy.
+Primary map output also starts with fresh local repo truth: root, cwd, branch/head,
+worktree counts, remote display, and the explicit fact that remote currentness is
+unknown because no network is used.
 
 At a concrete scope or file:
 
@@ -110,6 +115,10 @@ codemap proof changed
 ```
 
 `proof` prints a plan by default. It runs commands only with explicit `--run`.
+
+`ls .` and `changed` may include `Boundary Facts`: instruction files,
+repo-local guard files, and protected-looking paths. These are path facts, not
+permissions, risk scores, or next actions.
 
 ## Primary Commands
 

@@ -4,8 +4,8 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::model::{
-    ChangedCouplingFact, ChangedMapDelta, ChangedProofSummary, ChangedReport, ChangedRisk,
-    ChangedStructuralEvent, FileSummary, GitChange, HiddenGroup, ImpactCluster,
+    BoundaryFacts, ChangedCouplingFact, ChangedMapDelta, ChangedProofSummary, ChangedReport,
+    ChangedRisk, ChangedStructuralEvent, FileSummary, GitChange, HiddenGroup, ImpactCluster,
     ProofCoverageSummary, ProofReport, ProofSurface, Unknown,
 };
 
@@ -158,6 +158,8 @@ struct CachedChangedReport {
     map_delta: ChangedMapDelta,
     risks: Vec<ChangedRisk>,
     coupling: Vec<ChangedCouplingFact>,
+    #[serde(default)]
+    boundary_facts: BoundaryFacts,
     impact: Vec<ImpactCluster>,
     proof: ChangedProofSummary,
     unknowns: Vec<Unknown>,
@@ -178,6 +180,7 @@ impl CachedChangedReport {
             map_delta: report.map_delta.clone(),
             risks: report.risks.clone(),
             coupling: report.coupling.clone(),
+            boundary_facts: report.boundary_facts.clone(),
             impact: report.impact.clone(),
             proof: report.proof.clone(),
             unknowns: report.unknowns.clone(),
@@ -189,7 +192,7 @@ impl CachedChangedReport {
     fn into_report(self, limit: usize) -> ChangedReport {
         ChangedReport {
             kind: "changed_report",
-            schema_version: "6",
+            schema_version: "7",
             selector: self.selector,
             display_limit: limit,
             proof_plan_cache: None,
@@ -200,6 +203,7 @@ impl CachedChangedReport {
             map_delta: self.map_delta,
             risks: self.risks,
             coupling: self.coupling,
+            boundary_facts: self.boundary_facts,
             impact: self.impact,
             proof: self.proof,
             unknowns: self.unknowns,
