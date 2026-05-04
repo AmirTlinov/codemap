@@ -34,7 +34,10 @@ pub fn contract(report: &ContractReport) {
         table(
             &["Field", "Value"],
             vec![
-                vec!["Contract kind".to_string(), report.contract_kind.clone()],
+                vec![
+                    "Contract kind".to_string(),
+                    public_evidence_label(&report.contract_kind),
+                ],
                 vec!["Public surface".to_string(), report.public_surface.to_string()],
             ],
         )
@@ -150,7 +153,11 @@ pub fn flow(report: &FlowReport) {
                 .unwrap_or_else(|| "unknown".to_string());
             println!(
                 "- {}. `{}` [{}; {}] {}",
-                step.index, step.anchor, step.kind, step.evidence, where_hint
+                step.index,
+                step.anchor,
+                step.kind,
+                public_evidence_label(&step.evidence),
+                where_hint
             );
         }
     }
@@ -169,7 +176,7 @@ pub fn siblings(report: &SiblingsReport) {
     surface_section("Route/Service/Test Triplets", &report.route_service_test_triplets);
     cone_section("Shared Helpers", &report.shared_helpers);
     cone_section("Shared Contracts", &report.shared_contracts);
-    proof_surface_section("Proof Pattern", &report.proof_pattern);
+    lens_proof_sensor_section("Proof Sensors", &report.proof_pattern);
     unknown_section(&report.unknowns);
     hidden_section(&report.hidden);
     section("Expand", &report.expand);
@@ -181,7 +188,7 @@ pub fn place(report: &PlaceReport) {
     println!("Kind: `{}`", report.requested_kind);
     surface_section("Existing Surfaces", &report.existing_surfaces);
     plain_section("Local Conventions", &report.local_conventions);
-    proof_surface_section("Paired Proof Pattern", &report.paired_proof_pattern);
+    lens_proof_sensor_section("Paired Proof Sensors", &report.paired_proof_pattern);
     cone_section("Shared Contracts", &report.shared_contracts);
     unknown_section(&report.unknowns);
     hidden_section(&report.hidden);
@@ -199,12 +206,10 @@ fn surface_section(title: &str, surfaces: &[Surface]) {
             .as_ref()
             .map(|path| code(path))
             .unwrap_or_else(|| "aggregate".to_string());
-        let role = surface.role.as_deref().unwrap_or("none");
         println!(
-            "- {label} [{}; {}; {}; {}]",
+            "- {label} [{}; {}; {}]",
             surface.kind,
-            role,
-            surface.evidence,
+            public_evidence_label(&surface.evidence),
             format!("{:?}", surface.strength).to_ascii_lowercase()
         );
         if !surface.examples.is_empty() {
@@ -219,6 +224,26 @@ fn surface_section(title: &str, surfaces: &[Surface]) {
         if surface.hidden_count > 0 {
             println!("  hidden: {} examples", surface.hidden_count);
         }
+    }
+}
+
+fn lens_proof_sensor_section(title: &str, proofs: &[ProofSurface]) {
+    if proofs.is_empty() {
+        return;
+    }
+    let title = if proofs
+        .iter()
+        .all(crate::proof_classification::proof_surface_is_soft_evidence)
+    {
+        "Soft Evidence"
+    } else {
+        title
+    };
+    proof_surface_section(title, proofs);
+    if title == "Soft Evidence" {
+        println!(
+            "\nSoft evidence is token/name/path surface overlap. It does not replace deterministic proof or remove Unknown entries."
+        );
     }
 }
 
@@ -239,7 +264,7 @@ fn runtime_routes_section(title: &str, routes: &[RuntimeRoute]) {
             route.path,
             route.file,
             handler,
-            route.evidence,
+            public_evidence_label(&route.evidence),
             format!("{:?}", route.strength).to_ascii_lowercase(),
             proof_location_summary(&route.locations)
         );
@@ -256,7 +281,7 @@ fn env_section(title: &str, env: &[EnvSurface]) {
             "- `{}` used by `{}` [{}; {}] {}",
             item.name,
             item.used_by,
-            item.evidence,
+            public_evidence_label(&item.evidence),
             format!("{:?}", item.strength).to_ascii_lowercase(),
             proof_location_summary(&item.locations)
         );

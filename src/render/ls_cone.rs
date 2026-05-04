@@ -217,7 +217,11 @@ fn render_ls_directory(report: &LsReport, section_filter: Option<&str>) {
         let strength = format!("{:?}", surface.strength).to_ascii_lowercase();
         println!(
             "- `{}` [hint={}; count={}; {}; {}]",
-            surface.kind, role, surface.count, surface.evidence, strength
+            surface.kind,
+            role,
+            surface.count,
+            public_evidence_label(&surface.evidence),
+            strength
         );
         if let Some(path) = &surface.path {
             println!("  path: `{path}`");
@@ -285,7 +289,11 @@ fn canonical_roles(anchor: &crate::model::FileSummary) -> Vec<String> {
     if local.contains(&"env_config") || anchor.kind == "env_config" || path.contains(".env") {
         roles.insert("env".to_string());
     }
-    if local.contains(&"runtime_config") || anchor.kind == "runtime_config" {
+    if local.contains(&"runtime_config")
+        || anchor.kind == "runtime_config"
+        || anchor.kind == "config"
+        || anchor.language == "config"
+    {
         roles.insert("config".to_string());
     }
     if local.contains(&"lockfile") || anchor.kind == "lockfile" {
@@ -332,7 +340,16 @@ fn canonical_roles(anchor: &crate::model::FileSummary) -> Vec<String> {
     if path.contains("/archive/") || path.starts_with("archive/") || path.contains("/archives/") {
         roles.insert("archive".to_string());
     }
-    if path.contains("/witness") || path.contains("/receipts/") || path.contains("/proof/") {
+    if path.contains("/witness")
+        || path.contains("/receipts/")
+        || path.starts_with("receipts/")
+        || path.contains("/witnesses/")
+        || path.starts_with("witnesses/")
+        || path.contains("/artifacts/")
+        || path.starts_with("artifacts/")
+        || path.contains("-proof/")
+        || path.contains("/proof/")
+    {
         roles.insert("witness".to_string());
     }
     if path.contains("/dist/") || path.starts_with("dist/") || path.contains("/build/") || path.starts_with("build/") {

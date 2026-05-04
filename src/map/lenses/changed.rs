@@ -82,6 +82,7 @@ pub fn changed_report(
     unknowns.extend(diff.new_unknowns.clone());
     unknowns.extend(impact.unknowns.clone());
     unknowns.extend(proof_map.unknowns.clone());
+    unknowns.extend(proof_plan_cache.unknowns.clone());
     unknowns.extend(changed_fail_open_unknowns(project, &changed_paths));
     dedupe_unknowns(&mut unknowns);
     let unknown_expand = format!(

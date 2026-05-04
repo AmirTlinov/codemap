@@ -98,7 +98,7 @@ fn changed_proof_render_evidence_surfaces(
         std::collections::BTreeMap::new();
     for surface in surfaces {
         grouped
-            .entry(surface.evidence.clone())
+            .entry(public_evidence_label(&surface.evidence))
             .or_default()
             .push(*surface);
     }
@@ -285,7 +285,7 @@ fn changed_proof_soft_group_summary(sensors: &[&ProofSurface]) {
         let path = sensor.path.as_deref().unwrap_or("none");
         println!(
             "- sample: `{path}` [{}; {}] {}",
-            sensor.evidence,
+            public_evidence_label(&sensor.evidence),
             format!("{:?}", sensor.strength).to_ascii_lowercase(),
             proof_location_summary(&sensor.locations)
         );
@@ -338,7 +338,7 @@ fn changed_proof_samples(sensors: &[&ProofSurface], compact: bool) {
         println!(
             "  - `{}` [{}; {}] {}",
             path,
-            sensor.evidence,
+            public_evidence_label(&sensor.evidence),
             format!("{:?}", sensor.strength).to_ascii_lowercase(),
             proof_location_summary(&sensor.locations)
         );

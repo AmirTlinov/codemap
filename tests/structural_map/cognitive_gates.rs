@@ -75,6 +75,89 @@ fn changed_large_schema_and_script_slice_stays_compact() {
     );
 }
 
+#[test]
+fn public_markdown_does_not_leak_internal_role_evidence_labels() {
+    let (repo, cache) = fixture();
+    let contract = run_markdown(repo.path(), cache.path(), &["contract", "package.json"]);
+    assert!(
+        !contract.contains("role:") && contract.contains("surface_hint:"),
+        "contract markdown should render deterministic surface hints without internal role labels: {contract}"
+    );
+
+    let siblings = run_markdown(
+        repo.path(),
+        cache.path(),
+        &["siblings", "packages/replay/src", "--limit", "40"],
+    );
+    for forbidden in ["Proof Pattern", "Paired Proof Pattern", "role_script_target", "role:"] {
+        assert!(
+            !siblings.contains(forbidden),
+            "siblings markdown leaked old trust-boundary vocabulary `{forbidden}`: {siblings}"
+        );
+    }
+    assert!(
+        siblings.contains("## Proof Sensors"),
+        "siblings markdown should use neutral source-backed proof sensor wording: {siblings}"
+    );
+}
+
+#[test]
+fn soft_script_matches_render_under_soft_evidence() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("Cargo.toml"),
+        "[package]\nname = \"soft-script-siblings\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    write(
+        &repo.path().join(".storybook/main.ts"),
+        "export default { stories: [] };\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "soft script fixture"]);
+
+    let markdown = run_markdown(repo.path(), cache.path(), &["siblings", ".storybook"]);
+    assert!(
+        markdown.contains("## Soft Evidence")
+            && markdown.contains("script_surface_match")
+            && !markdown.contains("## Proof Sensors"),
+        "script/path overlap should render as soft evidence, not as deterministic proof: {markdown}"
+    );
+}
+
+#[test]
+fn changed_existing_unindexed_files_are_not_rendered_as_missing() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{"name":"unindexed-output","private":true}"#,
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "baseline"]);
+    write(
+        &repo.path().join("banner_semantics_py.out"),
+        "existing witness output\n",
+    );
+
+    let markdown = run_markdown(
+        repo.path(),
+        cache.path(),
+        &["changed", "--files", "banner_semantics_py.out"],
+    );
+    assert!(
+        markdown.contains("`banner_semantics_py.out` [unindexed; unknown")
+            && !markdown.contains("`banner_semantics_py.out` [missing; unknown"),
+        "existing-but-unindexed anchors should not be called missing: {markdown}"
+    );
+}
+
 fn run_markdown(repo: &Path, cache: &Path, args: &[&str]) -> String {
     let output = codemap()
         .current_dir(repo)

@@ -11,8 +11,8 @@ fn focused_lens_surfaces_render_as_compact_blocks() {
     assert!(output.status.success());
     let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
     assert!(
-        markdown.contains("\n## Scripts\n") && markdown.contains("[script; script;"),
-        "surface markdown should keep kind/role/evidence/strength in compact blocks: {markdown}"
+        markdown.contains("\n## Scripts\n") && markdown.contains("[script; package.json script:"),
+        "surface markdown should keep kind/evidence/strength in compact blocks without role-verdict columns: {markdown}"
     );
     assert!(
         markdown.contains("examples: `test:")

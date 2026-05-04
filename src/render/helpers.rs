@@ -69,7 +69,7 @@ fn proof_surface_section(title: &str, proofs: &[ProofSurface]) {
                 .unwrap_or_else(|| "`none`".to_string());
             println!(
                 "- {path} [{}; {}] {} - {}",
-                proof.evidence,
+                public_evidence_label(&proof.evidence),
                 format!("{:?}", proof.strength).to_ascii_lowercase(),
                 proof_location_summary(&proof.locations),
                 proof.reason
@@ -128,7 +128,7 @@ fn contract_exports_section(title: &str, surfaces: &[Surface]) {
             println!(
                 "  - `{}` [{}; {}]",
                 label,
-                surface.evidence,
+                public_evidence_label(&surface.evidence),
                 format!("{:?}", surface.strength).to_ascii_lowercase()
             );
             if surface.hidden_count > 0 {
@@ -181,7 +181,7 @@ fn grouped_edge_list(title: &str, edges: &[StructuralEdge], limit: usize) {
                 "  - {} -> `{}` [{}; {}] {}",
                 edge.edge_type,
                 edge.to,
-                edge.evidence,
+                public_evidence_label(&edge.evidence),
                 format!("{:?}", edge.strength).to_ascii_lowercase(),
                 edge_location_summary(edge)
             );
@@ -251,6 +251,16 @@ fn code_block(lang: &str, commands: &[String]) -> String {
         return format!("```{lang}\n# no command inferred\n```");
     }
     format!("```{lang}\n{}\n```", commands.join("\n"))
+}
+
+fn public_evidence_label(evidence: &str) -> String {
+    if evidence == "role_script_target" {
+        return "script_surface_match".to_string();
+    }
+    evidence
+        .strip_prefix("role:")
+        .map(|rest| format!("surface_hint:{rest}"))
+        .unwrap_or_else(|| evidence.to_string())
 }
 
 fn mermaid_id(value: &str) -> String {

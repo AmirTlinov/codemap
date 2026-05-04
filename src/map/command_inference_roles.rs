@@ -109,7 +109,7 @@ fn role_aware_script_evidence(
     if token_hits >= 2 {
         ("script_path_token", EvidenceStrength::Medium)
     } else {
-        ("role_script_target", EvidenceStrength::Medium)
+        ("script_surface_match", EvidenceStrength::Medium)
     }
 }
 

@@ -59,7 +59,10 @@ fn proof_plan_evidence_surface_section(
     let mut grouped: std::collections::BTreeMap<String, Vec<&ProofSurface>> =
         std::collections::BTreeMap::new();
     for proof in proofs {
-        grouped.entry(proof.evidence.clone()).or_default().push(*proof);
+        grouped
+            .entry(public_evidence_label(&proof.evidence))
+            .or_default()
+            .push(*proof);
     }
     for (evidence, proofs) in grouped {
         println!("\n### `{evidence}`");
@@ -100,7 +103,7 @@ fn proof_plan_surface_samples(report: &ProofReport, proofs: &[&ProofSurface]) {
                 .unwrap_or_else(|| "`none`".to_string());
             println!(
                 "  - {path} [{}; {}] {} - {}",
-                proof.evidence,
+                public_evidence_label(&proof.evidence),
                 format!("{:?}", proof.strength).to_ascii_lowercase(),
                 proof_location_summary(&proof.locations),
                 proof.reason
@@ -118,7 +121,7 @@ fn proof_plan_surface_samples(report: &ProofReport, proofs: &[&ProofSurface]) {
 
 fn proof_display_command(proof: &ProofSurface) -> String {
     let Some(command) = &proof.command else {
-        return proof.evidence.clone();
+        return public_evidence_label(&proof.evidence);
     };
     let Some(path) = proof.path.as_deref() else {
         return command.clone();
@@ -144,7 +147,9 @@ fn proof_display_command(proof: &ProofSurface) -> String {
 fn evidence_counts(proofs: &[&ProofSurface]) -> Vec<(String, usize)> {
     let mut counts = std::collections::BTreeMap::new();
     for proof in proofs {
-        *counts.entry(proof.evidence.clone()).or_insert(0) += 1;
+        *counts
+            .entry(public_evidence_label(&proof.evidence))
+            .or_insert(0) += 1;
     }
     counts.into_iter().collect()
 }

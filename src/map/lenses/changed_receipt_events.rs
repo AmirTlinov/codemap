@@ -61,6 +61,10 @@ fn receipt_witness_path_hint(rel: &str) -> bool {
         || lower.starts_with("receipts/")
         || lower.contains("/witnesses/")
         || lower.starts_with("witnesses/")
+        || lower.starts_with("artifacts/")
+        || lower.contains("/artifacts/")
+        || lower.contains("-proof/")
+        || lower.contains("/proof/")
         || changed_map_path_file_name(&lower).contains("receipt")
         || changed_map_path_file_name(&lower).contains("witness")
 }

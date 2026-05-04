@@ -3,7 +3,15 @@ fn is_support_artifact_path(rel: &str) -> bool {
     rel.split('/').any(|part| {
         matches!(
             part,
-            "fixtures" | "examples" | "samples" | ".agents" | ".codex" | ".claude"
+            "fixtures"
+                | "examples"
+                | "samples"
+                | "artifacts"
+                | "receipts"
+                | "witnesses"
+                | ".agents"
+                | ".codex"
+                | ".claude"
         )
     })
 }
@@ -175,6 +183,12 @@ pub fn proof_report(
     let mut unknowns = Vec::new();
     if target.is_none() && !changed.is_empty() {
         unknowns.extend(changed_fail_open_unknowns(project, &changed));
+        unknowns.extend(changed_missing_deterministic_proof_unknowns(
+            project,
+            &changed,
+            &fallback,
+            &all_proofs,
+        ));
     }
     if let Some(target) = target.as_ref()
         && let Some(file) = project.files.get(target)
@@ -250,6 +264,53 @@ pub fn proof_report(
         run_hint: "codemap proof prints only by default; use --run to execute proof commands"
             .to_string(),
     }
+}
+
+fn changed_missing_deterministic_proof_unknowns(
+    project: &Project,
+    changed: &[String],
+    fallback: &[String],
+    proofs: &[ProofSurface],
+) -> Vec<Unknown> {
+    if !fallback.is_empty() || proofs.iter().any(proof_surface_satisfies_specific_proof) {
+        return Vec::new();
+    }
+    let has_soft_or_empty = proofs.is_empty()
+        || proofs
+            .iter()
+            .any(crate::proof_classification::proof_surface_is_soft_evidence);
+    if !has_soft_or_empty {
+        return Vec::new();
+    }
+    changed
+        .iter()
+        .filter(|rel| changed_path_needs_missing_deterministic_proof_unknown(project, rel))
+        .map(|rel| {
+            unknown_missing_deterministic_proof(
+                rel,
+                format!("codemap proof-map --files {}", shell_quote(rel)),
+            )
+        })
+        .collect()
+}
+
+fn changed_path_needs_missing_deterministic_proof_unknown(project: &Project, rel: &str) -> bool {
+    if is_support_artifact_path(rel) {
+        return true;
+    }
+    project.files.get(rel).is_some_and(|file| {
+        proof_missing_should_surface(project, rel)
+            || [
+                "receipt",
+                "witness",
+                "fixture",
+                "generated",
+                "archive",
+                "build_output",
+            ]
+            .iter()
+            .any(|role| file.has_role(role))
+    })
 }
 
 pub fn clean_proof_report(_selector: String) -> ProofReport {

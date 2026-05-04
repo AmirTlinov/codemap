@@ -225,17 +225,41 @@ fn add_renderer_ui_role_if(
     roles: &mut BTreeSet<String>,
     rel: &str,
     ext: &str,
-    tokens: &BTreeSet<String>,
+    _tokens: &BTreeSet<String>,
 ) {
     if matches!(ext, "tsx" | "jsx" | "vue" | "svelte")
-        || (matches!(ext, "ts" | "js")
-            && (["render", "view", "component", "page", "screen"]
-                .iter()
-                .any(|needle| rel.contains(needle))
-                || tokens.contains("ui")))
+        || (matches!(ext, "ts" | "js") && path_has_ui_surface_convention(rel))
     {
         roles.insert("renderer_ui".to_string());
     }
+}
+
+fn path_has_ui_surface_convention(rel: &str) -> bool {
+    let lower = rel.to_ascii_lowercase();
+    let path = Path::new(&lower);
+    let has_ui_segment = path.components().any(|component| {
+        let part = component.as_os_str().to_string_lossy();
+        matches!(
+            part.as_ref(),
+            "pages"
+                | "page"
+                | "components"
+                | "component"
+                | "screens"
+                | "screen"
+                | "views"
+                | "view"
+                | "ui"
+        )
+    });
+    if has_ui_segment {
+        return true;
+    }
+    let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) else {
+        return false;
+    };
+    stem.split(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '_'))
+        .any(|part| matches!(part, "page" | "component" | "screen" | "view"))
 }
 
 pub(crate) fn is_schema_contract_surface(rel: &str, name: &str, ext: &str) -> bool {

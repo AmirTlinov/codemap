@@ -10,6 +10,10 @@ fn is_witness_surface(rel: &str, name: &str, ext: &str) -> bool {
     matches!(ext, "json" | "jsonl" | "md" | "txt")
         && (rel.contains("/witnesses/")
             || rel.starts_with("witnesses/")
+            || rel.starts_with("artifacts/")
+            || rel.contains("/artifacts/")
+            || rel.contains("-proof/")
+            || rel.contains("/proof/")
             || name.contains("witness"))
 }
 

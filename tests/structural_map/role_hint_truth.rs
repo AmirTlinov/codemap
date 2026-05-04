@@ -59,6 +59,43 @@ fn rust_text_renderers_do_not_become_renderer_ui_from_render_path() {
 }
 
 #[test]
+fn typescript_preview_helpers_do_not_become_renderer_ui_from_substrings() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo
+            .path()
+            .join("apps/control-center/lib/prosteq/local-preview.ts"),
+        "export function localPreview() { return { mode: 'preview' }; }\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "preview helper"]);
+
+    let ls = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "ls",
+            "apps/control-center/lib/prosteq/local-preview.ts",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/ls.schema.json", &ls);
+    assert!(
+        !ls["anchor"]["roles"]
+            .as_array()
+            .expect("roles")
+            .iter()
+            .any(|role| role == "renderer_ui"),
+        "`preview` contains `view`, but that substring is not UI evidence: {ls:#}"
+    );
+}
+
+#[test]
 fn doctor_source_only_hints_are_not_semantic_verdicts() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");

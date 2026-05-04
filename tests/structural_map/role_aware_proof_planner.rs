@@ -277,13 +277,13 @@ fn role_aware_proof_uses_repo_commands_before_generic_fallback() {
     );
     assert_makefile_proof_surface(
         proof_surface_for(&proof, "make validate-receipts"),
-        "role_script_target",
+        "script_surface_match",
         "medium",
         7,
     );
     assert_makefile_proof_surface(
         proof_surface_for(&proof, "make doctor"),
-        "role_script_target",
+        "script_surface_match",
         "medium",
         13,
     );

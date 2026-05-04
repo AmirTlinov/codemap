@@ -104,7 +104,7 @@ fn proof_surface_satisfies_specific_proof(proof: &ProofSurface) -> bool {
 fn proof_surface_is_soft_structural_match(proof: &ProofSurface) -> bool {
     matches!(
         proof_base_evidence(&proof.evidence),
-        "script_path_token" | "role_script_target"
+        "script_path_token" | "script_surface_match"
     )
 }
 

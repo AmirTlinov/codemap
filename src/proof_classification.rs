@@ -100,7 +100,7 @@ fn proof_evidence_is_soft_match(evidence: &str) -> bool {
     matches!(
         proof_base_evidence(evidence),
         "script_path_token"
-            | "role_script_target"
+            | "script_surface_match"
             | "test_name"
             | "e2e_surface_phrase"
             | "e2e_path_surface"
@@ -237,7 +237,7 @@ mod tests {
     fn setup_support_surfaces_do_not_also_render_as_soft_evidence() {
         let surface = proof(
             Some("pnpm run dev"),
-            "role_script_target",
+            "script_surface_match",
             EvidenceStrength::Medium,
         );
 
@@ -250,7 +250,7 @@ mod tests {
     fn token_matches_without_setup_command_remain_soft_evidence() {
         let surface = proof(
             Some("pnpm test"),
-            "role_script_target",
+            "script_surface_match",
             EvidenceStrength::Medium,
         );
 

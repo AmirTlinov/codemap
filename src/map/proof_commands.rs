@@ -265,6 +265,12 @@ fn proof_fallback_commands(
             .map(|anchor| anchor_file_rel(anchor))
             .collect()
     };
+    if all_files
+        .iter()
+        .all(|file| proof_fallback_target_is_support_artifact(project, file))
+    {
+        return Vec::new();
+    }
     let impacted = if changed.is_empty() {
         Vec::new()
     } else {
@@ -299,4 +305,22 @@ fn anchor_file_rel(anchor: &str) -> String {
     split_symbol_anchor(anchor)
         .map(|(file_rel, _)| file_rel)
         .unwrap_or_else(|| anchor.to_string())
+}
+
+fn proof_fallback_target_is_support_artifact(project: &Project, rel: &str) -> bool {
+    if is_support_artifact_path(rel) {
+        return true;
+    }
+    project.files.get(rel).is_some_and(|file| {
+        [
+            "receipt",
+            "witness",
+            "fixture",
+            "generated",
+            "archive",
+            "build_output",
+        ]
+        .iter()
+        .any(|role| file.has_role(role))
+    })
 }

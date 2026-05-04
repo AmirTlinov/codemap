@@ -153,7 +153,7 @@ fn proof_links_section(report: &ProofReport) {
             .unwrap_or_else(|| "`none`".to_string());
         println!(
             "- {path} [{}; {}] {} - {}",
-            proof.evidence,
+            public_evidence_label(&proof.evidence),
             format!("{:?}", proof.strength).to_ascii_lowercase(),
             proof_location_summary(&proof.locations),
             proof.reason

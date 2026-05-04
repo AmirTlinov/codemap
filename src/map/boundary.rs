@@ -1,7 +1,8 @@
 fn missing_file_summary(project: &Project, rel: &str) -> FileSummary {
+    let exists = project.root.join(rel).exists();
     FileSummary {
         path: rel.to_string(),
-        kind: "missing".to_string(),
+        kind: if exists { "unindexed" } else { "missing" }.to_string(),
         package: package_name_for_file(project, rel),
         language: "unknown".to_string(),
         lines: 0,

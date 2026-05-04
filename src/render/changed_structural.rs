@@ -21,7 +21,10 @@ fn changed_structural_events_section(report: &ChangedReport, compact: bool) {
         };
         println!(
             "- `{}` [{}; evidence={}{}]",
-            event.path, event.kind, event.evidence, count_hint
+            event.path,
+            event.kind,
+            public_evidence_label(&event.evidence),
+            count_hint
         );
         if !event.locations.is_empty() {
             println!("  at: {}", proof_location_summary(&event.locations));

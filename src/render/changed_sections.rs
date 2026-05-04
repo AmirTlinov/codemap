@@ -205,6 +205,8 @@ fn changed_roles_for_path(path: &str) -> Vec<String> {
     if lower.contains("/witness")
         || changed_path_has_segment(&lower, "receipts")
         || changed_path_has_segment(&lower, "proof")
+        || changed_path_has_segment(&lower, "artifacts")
+        || lower.contains("-proof/")
     {
         roles.insert("witness".to_string());
     }

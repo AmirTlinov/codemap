@@ -51,7 +51,7 @@ fn infer_minimal_commands(
         "cargo" => vec!["cargo test".to_string()],
         "go" => vec!["go test ./...".to_string()],
         "python" => vec!["pytest".to_string()],
-        _ => vec!["run the nearest domain tests for the changed files".to_string()],
+        _ => Vec::new(),
     }
 }
 
