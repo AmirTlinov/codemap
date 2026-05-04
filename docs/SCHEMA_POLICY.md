@@ -32,9 +32,9 @@ These changes require a new schema/config version:
 - changing field type, nullability, enum values, or meaning;
 - changing required fields;
 - changing output budgets;
-- changing `.ctx.yml` semantics or accepted field names.
+- changing `.codemap.yml` semantics or accepted field names.
 
-Unknown `.ctx.yml` fields stay rejected. New anchor fields require a config version bump unless the old parser can safely ignore them without changing behavior.
+Unknown `.codemap.yml` fields stay rejected. New anchor fields require a config version bump unless the old parser can safely ignore them without changing behavior.
 
 ## Guard
 

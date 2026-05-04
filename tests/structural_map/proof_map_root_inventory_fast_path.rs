@@ -103,20 +103,20 @@ fn proof_map_large_cold_root_uses_bounded_inventory_with_exact_expand() {
 }
 
 #[test]
-fn proof_map_large_cold_root_falls_back_to_fail_closed_ctx_validation_for_ignored_root_config() {
+fn proof_map_large_cold_root_falls_back_to_fail_closed_codemap_validation_for_ignored_root_config() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");
     git(repo.path(), &["init", "-q"]);
     git(repo.path(), &["config", "user.email", "a@example.com"]);
     git(repo.path(), &["config", "user.name", "a"]);
-    write(&repo.path().join(".gitignore"), ".ctx.yml\n");
+    write(&repo.path().join(".gitignore"), ".codemap.yml\n");
     write(
-        &repo.path().join(".ctx.yml"),
+        &repo.path().join(".codemap.yml"),
         "version: 1\nconcepts:\n  empty:\n    files: []\n",
     );
     write(
         &repo.path().join("package.json"),
-        r#"{"name":"large-invalid-ctx","private":true,"scripts":{"test":"vitest run"}}"#,
+        r#"{"name":"large-invalid-codemap","private":true,"scripts":{"test":"vitest run"}}"#,
     );
     for index in 0..805 {
         write(
@@ -133,13 +133,13 @@ fn proof_map_large_cold_root_falls_back_to_fail_closed_ctx_validation_for_ignore
         .expect("codemap should run");
     assert!(
         !output.status.success(),
-        "large root proof-map must not bypass invalid .ctx validation: stdout={} stderr={}",
+        "large root proof-map must not bypass invalid .codemap validation: stdout={} stderr={}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("invalid .ctx semantic anchors")
+        stderr.contains("invalid .codemap semantic anchors")
             && stderr.contains("concept `empty` must declare at least one file"),
         "normal fail-closed anchor validation should own the error: {stderr}"
     );

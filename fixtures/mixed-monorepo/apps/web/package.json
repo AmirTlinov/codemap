@@ -1,8 +1,8 @@
 {
-  "name": "@ctx-fixture/web",
+  "name": "@codemap-fixture/web",
   "private": true,
   "dependencies": {
-    "@ctx-fixture/auth": "workspace:*",
-    "@ctx-fixture/renderer": "workspace:*"
+    "@codemap-fixture/auth": "workspace:*",
+    "@codemap-fixture/renderer": "workspace:*"
   }
 }

@@ -231,7 +231,7 @@ fn is_semantic_anchor_path(project: &Project, rel: &str) -> bool {
         .unwrap_or_else(|| {
             matches!(
                 Path::new(rel).file_name().and_then(|name| name.to_str()),
-                Some(".ctx.yml" | ".ctx.yaml" | ".ctx.json")
+                Some(".codemap.yml" | ".codemap.yaml" | ".codemap.json")
             )
         })
 }

@@ -25,7 +25,7 @@ tests/structural_map/*
    - common generated/vendor dirs;
    - dependency dirs like `node_modules`, `.venv`, `target`, `dist`, `build`;
    - lockfile-specific package manager artifacts;
-   - `.ctx.yml` ignore overrides if already supported.
+   - `.codemap.yml` ignore overrides if already supported.
 3. Add generated-file detection by hard evidence:
    - generated header comment;
    - known generated path;
@@ -99,7 +99,7 @@ Implemented:
 
 - Repository walking policy now records scanner stats while keeping common
   ignored dirs out of the indexed file map.
-- Config discovery uses visible candidates, so `.ctx.yml` files inside ignored
+- Config discovery uses visible candidates, so `.codemap.yml` files inside ignored
   build/dependency dirs cannot become semantic anchor errors.
 - `doctor` / `status --format json` now expose `scanner` counters and grouped
   ignored/generated facts. This landed in `status_report` schema v3 and remains

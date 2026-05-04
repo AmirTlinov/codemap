@@ -15,7 +15,7 @@ fn boundaries_check_transitive_package_dependency_graph_without_imports() {
 "#,
     );
     write(
-        &repo.path().join(".ctx.yml"),
+        &repo.path().join(".codemap.yml"),
         r#"version: 1
 boundaries:
   forbidden:

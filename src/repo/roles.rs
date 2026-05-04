@@ -178,7 +178,7 @@ fn classify_roles(root: &Path, info: &mut FileInfo) {
     if name == "agents.md" {
         info.roles.insert("agent_bootstrap".to_string());
     }
-    if matches!(name.as_str(), ".ctx.yml" | ".ctx.yaml" | ".ctx.json") {
+    if matches!(name.as_str(), ".codemap.yml" | ".codemap.yaml" | ".codemap.json") {
         info.roles.insert("semantic_anchor".to_string());
     }
     if info.roles.contains("test") {

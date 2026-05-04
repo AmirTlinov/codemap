@@ -11,6 +11,6 @@ Files:
 - `proof_run.rs` owns `proof --run` safety.
 - `diff_args.rs` parses changed/staged/since/files selectors.
 - `files.rs` owns `codemap files`.
-- `anchors_*` owns `.ctx.yml` validation reporting.
+- `anchors_*` owns `.codemap.yml` validation reporting.
 
 Do not add structural inference here. CLI should call `repo` or `map`.

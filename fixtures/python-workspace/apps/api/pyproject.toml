@@ -1,9 +1,9 @@
 [project]
-name = "ctx-api"
+name = "codemap-api"
 version = "0.1.0"
 dependencies = [
-    "ctx-renderer",
+    "codemap-renderer",
 ]
 
 [tool.uv.sources]
-ctx-renderer = { path = "../../services/renderer" }
+codemap-renderer = { path = "../../services/renderer" }

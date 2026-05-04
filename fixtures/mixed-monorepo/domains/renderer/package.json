@@ -1,8 +1,8 @@
 {
-  "name": "@ctx-fixture/renderer",
+  "name": "@codemap-fixture/renderer",
   "private": true,
   "exports": "./src/replay-renderer.ts",
   "dependencies": {
-    "@ctx-fixture/replay": "workspace:*"
+    "@codemap-fixture/replay": "workspace:*"
   }
 }

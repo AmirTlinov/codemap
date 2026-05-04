@@ -84,7 +84,7 @@ hidden full-index disclosure. Full gates passed: `cargo fmt --check`,
 review: bounded reviewer PASS.
 live: installed PATH `codemap 0.2.10` dogfood on current repo, main_cluster,
 and Levelly-1 produced 68 probes, 0 failures, 0 over-budget outputs, and 0
-trust wording violations. Root `graph_causal` was 119ms on ctx, 101ms on
+trust wording violations. Root `graph_causal` was 119ms on codemap, 101ms on
 main_cluster, and 140ms on Levelly-1; main_cluster compact graph exposed
 package, directory, script, source, CI, config, runtime, migration, env, docs,
 lockfile, and deploy surfaces with hidden full-index disclosure.
@@ -231,7 +231,7 @@ Closure audit 2026-05-03 is closed:
 status: closed
 tier: full/live
 closed: the current daily path is materially tighter end-to-end: explicit
-`.ctx.yml` role patterns and `proof.changed` commands are indexed as hard
+`.codemap.yml` role patterns and `proof.changed` commands are indexed as hard
 repo-dialect facts; `codemap teach` prints a read-only dialect draft; shell
 scripts are first-class `script`/`shell` anchors instead of missing rows; wide
 `changed` markdown keeps JSON completeness but compresses default overview
@@ -1326,7 +1326,7 @@ and rebuilds derived packages/imports/reverse-imports/domains over the mixed
 cached plus rescanned map. Warm exact hits report scan_ms=0 and
 scanner.files_visited=0.
 proof next: incremental changed/added/deleted/reverse-import fixtures, full
-local gate, and live warm probes on ctx, spritestudio, Sillentway-VPN, and
+local gate, and live warm probes on codemap, spritestudio, Sillentway-VPN, and
 Levelly-1.
 review next: not run for this continuation; full gate plus live cache probes
 covered the boundary.
@@ -1344,7 +1344,7 @@ proof third: `doctor_uses_git_status_mismatch_set_for_committed_repos`,
 `doctor_removes_cached_untracked_file_that_becomes_git_ignored`,
 `doctor_uses_cached_untracked_probe_for_modified_untracked_files`,
 `doctor_removes_cached_source_renamed_into_ignored_directory`, full gate, and
-live warm sanity on ctx/spritestudio/Sillentway-VPN.
+live warm sanity on codemap/spritestudio/Sillentway-VPN.
 review third: PASS after the cache-specific status parser preserved old-path
 removals for renames into ignored directories.
 ```
@@ -1398,7 +1398,7 @@ fixture, dirty and staged rename-into-ignored-dir fixtures, changed schema
 validation, schema manifest parity, line budget, and full gate.
 review next: PASS after fixing porcelain path quoting, deleted-file expand, and
 staged/since rename-into-ignored false-clean behavior.
-live next: read-only changed probes on ctx, spritestudio, and Sillentway-VPN
+live next: read-only changed probes on codemap, spritestudio, and Sillentway-VPN
 confirmed shape without mutating live repos; deletion/rename truth is proven by
 controlled dirty/staged fixtures.
 ```
@@ -1554,13 +1554,13 @@ public help inspection, docs/product invariant audit, fixture/schema/cognitive
 test inspection, and live read-only dogfood on spritestudio, Sillentway-VPN,
 and Levelly-1.
 review: final reviewer returned PASS after targeted re-review of the remaining
-closure blockers: stale `.ctx.yml` role overlays in warm cache, hidden owner
+closure blockers: stale `.codemap.yml` role overlays in warm cache, hidden owner
 edge omissions, and exact-HEAD cache refresh for lens fast paths.
 live: dogfood summary contained 39 probe rows, 0 command failures, and 0
 line-budget failures. Additional navigation probes showed SpriteStudio
 root/app/cone/proof orientation, SilentWay runtime -> flow stitching for
 `src/masque-core`, and Levelly package/boundary orientation.
-closure fixes: cache inventory stores base roles and applies `.ctx.yml` roles as
+closure fixes: cache inventory stores base roles and applies `.codemap.yml` roles as
 a runtime overlay; current-level owner edges now rely on report-level
 hidden/expand accounting instead of internal pre-caps; write-enabled exact-hit
 cache loads refresh stale git HEAD metadata so clean lens fast paths recover

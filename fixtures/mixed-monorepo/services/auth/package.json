@@ -1,5 +1,5 @@
 {
-  "name": "@ctx-fixture/auth",
+  "name": "@codemap-fixture/auth",
   "private": true,
   "scripts": {
     "test": "echo auth tests"

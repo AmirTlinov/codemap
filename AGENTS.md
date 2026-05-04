@@ -13,7 +13,7 @@ Keep the product invariant clear:
 - after edits use `codemap changed` first, then `codemap proof changed`;
 - use focused lenses such as `diff-map`, `impact`, and `proof-map` through
   exact `expand` commands when the changed/proof map asks for more detail;
-- optional `.ctx.yml` semantic anchors only when hard architecture truth cannot be inferred;
+- optional `.codemap.yml` semantic anchors only when hard architecture truth cannot be inferred;
 - no task router, no ranking engine, no embeddings, no LLM in the hard path;
 - `proof` prints a plan by default and runs commands only with `--run`.
 

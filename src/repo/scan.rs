@@ -318,9 +318,9 @@ fn scan_file_rejection(path: &Path, size: u64) -> Option<&'static str> {
             | "taskfile.yaml"
             | ".env.example"
             | ".env.sample"
-            | ".ctx.yml"
-            | ".ctx.yaml"
-            | ".ctx.json"
+            | ".codemap.yml"
+            | ".codemap.yaml"
+            | ".codemap.json"
     ) {
         return None;
     }

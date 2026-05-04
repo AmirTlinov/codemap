@@ -13,7 +13,7 @@ use regex::Regex;
 
 use crate::cache;
 use crate::model::{
-    AnchorDomain, ConfigLoadError, CtxConfig, Domain, FileInfo, GitChange, ImportBindingsBySpec,
+    AnchorDomain, ConfigLoadError, CodemapConfig, Domain, FileInfo, GitChange, ImportBindingsBySpec,
     PackageDependency, PackageInfo, Project, ProjectTimings, ScanGroup, ScanStats, ScriptInfo,
     SymbolInfo,
 };

@@ -55,9 +55,9 @@ pub fn teach(report: &TeachReport) {
             );
         }
     }
-    if !report.ctx_yml.is_empty() {
-        println!("\n## ctx.yml\n");
-        println!("{}", code_block("yaml", &report.ctx_yml));
+    if !report.codemap_yml.is_empty() {
+        println!("\n## codemap.yml\n");
+        println!("{}", code_block("yaml", &report.codemap_yml));
     }
     section("Expand", &report.expand);
 }

@@ -219,7 +219,7 @@ pub fn proof_map_report(
     surfaces.extend(current_direct);
     surfaces.extend(current_e2e);
     if scope.is_none() && !changed.is_empty() {
-        let changed_surfaces = ctx_changed_proof_surfaces(project);
+        let changed_surfaces = codemap_changed_proof_surfaces(project);
         global_wiring_surfaces.extend(changed_surfaces.iter().cloned());
         surfaces.extend(changed_surfaces);
     }

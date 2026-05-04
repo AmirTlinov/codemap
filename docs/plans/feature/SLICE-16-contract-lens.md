@@ -42,7 +42,7 @@ Python __all__
 OpenAPI/GraphQL schema files
 exported DTO/type/interface files by syntax
 cross-package consumers
-explicit .ctx.yml public anchors if present
+explicit .codemap.yml public anchors if present
 ```
 
 Do not mark a file public only because its name contains `contract`.

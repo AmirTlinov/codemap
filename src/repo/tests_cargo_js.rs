@@ -6,12 +6,12 @@ members = [
   "crates/renderer",
 ]
 exclude = ["crates/ignored"]
-dependencies.ctx_fixture_tools = { path = "crates/tools" }
-dependencies.ctx_fixture_extra.path = "crates/extra"
-dependencies.ctx_fixture_inline = { path = "crates/inline" }
-dependencies.ctx_fixture_quoted = { version = "0.1, still a string", path = "crates/quoted,comma" }
+dependencies.codemap_fixture_tools = { path = "crates/tools" }
+dependencies.codemap_fixture_extra.path = "crates/extra"
+dependencies.codemap_fixture_inline = { path = "crates/inline" }
+dependencies.codemap_fixture_quoted = { version = "0.1, still a string", path = "crates/quoted,comma" }
 
-[workspace.dependencies.ctx_fixture_replay]
+[workspace.dependencies.codemap_fixture_replay]
 path = "crates/replay"
 "#;
         assert_eq!(
@@ -24,27 +24,27 @@ path = "crates/replay"
         );
         let deps = cargo_workspace_path_dependencies(workspace);
         assert_eq!(
-            deps.get("ctx_fixture_replay").map(String::as_str),
+            deps.get("codemap_fixture_replay").map(String::as_str),
             Some("crates/replay")
         );
         assert_eq!(
-            deps.get("ctx_fixture_tools").map(String::as_str),
+            deps.get("codemap_fixture_tools").map(String::as_str),
             Some("crates/tools")
         );
         assert_eq!(
-            deps.get("ctx_fixture_extra").map(String::as_str),
+            deps.get("codemap_fixture_extra").map(String::as_str),
             Some("crates/extra")
         );
         assert_eq!(
-            deps.get("ctx_fixture_inline").map(String::as_str),
+            deps.get("codemap_fixture_inline").map(String::as_str),
             Some("crates/inline")
         );
         assert_eq!(
-            deps.get("ctx_fixture_quoted").map(String::as_str),
+            deps.get("codemap_fixture_quoted").map(String::as_str),
             Some("crates/quoted,comma")
         );
         let root_dotted = r#"workspace.members = ["crates/app", "crates/replay"]
-workspace.dependencies.ctx_fixture_root = { path = "crates/root" }
+workspace.dependencies.codemap_fixture_root = { path = "crates/root" }
 "#;
         assert_eq!(
             cargo_workspace_array_values(root_dotted, "members"),
@@ -52,54 +52,54 @@ workspace.dependencies.ctx_fixture_root = { path = "crates/root" }
         );
         assert_eq!(
             cargo_workspace_path_dependencies(root_dotted)
-                .get("ctx_fixture_root")
+                .get("codemap_fixture_root")
                 .map(String::as_str),
             Some("crates/root")
         );
 
         let package = r#"[dependencies]
-ctx_fixture_replay.workspace = true
-ctx_fixture_tools.workspace = true
-ctx_fixture_inline = { version = "0.1, still a string", path = "crates/inline,comma" }
+codemap_fixture_replay.workspace = true
+codemap_fixture_tools.workspace = true
+codemap_fixture_inline = { version = "0.1, still a string", path = "crates/inline,comma" }
 
-[dependencies.ctx_fixture_table]
+[dependencies.codemap_fixture_table]
 workspace = true
 
 [dev-dependencies]
-ctx_fixture_test = { path = "crates/test" }
+codemap_fixture_test = { path = "crates/test" }
 
 [build-dependencies]
-ctx_fixture_build.workspace = true
+codemap_fixture_build.workspace = true
 
-[target.'cfg(unix)'.dependencies.ctx_fixture_target]
+[target.'cfg(unix)'.dependencies.codemap_fixture_target]
 path = "crates/target"
 
-[package.metadata.fake.dependencies.ctx_fixture_ignored]
+[package.metadata.fake.dependencies.codemap_fixture_ignored]
 path = "crates/ignored"
 "#;
         assert_eq!(
             cargo_workspace_dependency_names(package),
             vec![
-                ("ctx_fixture_replay".to_string(), "runtime".to_string()),
-                ("ctx_fixture_table".to_string(), "runtime".to_string()),
-                ("ctx_fixture_tools".to_string(), "runtime".to_string()),
-                ("ctx_fixture_build".to_string(), "build".to_string())
+                ("codemap_fixture_replay".to_string(), "runtime".to_string()),
+                ("codemap_fixture_table".to_string(), "runtime".to_string()),
+                ("codemap_fixture_tools".to_string(), "runtime".to_string()),
+                ("codemap_fixture_build".to_string(), "build".to_string())
             ]
         );
         let path_deps = cargo_path_dependencies(package);
         assert!(path_deps.iter().any(|(name, path, kind)| {
-            name == "ctx_fixture_inline" && path == "crates/inline,comma" && kind == "runtime"
+            name == "codemap_fixture_inline" && path == "crates/inline,comma" && kind == "runtime"
         }));
         assert!(path_deps.iter().any(|(name, path, kind)| {
-            name == "ctx_fixture_test" && path == "crates/test" && kind == "dev"
+            name == "codemap_fixture_test" && path == "crates/test" && kind == "dev"
         }));
         assert!(path_deps.iter().any(|(name, path, kind)| {
-            name == "ctx_fixture_target" && path == "crates/target" && kind == "runtime"
+            name == "codemap_fixture_target" && path == "crates/target" && kind == "runtime"
         }));
         assert!(
             path_deps
                 .iter()
-                .all(|(name, _, _)| name != "ctx_fixture_ignored")
+                .all(|(name, _, _)| name != "codemap_fixture_ignored")
         );
         assert!(cargo_workspace_member_pattern_matches(
             "crates/renderer",
@@ -116,13 +116,13 @@ path = "crates/ignored"
         assert_eq!(
             cargo_package_name(
                 r#"[package]
-name = "ctx_fixture_renderer"
+name = "codemap_fixture_renderer"
 version = "0.1.0"
 edition = "2024"
 "#
             )
             .as_deref(),
-            Some("ctx_fixture_renderer")
+            Some("codemap_fixture_renderer")
         );
     }
 
@@ -354,25 +354,25 @@ members = [
   "crates/replay",
 ]
 
-[workspace.dependencies.ctx_fixture_replay]
+[workspace.dependencies.codemap_fixture_replay]
 path = "crates/replay"
 "#,
         );
         write_test_file(
             &repo.path().join("crates/renderer/Cargo.toml"),
             r#"[package]
-name = "ctx_fixture_renderer"
+name = "codemap_fixture_renderer"
 version = "0.1.0"
 edition = "2024"
 
-[dependencies.ctx_fixture_replay]
+[dependencies.codemap_fixture_replay]
 workspace = true
 "#,
         );
         write_test_file(
             &repo.path().join("crates/replay/Cargo.toml"),
             r#"[package]
-name = "ctx_fixture_replay"
+name = "codemap_fixture_replay"
 version = "0.1.0"
 edition = "2024"
 "#,

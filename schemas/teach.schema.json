@@ -10,7 +10,7 @@
     "config",
     "role_patterns",
     "proof_changed",
-    "ctx_yml",
+    "codemap_yml",
     "expand"
   ],
   "properties": {
@@ -25,7 +25,7 @@
       "type": "array",
       "items": { "$ref": "#/$defs/proof_command" }
     },
-    "ctx_yml": {
+    "codemap_yml": {
       "type": "array",
       "items": { "type": "string" }
     },

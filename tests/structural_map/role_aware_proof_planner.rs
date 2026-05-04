@@ -333,14 +333,14 @@ fn changed_proof_section_reuses_role_aware_commands() {
 }
 
 #[test]
-fn ctx_roles_and_changed_proof_are_explicit_repo_dialect() {
+fn codemap_roles_and_changed_proof_are_explicit_repo_dialect() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");
     git(repo.path(), &["init", "-q"]);
     git(repo.path(), &["config", "user.email", "a@example.com"]);
     git(repo.path(), &["config", "user.name", "a"]);
     write(
-        &repo.path().join(".ctx.yml"),
+        &repo.path().join(".codemap.yml"),
         r#"version: 1
 roles:
   "lab/custom/*.json": receipt
@@ -361,7 +361,7 @@ proof:
     write(&repo.path().join("runner/validate.py"), "print('validate')\n");
     write(&repo.path().join("runner/doctor.py"), "print('doctor')\n");
     git(repo.path(), &["add", "."]);
-    git(repo.path(), &["commit", "-qm", "ctx dialect fixture"]);
+    git(repo.path(), &["commit", "-qm", "codemap dialect fixture"]);
 
     let ls = run_json(
         repo.path(),
@@ -369,7 +369,7 @@ proof:
         &["ls", "lab/custom/a.json", "--format", "json"],
     );
     assert_schema("schemas/ls.schema.json", &ls);
-    assert_eq!(ls["anchor"]["kind"], "receipt", "ctx role should shape file kind: {ls:#}");
+    assert_eq!(ls["anchor"]["kind"], "receipt", "codemap role should shape file kind: {ls:#}");
 
     let proof = run_json(
         repo.path(),
@@ -391,10 +391,10 @@ proof:
         assert!(
             proof_surfaces(&proof).iter().any(|surface| {
                 surface["command"] == command
-                    && surface["evidence"] == "ctx_proof_changed"
+                    && surface["evidence"] == "codemap_proof_changed"
                     && surface["strength"] == "hard"
             }),
-            "missing hard ctx proof surface for {command}: {proof:#}"
+            "missing hard codemap proof surface for {command}: {proof:#}"
         );
     }
 
@@ -409,14 +409,14 @@ proof:
 }
 
 #[test]
-fn ctx_role_removal_does_not_leave_stale_warm_cache_roles() {
+fn codemap_role_removal_does_not_leave_stale_warm_cache_roles() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");
     git(repo.path(), &["init", "-q"]);
     git(repo.path(), &["config", "user.email", "a@example.com"]);
     git(repo.path(), &["config", "user.name", "a"]);
     write(
-        &repo.path().join(".ctx.yml"),
+        &repo.path().join(".codemap.yml"),
         r#"version: 1
 roles:
   "lab/custom/*.json": receipt
@@ -424,7 +424,7 @@ roles:
     );
     write(&repo.path().join("lab/custom/a.json"), "{\"claim_status\":\"open\"}\n");
     git(repo.path(), &["add", "."]);
-    git(repo.path(), &["commit", "-qm", "ctx role cache fixture"]);
+    git(repo.path(), &["commit", "-qm", "codemap role cache fixture"]);
 
     let first = run_json(
         repo.path(),
@@ -434,11 +434,11 @@ roles:
     assert_schema("schemas/ls.schema.json", &first);
     assert_eq!(
         first["anchor"]["kind"], "receipt",
-        "ctx role should apply before cache reuse: {first:#}"
+        "codemap role should apply before cache reuse: {first:#}"
     );
 
     write(
-        &repo.path().join(".ctx.yml"),
+        &repo.path().join(".codemap.yml"),
         r#"version: 1
 roles: {}
 "#,
@@ -451,7 +451,7 @@ roles: {}
     assert_schema("schemas/ls.schema.json", &second);
     assert_ne!(
         second["anchor"]["kind"], "receipt",
-        "removing the ctx role must remove it from reused cached file facts: {second:#}"
+        "removing the codemap role must remove it from reused cached file facts: {second:#}"
     );
     assert!(
         second["anchor"]["roles"]
@@ -464,7 +464,7 @@ roles: {}
 }
 
 #[test]
-fn teach_prints_read_only_ctx_dialect_draft() {
+fn teach_prints_read_only_codemap_dialect_draft() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");
     git(repo.path(), &["init", "-q"]);

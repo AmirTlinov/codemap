@@ -29,35 +29,35 @@
     #[test]
     fn pyproject_paths_use_structural_toml() {
         let pyproject = r#"[project]
-name = "ctx-renderer"
+name = "codemap-renderer"
 
 [tool.uv.sources]
-ctx-replay = { path = "../replay,with-comma", marker = "platform_system == 'Darwin,macOS'" }
+codemap-replay = { path = "../replay,with-comma", marker = "platform_system == 'Darwin,macOS'" }
 
 [tool.poetry.dependencies]
-ctx-tools = { path = "../tools" }
-ctx-version-only = "^1"
+codemap-tools = { path = "../tools" }
+codemap-version-only = "^1"
 "#;
         assert_eq!(
             pyproject_package_name(pyproject).as_deref(),
-            Some("ctx-renderer")
+            Some("codemap-renderer")
         );
         let deps = pyproject_path_dependencies(pyproject);
         assert!(
             deps.iter()
-                .any(|(name, path)| name == "ctx-replay" && path == "../replay,with-comma")
+                .any(|(name, path)| name == "codemap-replay" && path == "../replay,with-comma")
         );
         assert!(
             deps.iter()
-                .any(|(name, path)| name == "ctx-tools" && path == "../tools")
+                .any(|(name, path)| name == "codemap-tools" && path == "../tools")
         );
-        assert!(deps.iter().all(|(name, _)| name != "ctx-version-only"));
+        assert!(deps.iter().all(|(name, _)| name != "codemap-version-only"));
     }
 
     #[test]
     fn pyproject_workspace_patterns_ignore_unrelated_tool_metadata() {
         let pyproject = r#"[project]
-name = "ctx-python-workspace"
+name = "codemap-python-workspace"
 members = ["services/replay"]
 packages = ["apps/api"]
 

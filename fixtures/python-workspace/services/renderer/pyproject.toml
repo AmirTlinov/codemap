@@ -1,9 +1,9 @@
 [project]
-name = "ctx-renderer"
+name = "codemap-renderer"
 version = "0.1.0"
 dependencies = [
-    "ctx-replay",
+    "codemap-replay",
 ]
 
 [tool.uv.sources]
-ctx-replay = { path = "../replay" }
+codemap-replay = { path = "../replay" }

@@ -6,7 +6,7 @@ fn changed_default_markdown_collapses_extra_proof_command_groups() {
     git(repo.path(), &["config", "user.email", "a@example.com"]);
     git(repo.path(), &["config", "user.name", "a"]);
     write(
-        &repo.path().join(".ctx.yml"),
+        &repo.path().join(".codemap.yml"),
         r#"version: 1
 
 proof:

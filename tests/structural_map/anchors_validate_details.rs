@@ -6,7 +6,7 @@ fn anchors_validate_rejected_config_details_report_problem() {
     git(repo.path(), &["config", "user.email", "a@example.com"]);
     git(repo.path(), &["config", "user.name", "a"]);
     write(
-        &repo.path().join(".ctx.yml"),
+        &repo.path().join(".codemap.yml"),
         r#"version: 2
 boundaries:
   forbidden:
@@ -34,7 +34,7 @@ boundaries:
             .any(|problem| problem
                 .as_str()
                 .unwrap_or_default()
-                .contains("unsupported .ctx version `2`")),
+                .contains("unsupported .codemap version `2`")),
         "rejected config should stay visible as a top-level problem: {validation:#}"
     );
     assert!(
@@ -43,12 +43,12 @@ boundaries:
             .expect("details")
             .iter()
             .any(|detail| detail["kind"] == "config"
-                && detail["id"] == ".ctx.yml"
+                && detail["id"] == ".codemap.yml"
                 && detail["status"] == "problem"
                 && detail["message"]
                     .as_str()
                     .unwrap_or_default()
-                    .contains("unsupported .ctx version `2`")),
+                    .contains("unsupported .codemap version `2`")),
         "rejected config should produce a problem detail: {validation:#}"
     );
     assert!(
@@ -67,7 +67,7 @@ boundaries:
             .all(|warning| !warning
                 .as_str()
                 .unwrap_or_default()
-                .contains("no .ctx.yml found")),
+                .contains("no .codemap.yml found")),
         "invalid config should not emit zero-config warnings: {validation:#}"
     );
 }
@@ -81,7 +81,7 @@ fn anchors_validate_mixed_config_details_scope_status_to_each_config() {
     git(repo.path(), &["config", "user.email", "a@example.com"]);
     git(repo.path(), &["config", "user.name", "a"]);
     write(
-        &repo.path().join(".ctx.yml"),
+        &repo.path().join(".codemap.yml"),
         r#"version: 1
 domain:
   id: app
@@ -89,7 +89,7 @@ domain:
 "#,
     );
     write(
-        &repo.path().join("packages/bad/.ctx.yml"),
+        &repo.path().join("packages/bad/.codemap.yml"),
         r#"version: 2
 domain:
   id: bad
@@ -110,7 +110,7 @@ domain:
     let details = validation["details"].as_array().expect("details");
     assert!(
         details.iter().any(|detail| detail["kind"] == "config"
-            && detail["id"] == ".ctx.yml"
+            && detail["id"] == ".codemap.yml"
             && detail["status"] == "ok"
             && detail["next"]
                 .as_array()
@@ -121,7 +121,7 @@ domain:
     );
     assert!(
         details.iter().any(|detail| detail["kind"] == "config"
-            && detail["id"] == "packages/bad/.ctx.yml"
+            && detail["id"] == "packages/bad/.codemap.yml"
             && detail["status"] == "problem"),
         "rejected nested config should carry the problem detail: {validation:#}"
     );
@@ -136,7 +136,7 @@ fn anchors_validate_problem_details_keep_next_diagnostic_only() {
     git(repo.path(), &["config", "user.email", "a@example.com"]);
     git(repo.path(), &["config", "user.name", "a"]);
     write(
-        &repo.path().join(".ctx.yml"),
+        &repo.path().join(".codemap.yml"),
         r#"version: 1
 domain:
   id: app
@@ -188,7 +188,7 @@ fn anchors_validate_explains_resolved_domains_concepts_and_verification() {
     git(repo.path(), &["config", "user.email", "a@example.com"]);
     git(repo.path(), &["config", "user.name", "a"]);
     write(
-        &repo.path().join(".ctx.yml"),
+        &repo.path().join(".codemap.yml"),
         r#"version: 1
 domain:
   id: app

@@ -1,5 +1,5 @@
 [project]
-name = "ctx-python-workspace"
+name = "codemap-python-workspace"
 version = "0.1.0"
 
 members = [

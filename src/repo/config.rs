@@ -1,4 +1,4 @@
-fn load_ctx_config(path: &Path) -> Result<CtxConfig> {
+fn load_codemap_config(path: &Path) -> Result<CodemapConfig> {
     let text = fs::read_to_string(path)?;
     if path.extension().and_then(|x| x.to_str()) == Some("json") {
         Ok(serde_json::from_str(&text)?)
@@ -7,13 +7,13 @@ fn load_ctx_config(path: &Path) -> Result<CtxConfig> {
     }
 }
 
-fn load_ctx_configs(root: &Path) -> (CtxConfig, Option<String>, Vec<ConfigLoadError>) {
+fn load_codemap_configs(root: &Path) -> (CodemapConfig, Option<String>, Vec<ConfigLoadError>) {
     let paths = find_config_paths(root);
-    let mut merged = CtxConfig::default();
+    let mut merged = CodemapConfig::default();
     let mut loaded = Vec::new();
     let mut errors = Vec::new();
     for path in paths {
-        let mut config = match load_ctx_config(&root.join(&path)) {
+        let mut config = match load_codemap_config(&root.join(&path)) {
             Ok(config) => config,
             Err(error) => {
                 errors.push(ConfigLoadError {
@@ -23,13 +23,13 @@ fn load_ctx_configs(root: &Path) -> (CtxConfig, Option<String>, Vec<ConfigLoadEr
                 continue;
             }
         };
-        if let Some(error) = ctx_config_version_error(&config) {
+        if let Some(error) = codemap_config_version_error(&config) {
             errors.push(ConfigLoadError { path, error });
             continue;
         }
         let base = config_base_dir(&path);
-        normalize_ctx_config(&mut config, &base);
-        merge_ctx_config(&mut merged, config, &base);
+        normalize_codemap_config(&mut config, &base);
+        merge_codemap_config(&mut merged, config, &base);
         loaded.push(path);
     }
     let summary = match loaded.as_slice() {
@@ -40,19 +40,19 @@ fn load_ctx_configs(root: &Path) -> (CtxConfig, Option<String>, Vec<ConfigLoadEr
     (merged, summary, errors)
 }
 
-fn ctx_config_version_error(config: &CtxConfig) -> Option<String> {
+fn codemap_config_version_error(config: &CodemapConfig) -> Option<String> {
     match config.version {
         Some(1) => None,
         Some(version) => Some(format!(
-            "unsupported .ctx version `{version}`; expected `1`"
+            "unsupported .codemap version `{version}`; expected `1`"
         )),
-        None => Some("missing required .ctx `version: 1`".to_string()),
+        None => Some("missing required .codemap `version: 1`".to_string()),
     }
 }
 
 fn find_config_paths(root: &Path) -> Vec<String> {
     let mut paths = BTreeSet::new();
-    for name in [".ctx.yml", ".ctx.yaml", ".ctx.json"] {
+    for name in [".codemap.yml", ".codemap.yaml", ".codemap.json"] {
         if root.join(name).exists() {
             paths.insert(name.to_string());
         }
@@ -60,7 +60,7 @@ fn find_config_paths(root: &Path) -> Vec<String> {
     let rels = list_visible_candidate_files(root);
     for rel in rels {
         let name = Path::new(&rel).file_name().and_then(|s| s.to_str());
-        if matches!(name, Some(".ctx.yml" | ".ctx.yaml" | ".ctx.json")) {
+        if matches!(name, Some(".codemap.yml" | ".codemap.yaml" | ".codemap.json")) {
             paths.insert(normalize_rel_path(&rel));
         }
     }
@@ -77,7 +77,7 @@ fn config_base_dir(config_path: &str) -> String {
         .unwrap_or_else(|| ".".to_string())
 }
 
-fn normalize_ctx_config(config: &mut CtxConfig, base: &str) {
+fn normalize_codemap_config(config: &mut CodemapConfig, base: &str) {
     if config.domain.is_none() && base != "." {
         config.domain = Some(AnchorDomain {
             id: Some(
@@ -156,7 +156,7 @@ fn is_repo_relative_anchor_path(base: &str, rel: &str) -> bool {
         || rel.starts_with("components/")
 }
 
-fn merge_ctx_config(merged: &mut CtxConfig, mut config: CtxConfig, base: &str) {
+fn merge_codemap_config(merged: &mut CodemapConfig, mut config: CodemapConfig, base: &str) {
     if merged.version.is_none() {
         merged.version = config.version;
     }
@@ -194,25 +194,25 @@ fn merge_ctx_config(merged: &mut CtxConfig, mut config: CtxConfig, base: &str) {
     merged.proof.changed.extend(config.proof.changed);
 }
 
-fn apply_ctx_config_roles(files: &mut BTreeMap<String, FileInfo>, config: &CtxConfig) {
+fn apply_codemap_config_roles(files: &mut BTreeMap<String, FileInfo>, config: &CodemapConfig) {
     if config.roles.is_empty() {
         return;
     }
     for file in files.values_mut() {
         for (pattern, role) in &config.roles {
-            if ctx_role_pattern_matches(pattern, &file.rel) {
+            if codemap_role_pattern_matches(pattern, &file.rel) {
                 file.roles.insert(role.clone());
             }
         }
     }
 }
 
-fn ctx_role_pattern_matches(pattern: &str, rel: &str) -> bool {
+fn codemap_role_pattern_matches(pattern: &str, rel: &str) -> bool {
     let pattern = pattern.trim();
     if pattern.is_empty() {
         return false;
     }
-    if !ctx_pattern_is_glob_like(pattern) {
+    if !codemap_pattern_is_glob_like(pattern) {
         return repo_path_equals_or_contains(pattern, rel);
     }
     GlobBuilder::new(pattern)
@@ -222,7 +222,7 @@ fn ctx_role_pattern_matches(pattern: &str, rel: &str) -> bool {
         .is_some_and(|glob| glob.compile_matcher().is_match(rel))
 }
 
-fn ctx_pattern_is_glob_like(pattern: &str) -> bool {
+fn codemap_pattern_is_glob_like(pattern: &str) -> bool {
     pattern.contains('*') || pattern.contains('?') || pattern.contains('[')
 }
 

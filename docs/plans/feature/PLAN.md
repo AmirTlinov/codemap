@@ -163,7 +163,7 @@ Role-aware proof planning must obey these extra constraints:
 - no `codemap start` or task prompt router;
 - no global `confidence`; use evidence strength, reason, and locations instead;
 - README/AGENTS command blocks are soft hints only unless backed by manifests,
-  scripts, Makefile/justfile, CI, or explicit `.ctx.yml`;
+  scripts, Makefile/justfile, CI, or explicit `.codemap.yml`;
 - optional repo dialect stays tiny and non-required;
 - custom roles improve map clarity but do not create semantic ownership claims.
 

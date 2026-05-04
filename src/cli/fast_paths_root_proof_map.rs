@@ -28,7 +28,7 @@ fn try_cold_root_proof_map_fast_path(
     }
 
     let files = repo::structural_inventory_candidate_files(&root);
-    if root_inventory_has_ctx_config(&root, &files) {
+    if root_inventory_has_codemap_config(&root, &files) {
         return Ok(None);
     }
     if files.len() < COLD_ROOT_PROOF_MAP_FILE_THRESHOLD {
@@ -42,8 +42,8 @@ fn try_cold_root_proof_map_fast_path(
     Ok(Some(()))
 }
 
-fn root_inventory_has_ctx_config(root: &Path, files: &[String]) -> bool {
-    if [".ctx.yml", ".ctx.yaml", ".ctx.json"]
+fn root_inventory_has_codemap_config(root: &Path, files: &[String]) -> bool {
+    if [".codemap.yml", ".codemap.yaml", ".codemap.json"]
         .iter()
         .any(|name| root.join(name).exists())
     {
@@ -53,6 +53,6 @@ fn root_inventory_has_ctx_config(root: &Path, files: &[String]) -> bool {
         Path::new(rel)
             .file_name()
             .and_then(|name| name.to_str())
-            .is_some_and(|name| matches!(name, ".ctx.yml" | ".ctx.yaml" | ".ctx.json"))
+            .is_some_and(|name| matches!(name, ".codemap.yml" | ".codemap.yaml" | ".codemap.json"))
     })
 }

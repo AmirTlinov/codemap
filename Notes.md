@@ -15,7 +15,7 @@
     regression `empty_non_git_root_stays_directory_anchor` prevents the self-expand.
 
 - Issue: `proof-map --format json` still uses legacy bucket names that can overstate soft evidence.
-  - Evidence: live local build on `/Users/amir/Documents/projects/tools/cli/ctx`, command
+  - Evidence: live local build on `/Users/amir/Documents/projects/tools/cli/codemap`, command
     `cargo run --quiet --bin codemap -- proof-map src/map/cone_xray.rs --format json`.
   - Observed: the JSON report put a `test_name` sensor with `strength: medium` and reason
     `test name matches anchor` under top-level `direct`.
@@ -28,7 +28,7 @@
     `test_name` under `soft_evidence` with `commands: []` when no hard/runnable validation exists.
 
 - Issue: `changed --section proof --format json` can still group soft proof sensors under `proof.commands`.
-  - Evidence: live local build on `/Users/amir/Documents/projects/tools/cli/ctx`, command
+  - Evidence: live local build on `/Users/amir/Documents/projects/tools/cli/codemap`, command
     `cargo run --quiet --bin codemap -- changed --files src/map/cone_xray.rs --section proof --format json`.
   - Observed: `proof.soft_evidence` correctly contains `test_name`, but `proof.commands` also contains
     `cargo test` with the same soft `test_name` sensor.
@@ -42,7 +42,7 @@
     and keeps `proof.commands` empty when no hard/runnable validation exists.
 
 - Issue: `changed --section proof --format json` still carries soft test edges inside `impact.proof`.
-  - Evidence: live local build on `/Users/amir/Documents/projects/tools/cli/ctx`, command
+  - Evidence: live local build on `/Users/amir/Documents/projects/tools/cli/codemap`, command
     `cargo run --quiet --bin codemap -- changed --files src/map/cone_xray.rs --section proof --format json`.
   - Observed: `impact[0].proof` contains `test_name` and `test_surface_tokens_via_direct_consumer` edges with
     `strength: medium`.
@@ -68,7 +68,7 @@
 
 - Issue: X-Ray cone output still inherits the compact snapshot header instead of the full product snapshot
   contract.
-  - Evidence: live local build after the X-Ray slice, repo `/Users/amir/Documents/projects/tools/cli/ctx`,
+  - Evidence: live local build after the X-Ray slice, repo `/Users/amir/Documents/projects/tools/cli/codemap`,
     command `cargo run --quiet --bin codemap -- cone src/map/cone_xray.rs --limit 8`.
   - Observed: header shows `Map Snapshot: root=...; head=...; fingerprint=...`, but not dirty count,
     branch, cache status/location, schema version, or repo footprint.
@@ -83,7 +83,7 @@
     external cache location, schema, and `repo_footprint=zero` in the snapshot line.
 
 - Issue: `changed` still renders JSON Schema additions as generic config-key mutations.
-  - Evidence: live local build after the X-Ray slice, repo `/Users/amir/Documents/projects/tools/cli/ctx`,
+  - Evidence: live local build after the X-Ray slice, repo `/Users/amir/Documents/projects/tools/cli/codemap`,
     command `cargo run --quiet --bin codemap -- changed --section observed --limit 12`.
   - Observed: `schemas/cone.schema.json` reports `added_config_key` events for keys such as
     `direct_consumers`, `examples`, `flow_step`, and `flow`.
@@ -123,7 +123,7 @@
   - Boundary: cached lens fast paths still use cached fingerprints only after cache/current-state validation.
 
 - Issue: `place <file>` no longer fails without `--kind`, but the default file map can still be nearly empty.
-  - Evidence: live PATH `codemap 0.2.16`, repo `/Users/amir/Documents/projects/tools/cli/ctx`, command
+  - Evidence: live PATH `codemap 0.2.16`, repo `/Users/amir/Documents/projects/tools/cli/codemap`, command
     `codemap place src/map/proof_entry.rs`.
   - Observed: output shows snapshot, scope, default `Kind: source`, and expand commands, but no existing
     surfaces or placement-neighborhood facts for the concrete file.
@@ -149,7 +149,7 @@
     `soft_token_proof_does_not_hide_missing_deterministic_proof_or_fallback`.
 
 - Issue: `changed --section unknown --all` can still hide repeated Unknown rows.
-  - Evidence: reviewer repro on live `0.2.18` diff in `/Users/amir/Documents/projects/tools/cli/ctx`.
+  - Evidence: reviewer repro on live `0.2.18` diff in `/Users/amir/Documents/projects/tools/cli/codemap`.
   - Observed: `target/debug/codemap changed --section unknown --all` still printed grouped rows such as
     `direct_test_import_not_found ... hidden: 22 unknowns`.
   - Why it hurts trust: `--all` must mean the current map lens is expanded. Collapsing fail-open Unknowns after
@@ -185,7 +185,7 @@
   - Boundary: real report-level hidden groups still render under `Hidden` with exact expand commands.
 
 - Issue: compact Unknown samples render with doubled code backticks.
-  - Evidence: live PATH `codemap 0.2.16`, repo `/Users/amir/Documents/projects/tools/cli/ctx`, command
+  - Evidence: live PATH `codemap 0.2.16`, repo `/Users/amir/Documents/projects/tools/cli/codemap`, command
     `codemap changed --section unknown`.
   - Observed: sample paths appeared as ``src/cache.rs`` instead of `src/cache.rs`.
   - Why it hurts trust: this is not a false edge, but it makes the compact fail-open section look sloppy and

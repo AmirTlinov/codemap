@@ -1,5 +1,5 @@
 {
-  "name": "@ctx-fixture/replay",
+  "name": "@codemap-fixture/replay",
   "private": true,
   "scripts": {
     "test": "echo replay tests"

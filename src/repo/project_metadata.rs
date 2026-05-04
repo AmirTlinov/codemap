@@ -126,7 +126,7 @@ fn detect_languages(files: &BTreeMap<String, FileInfo>) -> BTreeSet<String> {
 fn discover_domains(
     root: &Path,
     files: &BTreeMap<String, FileInfo>,
-    anchors: &CtxConfig,
+    anchors: &CodemapConfig,
     config_path: Option<&str>,
 ) -> Vec<Domain> {
     let mut domains = BTreeMap::<String, Domain>::new();
@@ -195,7 +195,7 @@ fn discover_domains(
                 "package.json",
                 "Cargo.toml",
                 "go.mod",
-                ".ctx.yml",
+                ".codemap.yml",
             ]
             .iter()
             .any(|marker| path.join(marker).exists());

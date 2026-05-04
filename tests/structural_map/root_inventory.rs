@@ -75,7 +75,7 @@ fn inventory_prunes_untracked_build_dirs_before_config_discovery() {
         "export const tracked = 1;\n",
     );
     write(
-        &repo.path().join("target/generated/.ctx.yml"),
+        &repo.path().join("target/generated/.codemap.yml"),
         "version: 999\n",
     );
     git(repo.path(), &["add", "."]);
@@ -85,7 +85,7 @@ fn inventory_prunes_untracked_build_dirs_before_config_discovery() {
         "export const untracked = 2;\n",
     );
     write(
-        &repo.path().join("build/generated/.ctx.yml"),
+        &repo.path().join("build/generated/.codemap.yml"),
         "version: 999\n",
     );
     write(
@@ -120,7 +120,7 @@ fn inventory_prunes_untracked_build_dirs_before_config_discovery() {
     assert_schema("schemas/anchor-validation.schema.json", &validation);
     assert_eq!(
         validation["ok"], true,
-        "ignored build-dir .ctx.yml files must not become loaded config errors: {validation:#}"
+        "ignored build-dir .codemap.yml files must not become loaded config errors: {validation:#}"
     );
     assert_eq!(validation["config"], Value::Null);
 }

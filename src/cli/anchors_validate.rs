@@ -33,9 +33,9 @@ fn semantic_anchor_problems(project: &crate::model::Project) -> Vec<String> {
         match project.anchors.version {
             Some(1) => {}
             Some(version) => problems.push(format!(
-                ".ctx.yml declares unsupported version `{version}`; expected `1`"
+                ".codemap.yml declares unsupported version `{version}`; expected `1`"
             )),
-            None => problems.push(".ctx.yml is missing required `version: 1`".to_string()),
+            None => problems.push(".codemap.yml is missing required `version: 1`".to_string()),
         }
     }
     if let Some(domain) = &project.anchors.domain
@@ -122,7 +122,7 @@ fn semantic_anchor_warnings(project: &crate::model::Project) -> Vec<String> {
     let mut warnings = Vec::new();
     if project.config_path.is_none() && project.config_errors.is_empty() {
         warnings
-            .push("no .ctx.yml found; codemap will use zero-config structural maps".to_string());
+            .push("no .codemap.yml found; codemap will use zero-config structural maps".to_string());
         return warnings;
     }
     for (idx, edge) in project.anchors.boundaries.forbidden.iter().enumerate() {

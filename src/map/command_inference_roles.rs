@@ -31,7 +31,7 @@ fn role_aware_minimal_commands(
     .collect()
 }
 
-fn ctx_changed_proof_surfaces(project: &Project) -> Vec<ProofSurface> {
+fn codemap_changed_proof_surfaces(project: &Project) -> Vec<ProofSurface> {
     project
         .anchors
         .proof
@@ -45,16 +45,16 @@ fn ctx_changed_proof_surfaces(project: &Project) -> Vec<ProofSurface> {
             Some(ProofSurface {
                 command: Some(command.to_string()),
                 path: project.config_path.clone(),
-                evidence: "ctx_proof_changed".to_string(),
+                evidence: "codemap_proof_changed".to_string(),
                 strength: EvidenceStrength::Hard,
-                reason: ".ctx.yml proof.changed command".to_string(),
-                locations: ctx_config_locations(project, "ctx_proof_changed"),
+                reason: ".codemap.yml proof.changed command".to_string(),
+                locations: codemap_config_locations(project, "codemap_proof_changed"),
             })
         })
         .collect()
 }
 
-fn ctx_config_locations(project: &Project, kind: &str) -> Vec<EvidenceLocation> {
+fn codemap_config_locations(project: &Project, kind: &str) -> Vec<EvidenceLocation> {
     project
         .config_path
         .as_ref()

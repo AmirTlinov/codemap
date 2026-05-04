@@ -1,4 +1,4 @@
-use ctx_fixture_replay::seek_frame;
+use codemap_fixture_replay::seek_frame;
 
 #[test]
 fn seeks_to_deterministic_frame() {

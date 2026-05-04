@@ -1,6 +1,6 @@
 package render
 
-import "example.com/ctx/replay/session"
+import "example.com/codemap/replay/session"
 
 func FrameLabel(frame int) string {
     return session.FrameLabel(frame)

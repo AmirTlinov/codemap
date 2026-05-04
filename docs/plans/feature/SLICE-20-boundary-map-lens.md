@@ -38,7 +38,7 @@ tests/structural_map/*
    - internal/private.
 3. Detect public boundary files from contract/package evidence.
 4. Detect internal leaks as facts, not moral failures.
-5. Only emit forbidden findings from explicit `.ctx.yml` or configured rules.
+5. Only emit forbidden findings from explicit `.codemap.yml` or configured rules.
 6. Keep old `boundaries` check behavior separate if it exists.
 
 ## Acceptance

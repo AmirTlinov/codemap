@@ -5,7 +5,7 @@ pub struct TeachReport {
     pub config: Option<String>,
     pub role_patterns: Vec<TeachRolePattern>,
     pub proof_changed: Vec<TeachProofCommand>,
-    pub ctx_yml: Vec<String>,
+    pub codemap_yml: Vec<String>,
     pub expand: Vec<String>,
 }
 

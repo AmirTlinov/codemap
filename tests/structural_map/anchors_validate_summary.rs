@@ -61,7 +61,7 @@ fn anchors_validate_warning_details_do_not_contradict_ok_report() {
     git(repo.path(), &["config", "user.email", "a@example.com"]);
     git(repo.path(), &["config", "user.name", "a"]);
     write(
-        &repo.path().join(".ctx.yml"),
+        &repo.path().join(".codemap.yml"),
         r#"version: 1
 concepts:
   generated.assets:
@@ -121,7 +121,7 @@ fn anchors_validate_exact_boundary_paths_count_unique_targets() {
     git(repo.path(), &["config", "user.email", "a@example.com"]);
     git(repo.path(), &["config", "user.name", "a"]);
     write(
-        &repo.path().join(".ctx.yml"),
+        &repo.path().join(".codemap.yml"),
         r#"version: 1
 boundaries:
   forbidden:
@@ -175,7 +175,7 @@ fn anchors_validate_glob_boundary_paths_count_unique_targets() {
         r#"{"name":"anchor-count-fixture","scripts":{"test":"vitest run"}}"#,
     );
     write(
-        &repo.path().join(".ctx.yml"),
+        &repo.path().join(".codemap.yml"),
         r#"version: 1
 boundaries:
   forbidden:

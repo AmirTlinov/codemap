@@ -21,13 +21,13 @@ fn init(project: &crate::model::Project, args: InitArgs) -> Result<()> {
         return Ok(());
     }
     if args.write_minimal {
-        let body = render::suggested_ctx_yml_for(args.path.as_deref());
+        let body = render::suggested_codemap_yml_for(args.path.as_deref());
         let target_dir = if let Some(path) = args.path.as_deref() {
             scoped_project_path(project, path)?
         } else {
             project.root.clone()
         };
-        let target = target_dir.join(".ctx.yml");
+        let target = target_dir.join(".codemap.yml");
         if target.exists() && !args.force {
             bail!(
                 "{} already exists. Use --force to overwrite.",

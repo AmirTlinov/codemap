@@ -45,7 +45,7 @@ Keep new implementation under the existing owner folders. Do not create a second
 - SwiftPM `Package.swift` package detection and local `.package(path:)` dependency resolution;
 - reverse import graph;
 - package/workspace detection for package.json, pnpm, Cargo, Go, Python, SwiftPM, Make, and just surfaces;
-- domain discovery from common workspace folders and explicit `.ctx.yml`;
+- domain discovery from common workspace folders and explicit `.codemap.yml`;
 - root/directory `ls` surfaces with bounded domain/package/script/test map;
 - file `ls` with symbols, exports, imports, incoming count, adjacent tests, and next command;
 - `ls .` and `changed` Boundary Facts for instruction files, repo-local guard files, and protected-looking paths;
@@ -62,7 +62,7 @@ Keep new implementation under the existing owner folders. Do not create a second
 - `boundary-map` as read-only package/domain crossing map separate from boundary checks;
 - `flow` as bounded structural steps, side-effect surfaces, and unknown stops;
 - `siblings` and `place` for local structural conventions and route/service/test triplets without semantic ranking;
-- boundary checks from explicit `.ctx.yml` forbidden rules plus resolved imports/package edges;
+- boundary checks from explicit `.codemap.yml` forbidden rules plus resolved imports/package edges;
 - anchor validation with resolved domain/concept/boundary/verification details;
 - graph lenses for causal, impact, proof, and boundaries;
 - schema printing without loading a project or writing cache;
@@ -110,7 +110,7 @@ Typed unknowns are facts too. Dynamic imports, dynamic env lookups, composed rou
 - `proof` runs commands only with `--run`;
 - placeholder commands must not run;
 - schema commands must not touch repo cache;
-- `.ctx.yml` parse/validation errors fail closed for map commands;
+- `.codemap.yml` parse/validation errors fail closed for map commands;
 - symlinks outside the repo are not followed by default.
 
 ## Tests

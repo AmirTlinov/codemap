@@ -1,9 +1,9 @@
 pub const VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), "+surface-cache-v7");
 
 const ROOT_MARKERS: &[&str] = &[
-    ".ctx.yml",
-    ".ctx.yaml",
-    ".ctx.json",
+    ".codemap.yml",
+    ".codemap.yaml",
+    ".codemap.json",
     "package.json",
     "pnpm-workspace.yaml",
     "yarn.lock",

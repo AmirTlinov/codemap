@@ -12,7 +12,7 @@ fn ensure_valid_config(project: &crate::model::Project) -> Result<()> {
     for problem in semantic_problems {
         eprintln!("codemap: invalid semantic anchor: {problem}");
     }
-    bail!("invalid .ctx semantic anchors; run `codemap anchors validate`")
+    bail!("invalid .codemap semantic anchors; run `codemap anchors validate`")
 }
 
 fn changed_from_args(project: &crate::model::Project, args: &ImpactArgs) -> Result<Vec<String>> {

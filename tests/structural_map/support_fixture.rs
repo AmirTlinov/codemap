@@ -36,7 +36,7 @@ fn fixture() -> (TempDir, TempDir) {
 "#,
     );
     write(
-        &repo.path().join(".ctx.yml"),
+        &repo.path().join(".codemap.yml"),
         r#"version: 1
 
 boundaries:

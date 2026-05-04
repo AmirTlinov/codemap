@@ -25,7 +25,7 @@ pub struct Project {
     pub package_manager: String,
     pub scripts: Vec<ScriptInfo>,
     pub languages: BTreeSet<String>,
-    pub anchors: CtxConfig,
+    pub anchors: CodemapConfig,
     pub cache_state: String,
     pub cache_artifacts: Vec<CacheArtifactStatus>,
     pub cache_strategy: String,
@@ -311,7 +311,7 @@ pub struct PackageDependency {
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct CtxConfig {
+pub struct CodemapConfig {
     #[serde(default)]
     pub version: Option<u32>,
     #[serde(default)]

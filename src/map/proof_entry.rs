@@ -135,7 +135,7 @@ pub fn proof_report(
             proofs_by_anchor.insert(anchor.clone(), anchor_proofs.clone());
             proofs.extend(anchor_proofs);
         }
-        proofs.extend(ctx_changed_proof_surfaces(project));
+        proofs.extend(codemap_changed_proof_surfaces(project));
         coverage = Some(proof_coverage_summary(&changed, &proofs_by_anchor));
     } else {
         for anchor in &anchors {

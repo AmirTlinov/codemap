@@ -19,7 +19,7 @@ fn semantic_anchor_details(
                 id: "zero-config".to_string(),
                 status: "info".to_string(),
                 message:
-                    "no .ctx.yml loaded; structural maps use repo files, manifests, imports, and tests"
+                    "no .codemap.yml loaded; structural maps use repo files, manifests, imports, and tests"
                         .to_string(),
                 next: vec!["codemap ls .".to_string()],
             });

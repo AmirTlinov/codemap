@@ -1,4 +1,4 @@
-import { seekFrame } from "@ctx-fixture/replay";
+import { seekFrame } from "@codemap-fixture/replay";
 
 export function renderFrame(timeMs: number): string {
   return `frame:${seekFrame(timeMs)}`;

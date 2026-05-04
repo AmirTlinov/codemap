@@ -28,7 +28,7 @@ pub fn load_project_with_cache(
     };
     let root = resolve_root(&root_selection, &cwd)?;
     let remote = git_remote(&root);
-    let (anchors, config_path, config_errors) = load_ctx_configs(&root);
+    let (anchors, config_path, config_errors) = load_codemap_configs(&root);
     let nearest_agents = nearest_agents(&cwd, &root);
     let root_ms = root_started.elapsed().as_millis();
     let vcs = if is_git_repo(&root) {
@@ -130,7 +130,7 @@ pub fn load_project_with_cache(
     let scan_ms = scan_started.elapsed().as_millis();
 
     let facts_started = Instant::now();
-    apply_ctx_config_roles(&mut files, &anchors);
+    apply_codemap_config_roles(&mut files, &anchors);
     let packages = detect_packages(&root, &files);
     let ts_path_aliases = detect_ts_path_aliases(&root, &files);
     resolve_imports(&root, &mut files, &packages, &ts_path_aliases);
@@ -234,7 +234,7 @@ struct ProjectBuildInput {
     config_path: Option<String>,
     config_errors: Vec<ConfigLoadError>,
     nearest_agents: Option<String>,
-    anchors: CtxConfig,
+    anchors: CodemapConfig,
     files: BTreeMap<String, FileInfo>,
     scan_stats: ScanStats,
     cache_strategy: String,
@@ -244,7 +244,7 @@ struct ProjectBuildInput {
 fn build_project_from_files(input: ProjectBuildInput) -> Project {
     let facts_started = Instant::now();
     let mut files = input.files;
-    apply_ctx_config_roles(&mut files, &input.anchors);
+    apply_codemap_config_roles(&mut files, &input.anchors);
     let packages = detect_packages(&input.root, &files);
     let ts_path_aliases = detect_ts_path_aliases(&input.root, &files);
     resolve_imports(&input.root, &mut files, &packages, &ts_path_aliases);

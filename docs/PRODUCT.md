@@ -21,7 +21,7 @@ codemap = ls + xref + cone + impact + proof for code
 - exact paths are anchors;
 - root `codemap ls .` shows a bounded domain/package map, not every file;
 - deeper views require an explicit scope, file, depth, or changed-file input;
-- optional `.ctx.yml` supplies only hard semantic anchors code cannot reveal.
+- optional `.codemap.yml` supplies only hard semantic anchors code cannot reveal.
 
 ## Daily Surface
 
@@ -135,7 +135,7 @@ Expand only when structural evidence requires it: empty cone, public/package/sch
 
 ## Anchor Contract
 
-`.ctx.yml` is allowed because some architecture truth cannot be inferred from code alone. It may declare:
+`.codemap.yml` is allowed because some architecture truth cannot be inferred from code alone. It may declare:
 
 - domains;
 - concepts and their exact files;

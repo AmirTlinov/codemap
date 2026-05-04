@@ -125,7 +125,7 @@ fn graph_edge_location_summary(edge: &GraphEdge) -> String {
 }
 
 pub fn init_suggestion(path: Option<&str>) {
-    println!("{}", suggested_ctx_yml_for(path));
+    println!("{}", suggested_codemap_yml_for(path));
 }
 
 pub fn agents_bootloader() -> &'static str {
@@ -136,7 +136,7 @@ pub fn global_instruction() -> &'static str {
     "For coding tasks, if `codemap` is available in PATH, begin with the small daily structural map surface:\n\n```bash\ncodemap ls .\ncodemap ls <scope-or-file>\ncodemap cone <scope-or-file> --depth 1\n```\n\nAfter edits, use one changed overview and then proof:\n\n```bash\ncodemap changed\ncodemap proof changed\n```\n\nFollow exact expand commands from the output for focused lenses such as `runtime`, `contract`, `flow`, `boundary-map`, `siblings`, `place`, `delete`, `diff-map`, `impact`, `proof-map`, or `graph`. Read code lines after choosing anchors from the map.\n"
 }
 
-pub fn suggested_ctx_yml_for(path: Option<&str>) -> String {
+pub fn suggested_codemap_yml_for(path: Option<&str>) -> String {
     let domain_id = path
         .and_then(|p| p.trim_end_matches('/').rsplit('/').next())
         .filter(|p| !p.is_empty() && *p != ".")
