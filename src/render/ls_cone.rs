@@ -57,6 +57,7 @@ pub fn cone(report: &ConeReport, section_filter: Option<&str>) {
     println!("Anchor: `{}`", report.anchor.path);
     println!("Depth: `{}`", report.depth);
     if matches!(section_filter, None | Some("observed")) {
+        render_cone_xray(report);
         render_cone_observed(report);
     }
     if matches!(section_filter, None | Some("roles")) {

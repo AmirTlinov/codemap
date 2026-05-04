@@ -22,18 +22,73 @@ pub fn set_expand_root(root: Option<&Path>) {
 
 pub fn set_map_snapshot(project: &crate::model::Project) {
     let fingerprint = crate::cache::fingerprint(project, None);
-    set_map_snapshot_parts(&project.root, Some(&fingerprint));
+    set_map_snapshot_full(
+        &project.root,
+        Some(&fingerprint),
+        Some(&project.cache_state),
+        Some(&project.cache_strategy),
+        Some(project.cache_dir.to_string_lossy().as_ref()),
+    );
 }
 
-pub fn set_map_snapshot_parts(root: &Path, fingerprint: Option<&str>) {
+pub fn set_cached_map_snapshot_parts(root: &Path, fingerprint: Option<&str>, cache_dir: &Path) {
+    set_map_snapshot_full(
+        root,
+        fingerprint,
+        Some("hit"),
+        Some("cached_lens"),
+        Some(cache_dir.to_string_lossy().as_ref()),
+    );
+}
+
+pub fn set_inventory_map_snapshot_parts(root: &Path, fingerprint: Option<&str>, cache_dir: &Path) {
+    let cache_state = if !crate::cache::cache_enabled() {
+        "disabled"
+    } else if crate::cache::cached_status_fingerprint(cache_dir).is_some() {
+        "stale"
+    } else {
+        "cold"
+    };
+    set_map_snapshot_full(
+        root,
+        fingerprint,
+        Some(cache_state),
+        Some("inventory_fast_path"),
+        Some(cache_dir.to_string_lossy().as_ref()),
+    );
+}
+
+fn set_map_snapshot_full(
+    root: &Path,
+    fingerprint: Option<&str>,
+    cache_state: Option<&str>,
+    cache_strategy: Option<&str>,
+    cache_location: Option<&str>,
+) {
     let fingerprint = fingerprint.unwrap_or("unknown");
     let short_fingerprint = fingerprint.get(..12).unwrap_or(fingerprint);
     let head = map_snapshot_git_head(root).unwrap_or_else(|| "none".to_string());
+    let branch = map_snapshot_git_branch(root).unwrap_or_else(|| "unknown".to_string());
+    let dirty = map_snapshot_dirty_count(root).unwrap_or(0);
+    let cache_state = cache_state.unwrap_or("unknown");
+    let cache_strategy = cache_strategy.unwrap_or("unknown");
+    let external_cache = if crate::cache::cache_enabled() {
+        "enabled"
+    } else {
+        "disabled"
+    };
+    let cache_location = cache_location.unwrap_or("unknown");
     let _ = MAP_SNAPSHOT.set(format!(
-        "Map Snapshot: root=`{}`; head=`{}`; fingerprint=`{}`",
+        "Map Snapshot: root=`{}`; head=`{}`; branch=`{}`; dirty=`{}`; fingerprint=`{}`; cache=`{}` strategy=`{}` external_cache=`{}` location=`{}`; schema=`structural:4`; repo_footprint=`zero`",
         root.to_string_lossy(),
         head,
-        short_fingerprint
+        branch,
+        dirty,
+        short_fingerprint,
+        cache_state,
+        cache_strategy,
+        external_cache,
+        cache_location
     ));
 }
 
@@ -49,6 +104,33 @@ fn map_snapshot_git_head(root: &Path) -> Option<String> {
     }
     let head = String::from_utf8_lossy(&output.stdout).trim().to_string();
     (!head.is_empty()).then_some(head)
+}
+
+fn map_snapshot_git_branch(root: &Path) -> Option<String> {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["rev-parse", "--abbrev-ref", "HEAD"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    (!branch.is_empty()).then_some(branch)
+}
+
+fn map_snapshot_dirty_count(root: &Path) -> Option<usize> {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["status", "--porcelain"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    Some(String::from_utf8_lossy(&output.stdout).lines().count())
 }
 
 fn map_snapshot_line() {

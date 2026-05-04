@@ -13,7 +13,7 @@ use crate::model::{
     GraphEdge, GraphLens, HiddenGroup, ImpactCluster, ImpactReport, LsReport, PackageDependency,
     PlaceReport, Project, ProofMapReport, ProofReport, ProofSurface, Risk, RuntimeReport,
     RuntimeRoute, SiblingsReport, StructuralEdge, Surface, TeachProofCommand, TeachReport,
-    TeachRolePattern, Unknown, VerificationPlan,
+    TeachRolePattern, Unknown, VerificationPlan, XrayCard,
 };
 use crate::repo;
 
@@ -36,6 +36,7 @@ include!("map/cone_traversal.rs");
 include!("map/cone_owner_surfaces.rs");
 include!("map/proof_runner_neighbors.rs");
 include!("map/cone_env_surfaces.rs");
+include!("map/cone_xray.rs");
 include!("map/proof_edges.rs");
 include!("map/directory_helpers.rs");
 include!("map/symbol_summary.rs");

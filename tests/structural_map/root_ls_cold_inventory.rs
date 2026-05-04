@@ -133,7 +133,13 @@ fn cold_large_root_ls_uses_bounded_inventory_map() {
     assert!(
         markdown.contains("Map Snapshot: root=`")
             && markdown.contains("fingerprint=`")
-            && !markdown.contains("fingerprint=`unknown`"),
+            && markdown.contains("cache=`")
+            && markdown.contains("strategy=`inventory_fast_path`")
+            && markdown.contains("location=`")
+            && markdown.contains("repo_footprint=`zero`")
+            && !markdown.contains("fingerprint=`unknown`")
+            && !markdown.contains("cache=`unknown`")
+            && !markdown.contains("location=`unknown`"),
         "cold root inventory should expose a deterministic bounded snapshot fingerprint: {markdown}"
     );
 }

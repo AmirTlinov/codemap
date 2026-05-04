@@ -146,6 +146,10 @@ fn changed_config_key_events(
     if changed_receipt_witness_surface(project, rel) {
         return Vec::new();
     }
+    let schema_contract = project
+        .files
+        .get(rel)
+        .is_some_and(|file| file.has_role("schema_contract"));
     let current = diff_current_file_text(project, rel, mode).unwrap_or_default();
     let base = diff_base_file_text(project, rel, mode).unwrap_or_default();
     let current_keys = config_key_lines(rel, &current);
@@ -155,28 +159,58 @@ fn changed_config_key_events(
         .iter()
         .filter(|(key, _)| !base_keys.contains_key(*key))
     {
+        let (kind, evidence, effect, location_kind) = if schema_contract {
+            (
+                "added_schema_field",
+                "git_diff_schema_field",
+                format!("schema field/key `{key}` was added"),
+                "schema_field",
+            )
+        } else {
+            (
+                "added_config_key",
+                "git_diff_config_key",
+                format!("config key `{key}` was added"),
+                "config_key",
+            )
+        };
         events.push(changed_fact_event(
-            "added_config_key",
+            kind,
             rel,
             *line,
-            "git_diff_config_key",
-            format!("config key `{key}` was added"),
+            evidence,
+            effect,
             Some(format!("codemap ls {}", shell_quote(rel))),
-            "config_key",
+            location_kind,
         ));
     }
     for (key, line) in base_keys
         .iter()
         .filter(|(key, _)| !current_keys.contains_key(*key))
     {
+        let (kind, evidence, effect, location_kind) = if schema_contract {
+            (
+                "removed_schema_field",
+                "git_diff_schema_field",
+                format!("schema field/key `{key}` was removed"),
+                "schema_field",
+            )
+        } else {
+            (
+                "removed_config_key",
+                "git_diff_config_key",
+                format!("config key `{key}` was removed"),
+                "config_key",
+            )
+        };
         events.push(changed_fact_event(
-            "removed_config_key",
+            kind,
             rel,
             *line,
-            "git_diff_config_key",
-            format!("config key `{key}` was removed"),
+            evidence,
+            effect,
             Some(format!("codemap diff-map --files {}", shell_quote(rel))),
-            "config_key",
+            location_kind,
         ));
     }
     events

@@ -134,11 +134,23 @@ pub fn cone_report(
     if seed_files.is_empty() {
         unknowns.push(unknown_unindexed_anchor(&rel));
     }
+    let xray = cone_xray_card(ConeXrayInput {
+        project,
+        anchor: &anchor,
+        seed_files: &seed_files,
+        declared_env: &declared_env,
+        outgoing: &outgoing,
+        incoming: &incoming,
+        proof: &proof,
+        unknowns: &unknowns,
+        limit,
+    });
     ConeReport {
         kind: "cone_report",
-        schema_version: "5",
+        schema_version: "6",
         anchor,
         depth,
+        xray,
         declared_env,
         outgoing,
         incoming,

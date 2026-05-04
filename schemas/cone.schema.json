@@ -9,6 +9,7 @@
     "schema_version",
     "anchor",
     "depth",
+    "xray",
     "declared_env",
     "outgoing",
     "incoming",
@@ -21,9 +22,10 @@
   ],
   "properties": {
     "kind": { "const": "cone_report" },
-    "schema_version": { "const": "5" },
+    "schema_version": { "const": "6" },
     "anchor": { "$ref": "#/$defs/file_summary" },
     "depth": { "type": "integer", "minimum": 0 },
+    "xray": { "$ref": "#/$defs/xray_card" },
     "declared_env": {
       "type": "array",
       "items": { "$ref": "#/$defs/env_declaration" }
@@ -158,6 +160,134 @@
         "locations": {
           "type": "array",
           "items": { "$ref": "#/$defs/evidence_location" }
+        }
+      }
+    },
+    "surface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "path",
+        "role",
+        "evidence",
+        "strength",
+        "count",
+        "examples",
+        "hidden_count"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "kind": { "type": "string" },
+        "path": {
+          "anyOf": [{ "type": "string" }, { "type": "null" }]
+        },
+        "role": {
+          "anyOf": [{ "type": "string" }, { "type": "null" }]
+        },
+        "evidence": { "type": "string" },
+        "strength": { "$ref": "#/$defs/evidence_strength" },
+        "count": {
+          "anyOf": [{ "type": "integer", "minimum": 0 }, { "type": "null" }]
+        },
+        "examples": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "hidden_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "flow_step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "anchor", "kind", "evidence", "locations"],
+      "properties": {
+        "index": { "type": "integer", "minimum": 0 },
+        "anchor": { "type": "string" },
+        "kind": { "type": "string" },
+        "evidence": { "type": "string" },
+        "locations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidence_location" }
+        }
+      }
+    },
+    "xray_card": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "roles",
+        "inputs",
+        "outputs",
+        "state",
+        "side_effects",
+        "direct_consumers",
+        "mediated_consumers",
+        "flow",
+        "nearby",
+        "proof_hard",
+        "proof_direct",
+        "proof_mediated",
+        "proof_soft",
+        "unknowns"
+      ],
+      "properties": {
+        "roles": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/surface" }
+        },
+        "inputs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/structural_edge" }
+        },
+        "outputs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/surface" }
+        },
+        "state": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/surface" }
+        },
+        "side_effects": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/surface" }
+        },
+        "direct_consumers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/structural_edge" }
+        },
+        "mediated_consumers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/structural_edge" }
+        },
+        "flow": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/flow_step" }
+        },
+        "nearby": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/surface" }
+        },
+        "proof_hard": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/structural_edge" }
+        },
+        "proof_direct": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/structural_edge" }
+        },
+        "proof_mediated": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/structural_edge" }
+        },
+        "proof_soft": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/structural_edge" }
+        },
+        "unknowns": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/unknown" }
         }
       }
     },

@@ -79,19 +79,34 @@ fn cone_directory_report(
         ),
     );
 
+    let unknowns = vec![unknown_directory_aggregate(rel, depth)];
+    let declared_env = Vec::new();
+    let seed_files = directory_seed_file_paths(project, rel, include_hidden);
+    let xray = cone_xray_card(ConeXrayInput {
+        project,
+        anchor: &anchor,
+        seed_files: &seed_files,
+        declared_env: &declared_env,
+        outgoing: &outgoing,
+        incoming: &incoming,
+        proof: &proof,
+        unknowns: &unknowns,
+        limit,
+    });
     ConeReport {
         kind: "cone_report",
-        schema_version: "5",
+        schema_version: "6",
         anchor,
         depth,
-        declared_env: Vec::new(),
+        xray,
+        declared_env,
         outgoing,
         incoming,
         proof,
         contracts,
         boundary,
         hidden,
-        unknowns: vec![unknown_directory_aggregate(rel, depth)],
+        unknowns,
         expand: vec![
             format!("codemap cone {} --depth {}", shell_quote(rel), depth + 1),
             format!("codemap ls {} --all", shell_quote(rel)),

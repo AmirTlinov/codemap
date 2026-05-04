@@ -347,13 +347,19 @@ fn set_cached_map_snapshot(root: &Path, cache_dir: &Path) {
         let files = repo::structural_inventory_candidate_files(root);
         crate::cache::inventory_fingerprint(root, &files)
     });
-    render::set_map_snapshot_parts(root, Some(&fingerprint));
+    render::set_cached_map_snapshot_parts(root, Some(&fingerprint), cache_dir);
 }
 
 fn set_inventory_map_snapshot(root: &Path) {
     let files = repo::structural_inventory_candidate_files(root);
     let fingerprint = crate::cache::inventory_fingerprint(root, &files);
-    render::set_map_snapshot_parts(root, Some(&fingerprint));
+    set_inventory_map_snapshot_with_fingerprint(root, &fingerprint);
+}
+
+fn set_inventory_map_snapshot_with_fingerprint(root: &Path, fingerprint: &str) {
+    let remote = repo::git_remote(root);
+    let cache_dir = crate::cache::project_cache_dir(root, remote.as_deref(), repo::VERSION);
+    render::set_inventory_map_snapshot_parts(root, Some(fingerprint), &cache_dir);
 }
 
 fn root_relative_arg(root: &Path, value: &str) -> Result<String> {

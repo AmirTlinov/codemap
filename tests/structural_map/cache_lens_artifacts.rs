@@ -11,8 +11,9 @@ fn dirty_daily_lens_artifacts_roundtrip_without_output_drift() {
 
     let changed_first = run_lens_stdout(repo.path(), cache.path(), &["changed"]);
     let changed_second = run_lens_stdout(repo.path(), cache.path(), &["changed"]);
-    assert_eq!(
-        changed_first, changed_second,
+    assert_lens_markdown_eq(
+        &changed_first,
+        &changed_second,
         "cached changed artifact must preserve markdown output"
     );
     assert!(
@@ -23,8 +24,9 @@ fn dirty_daily_lens_artifacts_roundtrip_without_output_drift() {
     let direct_cache = TempDir::new().expect("direct proof cache");
     let proof_direct = run_lens_stdout(repo.path(), direct_cache.path(), &["proof", "changed"]);
     let proof_from_changed = run_lens_stdout(repo.path(), cache.path(), &["proof", "changed"]);
-    assert_eq!(
-        proof_direct, proof_from_changed,
+    assert_lens_markdown_eq(
+        &proof_direct,
+        &proof_from_changed,
         "proof changed warmed by changed must match a direct proof changed report"
     );
     let direct_json_cache = TempDir::new().expect("direct proof json cache");
@@ -50,8 +52,9 @@ fn dirty_daily_lens_artifacts_roundtrip_without_output_drift() {
 
     let proof_first = run_lens_stdout(repo.path(), cache.path(), &["proof", "changed"]);
     let proof_second = run_lens_stdout(repo.path(), cache.path(), &["proof", "changed"]);
-    assert_eq!(
-        proof_first, proof_second,
+    assert_lens_markdown_eq(
+        &proof_first,
+        &proof_second,
         "cached proof artifact must preserve markdown output"
     );
     let proof_changed_flag = codemap()
@@ -95,8 +98,9 @@ fn changed_warmed_proof_cache_ignores_changed_display_limit() {
     let _ = run_lens_stdout(repo.path(), cache.path(), &["changed", "--limit", "1"]);
     let warmed = run_lens_stdout(repo.path(), cache.path(), &["proof", "changed"]);
     let direct = run_lens_stdout(repo.path(), direct_cache.path(), &["proof", "changed"]);
-    assert_eq!(
-        direct, warmed,
+    assert_lens_markdown_eq(
+        &direct,
+        &warmed,
         "changed --limit must not truncate the warmed default proof changed artifact"
     );
 }
@@ -122,8 +126,9 @@ fn changed_warmed_proof_cache_preserves_direct_proof_order_and_hidden_limit() {
     let _ = run_lens_stdout(repo.path(), cache.path(), &["changed"]);
     let warmed = run_lens_stdout(repo.path(), cache.path(), &["proof", "changed"]);
     let direct = run_lens_stdout(repo.path(), direct_cache.path(), &["proof", "changed"]);
-    assert_eq!(
-        direct, warmed,
+    assert_lens_markdown_eq(
+        &direct,
+        &warmed,
         "changed-warmed proof must preserve direct proof ordering and hidden truncation"
     );
 }
@@ -137,15 +142,17 @@ fn navigation_lens_artifacts_roundtrip_without_output_drift() {
 
     let ls_first = run_lens_stdout(repo.path(), cache.path(), &["ls", rel]);
     let ls_second = run_lens_stdout(repo.path(), cache.path(), &["ls", rel]);
-    assert_eq!(
-        ls_first, ls_second,
+    assert_lens_markdown_eq(
+        &ls_first,
+        &ls_second,
         "cached ls artifact must preserve markdown output"
     );
 
     let cone_first = run_lens_stdout(repo.path(), cache.path(), &["cone", rel]);
     let cone_second = run_lens_stdout(repo.path(), cache.path(), &["cone", rel]);
-    assert_eq!(
-        cone_first, cone_second,
+    assert_lens_markdown_eq(
+        &cone_first,
+        &cone_second,
         "cached cone artifact must preserve markdown output"
     );
 
@@ -167,8 +174,9 @@ fn proof_map_lens_artifact_roundtrips_without_output_drift() {
 
     let proof_map_first = run_lens_stdout(repo.path(), cache.path(), &["proof-map", "."]);
     let proof_map_second = run_lens_stdout(repo.path(), cache.path(), &["proof-map", "."]);
-    assert_eq!(
-        proof_map_first, proof_map_second,
+    assert_lens_markdown_eq(
+        &proof_map_first,
+        &proof_map_second,
         "cached proof-map artifact must preserve markdown output"
     );
 
@@ -229,8 +237,9 @@ fn siblings_and_place_lens_artifacts_roundtrip_without_output_drift() {
 
     let siblings_first = run_lens_stdout(repo.path(), cache.path(), &["siblings", scope]);
     let siblings_second = run_lens_stdout(repo.path(), cache.path(), &["siblings", scope]);
-    assert_eq!(
-        siblings_first, siblings_second,
+    assert_lens_markdown_eq(
+        &siblings_first,
+        &siblings_second,
         "cached siblings artifact must preserve markdown output"
     );
 
@@ -244,8 +253,9 @@ fn siblings_and_place_lens_artifacts_roundtrip_without_output_drift() {
         cache.path(),
         &["place", scope, "--kind", "test"],
     );
-    assert_eq!(
-        place_first, place_second,
+    assert_lens_markdown_eq(
+        &place_first,
+        &place_second,
         "cached place artifact must preserve markdown output"
     );
 

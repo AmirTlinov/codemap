@@ -56,12 +56,26 @@ fn cone_symbol_report(
     if outgoing.is_empty() {
         unknowns.push(unknown_symbol_outgoing(&anchor_path));
     }
+    let seed_files = vec![file_rel.to_string()];
+    let declared_env = Vec::new();
+    let xray = cone_xray_card(ConeXrayInput {
+        project,
+        anchor: &anchor,
+        seed_files: &seed_files,
+        declared_env: &declared_env,
+        outgoing: &outgoing,
+        incoming: &incoming,
+        proof: &proof,
+        unknowns: &unknowns,
+        limit,
+    });
     Some(ConeReport {
         kind: "cone_report",
-        schema_version: "5",
+        schema_version: "6",
         anchor,
         depth,
-        declared_env: Vec::new(),
+        xray,
+        declared_env,
         outgoing,
         incoming,
         proof,
@@ -87,22 +101,26 @@ fn cone_missing_symbol_report(
     depth: usize,
 ) -> ConeReport {
     let anchor_path = symbol_anchor_path(&info.rel, symbol_name);
+    let unknowns = vec![unknown_missing_symbol_anchor(&info.rel, symbol_name)];
+    let anchor = FileSummary {
+        path: anchor_path.clone(),
+        kind: "missing_symbol".to_string(),
+        package: package_name_for_file(project, &info.rel),
+        language: info.language.clone(),
+        lines: 0,
+        roles: structural_roles_for_ls(info),
+        symbols: Vec::new(),
+        exports: Vec::new(),
+        imports: Vec::new(),
+        imported_by_count: 0,
+    };
+    let xray = empty_xray_card(&anchor, &unknowns);
     ConeReport {
         kind: "cone_report",
-        schema_version: "5",
-        anchor: FileSummary {
-            path: anchor_path.clone(),
-            kind: "missing_symbol".to_string(),
-            package: package_name_for_file(project, &info.rel),
-            language: info.language.clone(),
-            lines: 0,
-            roles: structural_roles_for_ls(info),
-            symbols: Vec::new(),
-            exports: Vec::new(),
-            imports: Vec::new(),
-            imported_by_count: 0,
-        },
+        schema_version: "6",
+        anchor,
         depth,
+        xray,
         declared_env: Vec::new(),
         outgoing: Vec::new(),
         incoming: Vec::new(),
@@ -110,7 +128,7 @@ fn cone_missing_symbol_report(
         contracts: Vec::new(),
         boundary: Vec::new(),
         hidden: Vec::new(),
-        unknowns: vec![unknown_missing_symbol_anchor(&info.rel, symbol_name)],
+        unknowns,
         expand: vec![
             format!("codemap ls {}", shell_quote(&info.rel)),
             format!("codemap cone {}", shell_quote(&info.rel)),

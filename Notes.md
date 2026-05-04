@@ -2,6 +2,51 @@
 
 ## 2026-05-04
 
+- Issue: X-Ray cone output still inherits the compact snapshot header instead of the full product snapshot
+  contract.
+  - Evidence: live local build after the X-Ray slice, repo `/Users/amir/Documents/projects/tools/cli/ctx`,
+    command `cargo run --quiet --bin codemap -- cone src/map/cone_xray.rs --limit 8`.
+  - Observed: header shows `Map Snapshot: root=...; head=...; fingerprint=...`, but not dirty count,
+    branch, cache status/location, schema version, or repo footprint.
+  - Why it hurts trust: the new X-Ray Card is meant to be compared across live repo states; without dirty/cache
+    metadata in the same output, an agent can still compare maps from different states or cache paths as if
+    they were the same reality.
+  - Boundary: this is not a false edge in the new card. It is remaining snapshot/provenance debt shared by
+    map renderers.
+  - Follow-up: extend `map_snapshot_line` to include branch/dirty/cache/schema/repo_footprint in every primary
+    map output, while keeping it one compact line.
+  - Status: tightened in `0.2.20`; live local `cone` now renders branch, dirty count, cache state/strategy,
+    external cache location, schema, and `repo_footprint=zero` in the snapshot line.
+
+- Issue: `changed` still renders JSON Schema additions as generic config-key mutations.
+  - Evidence: live local build after the X-Ray slice, repo `/Users/amir/Documents/projects/tools/cli/ctx`,
+    command `cargo run --quiet --bin codemap -- changed --section observed --limit 12`.
+  - Observed: `schemas/cone.schema.json` reports `added_config_key` events for keys such as
+    `direct_consumers`, `examples`, `flow_step`, and `flow`.
+  - Why it hurts trust: these keys belong to a schema contract surface, not runtime config. Calling them
+    config keys makes the structural delta sound more like app behavior/config drift than schema-shape drift.
+  - Boundary: the key additions are real source-backed facts; the public mutation role label is too generic.
+  - Follow-up: classify JSON Schema/OpenAPI/schema-contract files before generic JSON config-key diffing, or
+    render these events as schema-field/schema-shape delta.
+  - Status: fixed in `0.2.20`; schema-contract JSON key additions now render as `added_schema_field` /
+    `git_diff_schema_field`. Regression:
+    `changed_schema_contract_json_keys_are_schema_fields_not_config_keys`.
+
+- Issue: cold/inventory root fast paths still render cache provenance as unknown.
+  - Evidence: installed PATH `codemap 0.2.20`, real repos `/Users/amir/Documents/projects/Sillentway-VPN`
+    and `/Users/amir/Documents/projects/main_cluster`, command `codemap --root <repo> ls .`.
+  - Observed: snapshot line includes `cache=unknown strategy=unknown location=unknown` even though the
+    command knows the resolved root and can derive the external cache path.
+  - Why it hurts trust: snapshot provenance becomes uneven between full-load maps and cold fast-path maps,
+    so an agent cannot tell whether the root map came from an inventory fast path, cache hit, or unavailable
+    cache.
+  - Boundary: the map content remains source-backed; the misleading part is the snapshot/cache header.
+  - Follow-up: make inventory fast paths use a cache-aware snapshot setter with `cache=inventory` or `cold`
+    and the derived external cache path.
+  - Status: fixed in `0.2.20`; inventory fast paths now render `cache=cold/stale`, `strategy=inventory_fast_path`,
+    external cache location, and `repo_footprint=zero`. Regression:
+    `cold_large_root_ls_uses_bounded_inventory_map`.
+
 - Status: fixed in `0.2.19`; `proof changed --all` no longer writes the bounded `proof changed`
   lens cache.
   - Evidence: regression `proof_changed_all_does_not_poison_default_lens_cache`.

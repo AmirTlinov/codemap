@@ -17,6 +17,7 @@ pub struct ConeReport {
     pub schema_version: &'static str,
     pub anchor: FileSummary,
     pub depth: usize,
+    pub xray: XrayCard,
     pub declared_env: Vec<EnvDeclaration>,
     pub outgoing: Vec<StructuralEdge>,
     pub incoming: Vec<StructuralEdge>,
@@ -26,6 +27,24 @@ pub struct ConeReport {
     pub hidden: Vec<HiddenGroup>,
     pub unknowns: Vec<Unknown>,
     pub expand: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct XrayCard {
+    pub roles: Vec<Surface>,
+    pub inputs: Vec<StructuralEdge>,
+    pub outputs: Vec<Surface>,
+    pub state: Vec<Surface>,
+    pub side_effects: Vec<Surface>,
+    pub direct_consumers: Vec<StructuralEdge>,
+    pub mediated_consumers: Vec<StructuralEdge>,
+    pub flow: Vec<FlowStep>,
+    pub nearby: Vec<Surface>,
+    pub proof_hard: Vec<StructuralEdge>,
+    pub proof_direct: Vec<StructuralEdge>,
+    pub proof_mediated: Vec<StructuralEdge>,
+    pub proof_soft: Vec<StructuralEdge>,
+    pub unknowns: Vec<Unknown>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -286,7 +305,7 @@ pub struct FlowReport {
     pub expand: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FlowStep {
     pub index: usize,
     pub anchor: String,
