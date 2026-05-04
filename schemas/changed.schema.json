@@ -25,7 +25,7 @@
   ],
   "properties": {
     "kind": { "const": "changed_report" },
-    "schema_version": { "const": "7" },
+    "schema_version": { "const": "8" },
     "prelude": { "$ref": "#/$defs/map_prelude" },
     "selector": { "type": "string" },
     "total_changed_count": { "type": "integer", "minimum": 0 },
@@ -384,7 +384,8 @@
         "mediated_evidence",
         "soft_evidence",
         "setup_support",
-        "missing_direct"
+        "missing_direct",
+        "wiring"
       ],
       "properties": {
         "commands": { "type": "array", "items": { "$ref": "#/$defs/proof_command" } },
@@ -394,7 +395,26 @@
         "mediated_evidence": { "type": "array", "items": { "$ref": "#/$defs/proof_surface" } },
         "soft_evidence": { "type": "array", "items": { "$ref": "#/$defs/proof_surface" } },
         "setup_support": { "type": "array", "items": { "$ref": "#/$defs/proof_surface" } },
-        "missing_direct": { "type": "array", "items": { "$ref": "#/$defs/surface" } }
+        "missing_direct": { "type": "array", "items": { "$ref": "#/$defs/surface" } },
+        "wiring": { "type": "array", "items": { "$ref": "#/$defs/proof_wiring_fact" } }
+      }
+    },
+    "proof_wiring_fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stage", "status", "subject", "path", "evidence", "effect", "locations", "expand"],
+      "properties": {
+        "stage": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["missing", "soft", "wired", "validated", "load_bearing", "executed", "unknown"]
+        },
+        "subject": { "type": "string" },
+        "path": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "evidence": { "type": "string" },
+        "effect": { "type": "string" },
+        "locations": { "type": "array", "items": { "$ref": "#/$defs/evidence_location" } },
+        "expand": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
       }
     },
     "unknown": {

@@ -3,7 +3,7 @@ use std::path::Path;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
-use crate::model::{HiddenGroup, ProofMapReport, ProofSurface, Surface, Unknown};
+use crate::model::{HiddenGroup, ProofMapReport, ProofSurface, ProofWiringFact, Surface, Unknown};
 
 use super::{
     LensArtifact, current_status_fingerprint, format_version, read_lens_artifact,
@@ -98,6 +98,8 @@ struct CachedProofMapReport {
     setup_support: Vec<ProofSurface>,
     missing_direct: Vec<Surface>,
     commands: Vec<ProofSurface>,
+    #[serde(default)]
+    wiring: Vec<ProofWiringFact>,
     fallback: Vec<String>,
     unknowns: Vec<Unknown>,
     hidden: Vec<HiddenGroup>,
@@ -118,6 +120,7 @@ impl CachedProofMapReport {
             setup_support: report.setup_support.clone(),
             missing_direct: report.missing_direct.clone(),
             commands: report.commands.clone(),
+            wiring: report.wiring.clone(),
             fallback: report.fallback.clone(),
             unknowns: report.unknowns.clone(),
             hidden: report.hidden.clone(),
@@ -128,7 +131,7 @@ impl CachedProofMapReport {
     fn into_report(self) -> ProofMapReport {
         ProofMapReport {
             kind: "proof_map_report",
-            schema_version: "3",
+            schema_version: "4",
             scope: self.scope,
             changed: self.changed,
             hard: self.hard,
@@ -138,6 +141,7 @@ impl CachedProofMapReport {
             setup_support: self.setup_support,
             missing_direct: self.missing_direct,
             commands: self.commands,
+            wiring: self.wiring,
             fallback: self.fallback,
             unknowns: self.unknowns,
             hidden: self.hidden,

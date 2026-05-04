@@ -80,7 +80,11 @@ pub fn proof_map(report: &ProofMapReport) {
     if !report.changed.is_empty() {
         println!("Changed: `{}`", report.changed.join("`, `"));
     }
-    proof_map_surface_sections(report);
+    if proof_map_should_compact(report) {
+        proof_map_compact_surface_summary(report);
+    } else {
+        proof_map_surface_sections(report);
+    }
     surface_section("Missing Direct", &report.missing_direct);
     let runnable_commands = report
         .commands
@@ -89,6 +93,7 @@ pub fn proof_map(report: &ProofMapReport) {
         .cloned()
         .collect::<Vec<_>>();
     proof_command_summary_section("Runnable Commands", &runnable_commands);
+    proof_wiring_summary_section(&report.wiring, Some(&proof_map_wiring_expand(report)));
     if !report.fallback.is_empty() {
         println!("\n## Fallback\n");
         println!("{}", code_block("bash", &report.fallback));
@@ -96,6 +101,49 @@ pub fn proof_map(report: &ProofMapReport) {
     unknown_section(&report.unknowns);
     hidden_section(&report.hidden);
     section("Expand", &report.expand);
+}
+
+fn proof_map_wiring_expand(report: &ProofMapReport) -> String {
+    if let Some(scope) = &report.scope {
+        return format!(
+            "codemap proof-map {} --raw-sensors",
+            shell_quote_for_markdown(scope)
+        );
+    }
+    "codemap proof-map --changed --raw-sensors".to_string()
+}
+
+fn proof_map_should_compact(report: &ProofMapReport) -> bool {
+    report.scope.as_deref() == Some(".") && proof_map_surface_count(report) > 24
+}
+
+fn proof_map_surface_count(report: &ProofMapReport) -> usize {
+    report.hard.len()
+        + report.direct_evidence.len()
+        + report.mediated_evidence.len()
+        + report.soft_evidence.len()
+        + report.setup_support.len()
+        + report.missing_direct.len()
+}
+
+fn proof_map_compact_surface_summary(report: &ProofMapReport) {
+    println!("\n## Proof Surfaces\n");
+    println!("- hard proof: `{}`", report.hard.len());
+    println!("- direct evidence: `{}`", report.direct_evidence.len());
+    println!("- mediated evidence: `{}`", report.mediated_evidence.len());
+    println!("- soft evidence: `{}`", report.soft_evidence.len());
+    println!("- setup/support: `{}`", report.setup_support.len());
+    println!("- missing direct: `{}`", report.missing_direct.len());
+    println!(
+        "- expand: `{}`",
+        root_aware_expand(&proof_map_wiring_expand(report))
+    );
+    if !report.soft_evidence.is_empty() {
+        println!("- soft evidence is token/name/path overlap; it does not close deterministic proof gaps.");
+    }
+    if !report.setup_support.is_empty() {
+        println!("- setup/support surfaces are rails, not validation proof.");
+    }
 }
 
 fn proof_map_surface_sections(report: &ProofMapReport) {

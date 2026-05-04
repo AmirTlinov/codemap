@@ -52,7 +52,7 @@ pub fn changed(report: &ChangedReport, section_filter: Option<&str>) {
         changed_links_section(report, show_all, true);
     }
     if matches!(section_filter, None | Some("proof")) {
-        changed_proof_section(report, compact);
+        changed_proof_section(report, compact, section_filter == Some("proof"));
     }
     if matches!(section_filter, None | Some("unknown")) {
         changed_unknown_section(report, true, compact);

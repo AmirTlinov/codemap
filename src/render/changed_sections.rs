@@ -145,15 +145,12 @@ fn changed_unknown_section(report: &ChangedReport, force: bool, compact: bool) {
         }
         let hidden = unknowns.len().saturating_sub(limit);
         if hidden > 0 {
-            println!("  hidden: `{hidden}` unknowns");
-            println!(
-                "  expand: `{}`",
-                root_aware_expand(&format!(
-                    "codemap changed{} --section unknown --limit {}",
-                    changed_selector_suffix(&report.selector),
-                    unknowns.len()
-                ))
-            );
+            let expand = root_aware_expand(&format!(
+                "codemap changed{} --section unknown --limit {}",
+                changed_selector_suffix(&report.selector),
+                unknowns.len()
+            ));
+            println!("  hidden: `{hidden}` unknowns; expand: `{expand}`");
         }
     }
 }

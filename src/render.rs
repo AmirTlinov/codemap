@@ -1,10 +1,12 @@
 include!("render/status.rs");
+include!("render/teach.rs");
 include!("render/prelude.rs");
 include!("render/boundary_facts.rs");
 include!("render/ls_cone.rs");
 include!("render/cone_xray.rs");
 include!("render/impact_proof.rs");
 include!("render/proof_coverage.rs");
+include!("render/proof_wiring.rs");
 include!("render/proof_plan_sections.rs");
 include!("render/changed.rs");
 include!("render/changed_expand.rs");

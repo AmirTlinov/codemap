@@ -111,6 +111,7 @@ pub fn proof(report: &ProofReport, section_filter: Option<&str>) {
         println!("\n## Fallback\n");
         println!("{}", code_block("bash", &report.fallback));
     }
+    proof_wiring_summary_section(&report.wiring, proof_wiring_expand(report).as_deref());
     proof_unknowns_section(report);
     hidden_section(&report.hidden);
     section("Expand", &report.expand);
@@ -214,11 +215,15 @@ fn proof_observed_section(report: &ProofReport) {
 }
 
 fn proof_links_section(report: &ProofReport) {
-    if report.proofs.is_empty() {
+    if report.proofs.is_empty() && report.wiring.is_empty() {
         proof_empty_section(
             "Links",
             "No proof surface links were emitted by proof detectors for this report.",
         );
+        return;
+    }
+    proof_wiring_section(&report.wiring, false, proof_wiring_expand(report).as_deref());
+    if report.proofs.is_empty() {
         return;
     }
     println!("## Links\n");
@@ -276,6 +281,22 @@ fn proof_roles_section(report: &ProofReport) {
     println!("- fallback_command: `{}`", report.fallback.len());
     println!("- unknown_gap: `{}`", report.unknowns.len());
     println!("- hidden_group: `{}`", report.hidden.len());
+}
+
+fn proof_wiring_expand(report: &ProofReport) -> Option<String> {
+    if let Some(target) = &report.target {
+        return Some(format!(
+            "codemap proof {} --section links",
+            shell_quote_for_markdown(target)
+        ));
+    }
+    if !report.changed.is_empty() {
+        return Some(format!(
+            "codemap proof {} --section links",
+            proof_map_changed_selector(report)
+        ));
+    }
+    None
 }
 
 fn proof_plan_section(report: &ProofReport, force: bool) {

@@ -188,6 +188,8 @@ pub struct ChangedProofSummary {
     pub soft_evidence: Vec<ProofSurface>,
     pub setup_support: Vec<ProofSurface>,
     pub missing_direct: Vec<Surface>,
+    #[serde(default)]
+    pub wiring: Vec<ProofWiringFact>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -275,6 +277,7 @@ pub struct ProofMapReport {
     pub setup_support: Vec<ProofSurface>,
     pub missing_direct: Vec<Surface>,
     pub commands: Vec<ProofSurface>,
+    pub wiring: Vec<ProofWiringFact>,
     pub fallback: Vec<String>,
     pub unknowns: Vec<Unknown>,
     pub hidden: Vec<HiddenGroup>,

@@ -13,8 +13,8 @@ use crate::model::{
     EvidenceStrength, FileInfo, FileSummary, FlowReport, FlowStep, GitChange, GraphEdge, GraphLens,
     HiddenGroup, ImpactCluster, ImpactReport, LsReport, PackageDependency, PlaceReport, Project,
     ProofCoverageSummary, ProofCoveredPath, ProofGap, ProofMapReport, ProofReport, ProofSurface,
-    Risk, RuntimeReport, RuntimeRoute, SiblingsReport, StructuralEdge, Surface, TeachProofCommand,
-    TeachReport, TeachRolePattern, Unknown, VerificationPlan, XrayCard,
+    ProofWiringFact, Risk, RuntimeReport, RuntimeRoute, SiblingsReport, StructuralEdge, Surface,
+    TeachProofCommand, TeachReport, TeachRolePattern, Unknown, VerificationPlan, XrayCard,
 };
 use crate::repo;
 
@@ -61,6 +61,7 @@ include!("map/proof_owner_ci_validation.rs");
 include!("map/proof_owner_ci_script_body.rs");
 include!("map/proof_surfaces.rs");
 include!("map/proof_commands.rs");
+include!("map/proof_wiring.rs");
 include!("map/impact.rs");
 include!("map/lenses.rs");
 include!("map/boundary.rs");

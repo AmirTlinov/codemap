@@ -19,6 +19,7 @@ include!("lenses/runtime_root_containers.rs");
 include!("lenses/runtime_worker_jobs.rs");
 include!("lenses/runtime_proof_helpers.rs");
 include!("lenses/runtime_proof_map.rs");
+include!("lenses/runtime_proof_map_selection.rs");
 include!("lenses/boundary_map.rs");
 include!("lenses/flow_runtime_entrypoints.rs");
 include!("lenses/delete_boundary_flow.rs");

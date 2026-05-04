@@ -25,7 +25,7 @@ pub fn changed_report(
     if total_changed_count == 0 && git_state.is_empty() {
         return ChangedReport {
             kind: "changed_report",
-            schema_version: "7",
+            schema_version: "8",
             selector: selector.clone(),
             display_limit: limit,
             proof_plan_cache: None,
@@ -60,6 +60,7 @@ pub fn changed_report(
                 soft_evidence: Vec::new(),
                 setup_support: Vec::new(),
                 missing_direct: Vec::new(),
+                wiring: Vec::new(),
             },
             unknowns: Vec::new(),
             hidden: Vec::new(),
@@ -105,7 +106,7 @@ pub fn changed_report(
     );
     ChangedReport {
         kind: "changed_report",
-        schema_version: "7",
+        schema_version: "8",
         selector: selector.clone(),
         display_limit: limit,
         proof_plan_cache: Some(Box::new(proof_plan_cache)),
@@ -189,7 +190,7 @@ pub fn changed_report(
 pub fn clean_changed_report(selector: String, limit: usize) -> ChangedReport {
     ChangedReport {
         kind: "changed_report",
-        schema_version: "7",
+        schema_version: "8",
         selector: selector.clone(),
         display_limit: limit.max(1),
         proof_plan_cache: None,
@@ -224,6 +225,7 @@ pub fn clean_changed_report(selector: String, limit: usize) -> ChangedReport {
             soft_evidence: Vec::new(),
             setup_support: Vec::new(),
             missing_direct: Vec::new(),
+            wiring: Vec::new(),
         },
         unknowns: Vec::new(),
         hidden: Vec::new(),
@@ -289,6 +291,7 @@ fn changed_proof_summary(report: ProofMapReport, limit: usize) -> ChangedProofSu
         soft_evidence: report.soft_evidence,
         setup_support: report.setup_support,
         missing_direct: report.missing_direct,
+        wiring: report.wiring,
     }
 }
 

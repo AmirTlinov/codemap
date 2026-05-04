@@ -1,4 +1,4 @@
-fn changed_proof_section(report: &ChangedReport, compact: bool) {
+fn changed_proof_section(report: &ChangedReport, compact: bool, detailed_wiring: bool) {
     println!("\n## Proof");
     let runnable_grouped = changed_proof_command_groups(report);
     let setup_grouped = changed_proof_surface_groups(report.proof.setup_support.iter());
@@ -46,6 +46,15 @@ fn changed_proof_section(report: &ChangedReport, compact: bool) {
         println!("\n### Fallback");
         println!("{}", code_block("bash", &report.proof.fallback));
     }
+    let wiring_expand = format!(
+        "codemap proof {} --section links",
+        changed_proof_selector(&report.selector)
+    );
+    if detailed_wiring {
+        proof_wiring_section(&report.proof.wiring, false, Some(&wiring_expand));
+    } else {
+        proof_wiring_summary_section(&report.proof.wiring, Some(&wiring_expand));
+    }
     changed_proof_sensor_counts(report, compact);
 }
 
@@ -64,9 +73,18 @@ fn changed_proof_large_compact_summary(
         soft.len(),
         report.proof.fallback.len()
     );
+    if !report.proof.wiring.is_empty() {
+        changed_proof_wiring_counts(report);
+    }
     let visible_group_count = runnable.len().min(COMPACT_CHANGED_PROOF_COMMAND_LIMIT);
-    for (command, _) in runnable.iter().take(visible_group_count) {
-        println!("### `{command}`");
+    if visible_group_count > 0 {
+        let commands = runnable
+            .iter()
+            .take(visible_group_count)
+            .map(|(command, _)| format!("`{command}`"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        println!("- proof commands: {commands}");
     }
     if runnable.len() > visible_group_count {
         let hidden_command_groups = runnable.len() - visible_group_count;
@@ -80,6 +98,34 @@ fn changed_proof_large_compact_summary(
         ))
     );
     changed_proof_sensor_counts(report, true);
+}
+
+fn changed_proof_wiring_counts(report: &ChangedReport) {
+    let mut counts = std::collections::BTreeMap::new();
+    for fact in &report.proof.wiring {
+        *counts.entry(fact.status.as_str()).or_insert(0usize) += 1;
+    }
+    let summary = counts
+        .into_iter()
+        .map(|(status, count)| format!("`{status}: {count}`"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    println!("- wiring: {summary}");
+    println!(
+        "- wiring expand: `{}`",
+        root_aware_expand(&format!(
+            "codemap proof {} --section links",
+            changed_proof_selector(&report.selector)
+        ))
+    );
+}
+
+fn changed_proof_selector(selector: &str) -> String {
+    if selector == "--changed" {
+        "changed".to_string()
+    } else {
+        selector.to_string()
+    }
 }
 
 fn changed_proof_evidence_only_surfaces(report: &ChangedReport) -> Vec<&ProofSurface> {
@@ -167,29 +213,16 @@ fn changed_proof_render_evidence_surfaces(
     }
 }
 
-fn changed_proof_sensor_counts(report: &ChangedReport, compact: bool) {
-    println!("\n### Sensor Counts");
+fn changed_proof_sensor_counts(report: &ChangedReport, _compact: bool) {
     let counts = changed_proof_public_sensor_counts(report);
-    if compact {
-        println!(
-            "- runnable_direct: `{}`; soft: `{}`; evidence_only: `{}`; setup_support: `{}`; missing_direct_unknown: `{}`",
-            counts.runnable_direct,
-            counts.soft,
-            counts.evidence_only,
-            counts.setup_support,
-            counts.missing_direct_unknown
-        );
-    } else {
-        for (kind, count) in [
-            ("runnable_direct", counts.runnable_direct),
-            ("soft", counts.soft),
-            ("evidence_only", counts.evidence_only),
-            ("setup_support", counts.setup_support),
-            ("missing_direct_unknown", counts.missing_direct_unknown),
-        ] {
-            println!("- {kind}: `{count}`");
-        }
-    }
+    println!(
+        "- sensor counts: runnable_direct=`{}`; soft=`{}`; evidence_only=`{}`; setup_support=`{}`; missing_direct_unknown=`{}`",
+        counts.runnable_direct,
+        counts.soft,
+        counts.evidence_only,
+        counts.setup_support,
+        counts.missing_direct_unknown
+    );
 }
 
 struct ChangedProofPublicSensorCounts {

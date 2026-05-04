@@ -237,6 +237,7 @@ pub struct DirectorySurface {
 include!("model/prelude.rs");
 include!("model/lens_reports.rs");
 include!("model/proof_coverage.rs");
+include!("model/proof_wiring.rs");
 include!("model/teach_reports.rs");
 
 #[derive(Debug, Clone, Serialize)]
@@ -252,6 +253,7 @@ pub struct ProofReport {
     pub proofs: Vec<ProofSurface>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub coverage: Option<ProofCoverageSummary>,
+    pub wiring: Vec<ProofWiringFact>,
     pub fallback: Vec<String>,
     pub unknowns: Vec<Unknown>,
     pub hidden: Vec<HiddenGroup>,

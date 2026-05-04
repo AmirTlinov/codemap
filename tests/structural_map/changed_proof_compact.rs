@@ -61,7 +61,7 @@ proof:
     );
     let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
     assert_eq!(
-        markdown.matches("\n### `make verify-").count(),
+        markdown.matches("`make verify-").count(),
         3,
         "default changed should show a bounded proof command sample: {markdown}"
     );

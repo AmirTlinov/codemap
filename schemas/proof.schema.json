@@ -11,6 +11,7 @@
     "target",
     "changed",
     "proofs",
+    "wiring",
     "fallback",
     "unknowns",
     "hidden",
@@ -19,7 +20,7 @@
   ],
   "properties": {
     "kind": { "const": "proof_plan" },
-    "schema_version": { "const": "8" },
+    "schema_version": { "const": "9" },
     "prelude": { "$ref": "#/$defs/map_prelude" },
     "target": {
       "anyOf": [{ "type": "string" }, { "type": "null" }]
@@ -34,6 +35,10 @@
     },
     "coverage": {
       "anyOf": [{ "$ref": "#/$defs/proof_coverage_summary" }, { "type": "null" }]
+    },
+    "wiring": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/proof_wiring_fact" }
     },
     "fallback": {
       "type": "array",
@@ -252,6 +257,24 @@
         "kind": { "type": "string" },
         "effect": { "type": "string" },
         "expand": { "type": "string" }
+      }
+    },
+    "proof_wiring_fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stage", "status", "subject", "path", "evidence", "effect", "locations", "expand"],
+      "properties": {
+        "stage": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["missing", "soft", "wired", "validated", "load_bearing", "executed", "unknown"]
+        },
+        "subject": { "type": "string" },
+        "path": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "evidence": { "type": "string" },
+        "effect": { "type": "string" },
+        "locations": { "type": "array", "items": { "$ref": "#/$defs/evidence_location" } },
+        "expand": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
       }
     },
     "unknown": {

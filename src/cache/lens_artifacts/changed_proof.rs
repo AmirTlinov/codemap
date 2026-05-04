@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::model::{
     BoundaryFacts, ChangedCouplingFact, ChangedMapDelta, ChangedProofSummary, ChangedReport,
     ChangedRisk, ChangedStructuralEvent, FileSummary, GitChange, HiddenGroup, ImpactCluster,
-    ProofCoverageSummary, ProofReport, ProofSurface, Unknown,
+    ProofCoverageSummary, ProofReport, ProofSurface, ProofWiringFact, Unknown,
 };
 
 use super::{
@@ -192,7 +192,7 @@ impl CachedChangedReport {
     fn into_report(self, limit: usize) -> ChangedReport {
         ChangedReport {
             kind: "changed_report",
-            schema_version: "7",
+            schema_version: "8",
             selector: self.selector,
             display_limit: limit,
             proof_plan_cache: None,
@@ -224,6 +224,8 @@ struct CachedProofReport {
     risk: String,
     proofs: Vec<ProofSurface>,
     coverage: Option<ProofCoverageSummary>,
+    #[serde(default)]
+    wiring: Vec<ProofWiringFact>,
     fallback: Vec<String>,
     unknowns: Vec<Unknown>,
     hidden: Vec<HiddenGroup>,
@@ -242,6 +244,7 @@ impl CachedProofReport {
             risk: report.risk.clone(),
             proofs: report.proofs.clone(),
             coverage: report.coverage.clone(),
+            wiring: report.wiring.clone(),
             fallback: report.fallback.clone(),
             unknowns: report.unknowns.clone(),
             hidden: report.hidden.clone(),
@@ -253,13 +256,14 @@ impl CachedProofReport {
     fn into_report(self) -> ProofReport {
         ProofReport {
             kind: "proof_plan",
-            schema_version: "8",
+            schema_version: "9",
             target: self.target,
             changed: self.changed,
             selector: self.selector,
             risk: self.risk,
             proofs: self.proofs,
             coverage: self.coverage,
+            wiring: self.wiring,
             fallback: self.fallback,
             unknowns: self.unknowns,
             hidden: self.hidden,

@@ -30,7 +30,7 @@ fn unknown_section(values: &[Unknown]) {
     }
     for (kind, unknowns) in grouped {
         println!("- `{kind}`");
-        let visible = unknowns.len().min(5);
+        let visible = unknowns.len().min(4);
         for unknown in unknowns.iter().take(visible) {
             println!("  - where: {}", unknown_where(unknown));
             println!("    reason: {}", unknown.reason);

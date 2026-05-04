@@ -193,6 +193,9 @@ pub fn proof_map_report(
     let mut scope_expand = Vec::new();
     let discovery_limit = usize::MAX;
     let mut hidden = Vec::new();
+    let mut wiring = Vec::new();
+    let mut wiring_seen = BTreeSet::new();
+    let mut global_wiring_surfaces = Vec::new();
     let runtime_facts = runtime_fact_index_for_paths(project, &route_index_paths);
     let expand_larger_limit = proof_map_expand(&proof_selector, false);
     let expand_raw_sensors = proof_map_expand(&proof_selector, true);
@@ -205,20 +208,30 @@ pub fn proof_map_report(
     }
     let (current_direct, current_e2e) =
         proof_map_current_level_containers(project, scope.as_deref(), raw_sensors);
+    global_wiring_surfaces.extend(current_direct.iter().cloned());
+    global_wiring_surfaces.extend(current_e2e.iter().cloned());
     surfaces.extend(current_direct);
     surfaces.extend(current_e2e);
     if scope.is_none() && !changed.is_empty() {
-        surfaces.extend(ctx_changed_proof_surfaces(project));
+        let changed_surfaces = ctx_changed_proof_surfaces(project);
+        global_wiring_surfaces.extend(changed_surfaces.iter().cloned());
+        surfaces.extend(changed_surfaces);
     }
     for seed in &seeds {
         if let Some(file) = project.files.get(seed) {
             unknowns.extend(unknowns_for_file(project, file));
             let file_routes = runtime_facts.routes_for_file(seed);
-            surfaces.extend(route_proof_surfaces_for_routes(
+            let route_surfaces = route_proof_surfaces_for_routes(
                 project,
                 file_routes.clone(),
                 &runtime_facts,
-            ));
+            );
+            push_unique_proof_wiring(
+                &mut wiring,
+                &mut wiring_seen,
+                proof_wiring_facts(project, std::slice::from_ref(seed), &[], &route_surfaces, &[]),
+            );
+            surfaces.extend(route_surfaces);
             unknowns.extend(route_proof_unknowns_for_routes(
                 project,
                 file_routes,
@@ -249,6 +262,11 @@ pub fn proof_map_report(
         {
             unknowns.push(unknown);
         }
+        push_unique_proof_wiring(
+            &mut wiring,
+            &mut wiring_seen,
+            proof_wiring_facts(project, std::slice::from_ref(seed), &[], &proofs, &[]),
+        );
         for proof in proofs {
             surfaces.push(proof);
         }
@@ -259,6 +277,11 @@ pub fn proof_map_report(
         unknowns.push(unknown);
         scope_expand.push(expand);
     }
+    push_unique_proof_wiring(
+        &mut wiring,
+        &mut wiring_seen,
+        proof_wiring_facts(project, &seeds, &changed, &global_wiring_surfaces, &[]),
+    );
     let mut hard = Vec::new();
     let mut direct_evidence = Vec::new();
     let mut mediated_evidence = Vec::new();
@@ -386,12 +409,28 @@ pub fn proof_map_report(
         .cloned()
         .collect::<Vec<_>>();
     let fallback = proof_fallback_commands(project, &seeds, &changed, &fallback_sources);
+    push_unique_proof_wiring(
+        &mut wiring,
+        &mut wiring_seen,
+        proof_wiring_facts(project, &seeds, &changed, &[], &fallback),
+    );
+    sort_proof_wiring_facts(&mut wiring);
+    if scope.as_deref() != Some(".") {
+        unknowns.extend(proof_wiring_unknowns(&wiring));
+    }
+    truncate_with_hidden(
+        &mut wiring,
+        limit.saturating_mul(2).max(6),
+        &mut hidden,
+        "proof wiring facts hidden by limit",
+        &expand_larger_limit,
+    );
     let proof_expand = proof_map_proof_expand(&proof_selector);
     let mut expand = vec![proof_expand];
     expand.extend(scope_expand);
     ProofMapReport {
         kind: "proof_map_report",
-        schema_version: "3",
+        schema_version: "4",
         scope,
         changed,
         hard,
@@ -401,86 +440,10 @@ pub fn proof_map_report(
         setup_support,
         missing_direct,
         commands,
+        wiring,
         fallback,
         unknowns,
         hidden,
         expand,
     }
-}
-
-fn proof_map_seed_selection(
-    project: &Project,
-    scope: Option<&str>,
-    changed: &[String],
-    raw_sensors: bool,
-) -> (Vec<String>, usize) {
-    let Some(scope) = scope else {
-        return (changed.to_vec(), 0);
-    };
-    if !directory_has_files(project, scope) {
-        return (vec![scope.to_string()], 0);
-    }
-    let all = files_under_directory(project, scope)
-        .into_iter()
-        .map(|file| file.rel.clone())
-        .collect::<Vec<_>>();
-    if scope != "." || raw_sensors {
-        return (all, 0);
-    }
-    let mut seeds = direct_files_under_directory(project, scope)
-        .into_iter()
-        .filter(|file| !file.has_role("generated") && !is_generic_noise(file))
-        .map(|file| file.rel.clone())
-        .collect::<Vec<_>>();
-    seeds.sort();
-    let hidden = all.len().saturating_sub(seeds.len());
-    (seeds, hidden)
-}
-
-fn proof_map_missing_should_surface(
-    project: &Project,
-    seed: &str,
-    scope: Option<&str>,
-    changed: &[String],
-) -> bool {
-    let exact_requested =
-        changed.iter().any(|path| path == seed) || scope.is_some_and(|scope| scope == seed);
-    if exact_requested
-        && project
-            .files
-            .get(seed)
-            .is_some_and(changed_should_check_direct_proof)
-    {
-        return true;
-    }
-    if !proof_missing_should_surface(project, seed) {
-        return false;
-    }
-    if exact_requested {
-        return true;
-    }
-    !project.packages.iter().any(|package| package.manifest == seed)
-}
-
-fn group_env_surfaces(values: Vec<EnvSurface>) -> Vec<EnvSurface> {
-    let mut seen: BTreeMap<(String, String, String, String), usize> = BTreeMap::new();
-    let mut out: Vec<EnvSurface> = Vec::new();
-    for value in values {
-        let key = (
-            value.name.clone(),
-            value.used_by.clone(),
-            value.declaration.clone().unwrap_or_default(),
-            value.evidence.clone(),
-        );
-        if let Some(index) = seen.get(&key).copied() {
-            if value.strength > out[index].strength {
-                out[index].strength = value.strength;
-            }
-            out[index].locations.extend(value.locations);
-        } else {
-            seen.insert(key, out.len());
-            out.push(value);
-        }
-    }
-    out
 }

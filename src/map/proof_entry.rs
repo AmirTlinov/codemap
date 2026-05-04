@@ -185,6 +185,7 @@ pub fn proof_report(
     }
     let all_proofs = unique_proof_surfaces(proofs);
     let fallback = proof_fallback_commands(project, &anchors, &changed, &all_proofs);
+    let mut wiring = proof_wiring_facts(project, &anchors, &changed, &all_proofs, &fallback);
     let mut unknowns = Vec::new();
     if target.is_none() && !changed.is_empty() {
         unknowns.extend(changed_fail_open_unknowns(project, &changed));
@@ -252,6 +253,8 @@ pub fn proof_report(
             format!("codemap proof-map {}", shell_quote(target)),
         ));
     }
+    unknowns.extend(proof_wiring_unknowns(&wiring));
+    dedupe_unknowns(&mut unknowns);
     proofs = all_proofs;
     let proof_count = proofs.len();
     if proof_count > limit {
@@ -265,6 +268,13 @@ pub fn proof_report(
         });
         proofs = balanced_proof_surface_prefix(&proofs, limit);
     }
+    truncate_with_hidden(
+        &mut wiring,
+        limit.saturating_mul(2).max(6),
+        &mut hidden,
+        "proof wiring facts hidden by limit",
+        &format!("codemap proof {} --section links", selector),
+    );
     let mut expand = Vec::new();
     if proofs.is_empty()
         && let Some(target) = target.as_ref()
@@ -277,13 +287,14 @@ pub fn proof_report(
     }
     ProofReport {
         kind: "proof_plan",
-        schema_version: "8",
+        schema_version: "9",
         target,
         changed,
         selector,
         risk: risk.as_str().to_string(),
         proofs,
         coverage,
+        wiring,
         fallback,
         unknowns,
         hidden,
@@ -448,13 +459,14 @@ fn changed_path_needs_missing_deterministic_proof_unknown(project: &Project, rel
 pub fn clean_proof_report(selector: String) -> ProofReport {
     ProofReport {
         kind: "proof_plan",
-        schema_version: "8",
+        schema_version: "9",
         target: None,
         changed: Vec::new(),
         selector,
         risk: "low".to_string(),
         proofs: Vec::new(),
         coverage: None,
+        wiring: Vec::new(),
         fallback: Vec::new(),
         unknowns: Vec::new(),
         hidden: Vec::new(),

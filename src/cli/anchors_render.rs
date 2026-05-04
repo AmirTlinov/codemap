@@ -123,7 +123,7 @@ mod tests {
     fn proof_run_uses_fallback_when_only_soft_evidence_exists() {
         let report = ProofReport {
             kind: "proof_plan",
-            schema_version: "8",
+            schema_version: "9",
             target: Some("src/routes.ts".to_string()),
             changed: Vec::new(),
             selector: "src/routes.ts".to_string(),
@@ -141,6 +141,7 @@ mod tests {
                 )],
             }],
             coverage: None,
+            wiring: Vec::new(),
             fallback: vec!["pnpm test".to_string()],
             unknowns: Vec::new(),
             hidden: Vec::new(),
@@ -160,7 +161,7 @@ mod tests {
     fn proof_run_uses_fallback_when_only_setup_surface_exists() {
         let report = ProofReport {
             kind: "proof_plan",
-            schema_version: "8",
+            schema_version: "9",
             target: Some("pnpm-workspace.yaml".to_string()),
             changed: Vec::new(),
             selector: "pnpm-workspace.yaml".to_string(),
@@ -178,6 +179,7 @@ mod tests {
                 )],
             }],
             coverage: None,
+            wiring: Vec::new(),
             fallback: vec!["pnpm test".to_string()],
             unknowns: Vec::new(),
             hidden: Vec::new(),

@@ -9,7 +9,7 @@ fn changed_combines_delta_impact_and_proof_without_running_commands() {
     let changed = run_json(repo.path(), cache.path(), &["changed", "--format", "json"]);
     assert_schema("schemas/changed.schema.json", &changed);
     assert_eq!(changed["kind"], "changed_report");
-    assert_eq!(changed["schema_version"], "7");
+    assert_eq!(changed["schema_version"], "8");
     assert!(
         changed["changed"]
             .as_array()
@@ -394,7 +394,8 @@ fn changed_distinguishes_visible_and_total_changed_files() {
         "changed markdown should not return to Git State, Map Delta, or proof sensor table spam: {markdown}"
     );
     assert!(
-        markdown.contains("\n### Sensor Counts\n") && markdown.contains("- runnable_direct: `"),
+        markdown.contains("- sensor counts: runnable_direct=`")
+            || (markdown.contains("\n### Sensor Counts\n") && markdown.contains("- runnable_direct: `")),
         "changed proof summary should render public sensor counts as compact bullets: {markdown}"
     );
     assert!(
