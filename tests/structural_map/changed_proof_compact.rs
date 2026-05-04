@@ -89,3 +89,42 @@ proof:
         "changed --section proof should expand all proof command groups: {proof_markdown}"
     );
 }
+
+#[test]
+fn changed_default_markdown_compacts_small_sets_with_many_unknowns() {
+    let (repo, cache) = fixture();
+    for name in ["alpha", "beta", "gamma", "delta"] {
+        write(
+            &repo.path().join(format!("packages/replay/src/{name}.ts")),
+            &format!("export const {name}Value = 1;\n"),
+        );
+    }
+
+    let output = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["changed"])
+        .output()
+        .expect("changed markdown should run");
+    assert!(
+        output.status.success(),
+        "changed failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
+    let line_count = markdown.lines().count();
+    assert!(
+        line_count <= 120,
+        "default changed should stay within the daily line budget for small noisy changes; lines={line_count}\n{markdown}"
+    );
+    assert!(
+        markdown.contains("- `direct_test_import_not_found`: `4`; sample:")
+            && markdown.contains("- `nearest_proof_scope`: `4`; sample:")
+            && markdown.contains("changed --section unknown"),
+        "default changed should compact repeated Unknowns but keep exact expand paths: {markdown}"
+    );
+    assert!(
+        !markdown.contains("reason: no direct test import"),
+        "default changed should leave verbose Unknown detail to --section unknown: {markdown}"
+    );
+}

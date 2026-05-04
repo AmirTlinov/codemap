@@ -37,31 +37,7 @@ fn cone_owner_incoming_edges(project: &Project, rel: &str) -> Vec<StructuralEdge
 fn cone_owner_proof_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {
     let mut edges = owner_surface_proof_surfaces(project, rel)
         .into_iter()
-        .map(|proof| {
-            let from = proof.path.clone().unwrap_or_else(|| rel.to_string());
-            let to = proof
-                .command
-                .clone()
-                .or_else(|| proof.path.clone())
-                .unwrap_or_else(|| rel.to_string());
-            let edge_type = if crate::proof_classification::proof_surface_is_runnable_validation(&proof) {
-                "proof_surface"
-            } else if crate::proof_classification::proof_surface_is_setup_or_support(&proof) {
-                "setup_support_surface"
-            } else if crate::proof_classification::proof_surface_is_evidence_only(&proof) {
-                "evidence_surface"
-            } else {
-                "soft_evidence_surface"
-            };
-            structural_edge_with_locations(
-                from,
-                to,
-                edge_type,
-                proof.evidence,
-                proof.strength,
-                proof.locations,
-            )
-        })
+        .map(|proof| owner_proof_surface_edge(rel, proof))
         .collect::<Vec<_>>();
     if project
         .files
@@ -72,6 +48,32 @@ fn cone_owner_proof_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {
     }
     sort_edges(&mut edges);
     edges
+}
+
+fn owner_proof_surface_edge(rel: &str, proof: ProofSurface) -> StructuralEdge {
+    let from = proof.path.clone().unwrap_or_else(|| rel.to_string());
+    let to = proof
+        .command
+        .clone()
+        .or_else(|| proof.path.clone())
+        .unwrap_or_else(|| rel.to_string());
+    let edge_type = if crate::proof_classification::proof_surface_is_runnable_validation(&proof) {
+        "proof_surface"
+    } else if crate::proof_classification::proof_surface_is_setup_or_support(&proof) {
+        "setup_support_surface"
+    } else if crate::proof_classification::proof_surface_is_evidence_only(&proof) {
+        "evidence_surface"
+    } else {
+        "soft_evidence_surface"
+    };
+    structural_edge_with_locations(
+        from,
+        to,
+        edge_type,
+        proof.evidence,
+        proof.strength,
+        proof.locations,
+    )
 }
 
 fn cone_owner_unknowns(project: &Project, rel: &str) -> Vec<Unknown> {

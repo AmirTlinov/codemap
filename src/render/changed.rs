@@ -120,10 +120,17 @@ fn changed_render_limit(report: &ChangedReport, compact: bool) -> usize {
 }
 
 fn changed_should_compact(report: &ChangedReport) -> bool {
+    let setup_group_count = changed_proof_surface_groups(report.proof.setup_support.iter()).len();
+    let soft_group_count = changed_proof_surface_groups(report.proof.soft_evidence.iter()).len();
+    let evidence_only_count = changed_proof_evidence_only_surfaces(report).len();
     report.display_limit >= 30
         && (report.total_changed_count > 20
             || report.changed.len() > 5
             || changed_proof_command_groups(report).len() > COMPACT_CHANGED_PROOF_COMMAND_LIMIT
+            || setup_group_count > COMPACT_CHANGED_PROOF_COMMAND_LIMIT
+            || soft_group_count > COMPACT_CHANGED_PROOF_COMMAND_LIMIT
+            || evidence_only_count > COMPACT_CHANGED_PROOF_COMMAND_LIMIT
+            || report.unknowns.len() > 5
             || report
                 .hidden
                 .iter()
@@ -152,9 +159,7 @@ fn changed_risks_section(report: &ChangedReport, force: bool, compact: bool) {
         return;
     }
     println!("\n## Risks\n");
-    if !compact {
-        println!("Mechanical facts only. Not an edit verdict.\n");
-    }
+    println!("Mechanical facts only. Not an edit verdict.\n");
     if let Some(prelude) = current_map_prelude() {
         if has_live_untracked {
             println!(
@@ -222,9 +227,7 @@ fn changed_coupling_section(report: &ChangedReport, force: bool, compact: bool) 
         return;
     }
     println!("\n## Coupling\n");
-    if !compact {
-        println!("Deterministic relationship facts only.\n");
-    }
+    println!("Deterministic relationship facts only.\n");
     let limit = changed_render_limit(report, compact);
     for fact in report.coupling.iter().take(limit) {
         if compact {

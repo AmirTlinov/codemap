@@ -74,10 +74,22 @@ pub fn cone_report(
     let mut boundary = cone_boundary_edges(project, &rel, &depths);
     if seed_files.len() == 1 {
         let seed = &seed_files[0];
-        outgoing.extend(cone_owner_outgoing_edges(project, seed));
+        if file_is_env_config(project, seed) {
+            let env_facts = owner_env_facts(project, seed);
+            let owner_outgoing = owner_env_edges_from_facts(seed, &env_facts);
+            proof.extend(cone_owner_env_proof_edges_from_facts(
+                project,
+                seed,
+                &env_facts,
+            ));
+            unknowns.extend(owner_env_unknowns_from_facts(seed, &env_facts));
+            outgoing.extend(owner_outgoing);
+        } else {
+            outgoing.extend(cone_owner_outgoing_edges(project, seed));
+            proof.extend(cone_owner_proof_edges(project, seed));
+            unknowns.extend(cone_owner_unknowns(project, seed));
+        }
         incoming.extend(cone_owner_incoming_edges(project, seed));
-        proof.extend(cone_owner_proof_edges(project, seed));
-        unknowns.extend(cone_owner_unknowns(project, seed));
     }
     sort_edges(&mut outgoing);
     sort_edges(&mut incoming);

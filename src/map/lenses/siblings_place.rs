@@ -100,7 +100,11 @@ pub fn siblings_report(
             ),
         );
     }
-    let runtime_facts = runtime_fact_index(project);
+    let runtime_fact_paths = scope_files
+        .iter()
+        .map(|file| file.rel.clone())
+        .collect::<Vec<_>>();
+    let runtime_facts = runtime_fact_index_for_paths(project, &runtime_fact_paths);
     let mut route_service_test_triplets =
         route_service_test_triplets(&scope, &runtime_facts, &scope_files);
     truncate_with_hidden(
