@@ -297,7 +297,15 @@ fn looks_like_recursive_source_file(value: &str) -> bool {
 }
 
 fn proof_map_has_sensor_or_hidden(proof_map: &Value) -> bool {
-    ["direct", "indirect", "e2e", "contract", "commands", "hidden"]
+    [
+        "hard",
+        "direct_evidence",
+        "mediated_evidence",
+        "soft_evidence",
+        "setup_support",
+        "commands",
+        "hidden",
+    ]
         .into_iter()
         .any(|section| {
             proof_map[section]

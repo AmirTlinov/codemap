@@ -2,6 +2,58 @@
 
 ## 2026-05-04
 
+- Issue: `proof-map --format json` still uses legacy bucket names that can overstate soft evidence.
+  - Evidence: live local build on `/Users/amir/Documents/projects/tools/cli/ctx`, command
+    `cargo run --quiet --bin codemap -- proof-map src/map/cone_xray.rs --format json`.
+  - Observed: the JSON report put a `test_name` sensor with `strength: medium` and reason
+    `test name matches anchor` under top-level `direct`.
+  - Why it hurts trust: markdown renders this class as soft evidence, but JSON is the schema-backed escape
+    hatch. An agent reading `direct` in JSON can treat token/name overlap as direct proof relation.
+  - Boundary: the sensor itself is real and source-backed; the public JSON bucket vocabulary is too strong.
+  - Follow-up: add or migrate to taxonomy-aligned proof-map JSON buckets such as `hard`, `direct_evidence`,
+    `mediated_evidence`, `soft_evidence`, and `setup_support`, while preserving sensor provenance and Unknown.
+  - Status: fixed in `0.2.21`; proof-map JSON schema v3 now emits taxonomy buckets, and live local output keeps
+    `test_name` under `soft_evidence` with `commands: []` when no hard/runnable validation exists.
+
+- Issue: `changed --section proof --format json` can still group soft proof sensors under `proof.commands`.
+  - Evidence: live local build on `/Users/amir/Documents/projects/tools/cli/ctx`, command
+    `cargo run --quiet --bin codemap -- changed --files src/map/cone_xray.rs --section proof --format json`.
+  - Observed: `proof.soft_evidence` correctly contains `test_name`, but `proof.commands` also contains
+    `cargo test` with the same soft `test_name` sensor.
+  - Why it hurts trust: even after taxonomy buckets are present, a machine reader can treat `proof.commands`
+    as runnable validation proof instead of a soft command-bearing surface.
+  - Boundary: the command string is source-backed; the relation to the anchor is soft and should not be in a
+    command summary intended for runnable validation.
+  - Follow-up: make changed proof command summaries group only hard/runnable validation sensors, leaving soft
+    command-bearing rows in `soft_evidence`.
+  - Status: fixed in `0.2.21`; changed proof JSON now leaves soft command-bearing sensors in `soft_evidence`
+    and keeps `proof.commands` empty when no hard/runnable validation exists.
+
+- Issue: `changed --section proof --format json` still carries soft test edges inside `impact.proof`.
+  - Evidence: live local build on `/Users/amir/Documents/projects/tools/cli/ctx`, command
+    `cargo run --quiet --bin codemap -- changed --files src/map/cone_xray.rs --section proof --format json`.
+  - Observed: `impact[0].proof` contains `test_name` and `test_surface_tokens_via_direct_consumer` edges with
+    `strength: medium`.
+  - Why it hurts trust: the relation strength is visible, but the bucket name `proof` is stronger than the
+    evidence class and differs from the taxonomy-aligned `proof.soft_evidence` section in the same JSON.
+  - Boundary: this is not a false edge; it is an old impact JSON vocabulary issue outside the current proof-map
+    bucket migration.
+  - Follow-up: rename or split impact proof edges into taxonomy-aligned evidence buckets, or label the array as
+    `proof_evidence` / `soft_evidence` so medium token relations cannot read as proof.
+
+- Issue: cold exact `proof-map --format json` can still be too slow on a large real repo.
+  - Evidence: installed PATH `codemap 0.2.21`, dogfood output
+    `target/dogfood-proofmap-taxonomy-2026-05-04/summary.json`, repo
+    `/Users/amir/Documents/projects/main_cluster`, anchor `.agents/mcp/compas/baselines/duplicates.json`.
+  - Observed: exact `proof-map <anchor> --format json` took `7001ms`, while the warmed markdown proof-map for
+    the same anchor took `209ms`.
+  - Why it hurts trust: JSON is the machine escape hatch. If exact-scope JSON pays a cold full-repo tax, agents
+    may avoid the precise map or overuse stale/cached output.
+  - Boundary: taxonomy checks passed and the map did not overstate evidence; this is an efficiency/cold-path
+    defect, not a false proof relation.
+  - Follow-up: add a bounded exact-anchor cold path for proof-map JSON, or reuse the same inventory/proof sensor
+    fast path before full project graph construction.
+
 - Issue: X-Ray cone output still inherits the compact snapshot header instead of the full product snapshot
   contract.
   - Evidence: live local build after the X-Ray slice, repo `/Users/amir/Documents/projects/tools/cli/ctx`,

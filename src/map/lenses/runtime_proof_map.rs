@@ -187,10 +187,7 @@ pub fn proof_map_report(
     let scope = scope.map(|value| repo::normalize_rel_path(&value));
     let (seeds, hidden_seed_count) = proof_map_seed_selection(project, scope.as_deref(), &changed, raw_sensors);
     let route_index_paths = proof_map_route_index_paths(project, scope.as_deref(), &seeds);
-    let mut direct = Vec::new();
-    let mut indirect = Vec::new();
-    let mut e2e = Vec::new();
-    let mut contract = Vec::new();
+    let mut surfaces = Vec::new();
     let mut missing_direct = Vec::new();
     let mut unknowns = Vec::new();
     let mut scope_expand = Vec::new();
@@ -208,16 +205,16 @@ pub fn proof_map_report(
     }
     let (current_direct, current_e2e) =
         proof_map_current_level_containers(project, scope.as_deref(), raw_sensors);
-    direct.extend(current_direct);
-    e2e.extend(current_e2e);
+    surfaces.extend(current_direct);
+    surfaces.extend(current_e2e);
     if scope.is_none() && !changed.is_empty() {
-        direct.extend(ctx_changed_proof_surfaces(project));
+        surfaces.extend(ctx_changed_proof_surfaces(project));
     }
     for seed in &seeds {
         if let Some(file) = project.files.get(seed) {
             unknowns.extend(unknowns_for_file(project, file));
             let file_routes = runtime_facts.routes_for_file(seed);
-            e2e.extend(route_proof_surfaces_for_routes(
+            surfaces.extend(route_proof_surfaces_for_routes(
                 project,
                 file_routes.clone(),
                 &runtime_facts,
@@ -253,51 +250,62 @@ pub fn proof_map_report(
             unknowns.push(unknown);
         }
         for proof in proofs {
-            if proof.evidence.contains("via_") {
-                indirect.push(proof);
-            } else if proof.evidence.starts_with("e2e") {
-                e2e.push(proof);
-            } else if project
-                .files
-                .get(seed)
-                .and_then(contract_evidence)
-                .is_some()
-            {
-                contract.push(proof);
-            } else {
-                direct.push(proof);
-            }
+            surfaces.push(proof);
         }
     }
     if let Some((unknown, expand)) =
-        proof_map_exact_scope_repair(project, scope.as_deref(), &direct, &indirect, &e2e, &contract)
+        proof_map_exact_scope_repair(project, scope.as_deref(), &surfaces)
     {
         unknowns.push(unknown);
         scope_expand.push(expand);
     }
+    let mut hard = Vec::new();
+    let mut direct_evidence = Vec::new();
+    let mut mediated_evidence = Vec::new();
+    let mut soft_evidence = Vec::new();
+    let mut setup_support = Vec::new();
+    for proof in surfaces {
+        match crate::proof_classification::proof_surface_class(&proof) {
+            crate::proof_classification::ProofSurfaceClass::Hard => hard.push(proof),
+            crate::proof_classification::ProofSurfaceClass::DirectEvidence => {
+                direct_evidence.push(proof)
+            }
+            crate::proof_classification::ProofSurfaceClass::MediatedEvidence => {
+                mediated_evidence.push(proof)
+            }
+            crate::proof_classification::ProofSurfaceClass::SoftEvidence => soft_evidence.push(proof),
+            crate::proof_classification::ProofSurfaceClass::SetupSupport => setup_support.push(proof),
+        }
+    }
     if !raw_sensors {
         group_duplicate_proof_surfaces(
-            &mut direct,
+            &mut hard,
             &mut hidden,
-            "duplicate direct proof sensors grouped by structural key",
+            "duplicate hard proof sensors grouped by structural key",
             &expand_raw_sensors,
         );
         group_duplicate_proof_surfaces(
-            &mut indirect,
+            &mut direct_evidence,
             &mut hidden,
-            "duplicate indirect proof sensors grouped by structural key",
+            "duplicate direct evidence sensors grouped by structural key",
             &expand_raw_sensors,
         );
         group_duplicate_proof_surfaces(
-            &mut e2e,
+            &mut mediated_evidence,
             &mut hidden,
-            "duplicate e2e proof sensors grouped by structural key",
+            "duplicate mediated evidence sensors grouped by structural key",
             &expand_raw_sensors,
         );
         group_duplicate_proof_surfaces(
-            &mut contract,
+            &mut soft_evidence,
             &mut hidden,
-            "duplicate contract proof sensors grouped by structural key",
+            "duplicate soft evidence sensors grouped by structural key",
+            &expand_raw_sensors,
+        );
+        group_duplicate_proof_surfaces(
+            &mut setup_support,
+            &mut hidden,
+            "duplicate setup/support proof sensors grouped by structural key",
             &expand_raw_sensors,
         );
         group_duplicate_missing_surfaces(
@@ -314,31 +322,38 @@ pub fn proof_map_report(
         );
     }
     truncate_with_hidden(
-        &mut direct,
+        &mut hard,
         limit,
         &mut hidden,
-        "direct proof surfaces hidden by limit",
+        "hard proof surfaces hidden by limit",
         &expand_larger_limit,
     );
     truncate_with_hidden(
-        &mut indirect,
+        &mut direct_evidence,
         limit,
         &mut hidden,
-        "indirect proof surfaces hidden by limit",
+        "direct evidence surfaces hidden by limit",
         &expand_larger_limit,
     );
     truncate_with_hidden(
-        &mut e2e,
+        &mut mediated_evidence,
         limit,
         &mut hidden,
-        "e2e proof surfaces hidden by limit",
+        "mediated evidence surfaces hidden by limit",
         &expand_larger_limit,
     );
     truncate_with_hidden(
-        &mut contract,
+        &mut soft_evidence,
         limit,
         &mut hidden,
-        "contract proof surfaces hidden by limit",
+        "soft evidence surfaces hidden by limit",
+        &expand_larger_limit,
+    );
+    truncate_with_hidden(
+        &mut setup_support,
+        limit,
+        &mut hidden,
+        "setup/support proof surfaces hidden by limit",
         &expand_larger_limit,
     );
     truncate_with_hidden(
@@ -356,28 +371,34 @@ pub fn proof_map_report(
         &expand_larger_limit,
     );
     let commands = unique_proof_commands(
-        direct
+        hard
             .iter()
-            .chain(indirect.iter())
-            .chain(e2e.iter())
-            .chain(contract.iter())
             .filter(|proof| proof.command.is_some())
             .cloned()
             .collect(),
     );
-    let fallback = proof_fallback_commands(project, &seeds, &changed, &commands);
+    let fallback_sources = hard
+        .iter()
+        .chain(direct_evidence.iter())
+        .chain(mediated_evidence.iter())
+        .chain(soft_evidence.iter())
+        .chain(setup_support.iter())
+        .cloned()
+        .collect::<Vec<_>>();
+    let fallback = proof_fallback_commands(project, &seeds, &changed, &fallback_sources);
     let proof_expand = proof_map_proof_expand(&proof_selector);
     let mut expand = vec![proof_expand];
     expand.extend(scope_expand);
     ProofMapReport {
         kind: "proof_map_report",
-        schema_version: "2",
+        schema_version: "3",
         scope,
         changed,
-        direct,
-        indirect,
-        e2e,
-        contract,
+        hard,
+        direct_evidence,
+        mediated_evidence,
+        soft_evidence,
+        setup_support,
         missing_direct,
         commands,
         fallback,

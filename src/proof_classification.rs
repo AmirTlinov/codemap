@@ -1,5 +1,30 @@
 use crate::model::{EvidenceStrength, ProofSurface};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProofSurfaceClass {
+    Hard,
+    DirectEvidence,
+    MediatedEvidence,
+    SoftEvidence,
+    SetupSupport,
+}
+
+pub fn proof_surface_class(proof: &ProofSurface) -> ProofSurfaceClass {
+    if proof_surface_is_setup_or_support(proof) {
+        return ProofSurfaceClass::SetupSupport;
+    }
+    if proof_surface_is_mediated_evidence(proof) {
+        return ProofSurfaceClass::MediatedEvidence;
+    }
+    if proof_surface_is_soft_evidence(proof) {
+        return ProofSurfaceClass::SoftEvidence;
+    }
+    if proof_surface_is_runnable_validation(proof) {
+        return ProofSurfaceClass::Hard;
+    }
+    ProofSurfaceClass::DirectEvidence
+}
+
 pub fn proof_base_evidence(evidence: &str) -> &str {
     evidence
         .strip_suffix("_owning_file")
@@ -58,6 +83,10 @@ pub fn proof_surface_is_soft_evidence(proof: &ProofSurface) -> bool {
     false
 }
 
+pub fn proof_surface_is_mediated_evidence(proof: &ProofSurface) -> bool {
+    proof_evidence_is_mediated(&proof.evidence) || proof.evidence.ends_with("_owning_file")
+}
+
 pub fn proof_evidence_is_direct_validation(evidence: &str) -> bool {
     if proof_evidence_is_mediated(evidence) {
         return false;
@@ -70,6 +99,7 @@ pub fn proof_evidence_is_direct_validation(evidence: &str) -> bool {
             | "test_support_import"
             | "test_symbol_reference"
             | "e2e_route"
+            | "current_level_proof_container"
     )
 }
 

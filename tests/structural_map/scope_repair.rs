@@ -101,9 +101,23 @@ fn proof_map_empty_exact_scope_points_to_nearest_parent_proof_scope() {
     );
     assert_schema("schemas/proof-map.schema.json", &proof_map);
     assert!(
-        proof_map["direct"].as_array().expect("direct").is_empty()
-            && proof_map["e2e"].as_array().expect("e2e").is_empty()
-            && proof_map["contract"].as_array().expect("contract").is_empty(),
+        proof_map["hard"].as_array().expect("hard").is_empty()
+            && proof_map["direct_evidence"]
+                .as_array()
+                .expect("direct evidence")
+                .is_empty()
+            && proof_map["mediated_evidence"]
+                .as_array()
+                .expect("mediated evidence")
+                .is_empty()
+            && proof_map["soft_evidence"]
+                .as_array()
+                .expect("soft evidence")
+                .is_empty()
+            && proof_map["setup_support"]
+                .as_array()
+                .expect("setup support")
+                .is_empty(),
         "narrow proof-map scope should start without deterministic sensors: {proof_map:#}"
     );
     assert!(

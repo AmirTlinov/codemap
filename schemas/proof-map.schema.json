@@ -9,10 +9,11 @@
     "schema_version",
     "scope",
     "changed",
-    "direct",
-    "indirect",
-    "e2e",
-    "contract",
+    "hard",
+    "direct_evidence",
+    "mediated_evidence",
+    "soft_evidence",
+    "setup_support",
     "missing_direct",
     "commands",
     "fallback",
@@ -25,7 +26,7 @@
       "const": "proof_map_report"
     },
     "schema_version": {
-      "const": "2"
+      "const": "3"
     },
     "scope": {
       "anyOf": [
@@ -43,25 +44,31 @@
         "type": "string"
       }
     },
-    "direct": {
+    "hard": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/proof_surface"
       }
     },
-    "indirect": {
+    "direct_evidence": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/proof_surface"
       }
     },
-    "e2e": {
+    "mediated_evidence": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/proof_surface"
       }
     },
-    "contract": {
+    "soft_evidence": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/proof_surface"
+      }
+    },
+    "setup_support": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/proof_surface"

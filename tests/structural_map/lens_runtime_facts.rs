@@ -233,9 +233,9 @@ fn proof_map_shows_e2e_route_sensors_for_runtime_routes() {
     );
     assert_schema("schemas/proof-map.schema.json", &proof_map);
     assert!(
-        proof_map["e2e"]
+        proof_map["hard"]
             .as_array()
-            .expect("e2e proof surfaces")
+            .expect("hard proof surfaces")
             .iter()
             .any(|proof| proof["path"] == "packages/app/tests/e2e/auth.spec.ts"
                 && proof["evidence"] == "e2e_visited_route"
@@ -291,9 +291,9 @@ fn proof_map_changed_shows_route_sensor_for_changed_route_file() {
         "proof-map --changed should anchor on the changed route file: {proof_map:#}"
     );
     assert!(
-        proof_map["e2e"]
+        proof_map["hard"]
             .as_array()
-            .expect("e2e proof surfaces")
+            .expect("hard proof surfaces")
             .iter()
             .any(|proof| proof["path"] == "packages/app/tests/e2e/auth.spec.ts"
                 && proof["evidence"] == "e2e_visited_route"),
@@ -323,9 +323,9 @@ fn proof_map_keeps_multiple_route_sensors_from_one_e2e_file() {
     assert_schema("schemas/proof-map.schema.json", &proof_map);
     for expected in ["GET /auth/login", "GET /auth/logout"] {
         assert!(
-            proof_map["e2e"]
+            proof_map["hard"]
                 .as_array()
-                .expect("e2e proof surfaces")
+                .expect("hard proof surfaces")
                 .iter()
                 .any(|proof| proof["path"] == "packages/app/tests/e2e/auth.spec.ts"
                     && proof["reason"]
@@ -365,9 +365,9 @@ fn proof_map_page_navigation_does_not_prove_post_route() {
     );
     assert_schema("schemas/proof-map.schema.json", &proof_map);
     assert!(
-        proof_map["e2e"]
+        proof_map["hard"]
             .as_array()
-            .expect("e2e proof surfaces")
+            .expect("hard proof surfaces")
             .iter()
             .all(|proof| !proof["reason"]
                 .as_str()
@@ -406,9 +406,9 @@ fn proof_map_page_navigation_does_not_choose_between_duplicate_get_routes() {
     );
     assert_schema("schemas/proof-map.schema.json", &proof_map);
     assert!(
-        proof_map["e2e"]
+        proof_map["hard"]
             .as_array()
-            .expect("e2e proof surfaces")
+            .expect("hard proof surfaces")
             .iter()
             .all(|proof| !proof["reason"]
                 .as_str()
@@ -461,9 +461,9 @@ fn proof_map_page_navigation_does_not_cross_package_runtime_scope() {
     );
     assert_schema("schemas/proof-map.schema.json", &proof_map);
     assert!(
-        proof_map["e2e"]
+        proof_map["hard"]
             .as_array()
-            .expect("e2e proof surfaces")
+            .expect("hard proof surfaces")
             .iter()
             .all(|proof| proof["path"] != "packages/admin/tests/e2e/auth.spec.ts"),
         "same URL path in another package must not become proof for this route owner: {proof_map:#}"

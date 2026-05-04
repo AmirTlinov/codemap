@@ -25,7 +25,7 @@ pub fn changed_report(
     if total_changed_count == 0 && git_state.is_empty() {
         return ChangedReport {
             kind: "changed_report",
-            schema_version: "3",
+            schema_version: "4",
             selector: selector.clone(),
             display_limit: limit,
             proof_plan_cache: None,
@@ -51,10 +51,11 @@ pub fn changed_report(
             proof: ChangedProofSummary {
                 commands: Vec::new(),
                 fallback: Vec::new(),
-                direct: Vec::new(),
-                indirect: Vec::new(),
-                e2e: Vec::new(),
-                contract: Vec::new(),
+                hard: Vec::new(),
+                direct_evidence: Vec::new(),
+                mediated_evidence: Vec::new(),
+                soft_evidence: Vec::new(),
+                setup_support: Vec::new(),
                 missing_direct: Vec::new(),
             },
             unknowns: Vec::new(),
@@ -99,7 +100,7 @@ pub fn changed_report(
     );
     ChangedReport {
         kind: "changed_report",
-        schema_version: "3",
+        schema_version: "4",
         selector: selector.clone(),
         display_limit: limit,
         proof_plan_cache: Some(Box::new(proof_plan_cache)),
@@ -180,7 +181,7 @@ pub fn changed_report(
 pub fn clean_changed_report(selector: String, limit: usize) -> ChangedReport {
     ChangedReport {
         kind: "changed_report",
-        schema_version: "3",
+        schema_version: "4",
         selector: selector.clone(),
         display_limit: limit.max(1),
         proof_plan_cache: None,
@@ -206,10 +207,11 @@ pub fn clean_changed_report(selector: String, limit: usize) -> ChangedReport {
         proof: ChangedProofSummary {
             commands: Vec::new(),
             fallback: Vec::new(),
-            direct: Vec::new(),
-            indirect: Vec::new(),
-            e2e: Vec::new(),
-            contract: Vec::new(),
+            hard: Vec::new(),
+            direct_evidence: Vec::new(),
+            mediated_evidence: Vec::new(),
+            soft_evidence: Vec::new(),
+            setup_support: Vec::new(),
             missing_direct: Vec::new(),
         },
         unknowns: Vec::new(),
@@ -238,14 +240,7 @@ fn count_with_hidden(visible: usize, hidden: &[HiddenGroup], reason: &str) -> us
 fn changed_proof_summary(report: ProofMapReport, limit: usize) -> ChangedProofSummary {
     let command_sensor_limit = limit.min(8);
     let mut by_command: BTreeMap<String, Vec<ProofSurface>> = BTreeMap::new();
-    for proof in report
-        .direct
-        .iter()
-        .chain(report.indirect.iter())
-        .chain(report.e2e.iter())
-        .chain(report.contract.iter())
-        .chain(report.commands.iter())
-    {
+    for proof in report.hard.iter() {
         if let Some(command) = &proof.command {
             by_command
                 .entry(command.clone())
@@ -277,10 +272,11 @@ fn changed_proof_summary(report: ProofMapReport, limit: usize) -> ChangedProofSu
     ChangedProofSummary {
         commands,
         fallback: report.fallback,
-        direct: report.direct,
-        indirect: report.indirect,
-        e2e: report.e2e,
-        contract: report.contract,
+        hard: report.hard,
+        direct_evidence: report.direct_evidence,
+        mediated_evidence: report.mediated_evidence,
+        soft_evidence: report.soft_evidence,
+        setup_support: report.setup_support,
         missing_direct: report.missing_direct,
     }
 }

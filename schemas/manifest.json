@@ -49,7 +49,7 @@
       "kind": "changed",
       "file": "schemas/changed.schema.json",
       "contract": "structural_output",
-      "schema_version": "3",
+      "schema_version": "4",
       "json_kind": "changed_report"
     },
     {
@@ -84,7 +84,7 @@
       "kind": "proof-map",
       "file": "schemas/proof-map.schema.json",
       "contract": "structural_output",
-      "schema_version": "2",
+      "schema_version": "3",
       "json_kind": "proof_map_report"
     },
     {

@@ -22,9 +22,9 @@ fn proof_map_groups_duplicate_direct_sensors_in_directory_scope() {
         &["proof-map", "packages/app/src", "--format", "json"],
     );
     assert_schema("schemas/proof-map.schema.json", &proof_map);
-    let duplicate_test_surfaces = proof_map["direct"]
+    let duplicate_test_surfaces = proof_map["hard"]
         .as_array()
-        .expect("direct proof surfaces")
+        .expect("hard proof surfaces")
         .iter()
         .filter(|proof| {
             proof["path"] == "packages/app/tests/dual.test.ts"
@@ -41,7 +41,7 @@ fn proof_map_groups_duplicate_direct_sensors_in_directory_scope() {
             .expect("hidden")
             .iter()
             .any(|hidden| hidden["reason"].as_str().is_some_and(|reason| {
-                reason == "duplicate direct proof sensors grouped by structural key"
+                reason == "duplicate hard proof sensors grouped by structural key"
             }) && hidden["expand"]
                 .as_str()
                 .is_some_and(|expand| expand.contains("--raw-sensors"))),
@@ -129,9 +129,9 @@ fn proof_map_raw_sensors_reveals_grouped_duplicates() {
         ],
     );
     assert_schema("schemas/proof-map.schema.json", &proof_map);
-    let duplicate_test_surfaces = proof_map["direct"]
+    let duplicate_test_surfaces = proof_map["hard"]
         .as_array()
-        .expect("direct proof surfaces")
+        .expect("hard proof surfaces")
         .iter()
         .filter(|proof| {
             proof["path"] == "packages/app/tests/dual.test.ts"
@@ -275,7 +275,13 @@ fn proof_map_explicit_root_stays_current_level_until_raw_sensors() {
                     .is_some_and(|expand| expand.starts_with("codemap proof-map . --raw-sensors --limit "))),
         "explicit root proof-map should make recursive proof seeds opt-in instead of scanning the whole repo by default: {proof_map:#}"
     );
-    for section in ["direct", "indirect", "e2e", "contract"] {
+    for section in [
+        "hard",
+        "direct_evidence",
+        "mediated_evidence",
+        "soft_evidence",
+        "setup_support",
+    ] {
         assert!(
             proof_map[section]
                 .as_array()
@@ -346,9 +352,9 @@ fn proof_map_root_shows_current_level_test_containers_not_recursive_files() {
     );
     assert_schema("schemas/proof-map.schema.json", &proof_map);
     assert!(
-        proof_map["direct"]
+        proof_map["direct_evidence"]
             .as_array()
-            .expect("direct proof")
+            .expect("direct evidence")
             .iter()
             .any(|proof| proof["path"] == "tests/"
                 && proof["evidence"] == "current_level_proof_container"
@@ -359,9 +365,9 @@ fn proof_map_root_shows_current_level_test_containers_not_recursive_files() {
         "root proof-map should show current-level test containers without listing every test file: {proof_map:#}"
     );
     assert!(
-        proof_map["direct"]
+        proof_map["direct_evidence"]
             .as_array()
-            .expect("direct proof")
+            .expect("direct evidence")
             .iter()
             .filter_map(|proof| proof["path"].as_str())
             .all(|path| path != "tests/root-smoke.test.ts" && !path.ends_with(".md")),
@@ -377,9 +383,9 @@ fn proof_map_root_shows_current_level_test_containers_not_recursive_files() {
         "current-level proof containers must not invent one nested test command for the whole container: {proof_map:#}"
     );
     assert!(
-        proof_map["e2e"]
+        proof_map["direct_evidence"]
             .as_array()
-            .expect("e2e proof")
+            .expect("direct evidence")
             .iter()
             .filter_map(|proof| proof["path"].as_str())
             .all(|path| path != "packages/"),

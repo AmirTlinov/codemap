@@ -21,16 +21,10 @@ fn proof_map_changed_scope_repair_unknown(
 fn proof_map_exact_scope_repair(
     project: &Project,
     scope: Option<&str>,
-    direct: &[ProofSurface],
-    indirect: &[ProofSurface],
-    e2e: &[ProofSurface],
-    contract: &[ProofSurface],
+    surfaces: &[ProofSurface],
 ) -> Option<(Unknown, String)> {
     let target = scope?;
-    if !direct.is_empty()
-        || !indirect.is_empty()
-        || !e2e.is_empty()
-        || !contract.is_empty()
+    if !surfaces.is_empty()
         || (!project.files.contains_key(target) && !directory_has_files(project, target))
     {
         return None;

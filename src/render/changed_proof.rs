@@ -1,10 +1,12 @@
 fn changed_proof_section(report: &ChangedReport, compact: bool) {
     println!("\n## Proof");
-    let grouped = changed_proof_command_groups(report);
-    let runnable = changed_proof_groups_by_class(&grouped, ChangedProofGroupClass::Runnable);
+    let runnable_grouped = changed_proof_command_groups(report);
+    let setup_grouped = changed_proof_surface_groups(report.proof.setup_support.iter());
+    let soft_grouped = changed_proof_surface_groups(report.proof.soft_evidence.iter());
+    let runnable = changed_proof_groups_by_class(&runnable_grouped, ChangedProofGroupClass::Runnable);
     let evidence_only = changed_proof_evidence_only_surfaces(report);
-    let setup = changed_proof_groups_by_class(&grouped, ChangedProofGroupClass::Setup);
-    let soft = changed_proof_groups_by_class(&grouped, ChangedProofGroupClass::Soft);
+    let setup = changed_proof_groups_by_class(&setup_grouped, ChangedProofGroupClass::Setup);
+    let soft = changed_proof_groups_by_class(&soft_grouped, ChangedProofGroupClass::Soft);
     if runnable.is_empty() && report.proof.fallback.is_empty() {
         println!("No runnable proof command inferred.");
     }
@@ -42,11 +44,12 @@ fn changed_proof_evidence_only_surfaces(report: &ChangedReport) -> Vec<&ProofSur
     let mut surfaces = Vec::new();
     for sensor in report
         .proof
-        .direct
+        .hard
         .iter()
-        .chain(report.proof.indirect.iter())
-        .chain(report.proof.e2e.iter())
-        .chain(report.proof.contract.iter())
+        .chain(report.proof.direct_evidence.iter())
+        .chain(report.proof.mediated_evidence.iter())
+        .chain(report.proof.soft_evidence.iter())
+        .chain(report.proof.setup_support.iter())
     {
         if !crate::proof_classification::proof_surface_is_evidence_only(sensor) {
             continue;
@@ -157,11 +160,12 @@ struct ChangedProofPublicSensorCounts {
 fn changed_proof_public_sensor_counts(report: &ChangedReport) -> ChangedProofPublicSensorCounts {
     let sensors = report
         .proof
-        .direct
+        .hard
         .iter()
-        .chain(report.proof.indirect.iter())
-        .chain(report.proof.e2e.iter())
-        .chain(report.proof.contract.iter())
+        .chain(report.proof.direct_evidence.iter())
+        .chain(report.proof.mediated_evidence.iter())
+        .chain(report.proof.soft_evidence.iter())
+        .chain(report.proof.setup_support.iter())
         .collect::<Vec<_>>();
     let runnable_direct = sensors
         .iter()
@@ -287,6 +291,21 @@ fn changed_proof_command_groups(
                 .or_insert_with(|| (Vec::new(), 0))
                 .1 += command.hidden_count;
         }
+    }
+    grouped
+}
+
+fn changed_proof_surface_groups<'a>(
+    surfaces: impl Iterator<Item = &'a ProofSurface>,
+) -> std::collections::BTreeMap<String, (Vec<&'a ProofSurface>, usize)> {
+    let mut grouped: std::collections::BTreeMap<String, (Vec<&ProofSurface>, usize)> =
+        std::collections::BTreeMap::new();
+    for sensor in surfaces {
+        grouped
+            .entry(proof_display_command(sensor))
+            .or_insert_with(|| (Vec::new(), 0))
+            .0
+            .push(sensor);
     }
     grouped
 }

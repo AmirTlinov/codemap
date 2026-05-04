@@ -81,7 +81,7 @@ mod tests {
         group_duplicate_proof_surfaces(
             &mut proofs,
             &mut hidden,
-            "duplicate direct proof sensors grouped by structural key",
+            "duplicate hard proof sensors grouped by structural key",
             "codemap proof-map . --limit <larger-number>",
         );
 
@@ -145,7 +145,7 @@ mod tests {
         group_duplicate_proof_surfaces(
             &mut proofs,
             &mut hidden,
-            "duplicate e2e proof sensors grouped by structural key",
+            "duplicate hard proof sensors grouped by structural key",
             "codemap proof-map . --limit <larger-number>",
         );
 

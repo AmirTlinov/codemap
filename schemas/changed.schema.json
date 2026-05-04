@@ -21,7 +21,7 @@
   ],
   "properties": {
     "kind": { "const": "changed_report" },
-    "schema_version": { "const": "3" },
+    "schema_version": { "const": "4" },
     "selector": { "type": "string" },
     "total_changed_count": { "type": "integer", "minimum": 0 },
     "changed": {
@@ -228,14 +228,24 @@
     "proof_summary": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["commands", "fallback", "direct", "indirect", "e2e", "contract", "missing_direct"],
+      "required": [
+        "commands",
+        "fallback",
+        "hard",
+        "direct_evidence",
+        "mediated_evidence",
+        "soft_evidence",
+        "setup_support",
+        "missing_direct"
+      ],
       "properties": {
         "commands": { "type": "array", "items": { "$ref": "#/$defs/proof_command" } },
         "fallback": { "type": "array", "items": { "type": "string" } },
-        "direct": { "type": "array", "items": { "$ref": "#/$defs/proof_surface" } },
-        "indirect": { "type": "array", "items": { "$ref": "#/$defs/proof_surface" } },
-        "e2e": { "type": "array", "items": { "$ref": "#/$defs/proof_surface" } },
-        "contract": { "type": "array", "items": { "$ref": "#/$defs/proof_surface" } },
+        "hard": { "type": "array", "items": { "$ref": "#/$defs/proof_surface" } },
+        "direct_evidence": { "type": "array", "items": { "$ref": "#/$defs/proof_surface" } },
+        "mediated_evidence": { "type": "array", "items": { "$ref": "#/$defs/proof_surface" } },
+        "soft_evidence": { "type": "array", "items": { "$ref": "#/$defs/proof_surface" } },
+        "setup_support": { "type": "array", "items": { "$ref": "#/$defs/proof_surface" } },
         "missing_direct": { "type": "array", "items": { "$ref": "#/$defs/surface" } }
       }
     },

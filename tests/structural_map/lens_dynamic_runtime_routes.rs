@@ -27,9 +27,9 @@ fn runtime_fact_index_matches_dynamic_next_route_visits() {
     );
     assert_schema("schemas/proof-map.schema.json", &proof_map);
     assert!(
-        proof_map["e2e"]
+        proof_map["hard"]
             .as_array()
-            .expect("e2e")
+            .expect("hard")
             .iter()
             .any(|proof| proof["path"] == "tests/e2e/dynamic-user.spec.ts"
                 && proof["evidence"] == "e2e_visited_route"
@@ -43,9 +43,9 @@ fn runtime_fact_index_matches_dynamic_next_route_visits() {
         "tests/e2e/dynamic-user-missing.spec.ts",
     ] {
         assert!(
-            proof_map["e2e"]
+            proof_map["hard"]
                 .as_array()
-                .expect("e2e")
+                .expect("hard")
                 .iter()
                 .all(|proof| proof["path"] != false_proof),
             "dynamic runtime route matching must not overmatch sibling path shapes: {proof_map:#}"
@@ -115,9 +115,9 @@ fn dynamic_route_visit_fails_closed_when_static_route_owner_also_matches() {
     );
     assert_schema("schemas/proof-map.schema.json", &proof_map);
     assert!(
-        proof_map["e2e"]
+        proof_map["hard"]
             .as_array()
-            .expect("e2e")
+            .expect("hard")
             .iter()
             .all(|proof| proof["path"] != "tests/e2e/user-settings.spec.ts"),
         "dynamic route proof must fail closed when a concrete visit also matches a static owner: {proof_map:#}"
@@ -191,9 +191,9 @@ fn workspace_package_dynamic_routes_use_same_owner_policy_in_proof_and_proof_map
     );
     assert_schema("schemas/proof-map.schema.json", &proof_map);
     assert!(
-        proof_map["e2e"]
+        proof_map["hard"]
             .as_array()
-            .expect("e2e")
+            .expect("hard")
             .iter()
             .any(|proof| proof["path"] == "packages/app/tests/e2e/user.spec.ts"
                 && proof["evidence"] == "e2e_visited_route"

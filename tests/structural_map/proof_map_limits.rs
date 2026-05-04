@@ -28,7 +28,7 @@ fn proof_map_counts_hidden_direct_surfaces_before_limit() {
     );
     assert_schema("schemas/proof-map.schema.json", &proof_map);
     assert_eq!(
-        proof_map["direct"].as_array().expect("direct").len(),
+        proof_map["hard"].as_array().expect("hard").len(),
         1
     );
     assert!(
@@ -36,7 +36,7 @@ fn proof_map_counts_hidden_direct_surfaces_before_limit() {
             .as_array()
             .expect("hidden")
             .iter()
-            .any(|group| group["reason"] == "direct proof surfaces hidden by limit"
+            .any(|group| group["reason"] == "hard proof surfaces hidden by limit"
                 && group["count"] == 2
                 && group["expand"]
                     == "codemap proof-map packages/replay/src/multi-proof.ts --limit 3"),

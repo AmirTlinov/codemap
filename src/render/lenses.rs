@@ -99,57 +99,26 @@ pub fn proof_map(report: &ProofMapReport) {
 }
 
 fn proof_map_surface_sections(report: &ProofMapReport) {
-    let mut runnable = Vec::new();
-    let mut direct_evidence = Vec::new();
-    let mut mediated = Vec::new();
-    let mut soft = Vec::new();
-    let mut setup = Vec::new();
-    for proof in report
-        .direct
-        .iter()
-        .chain(report.indirect.iter())
-        .chain(report.e2e.iter())
-        .chain(report.contract.iter())
-    {
-        if crate::proof_classification::proof_surface_is_setup_or_support(proof) {
-            setup.push(proof.clone());
-        } else if proof_map_surface_is_mediated(proof) {
-            mediated.push(proof.clone());
-        } else if crate::proof_classification::proof_surface_is_soft_evidence(proof) {
-            soft.push(proof.clone());
-        } else if crate::proof_classification::proof_surface_is_runnable_validation(proof) {
-            runnable.push(proof.clone());
-        } else {
-            direct_evidence.push(proof.clone());
-        }
-    }
-    proof_surface_section("Hard Proof", &runnable);
-    proof_surface_section("Direct Evidence", &direct_evidence);
-    proof_surface_section("Mediated Evidence", &mediated);
-    proof_surface_section("Soft Token Evidence", &soft);
-    proof_surface_section("Setup / Support Surfaces", &setup);
-    if !mediated.is_empty() {
+    proof_surface_section("Hard Proof", &report.hard);
+    proof_surface_section("Direct Evidence", &report.direct_evidence);
+    proof_surface_section("Mediated Evidence", &report.mediated_evidence);
+    proof_surface_section("Soft Token Evidence", &report.soft_evidence);
+    proof_surface_section("Setup / Support Surfaces", &report.setup_support);
+    if !report.mediated_evidence.is_empty() {
         println!(
             "\nMediated evidence is connected through a direct consumer, dependency, symbol consumer, barrel, or runtime bridge. It does not replace direct proof or remove Unknown entries."
         );
     }
-    if !soft.is_empty() {
+    if !report.soft_evidence.is_empty() {
         println!(
             "\nSoft token evidence is token/name/path surface overlap. It does not replace deterministic proof or remove Unknown entries."
         );
     }
-    if !setup.is_empty() {
+    if !report.setup_support.is_empty() {
         println!(
             "\nSetup/support surfaces are connected rails such as install, codegen, migration, seed, deploy, release, watch, or dev-server steps. They are not validation proof."
         );
     }
-}
-
-fn proof_map_surface_is_mediated(proof: &ProofSurface) -> bool {
-    proof.evidence.ends_with("_via_direct_consumer")
-        || proof.evidence.ends_with("_via_direct_dependency")
-        || proof.evidence.ends_with("_via_local_symbol_consumer")
-        || proof.evidence.ends_with("_owning_file")
 }
 
 pub fn delete(report: &DeleteReport) {

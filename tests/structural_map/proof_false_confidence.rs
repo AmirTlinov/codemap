@@ -58,6 +58,26 @@ fn soft_token_proof_does_not_hide_missing_deterministic_proof_or_fallback() {
     );
     assert_schema("schemas/proof-map.schema.json", &proof_map);
     assert!(
+        proof_map["soft_evidence"]
+            .as_array()
+            .expect("soft evidence")
+            .iter()
+            .any(|proof| proof["strength"] == "medium"
+                && matches!(
+                    proof["evidence"].as_str(),
+                    Some("test_name" | "test_surface_tokens" | "test_surface_phrase")
+                )),
+        "proof-map JSON should keep token/name/path overlap in soft_evidence, not a direct bucket: {proof_map:#}"
+    );
+    assert!(
+        proof_map["hard"].as_array().expect("hard").is_empty()
+            && proof_map["direct_evidence"]
+                .as_array()
+                .expect("direct evidence")
+                .is_empty(),
+        "soft token/name evidence must not be promoted into hard or direct evidence JSON buckets: {proof_map:#}"
+    );
+    assert!(
         !proof_map["missing_direct"]
             .as_array()
             .expect("missing_direct")
