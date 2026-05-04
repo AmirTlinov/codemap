@@ -287,7 +287,7 @@ fn diff_map_uses_selected_git_delta_mode() {
             .expect("since hidden")
             .iter()
             .any(|group| group["reason"] == "added structural edges hidden by limit"
-                && group["expand"] == "codemap diff-map --since 'HEAD~1' --limit 3"),
+                && group["expand"] == "codemap diff-map --since 'HEAD~1' --limit 2"),
         "diff-map --since hidden expand should preserve selector and concrete limit: {since:#}"
     );
 }

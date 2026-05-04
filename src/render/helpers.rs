@@ -132,7 +132,7 @@ fn contract_exports_section(title: &str, surfaces: &[Surface]) {
                 format!("{:?}", surface.strength).to_ascii_lowercase()
             );
             if surface.hidden_count > 0 {
-                println!("    - hidden: {} examples", surface.hidden_count);
+                println!("    - additional examples: {}", surface.hidden_count);
             }
         }
     }

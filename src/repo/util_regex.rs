@@ -243,13 +243,6 @@ fn swift_property_symbol_re() -> &'static Regex {
     })
 }
 
-fn py_def_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(r#"(?m)^(?:class|def)\s+([A-Za-z0-9_]+)"#).expect("valid py def regex")
-    })
-}
-
 fn rust_use_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {

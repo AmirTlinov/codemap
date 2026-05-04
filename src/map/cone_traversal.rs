@@ -260,13 +260,18 @@ fn cone_outgoing_edges(
         };
         for target in &file.resolved_imports {
             if project.files.contains_key(target) {
+                let (evidence, strength) = if *depth == 0 {
+                    ("resolved_import", EvidenceStrength::High)
+                } else {
+                    ("resolved_import_via_cone_depth", EvidenceStrength::Medium)
+                };
                 edges.push(import_edge(
                     project,
                     file.rel.clone(),
                     target.clone(),
                     "imports",
-                    "resolved_import",
-                    EvidenceStrength::High,
+                    evidence,
+                    strength,
                 ));
             }
         }

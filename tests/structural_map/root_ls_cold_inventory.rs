@@ -121,4 +121,19 @@ fn cold_large_root_ls_uses_bounded_inventory_map() {
         }),
         "cold root inventory must say when source import edges require the full index: {json:#}"
     );
+
+    let markdown = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["ls", "."])
+        .output()
+        .expect("cold root ls markdown should run");
+    assert!(markdown.status.success());
+    let markdown = String::from_utf8(markdown.stdout).expect("markdown utf8");
+    assert!(
+        markdown.contains("Map Snapshot: root=`")
+            && markdown.contains("fingerprint=`")
+            && !markdown.contains("fingerprint=`unknown`"),
+        "cold root inventory should expose a deterministic bounded snapshot fingerprint: {markdown}"
+    );
 }

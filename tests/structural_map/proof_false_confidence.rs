@@ -73,6 +73,28 @@ fn soft_token_proof_does_not_hide_missing_deterministic_proof_or_fallback() {
         "proof-map should expose soft-proof uncertainty as Unknown: {proof_map:#}"
     );
 
+    let proof_map_markdown = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["proof-map", "src/routes.ts", "--raw-sensors"])
+        .output()
+        .expect("proof-map markdown should run");
+    assert!(
+        proof_map_markdown.status.success(),
+        "proof-map markdown failed: {}",
+        String::from_utf8_lossy(&proof_map_markdown.stderr)
+    );
+    let proof_map_text = String::from_utf8(proof_map_markdown.stdout).expect("proof-map utf8");
+    assert!(
+        proof_map_text.contains("## Soft Token Evidence")
+            && proof_map_text.contains("## Unknown")
+            && proof_map_text.contains("missing_deterministic_proof")
+            && proof_map_text.contains("does not replace deterministic proof")
+            && !proof_map_text.contains("\n## Direct\n")
+            && !proof_map_text.contains("\n## Hard Proof\n"),
+        "proof-map markdown must keep Unknown when token/name evidence is the only proof sensor: {proof_map_text}"
+    );
+
     let changed = codemap()
         .current_dir(repo.path())
         .env("CODEMAP_CACHE_DIR", cache.path())
@@ -88,6 +110,10 @@ fn soft_token_proof_does_not_hide_missing_deterministic_proof_or_fallback() {
     assert!(
         markdown.contains("- missing_direct_unknown: `1`") && markdown.contains("### Fallback"),
         "changed proof should show missing deterministic proof and fallback with soft evidence: {markdown}"
+    );
+    assert!(
+        markdown.contains("Map Snapshot: root=`") && markdown.contains("fingerprint=`"),
+        "changed maps should carry a compact snapshot boundary in markdown output: {markdown}"
     );
 
     let proof_unknown = codemap()
@@ -135,5 +161,36 @@ fn soft_token_proof_does_not_hide_missing_deterministic_proof_or_fallback() {
     assert!(
         !proof_only_markdown.contains("## Unknown"),
         "proof --section proof should not dump Unknown entries: {proof_only_markdown}"
+    );
+
+    let proof_all = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["proof", "src/routes.ts", "--all"])
+        .output()
+        .expect("proof --all should run");
+    assert!(
+        proof_all.status.success(),
+        "proof --all failed: {}",
+        String::from_utf8_lossy(&proof_all.stderr)
+    );
+}
+
+#[test]
+fn proof_help_shows_format_escape_hatch_without_making_json_primary() {
+    let output = codemap()
+        .args(["proof", "--help"])
+        .output()
+        .expect("proof help should run");
+    assert!(
+        output.status.success(),
+        "proof --help failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let help = String::from_utf8(output.stdout).expect("help utf8");
+    assert!(
+        help.contains("--format <FORMAT>")
+            && help.contains("markdown is the agent default"),
+        "proof help should reveal json as an integration escape hatch without changing the main UX: {help}"
     );
 }

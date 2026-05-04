@@ -422,10 +422,20 @@ fn proof_map_missing_should_surface(
     scope: Option<&str>,
     changed: &[String],
 ) -> bool {
+    let exact_requested =
+        changed.iter().any(|path| path == seed) || scope.is_some_and(|scope| scope == seed);
+    if exact_requested
+        && project
+            .files
+            .get(seed)
+            .is_some_and(changed_should_check_direct_proof)
+    {
+        return true;
+    }
     if !proof_missing_should_surface(project, seed) {
         return false;
     }
-    if changed.iter().any(|path| path == seed) || scope.is_some_and(|scope| scope == seed) {
+    if exact_requested {
         return true;
     }
     !project.packages.iter().any(|package| package.manifest == seed)

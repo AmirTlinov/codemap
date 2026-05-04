@@ -379,7 +379,6 @@ fn changed_unknown_is_fail_open_for_owner_surfaces() {
     );
     let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
     for unknown in [
-        "direct_test_import_not_found",
         "schema_migration_not_found",
         "schema_client_consumer_not_found",
         "env_consumer_not_found",
@@ -390,6 +389,10 @@ fn changed_unknown_is_fail_open_for_owner_surfaces() {
             "changed unknown should fail open with {unknown}: {markdown}"
         );
     }
+    assert!(
+        !markdown.contains("direct_test_import_not_found"),
+        "owner surfaces should use role-specific Unknowns instead of source test-import gaps: {markdown}"
+    );
     assert!(
         !markdown.contains("None found"),
         "changed unknown must not claim None found for owner surfaces: {markdown}"

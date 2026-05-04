@@ -169,6 +169,31 @@ pub fn fingerprint(project: &Project, domain_path: Option<&str>) -> String {
     hex_prefix(&hash, 16)
 }
 
+pub fn inventory_fingerprint(root: &Path, files: &[String]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(root.to_string_lossy().as_bytes());
+    hasher.update([0]);
+    let mut files = files.to_vec();
+    files.sort();
+    for rel in files {
+        hasher.update(rel.as_bytes());
+        hasher.update([0]);
+        if let Ok(meta) = fs::metadata(root.join(&rel)) {
+            hasher.update(meta.len().to_string().as_bytes());
+            hasher.update([0]);
+            if let Ok(modified) = meta.modified()
+                && let Ok(duration) = modified.duration_since(std::time::UNIX_EPOCH)
+            {
+                hasher.update(duration.as_secs().to_string().as_bytes());
+                hasher.update(duration.subsec_nanos().to_string().as_bytes());
+            }
+        }
+        hasher.update([0]);
+    }
+    let hash = hasher.finalize();
+    hex_prefix(&hash, 16)
+}
+
 pub fn write_status_with_change_sets(
     project: &Project,
     version: &str,
@@ -288,7 +313,7 @@ fn cached_fingerprint_from_header(path: &Path) -> Option<String> {
     None
 }
 
-pub(super) fn cached_status_fingerprint(cache_dir: &Path) -> Option<String> {
+pub fn cached_status_fingerprint(cache_dir: &Path) -> Option<String> {
     cached_fingerprint(&cache_dir.join("status.json"))
 }
 

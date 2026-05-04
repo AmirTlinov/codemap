@@ -4,7 +4,12 @@ fn proof(project: &crate::model::Project, args: ProofArgs) -> Result<()> {
         bail!("--section is display-only and cannot be combined with --run");
     }
     let (target, changed, selector) = proof_inputs(project, &args)?;
-    let report = map::proof_report(project, target, changed, selector, args.depth, args.limit);
+    let limit = if args.include_hidden {
+        usize::MAX / 2
+    } else {
+        args.limit
+    };
+    let report = map::proof_report(project, target, changed, selector, args.depth, limit);
     maybe_write_proof_changed_lens_cache(project, &args, &report);
     if args.run {
         render::proof(&report, proof_section_name(args.section));
@@ -21,6 +26,7 @@ fn maybe_write_proof_changed_lens_cache(
     report: &crate::model::ProofReport,
 ) {
     if args.run
+        || args.include_hidden
         || args
             .target
             .as_deref()

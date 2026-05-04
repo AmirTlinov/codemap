@@ -39,6 +39,8 @@ fn doctor_uses_warm_index_when_cached_fingerprints_match() {
     assert!(text.contains("Cache strategy"));
     assert!(text.contains("warm_load"));
     assert!(text.contains("Files reused"));
+    assert!(text.contains("Zero repo footprint default"));
+    assert!(!text.contains("Zero-footprint default"));
     assert!(text.contains("## Project Timings"));
 }
 

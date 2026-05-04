@@ -62,6 +62,8 @@ include!("structural_map/cache_lens_artifacts.rs");
 include!("structural_map/cache_dirty_status.rs");
 include!("structural_map/cache_inventory_repair.rs");
 include!("structural_map/cache_head_delta_subdir.rs");
+include!("structural_map/fast_path_snapshot.rs");
+include!("structural_map/trust_polish_0216.rs");
 include!("structural_map/unresolved_import_unknowns.rs");
 include!("structural_map/boundary_map_current_level.rs");
 include!("structural_map/graph_current_level.rs");

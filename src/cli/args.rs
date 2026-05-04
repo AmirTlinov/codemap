@@ -286,11 +286,13 @@ struct ProofArgs {
     depth: usize,
     #[arg(long, value_enum)]
     section: Option<ProofSection>,
+    #[arg(long = "all", alias = "include-hidden")]
+    include_hidden: bool,
     #[arg(long, default_value_t = DEFAULT_PROOF_LIMIT, hide = true)]
     limit: usize,
     #[arg(long)]
     run: bool,
-    #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
+    #[arg(long, value_enum, default_value_t = default_output_format(), help = "Output format; markdown is the agent default, json is an integration escape hatch")]
     format: OutputFormat,
 }
 
@@ -365,7 +367,7 @@ struct SiblingsArgs {
 struct PlaceArgs {
     #[arg(default_value = ".")]
     scope: String,
-    #[arg(long)]
+    #[arg(long, default_value = "source")]
     kind: String,
     #[arg(long = "all", alias = "include-hidden")]
     include_hidden: bool,

@@ -34,6 +34,7 @@ include!("map/directory_owner_edges.rs");
 include!("map/cone_directory.rs");
 include!("map/cone_traversal.rs");
 include!("map/cone_owner_surfaces.rs");
+include!("map/proof_runner_neighbors.rs");
 include!("map/cone_env_surfaces.rs");
 include!("map/proof_edges.rs");
 include!("map/directory_helpers.rs");

@@ -93,11 +93,7 @@ fn changed_should_check_direct_proof(file: &FileInfo) -> bool {
         && !file.has_role("archive")
         && !file.has_role("test")
         && !file.has_role("test_support")
-        && (file.has_role("public_boundary")
-            || file.has_role("schema_contract")
-            || file.has_role("manifest")
-            || file.has_role("env_config")
-            || repo::is_source_ext(&file.ext))
+        && repo::is_source_ext(&file.ext)
 }
 
 fn changed_manifest_unknowns(project: &Project, rel: &str) -> Vec<Unknown> {

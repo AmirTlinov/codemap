@@ -125,6 +125,56 @@ fn ls_section_filters_use_stable_rfc_layers() {
 }
 
 #[test]
+fn python_private_helpers_are_symbols_not_exports() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("tools/runner.py"),
+        "def _candidate():\n    return 1\n\n\ndef _digest():\n    return 2\n\n\ndef public_helper():\n    return _candidate() + _digest()\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "python symbol fixture"]);
+
+    let json = run_json(
+        repo.path(),
+        cache.path(),
+        &["ls", "tools/runner.py", "--format", "json"],
+    );
+    assert_schema("schemas/ls.schema.json", &json);
+    let anchor = &json["anchor"];
+    assert!(
+        anchor["symbols"]
+            .as_array()
+            .expect("symbols")
+            .iter()
+            .any(|symbol| symbol["name"] == "_candidate"
+                && symbol["kind"] == "function"
+                && symbol["exported"] == false),
+        "Python private helpers should stay visible as symbols with exported=false: {json:#}"
+    );
+    assert!(
+        anchor["exports"].as_array().expect("exports").is_empty(),
+        "Python helpers should not be called exports without public export evidence: {json:#}"
+    );
+
+    let links = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["ls", "tools/runner.py", "--section", "links"])
+        .output()
+        .expect("ls links should run");
+    assert!(links.status.success());
+    let links_markdown = String::from_utf8(links.stdout).expect("links markdown utf8");
+    assert!(
+        !links_markdown.contains("\n## Exports\n"),
+        "Python private helpers should not render under Exports in the links layer: {links_markdown}"
+    );
+}
+
+#[test]
 fn ls_directory_surfaces_render_as_compact_blocks() {
     let (repo, cache) = fixture();
 

@@ -128,9 +128,10 @@ fn owner_surface_cones_expose_manifest_schema_env_and_ci_neighborhoods() {
     let schema_proof_unknown =
         String::from_utf8(schema_proof_unknown.stdout).expect("markdown utf8");
     assert!(
-        schema_proof_unknown.contains("direct_test_import_not_found")
+        schema_proof_unknown.contains("missing_deterministic_proof")
+            && !schema_proof_unknown.contains("direct_test_import_not_found")
             && !schema_proof_unknown.contains("No Unknown entries were emitted"),
-        "proof --section unknown should stay fail-open even when schema scripts exist: {schema_proof_unknown}"
+        "proof --section unknown should stay fail-open without source-centric test-import gaps when schema rails exist: {schema_proof_unknown}"
     );
 
     let env = codemap()
@@ -307,7 +308,7 @@ fn env_cone_links_prioritize_static_consumers_over_long_declaration_lists() {
     let observed = String::from_utf8(observed.stdout).expect("markdown utf8");
     assert!(
         observed.contains("declared env keys: `41`")
-            && observed.contains("hidden: 29 env keys")
+            && observed.contains("additional env keys: 29")
             && observed.contains("`KEY_0` `.env.example:1`"),
         "env cone observed should count source env declarations, not the truncated link budget: {observed}"
     );

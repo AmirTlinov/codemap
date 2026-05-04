@@ -2,6 +2,99 @@
 
 ## 2026-05-04
 
+- Status: fixed in `0.2.19`; `proof changed --all` no longer writes the bounded `proof changed`
+  lens cache.
+  - Evidence: regression `proof_changed_all_does_not_poison_default_lens_cache`.
+  - Why it mattered: an expanded one-off read could previously make the normal preflight look less bounded
+    and hide its default `Hidden` accounting.
+
+- Status: fixed in `0.2.19`; clean fast-path snapshot headers use a fresh bounded inventory fingerprint
+  instead of trusting a stale cached `status.json` fingerprint.
+  - Evidence: regression `clean_changed_fast_path_has_snapshot_fingerprint`; reviewer repro addressed.
+  - Boundary: cached lens fast paths still use cached fingerprints only after cache/current-state validation.
+
+- Issue: `place <file>` no longer fails without `--kind`, but the default file map can still be nearly empty.
+  - Evidence: live PATH `codemap 0.2.16`, repo `/Users/amir/Documents/projects/tools/cli/ctx`, command
+    `codemap place src/map/proof_entry.rs`.
+  - Observed: output shows snapshot, scope, default `Kind: source`, and expand commands, but no existing
+    surfaces or placement-neighborhood facts for the concrete file.
+  - Why it hurts trust: this is not a false edge, but it keeps a quick map command from helping when an agent
+    naturally asks "where does this file fit?".
+  - Boundary: `place` is an expand lens, not one of the four primary map commands.
+  - Follow-up: for file anchors, render same-kind siblings, package/domain surface, and local convention
+    evidence before falling back to a generic placement expansion.
+
+- Issue: `proof` and `proof-map --raw-sensors` can still disagree on fail-open Unknown for the same source
+  anchor.
+  - Evidence: live PATH `codemap 0.2.17`, repo `/Users/amir/Documents/projects/Sillentway-VPN`, anchor
+    `src/masque-core/src/client/routing.rs`.
+  - Observed: `codemap proof ...routing.rs` prints `direct_test_import_not_found`, while
+    `codemap proof-map ...routing.rs --raw-sensors` shows only Mediated Evidence and Soft Token Evidence with
+    no `## Unknown`.
+  - Why it hurts trust: the proof-map text says mediated/soft evidence does not remove Unknown entries, but
+    the lens omits the missing-direct Unknown that `proof` reports for the same anchor.
+  - Follow-up: make proof-map source anchors emit the same missing-direct deterministic proof Unknown when only
+    mediated/soft proof sensors exist.
+  - Status: fixed in `0.2.19`; exact source anchors now keep proof-map fail-open Unknown when no runnable or
+    direct deterministic proof sensor exists. Regression extends
+    `soft_token_proof_does_not_hide_missing_deterministic_proof_or_fallback`.
+
+- Issue: `changed --section unknown --all` can still hide repeated Unknown rows.
+  - Evidence: reviewer repro on live `0.2.18` diff in `/Users/amir/Documents/projects/tools/cli/ctx`.
+  - Observed: `target/debug/codemap changed --section unknown --all` still printed grouped rows such as
+    `direct_test_import_not_found ... hidden: 22 unknowns`.
+  - Why it hurts trust: `--all` must mean the current map lens is expanded. Collapsing fail-open Unknowns after
+    the agent explicitly asks for all makes missing evidence look partially withheld.
+  - Status: fixed in `0.2.19`; Unknown auto-compaction is disabled for expanded display limits. Regression:
+    `compact_unknown_samples_use_single_code_spans` now also checks `changed --section unknown --all`.
+
+- Status: fixed in `0.2.19`; map snapshot headers now include current git `head` plus map fingerprint.
+  - Evidence: markdown outputs render `Map Snapshot: root=...; head=...; fingerprint=...`.
+  - Boundary: cache strategy/warm/stale diagnostics remain in `status`/`doctor`, not every map header.
+
+- Status: fixed in `0.2.19`; schema/manifest/env owner surfaces no longer inherit source-centric
+  `direct_test_import_not_found` Unknowns.
+  - Evidence: regressions `schema_proof_unknowns_are_schema_specific_not_source_direct_test` and
+    `changed_unknown_is_fail_open_for_owner_surfaces`.
+  - Boundary: source files still get missing direct-test Unknowns; owner surfaces get role-specific missing
+    schema/script/CI/env/consumer evidence.
+
+- Status: fixed in `0.2.19`; proof-runner cones now show bounded runner/receipt/doc/script neighbor rails as
+  `Soft Evidence`, not direct proof.
+  - Evidence: regression `proof_runner_cone_shows_soft_neighbor_rails_without_calling_them_proof`.
+  - Boundary: these are token/path/name neighbor links with provenance; they do not close Unknown or prove a
+    receipt is honest.
+
+- Status: fixed in `0.2.19`; deeper cone imports are labeled `resolved_import_via_cone_depth` with medium
+  strength instead of looking like direct anchor imports.
+  - Evidence: regression `cone_depth_edges_are_marked_mediated_after_the_anchor_layer`.
+  - Boundary: direct anchor imports remain `resolved_import`.
+
+- Status: fixed in `0.2.19`; per-surface sample overflow now says `additional examples` instead of `hidden`
+  so `--all` does not look self-collapsed.
+  - Evidence: regression `root_ls_all_does_not_emit_self_referential_hidden_expand`.
+  - Boundary: real report-level hidden groups still render under `Hidden` with exact expand commands.
+
+- Issue: compact Unknown samples render with doubled code backticks.
+  - Evidence: live PATH `codemap 0.2.16`, repo `/Users/amir/Documents/projects/tools/cli/ctx`, command
+    `codemap changed --section unknown`.
+  - Observed: sample paths appeared as ``src/cache.rs`` instead of `src/cache.rs`.
+  - Why it hurts trust: this is not a false edge, but it makes the compact fail-open section look sloppy and
+    harder to scan during preflight.
+  - Follow-up: reuse the already-formatted `unknown_where` string directly in compact Unknown renderers.
+  - Status: fixed in `0.2.19`; regression `compact_unknown_samples_use_single_code_spans`.
+
+- Issue: `ls . --all` can still hide link edges inside the `Links` section.
+  - Evidence: live PATH `codemap 0.2.16`, repo `/Users/amir/Documents/projects/PABG`, command
+    `codemap --root /Users/amir/Documents/projects/PABG ls . --all`.
+  - Observed: top-level `Hidden` was gone, but `Links` still printed `hidden: 244 links edges` without an
+    exact expand command.
+  - Why it hurts trust: after `--all`, hidden wording inside a stable section makes the agent doubt whether
+    it is seeing the requested expanded map.
+  - Follow-up: when an `ls` report has no hidden groups because it is already expanded, render all link edges
+    instead of applying the default 20-edge display cap.
+  - Status: fixed in `0.2.19`; regression `root_ls_all_does_not_emit_self_referential_hidden_expand`.
+
 - Issue: `codemap changed` can still become too slow and too noisy on real mixed repos with a small dirty state.
   - Evidence: live PATH `codemap 0.2.10`, dogfood run `target/dogfood-live-wide-2026-05-04`, repo `/Users/amir/Documents/projects/PABG`, probe `changed`.
   - Observed: status 0, but `elapsed_ms=5542` against the 3000 ms dogfood budget, and `lines=135` against the 120-line budget.
@@ -85,6 +178,9 @@
   - Why it hurts trust: support artifacts must be clearly separated from source/adapter/config surfaces so agents do not edit or validate the wrong layer.
   - Boundary: codemap does identify one witness file as `kind: witness`; the issue is inconsistent secondary hinting and artifact JSON fallback to generic config.
   - Follow-up: normalize artifact/receipt/witness/build-output classification before generic config/source hints and make cone observed/hints use the same classifier result.
+  - Status: tightened in `0.2.19`; support artifact JSON no longer renders public Surface Hints as `config`
+    solely because the file language is JSON/config. Regression:
+    `support_artifact_json_surface_hints_do_not_fall_back_to_config`.
 
 - Issue: `codemap changed` can be very slow on a dirty large monorepo even when only a few files are changed.
   - Evidence: live `codemap --root /Users/amir/Documents/projects/main_cluster changed` after main_cluster had 6 dirty status rows.
@@ -141,3 +237,110 @@
   - Why it hurts trust: `_via_local_symbol_consumer` is useful mediated evidence, but without Unknown it can look like enough direct symbol proof.
   - Boundary: suppressing broad fallback is acceptable when an exact mediated runnable command exists; the defect was absence of a missing-direct proof Unknown.
   - Status: fixed in `0.2.14`; symbol anchors now emit `direct_test_import_not_found` when no direct/specific proof exists.
+
+- Issue: `proof-map --raw-sensors` still uses section names that sound stronger than the sensors.
+  - Evidence: follow-up live review on proof-heavy repos after `0.2.14`.
+  - Observed: commands such as `make doctor`, `make next`, and `make validate-receipts` can appear under `Direct` even when the evidence is token/path/name overlap rather than direct runnable validation.
+  - Why it hurts trust: `codemap proof` calls this `Soft Evidence`, while `proof-map` can make the same class look direct/load-bearing.
+  - Boundary: source-backed script/name matches may be useful map facts; the defect is confidence vocabulary.
+  - Follow-up: give `proof-map` the same proof classes as `proof`: hard/direct validation, mediated evidence, soft token evidence, setup/support, evidence-only, unknown.
+  - Status: fixed in `0.2.15`; markdown proof-map now renders Hard Proof, Direct Evidence, Mediated Evidence, Soft Token Evidence, and Setup / Support Surfaces, and runnable commands are filtered to runnable validation proof only.
+
+- Issue: `changed --section unknown` can report false `dynamic_import` for static multiline Python imports.
+  - Evidence: follow-up live review on `tools/run_carrier_bound_growth_episode_v1_beta.py`.
+  - Observed: `changed --section unknown` reported `dynamic_import` around a normal multiline import `from tools.run_gpt_oss_low_level_active_carrier_probe_v0_041 import (...)`, while `cone` resolved the same import as `resolved_import; high`.
+  - Why it hurts trust: two lenses disagree on the same syntax; Unknown becomes a false alarm instead of a map blind spot.
+  - Boundary: dynamic import Unknown is still needed for actual runtime imports; Python `from ... import (...)` must stay static.
+  - Follow-up: make dynamic import detectors language-aware and token-aware enough to reject Python static import statements, including multiline headers.
+  - Status: fixed in `0.2.15`; diff-map gates dynamic import Unknowns to JS-like files and keeps Python static module targets as structural-line edges.
+
+- Issue: `--all` and hidden expand semantics are inconsistent.
+  - Evidence: follow-up live review of `codemap ls . --all` and `codemap proof ... --all`.
+  - Observed: `ls . --all` can still print hidden material with a self-referential expand back to `codemap ls . --all`; `proof --all` is rejected even though `ls`, `cone`, and `changed` accept it.
+  - Why it hurts trust: an agent expects `--all` to mean the current lens has expanded its collapsed material, and stable flags should not vary casually across core map commands.
+  - Boundary: line budgets may still require `--limit`; the defect is self-referential expansion and uneven flag support.
+  - Follow-up: avoid self-expand when `--all` is already active, and accept `--all` on proof as an alias for a larger/deeper proof report or explicitly documented no-op.
+  - Status: fixed in `0.2.15` for `ls` and `proof`; `ls --all` raises the default limit and `proof --all` is accepted as an expanded proof report.
+
+- Issue: Python private helpers are rendered as `Exports`.
+  - Evidence: follow-up live review of Python proof-runner files.
+  - Observed: private symbols such as `_candidate`, `_digest`, and `_tick` appear under `Exports` even when symbol rows say `exported=false`.
+  - Why it hurts trust: for Python, underscore helpers are not public API surfaces; calling them exports can send an agent toward the wrong boundary.
+  - Boundary: listing the symbols is useful; naming them public exports is the defect.
+  - Follow-up: render Python private helpers under `Symbols`, and only show `Public Exports` when language/manifest evidence supports public export semantics.
+  - Status: fixed in `0.2.15`; Python def/class symbols remain visible with `exported=false`, but are no longer copied into file exports.
+
+- Issue: proof-heavy runner cones miss natural proof-slice neighbors.
+  - Evidence: follow-up live review around proof runners and receipts.
+  - Observed: `cone` shows imports for a runner, but not the natural deterministic proof bundle around it: owner doc, receipt, review, Makefile target, doctor/next rails.
+  - Why it hurts trust: agents use cone for owner neighborhoods; proof-slice repos need source-backed runner/receipt/review/rail links without turning into recommendations.
+  - Boundary: this is not a correctness verdict; the missing surface is a deterministic neighbor map gap.
+  - Follow-up: add a bounded named-neighbor map for runner -> receipt -> review -> experiment doc -> Makefile target -> doctor check, with provenance and no advice language.
+
+- Issue: `diff-map` can produce noisy `added_structural_line -> unknown_target` rows.
+  - Evidence: follow-up live review of `diff-map` added structural lines.
+  - Observed: repeated `unknown_target` rows do not include enough line content or target evidence to help decide anything.
+  - Why it hurts trust: it looks structural without carrying actionable structure.
+  - Boundary: line-level change events can be useful; rows with no useful target/content need stricter collapse or a clearer Unknown.
+  - Follow-up: collapse repeated `unknown_target` structural-line events and include short provenance/content only when it adds map value.
+  - Status: fixed in `0.2.15` for import/export structural lines without a deterministic target; diff-map skips targetless rows instead of emitting `unknown_target`.
+
+- Issue: primary map outputs lack a visible snapshot/fingerprint.
+  - Evidence: follow-up live review where changed count moved from 5 to 7 between calls while the repo was changing.
+  - Observed: `status` exposes fingerprint/cache state, but ordinary `ls`, `cone`, `changed`, `proof`, and lenses do not show a snapshot id in the header.
+  - Why it hurts trust: an agent can compare maps from different repo states and mistake a race for a fact.
+  - Boundary: exact cache diagnostics can stay in `status`; primary maps need a compact snapshot line.
+  - Follow-up: add a compact map snapshot line: root, git head/dirty fingerprint, and cache state or scan fingerprint.
+  - Status: fixed in `0.2.15`; markdown map outputs now include root and scan fingerprint prefix, including cached lens fast paths. Cache state/strategy stay in `status/doctor` so identical maps do not drift only because they were served from a lens artifact.
+
+- Issue: zero-footprint wording is too broad.
+  - Evidence: follow-up live review of `status`.
+  - Observed: codemap does not write into the inspected repo by default, but it does write external cache under `~/Library/Caches/codemap/...`.
+  - Why it hurts trust: `zero-footprint` can be read as no writes anywhere.
+  - Boundary: external cache writes are acceptable; the claim should be precise.
+  - Follow-up: use `zero repo footprint` in user-facing output/docs.
+  - Status: fixed in `0.2.15`; status/doctor markdown now says `Zero repo footprint default`.
+
+- Issue: Rust module aggregator edges can overstate cone blast radius.
+  - Evidence: follow-up live review of `cone src/map/proof_entry.rs` through `src/map.rs`.
+  - Observed: the cone can show many sibling module imports because the module aggregator imports them, although the anchor file itself does not directly import all siblings.
+  - Why it hurts trust: formal module edges are real, but without mediator wording an agent may overestimate direct coupling.
+  - Boundary: keep the edges; mark the mediator explicitly.
+  - Follow-up: label these as mediated by module aggregator/public index rather than direct anchor imports.
+
+- Issue: `ls . --all` still uses `hidden` wording inside bounded surface examples.
+  - Evidence: live PATH dogfood after installing `0.2.15` on the codemap repo.
+  - Observed: the top-level Hidden section no longer self-expands, but directory surface rows still say `hidden: N examples` because each aggregate only prints a sample of examples.
+  - Why it hurts trust: after `--all`, the word `hidden` can still read as undisclosed map material rather than a line-budgeted example sample.
+  - Boundary: line budgets are still required; `--all` should include collapsed structural classes, not dump every file path in large aggregate surfaces.
+  - Follow-up: rename per-surface `hidden` to `additional examples` or attach an explicit `--limit` expansion so it does not look like `--all` ignored hidden map material.
+
+- Issue: `changed --section unknown` can become a wall of repeated missing-direct rows on broad dirty sets.
+  - Evidence: live PATH dogfood after installing `0.2.15` on the codemap repo with 28 changed files.
+  - Observed: the section correctly stayed fail-open, but repeated `direct_test_import_not_found` and `nearest_proof_scope` entries dominated the output.
+  - Why it hurts trust: a useful Unknown section should reveal what detector evidence is missing, not bury distinct blind spots under repeated identical prose.
+  - Boundary: do not suppress Unknown; group repeated Unknowns by kind/effect and keep representative paths plus exact expand commands.
+  - Follow-up: add compact grouping for repeated Unknowns in section output while keeping `--all` or `--limit` paths to the full list.
+
+- Issue: schema anchors still receive source-centric `direct_test_import_not_found` wording.
+  - Evidence: live PATH dogfood after installing `0.2.15` on `/Users/amir/Documents/projects/Levelly-1` with `codemap proof apps/api/prisma/schema.prisma --all`.
+  - Observed: Prisma proof correctly showed `db:migrate:status` as hard proof and migration/codegen/seed as setup/support, but Unknown also said no direct test import/symbol/e2e route was found.
+  - Why it hurts trust: for schema owners, missing source test imports may be less relevant than missing schema check, migration, generated-client consumer, env link, CI deploy/status reference, or contract check.
+  - Boundary: keep fail-open Unknown; specialize missing-direct wording by anchor role so schema/config/manifest anchors do not inherit source-only proof language.
+  - Follow-up: emit schema-specific missing evidence rows for schema anchors and reserve `direct_test_import_not_found` for source/symbol anchors.
+
+- Issue: cold root fast-path maps can print `fingerprint=unknown`.
+  - Evidence: live PATH dogfood after installing `0.2.15` on `/Users/amir/Documents/projects/PABG` with `codemap ls .`.
+  - Observed: the bounded root inventory fast path avoided a full scan and printed `Map Snapshot: ... fingerprint=unknown`.
+  - Why it hurts trust: snapshot headers should help agents compare maps; `unknown` is honest but weak when the fast path already has a deterministic inventory file list.
+  - Boundary: do not force a full repo scan just to compute the snapshot; use a bounded inventory fingerprint for cold root fast paths.
+  - Follow-up: compute a stable inventory snapshot fingerprint from the fast-path structural file list and root path.
+  - Status: fixed in `0.2.15`; cold root inventory maps now use a deterministic bounded inventory fingerprint instead of `unknown`.
+
+- Issue: clean fast-path maps can still print `fingerprint=unknown`.
+  - Evidence: live PATH dogfood after installing `0.2.15` on `/Users/amir/Documents/projects/Levelly-1` with `codemap changed --section unknown` in a clean tree.
+  - Observed: clean changed output had no changed anchors, but snapshot said `fingerprint=unknown`.
+  - Why it hurts trust: clean/no-op maps are still maps; agents may compare them with later dirty maps and need a stable boundary.
+  - Boundary: keep clean fast paths cheap; prefer cached status fingerprint, falling back to bounded inventory fingerprint.
+  - Follow-up: share the fast-path snapshot helper across cached and clean fast paths.
+  - Status: fixed in `0.2.15`; cached and clean fast paths now share a snapshot helper with cached-status then bounded-inventory fallback.

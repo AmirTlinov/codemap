@@ -63,6 +63,13 @@ fn cone_owner_proof_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {
             )
         })
         .collect::<Vec<_>>();
+    if project
+        .files
+        .get(rel)
+        .is_some_and(|file| file.has_role("proof_runner") || file.has_role("doctor"))
+    {
+        edges.extend(proof_runner_neighbor_edges(project, rel));
+    }
     sort_edges(&mut edges);
     edges
 }

@@ -1,5 +1,6 @@
 pub fn ls(report: &LsReport, section_filter: Option<&str>) {
     println!("# Structural LS\n");
+    map_snapshot_line();
     println!("Path: `{}`", report.path);
     println!("Mode: `{}`", report.mode);
     match report.mode.as_str() {
@@ -13,7 +14,13 @@ pub fn ls(report: &LsReport, section_filter: Option<&str>) {
         _ => {}
     }
     if matches!(section_filter, None | Some("links")) && !report.edges.is_empty() {
-        cone_section("Links", &report.edges);
+        println!("\n## Links\n");
+        let limit = if report.hidden.is_empty() {
+            usize::MAX
+        } else {
+            20
+        };
+        grouped_edge_list("links", &report.edges, limit);
     }
     if matches!(section_filter, Some("proof")) {
         render_empty_ls_section("Proof", "Proof surfaces are not computed by ls.");
@@ -46,6 +53,7 @@ pub fn ls(report: &LsReport, section_filter: Option<&str>) {
 
 pub fn cone(report: &ConeReport, section_filter: Option<&str>) {
     println!("# Structural Cone\n");
+    map_snapshot_line();
     println!("Anchor: `{}`", report.anchor.path);
     println!("Depth: `{}`", report.depth);
     if matches!(section_filter, None | Some("observed")) {
@@ -176,7 +184,7 @@ fn render_ls_file(report: &LsReport, section_filter: Option<&str>) {
             }
             let hidden_count = anchor.symbols.len().saturating_sub(30);
             if hidden_count > 0 {
-                println!("- hidden: {hidden_count} symbols");
+                println!("- additional symbols: {hidden_count}");
             }
         }
     }
@@ -224,7 +232,7 @@ fn render_declared_env_keys(keys: &[crate::model::EnvDeclaration]) {
     }
     let hidden = keys.len().saturating_sub(12);
     if hidden > 0 {
-        println!("  - hidden: {hidden} env keys");
+        println!("  - additional env keys: {hidden}");
     }
 }
 
@@ -265,7 +273,7 @@ fn render_ls_directory(report: &LsReport, section_filter: Option<&str>) {
             println!("  examples: {examples}");
         }
         if surface.hidden_count > 0 {
-            println!("  hidden: {} examples", surface.hidden_count);
+            println!("  additional examples: {}", surface.hidden_count);
         }
     }
 }
@@ -306,6 +314,13 @@ fn canonical_roles(anchor: &crate::model::FileSummary) -> Vec<String> {
     let mut roles = std::collections::BTreeSet::new();
     let local = anchor.roles.iter().map(String::as_str).collect::<Vec<_>>();
     let path = anchor.path.to_ascii_lowercase();
+    let support_artifact = support_artifact_hint_path(&path)
+        || local.iter().any(|role| {
+            matches!(
+                *role,
+                "receipt" | "witness" | "fixture" | "generated" | "archive" | "build_output"
+            )
+        });
     if local.iter().any(|role| matches!(*role, "test" | "e2e_test" | "test_support")) {
         roles.insert("test".to_string());
     }
@@ -320,8 +335,7 @@ fn canonical_roles(anchor: &crate::model::FileSummary) -> Vec<String> {
     }
     if local.contains(&"runtime_config")
         || anchor.kind == "runtime_config"
-        || anchor.kind == "config"
-        || anchor.language == "config"
+        || (!support_artifact && (anchor.kind == "config" || anchor.language == "config"))
     {
         roles.insert("config".to_string());
     }
@@ -339,6 +353,21 @@ fn canonical_roles(anchor: &crate::model::FileSummary) -> Vec<String> {
     }
     if anchor.kind == "script" || anchor.path.starts_with("test: ") {
         roles.insert("script".to_string());
+    }
+    if local.contains(&"proof_runner") {
+        roles.insert("proof_runner".to_string());
+    }
+    if local.contains(&"owner_doc") {
+        roles.insert("owner_doc".to_string());
+    }
+    if local.contains(&"doctor") {
+        roles.insert("doctor".to_string());
+    }
+    if local.contains(&"receipt") {
+        roles.insert("receipt".to_string());
+    }
+    if local.contains(&"witness") {
+        roles.insert("witness".to_string());
     }
     for role in [
         "application",
@@ -369,16 +398,7 @@ fn canonical_roles(anchor: &crate::model::FileSummary) -> Vec<String> {
     if path.contains("/archive/") || path.starts_with("archive/") || path.contains("/archives/") {
         roles.insert("archive".to_string());
     }
-    if path.contains("/witness")
-        || path.contains("/receipts/")
-        || path.starts_with("receipts/")
-        || path.contains("/witnesses/")
-        || path.starts_with("witnesses/")
-        || path.contains("/artifacts/")
-        || path.starts_with("artifacts/")
-        || path.contains("-proof/")
-        || path.contains("/proof/")
-    {
+    if support_artifact_hint_path(&path) {
         roles.insert("witness".to_string());
     }
     if path.contains("/dist/") || path.starts_with("dist/") || path.contains("/build/") || path.starts_with("build/") {
@@ -394,6 +414,18 @@ fn canonical_roles(anchor: &crate::model::FileSummary) -> Vec<String> {
         roles.insert("unknown".to_string());
     }
     roles.into_iter().collect()
+}
+
+fn support_artifact_hint_path(path: &str) -> bool {
+    path.contains("/witness")
+        || path.contains("/receipts/")
+        || path.starts_with("receipts/")
+        || path.contains("/witnesses/")
+        || path.starts_with("witnesses/")
+        || path.contains("/artifacts/")
+        || path.starts_with("artifacts/")
+        || path.contains("-proof/")
+        || path.contains("/proof/")
 }
 
 fn looks_like_source_anchor(anchor: &crate::model::FileSummary) -> bool {

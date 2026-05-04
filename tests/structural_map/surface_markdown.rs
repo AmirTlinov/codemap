@@ -50,7 +50,7 @@ fn surface_markdown_does_not_hide_report_visible_examples() {
         "surface markdown should render every example already selected by the report: {markdown}"
     );
     assert!(
-        markdown.contains("hidden: ") && !markdown.contains("hidden examples:"),
-        "surface markdown should use only the report-level hidden count wording: {markdown}"
+        markdown.contains("additional examples:") && !markdown.contains("hidden examples:"),
+        "surface markdown should label per-surface samples as additional examples, not hidden map material: {markdown}"
     );
 }

@@ -10,7 +10,7 @@ fn unknown_from_added_line(
         .unwrap_or_default();
     let js_like = matches!(ext, "js" | "jsx" | "ts" | "tsx" | "mjs" | "cjs");
     let route_like = js_like || matches!(ext, "py" | "go");
-    if dynamic_import_line(text) {
+    if js_like && dynamic_import_line(text) {
         return Some(unknown(
             "dynamic_import",
             Some(rel),

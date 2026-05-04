@@ -14,6 +14,7 @@ fn try_cached_siblings_fast_path(
     if !lens_cache_matches_current(&root, &cache_dir, &git_state) {
         return Ok(None);
     }
+    set_cached_map_snapshot(&root, &cache_dir);
     let Some(report) = crate::cache::read_siblings_report(crate::cache::SiblingsLensKey {
         cache_dir: &cache_dir,
         version: repo::VERSION,
@@ -44,6 +45,7 @@ fn try_cached_place_fast_path(
     if !lens_cache_matches_current(&root, &cache_dir, &git_state) {
         return Ok(None);
     }
+    set_cached_map_snapshot(&root, &cache_dir);
     let Some(report) = crate::cache::read_place_report(crate::cache::PlaceLensKey {
         cache_dir: &cache_dir,
         version: repo::VERSION,

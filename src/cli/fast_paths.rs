@@ -15,6 +15,7 @@ fn try_cached_ls_fast_path(
     if !lens_cache_matches_current(&root, &cache_dir, &git_state) {
         return Ok(None);
     }
+    set_cached_map_snapshot(&root, &cache_dir);
     let Some(report) = crate::cache::read_ls_report(crate::cache::LsLensKey {
         cache_dir: &cache_dir,
         version: repo::VERSION,
@@ -47,6 +48,7 @@ fn try_cached_cone_fast_path(
     if !lens_cache_matches_current(&root, &cache_dir, &git_state) {
         return Ok(None);
     }
+    set_cached_map_snapshot(&root, &cache_dir);
     let Some(report) = crate::cache::read_cone_report(crate::cache::ConeLensKey {
         cache_dir: &cache_dir,
         version: repo::VERSION,
@@ -90,6 +92,7 @@ fn try_clean_changed_fast_path(
     }
     let limit = changed_limit(args);
     let report = map::clean_changed_report(selector, limit);
+    set_inventory_map_snapshot(&root);
     output(args.format, &report, || {
         render::changed(&report, changed_section_name(args.section))
     })?;
@@ -125,6 +128,7 @@ fn try_cached_changed_fast_path(
     if !lens_cache_matches_current(&root, &cache_dir, &git_state) {
         return Ok(None);
     }
+    set_cached_map_snapshot(&root, &cache_dir);
     let limit = changed_limit(args);
     let Some(report) =
         crate::cache::read_changed_report(&cache_dir, repo::VERSION, &root, &selector, limit)
@@ -145,7 +149,7 @@ fn try_clean_proof_changed_fast_path(
         return Ok(None);
     };
     ensure_single_proof_selector(args)?;
-    if proof_has_explicit_target_or_files(args) || args.run {
+    if proof_has_explicit_target_or_files(args) || args.run || args.include_hidden {
         return Ok(None);
     }
     if args.target.as_deref() != Some("changed") && !args.staged && args.since.is_none() {
@@ -158,6 +162,7 @@ fn try_clean_proof_changed_fast_path(
         return Ok(None);
     }
     let report = map::clean_proof_report(selector);
+    set_inventory_map_snapshot(&root);
     output(args.format, &report, || {
         render::proof(&report, proof_section_name(args.section))
     })?;
@@ -172,7 +177,7 @@ fn try_cached_proof_changed_fast_path(
         return Ok(None);
     };
     ensure_single_proof_selector(args)?;
-    if proof_has_explicit_target_or_files(args) || args.run {
+    if proof_has_explicit_target_or_files(args) || args.run || args.include_hidden {
         return Ok(None);
     }
     if args.target.as_deref() != Some("changed") && !args.staged && args.since.is_none() {
@@ -189,6 +194,7 @@ fn try_cached_proof_changed_fast_path(
     if !lens_cache_matches_current(&root, &cache_dir, &git_state) {
         return Ok(None);
     }
+    set_cached_map_snapshot(&root, &cache_dir);
     let Some(report) = crate::cache::read_proof_changed_report(
         &cache_dir,
         repo::VERSION,
@@ -223,6 +229,7 @@ fn try_runtime_root_fast_path(
     if !lens_cache_matches_current(&root, &cache_dir, &git_state) {
         return Ok(None);
     }
+    set_cached_map_snapshot(&root, &cache_dir);
     let Some(report) = crate::cache::read_runtime_root_report(&cache_dir, repo::VERSION, &root)
     else {
         return Ok(None);
@@ -333,6 +340,20 @@ fn lens_cache_matches_current(
         &removed,
     )
     .is_some_and(|delta| delta.is_exact_hit())
+}
+
+fn set_cached_map_snapshot(root: &Path, cache_dir: &Path) {
+    let fingerprint = crate::cache::cached_status_fingerprint(cache_dir).unwrap_or_else(|| {
+        let files = repo::structural_inventory_candidate_files(root);
+        crate::cache::inventory_fingerprint(root, &files)
+    });
+    render::set_map_snapshot_parts(root, Some(&fingerprint));
+}
+
+fn set_inventory_map_snapshot(root: &Path) {
+    let files = repo::structural_inventory_candidate_files(root);
+    let fingerprint = crate::cache::inventory_fingerprint(root, &files);
+    render::set_map_snapshot_parts(root, Some(&fingerprint));
 }
 
 fn root_relative_arg(root: &Path, value: &str) -> Result<String> {

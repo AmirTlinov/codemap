@@ -159,15 +159,51 @@ fn parse_diff_hunk_header(line: &str) -> Option<(usize, usize)> {
     ))
 }
 
-fn structural_line_target(line: &str) -> String {
+fn structural_line_target(line: &str) -> Option<String> {
+    let trimmed = line.trim();
     for quote in ['"', '\''] {
-        if let Some(start) = line.find(quote)
-            && let Some(end) = line[start + 1..].find(quote)
+        if let Some(start) = trimmed.find(quote)
+            && let Some(end) = trimmed[start + 1..].find(quote)
         {
-            return line[start + 1..start + 1 + end].to_string();
+            return Some(trimmed[start + 1..start + 1 + end].to_string());
         }
     }
-    "unknown_target".to_string()
+    if let Some(rest) = trimmed.strip_prefix("from ") {
+        let target = rest
+            .split_whitespace()
+            .next()
+            .unwrap_or_default()
+            .trim_matches(['(', ')', ',', ';']);
+        if !target.is_empty() && target != "import" {
+            return Some(target.to_string());
+        }
+    }
+    if let Some(rest) = trimmed.strip_prefix("import ") {
+        let target = rest
+            .split_whitespace()
+            .next()
+            .unwrap_or_default()
+            .trim_matches(['(', ')', ',', ';']);
+        if !target.is_empty() && !target.starts_with('{') && target != "type" {
+            return Some(target.to_string());
+        }
+    }
+    if let Some(rest) = trimmed
+        .strip_prefix("pub mod ")
+        .or_else(|| trimmed.strip_prefix("mod "))
+    {
+        let target = rest.trim().trim_end_matches(';');
+        if !target.is_empty() {
+            return Some(target.to_string());
+        }
+    }
+    if let Some(rest) = trimmed.strip_prefix("use ") {
+        let target = rest.trim().trim_end_matches(';');
+        if !target.is_empty() && !target.starts_with('{') {
+            return Some(target.to_string());
+        }
+    }
+    None
 }
 
 fn truncate_with_hidden<T>(

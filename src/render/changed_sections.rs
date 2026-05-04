@@ -145,6 +145,7 @@ fn changed_role_entries(
 fn changed_roles_for_path(path: &str) -> Vec<String> {
     let lower = path.to_ascii_lowercase();
     let mut roles = std::collections::BTreeSet::new();
+    let support_artifact = changed_path_is_support_artifact(&lower);
     if lower.contains(".test.")
         || lower.contains(".spec.")
         || changed_path_has_segment(&lower, "tests")
@@ -172,7 +173,7 @@ fn changed_roles_for_path(path: &str) -> Vec<String> {
         roles.insert("env".to_string());
         roles.insert("config".to_string());
     }
-    if changed_path_is_config(&lower) {
+    if changed_path_is_config(&lower) && !support_artifact {
         roles.insert("config".to_string());
     }
     if changed_path_is_lockfile(&lower) {
@@ -202,12 +203,7 @@ fn changed_roles_for_path(path: &str) -> Vec<String> {
     if changed_path_has_segment(&lower, "archive") || changed_path_has_segment(&lower, "archives") {
         roles.insert("archive".to_string());
     }
-    if lower.contains("/witness")
-        || changed_path_has_segment(&lower, "receipts")
-        || changed_path_has_segment(&lower, "proof")
-        || changed_path_has_segment(&lower, "artifacts")
-        || lower.contains("-proof/")
-    {
+    if support_artifact {
         roles.insert("witness".to_string());
     }
     if lower.starts_with("dist/")
@@ -236,6 +232,14 @@ fn changed_roles_for_path(path: &str) -> Vec<String> {
         roles.insert("unknown".to_string());
     }
     roles.into_iter().collect()
+}
+
+fn changed_path_is_support_artifact(path: &str) -> bool {
+    path.contains("/witness")
+        || changed_path_has_segment(path, "receipts")
+        || changed_path_has_segment(path, "proof")
+        || changed_path_has_segment(path, "artifacts")
+        || path.contains("-proof/")
 }
 
 fn changed_path_has_segment(path: &str, segment: &str) -> bool {
@@ -404,6 +408,7 @@ fn changed_unknown_section(report: &ChangedReport, force: bool, compact: bool) {
         }
         return;
     }
+    let compact = compact || changed_unknowns_should_compact(values, report.display_limit);
     if !compact {
         unknown_section(values);
         return;
@@ -419,7 +424,7 @@ fn changed_unknown_section(report: &ChangedReport, force: bool, compact: bool) {
         let sample = unknowns
             .iter()
             .take(limit)
-            .map(|unknown| format!("`{}`", unknown_where(unknown)))
+            .map(|unknown| unknown_where(unknown))
             .collect::<Vec<_>>()
             .join(", ");
         if sample.is_empty() {
@@ -440,6 +445,24 @@ fn changed_unknown_section(report: &ChangedReport, force: bool, compact: bool) {
             );
         }
     }
+}
+
+fn changed_unknowns_should_compact(values: &[Unknown], display_limit: usize) -> bool {
+    if changed_display_limit_is_expanded(display_limit) {
+        return false;
+    }
+    if values.len() > display_limit {
+        return true;
+    }
+    let mut grouped: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
+    for unknown in values {
+        *grouped.entry(unknown.kind.as_str()).or_default() += 1;
+    }
+    grouped.values().any(|count| *count > 5)
+}
+
+fn changed_display_limit_is_expanded(display_limit: usize) -> bool {
+    display_limit > 10_000
 }
 
 fn changed_hidden_section(

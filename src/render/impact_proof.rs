@@ -1,5 +1,6 @@
 pub fn impact(report: &ImpactReport) {
     println!("# Structural Impact\n");
+    map_snapshot_line();
     if report.changed.is_empty() && report.clusters.is_empty() {
         println!("No changed anchors detected. Use `--files a,b` or run with a git diff selector.");
         return;
@@ -58,6 +59,7 @@ fn render_impact_cluster(cluster: &ImpactCluster) {
 
 pub fn proof(report: &ProofReport, section_filter: Option<&str>) {
     println!("# Proof Plan\n");
+    map_snapshot_line();
     if let Some(section) = section_filter {
         render_proof_filtered_section(report, section);
         return;
@@ -253,7 +255,7 @@ fn proof_compact_unknowns_section(report: &ProofReport) {
         let sample = unknowns
             .iter()
             .take(5)
-            .map(|unknown| format!("`{}`", unknown_where(unknown)))
+            .map(|unknown| unknown_where(unknown))
             .collect::<Vec<_>>()
             .join(", ");
         if sample.is_empty() {

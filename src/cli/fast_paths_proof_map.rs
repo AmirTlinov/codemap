@@ -17,6 +17,7 @@ fn try_cached_proof_map_fast_path(
     if !lens_cache_matches_current(&root, &cache_dir, &selector_state.git_state) {
         return Ok(None);
     }
+    set_cached_map_snapshot(&root, &cache_dir);
     let Some(report) = crate::cache::read_proof_map_report(
         &cache_dir,
         repo::VERSION,

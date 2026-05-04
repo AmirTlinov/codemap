@@ -192,6 +192,11 @@ pub fn proof_report(
     }
     if let Some(target) = target.as_ref()
         && let Some(file) = project.files.get(target)
+    {
+        unknowns.extend(proof_target_owner_unknowns(project, target, file));
+    }
+    if let Some(target) = target.as_ref()
+        && let Some(file) = project.files.get(target)
         && changed_should_check_direct_proof(file)
         && !strict_test_edges_for_file(project, target, usize::MAX)
             .iter()
@@ -279,6 +284,21 @@ pub fn proof_report(
         run_hint: "codemap proof prints only by default; use --run to execute proof commands"
             .to_string(),
     }
+}
+
+fn proof_target_owner_unknowns(project: &Project, target: &str, file: &FileInfo) -> Vec<Unknown> {
+    let mut unknowns = Vec::new();
+    if file.has_role("manifest") {
+        unknowns.extend(changed_manifest_unknowns(project, target));
+    }
+    if file.has_role("schema_contract") || schema_owner_path(target) {
+        unknowns.extend(changed_schema_unknowns(project, target));
+    }
+    if file.has_role("env_config") {
+        unknowns.extend(owner_env_unknowns(project, target));
+        unknowns.extend(changed_env_unknowns(project, target));
+    }
+    unknowns
 }
 
 fn changed_missing_deterministic_proof_unknowns(

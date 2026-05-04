@@ -65,10 +65,12 @@ pub fn diff_map_report(
         }
         for (line, text) in &delta.added {
             let code = added_code.get(line).map(String::as_str).unwrap_or("");
-            if line_looks_like_import_or_reexport(code.trim_start()) {
+            if line_looks_like_import_or_reexport(code.trim_start())
+                && let Some(target) = structural_line_target(text)
+            {
                 added_edges.push(edge_with_path_location(
                     rel.clone(),
-                    structural_line_target(text),
+                    target,
                     "added_structural_line",
                     "git_diff_added_import_or_export",
                     EvidenceStrength::Medium,
@@ -108,10 +110,12 @@ pub fn diff_map_report(
         }
         for (line, text) in &delta.removed {
             let code = removed_code.get(line).map(String::as_str).unwrap_or("");
-            if line_looks_like_import_or_reexport(code.trim_start()) {
+            if line_looks_like_import_or_reexport(code.trim_start())
+                && let Some(target) = structural_line_target(text)
+            {
                 removed_edges.push(edge_with_path_location(
                     rel.clone(),
-                    structural_line_target(text),
+                    target,
                     "removed_structural_line",
                     "git_diff_removed_import_or_export",
                     EvidenceStrength::Medium,

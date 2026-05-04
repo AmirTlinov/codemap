@@ -133,6 +133,83 @@ fn diff_map_ignores_added_structural_text_inside_runtime_comments() {
 }
 
 #[test]
+fn diff_map_keeps_python_multiline_static_imports_out_of_dynamic_unknowns() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo
+            .path()
+            .join("tools/run_gpt_oss_low_level_active_carrier_probe_v0_041.py"),
+        "class Probe:\n    pass\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("tools/run_carrier_bound_growth_episode_v1_beta.py"),
+        "def main():\n    return None\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "python import base"]);
+
+    write(
+        &repo
+            .path()
+            .join("tools/run_carrier_bound_growth_episode_v1_beta.py"),
+        "from tools.run_gpt_oss_low_level_active_carrier_probe_v0_041 import (\n    Probe,\n)\n\n\ndef main():\n    return Probe()\n",
+    );
+
+    let diff = run_json(
+        repo.path(),
+        cache.path(),
+        &["diff-map", "--changed", "--format", "json"],
+    );
+    assert_schema("schemas/diff-map.schema.json", &diff);
+    assert!(
+        diff["new_unknowns"]
+            .as_array()
+            .expect("new unknowns")
+            .iter()
+            .all(|unknown| unknown["kind"] != "dynamic_import"),
+        "static Python from-import blocks must not become dynamic-import Unknowns: {diff:#}"
+    );
+    assert!(
+        diff["added_edges"]
+            .as_array()
+            .expect("added edges")
+            .iter()
+            .any(|edge| edge["type"] == "added_structural_line"
+                && edge["to"] == "tools.run_gpt_oss_low_level_active_carrier_probe_v0_041"),
+        "diff-map should keep the static Python module target instead of unknown_target noise: {diff:#}"
+    );
+
+    let cone = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "cone",
+            "tools/run_carrier_bound_growth_episode_v1_beta.py",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/cone.schema.json", &cone);
+    assert!(
+        cone["outgoing"]
+            .as_array()
+            .expect("outgoing")
+            .iter()
+            .any(|edge| edge["type"] == "imports"
+                && edge["to"]
+                    == "tools/run_gpt_oss_low_level_active_carrier_probe_v0_041.py"
+                && edge["evidence"] == "resolved_import"),
+        "cone and diff-map should agree that the multiline Python import is static: {cone:#}"
+    );
+}
+
+#[test]
 fn diff_map_reports_runtime_env_and_proof_surface_changes() {
     let (repo, cache) = fixture();
     write(

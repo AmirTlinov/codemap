@@ -171,6 +171,59 @@ jobs:
 }
 
 #[test]
+fn root_ls_all_does_not_emit_self_referential_hidden_expand() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{"name":"ls-all-fixture","private":true,"scripts":{"test":"vitest run"}}"#,
+    );
+    let make_targets = (0..30)
+        .map(|index| format!("verify-{index}:\n\tcargo test\n"))
+        .collect::<String>();
+    write(&repo.path().join("Makefile"), &make_targets);
+    write(&repo.path().join("src/index.ts"), "export const value = 1;\n");
+    write(&repo.path().join("docs/history/old.md"), "# old\n");
+    write(&repo.path().join("fixtures/sample.json"), "{}\n");
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "ls all fixture"]);
+
+    let expanded = run_json(
+        repo.path(),
+        cache.path(),
+        &["ls", ".", "--all", "--format", "json"],
+    );
+    assert_schema("schemas/ls.schema.json", &expanded);
+    assert!(
+        expanded["hidden"]
+            .as_array()
+            .expect("hidden")
+            .iter()
+            .all(|group| group["expand"] != "codemap ls . --all"),
+        "ls . --all must not suggest expanding with the same command again: {expanded:#}"
+    );
+    let markdown = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["ls", ".", "--all"])
+        .output()
+        .expect("ls all markdown should run");
+    assert!(
+        markdown.status.success(),
+        "ls all markdown failed: {}",
+        String::from_utf8_lossy(&markdown.stderr)
+    );
+    let markdown = String::from_utf8(markdown.stdout).expect("markdown utf8");
+    assert!(
+        !markdown.contains("hidden: ") && !markdown.contains("codemap ls . --all"),
+        "ls . --all markdown should not look self-collapsed; per-surface samples use additional examples wording: {markdown}"
+    );
+}
+
+#[test]
 fn root_ls_owner_env_edges_use_report_hidden_accounting() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");

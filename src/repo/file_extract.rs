@@ -54,12 +54,6 @@ fn extract_imports_exports(root: &Path, info: &mut FileInfo) {
                     info.imports.insert(m.as_str().trim().to_string());
                 }
             }
-            let def_re = py_def_re();
-            for cap in def_re.captures_iter(&text) {
-                if let Some(m) = cap.get(1) {
-                    info.exports.insert(m.as_str().trim().to_string());
-                }
-            }
         }
         "rs" => {
             let use_re = rust_use_re();

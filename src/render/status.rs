@@ -1,5 +1,6 @@
 use serde::Serialize;
 use std::path::Path;
+use std::process::Command;
 use std::sync::OnceLock;
 
 use crate::map::StatusReport;
@@ -11,10 +12,48 @@ use crate::model::{
 };
 
 static EXPAND_ROOT: OnceLock<String> = OnceLock::new();
+static MAP_SNAPSHOT: OnceLock<String> = OnceLock::new();
 
 pub fn set_expand_root(root: Option<&Path>) {
     if let Some(root) = root {
         let _ = EXPAND_ROOT.set(root.to_string_lossy().to_string());
+    }
+}
+
+pub fn set_map_snapshot(project: &crate::model::Project) {
+    let fingerprint = crate::cache::fingerprint(project, None);
+    set_map_snapshot_parts(&project.root, Some(&fingerprint));
+}
+
+pub fn set_map_snapshot_parts(root: &Path, fingerprint: Option<&str>) {
+    let fingerprint = fingerprint.unwrap_or("unknown");
+    let short_fingerprint = fingerprint.get(..12).unwrap_or(fingerprint);
+    let head = map_snapshot_git_head(root).unwrap_or_else(|| "none".to_string());
+    let _ = MAP_SNAPSHOT.set(format!(
+        "Map Snapshot: root=`{}`; head=`{}`; fingerprint=`{}`",
+        root.to_string_lossy(),
+        head,
+        short_fingerprint
+    ));
+}
+
+fn map_snapshot_git_head(root: &Path) -> Option<String> {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["rev-parse", "--short=12", "--verify", "HEAD"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let head = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    (!head.is_empty()).then_some(head)
+}
+
+fn map_snapshot_line() {
+    if let Some(snapshot) = MAP_SNAPSHOT.get() {
+        println!("{snapshot}");
     }
 }
 
@@ -139,7 +178,7 @@ pub fn status(report: &StatusReport, doctor: bool) {
                     report.cache_strategy.clone()
                 ],
                 vec![
-                    "Zero-footprint default".to_string(),
+                    "Zero repo footprint default".to_string(),
                     report.zero_footprint_default.to_string()
                 ],
                 vec![

@@ -68,6 +68,7 @@ pub fn run() -> Result<()> {
         _ => repo::CacheWriteMode::Enabled,
     };
     let project = repo::load_project_with_cache(root_selection, cache_write)?;
+    render::set_map_snapshot(&project);
     match cli.command {
         CommandKind::Doctor(args) => {
             let report = map::status_report(&project);
@@ -89,7 +90,12 @@ pub fn run() -> Result<()> {
             ensure_valid_config(&project)?;
             let path = project_relative_arg(&project, &args.path)?;
             accept_depth_compat(args.depth, "ls")?;
-            let report = map::ls_report(&project, &path, args.include_hidden, args.limit);
+            let limit = if args.include_hidden {
+                usize::MAX / 2
+            } else {
+                args.limit
+            };
+            let report = map::ls_report(&project, &path, args.include_hidden, limit);
             maybe_write_ls_lens_cache(&project, &path, &args, &report);
             output(args.format, &report, || {
                 render::ls(&report, ls_section_name(args.section))

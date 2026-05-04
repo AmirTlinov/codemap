@@ -65,6 +65,7 @@ fn changed_combines_delta_impact_and_proof_without_running_commands() {
         );
     }
 }
+
 #[test]
 fn changed_section_filters_use_stable_rfc_names() {
     let (repo, cache) = fixture();
@@ -472,7 +473,6 @@ fn dogfood_script_refuses_cleanup_outside_target_or_temp() {
         "dogfood script should not create refused output dir"
     );
 }
-
 #[test]
 fn dogfood_script_refuses_traversal_outside_target() {
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"));

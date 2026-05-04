@@ -67,4 +67,15 @@ fn place_lens_kind_maps_existing_lens_files_without_semantic_search() {
             && !markdown.contains("- `lens surfaces already exist under `src/map`"),
         "place local conventions should not be wrapped as one nested code literal: {markdown}"
     );
+
+    let default_kind = run_json(
+        repo.path(),
+        cache.path(),
+        &["place", "src/map", "--format", "json"],
+    );
+    assert_schema("schemas/place.schema.json", &default_kind);
+    assert_eq!(
+        default_kind["requested_kind"], "source",
+        "place should have a conservative default kind instead of failing without --kind: {default_kind:#}"
+    );
 }

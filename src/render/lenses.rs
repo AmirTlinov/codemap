@@ -1,5 +1,6 @@
 pub fn diff_map(report: &DiffMapReport) {
     println!("# Diff Map\n");
+    map_snapshot_line();
     render_file_summaries("Changed", &report.changed);
     cone_section("Added Structural Lines", &report.added_edges);
     cone_section("Removed Structural Lines", &report.removed_edges);
@@ -28,6 +29,7 @@ pub fn diff_map(report: &DiffMapReport) {
 
 pub fn contract(report: &ContractReport) {
     println!("# Contract Lens\n");
+    map_snapshot_line();
     println!("Anchor: `{}`", report.anchor.path);
     println!(
         "\n{}",
@@ -55,6 +57,7 @@ pub fn contract(report: &ContractReport) {
 
 pub fn runtime(report: &RuntimeReport) {
     println!("# Runtime Lens\n");
+    map_snapshot_line();
     println!("Scope: `{}`", report.scope);
     surface_section("Entrypoints", &report.entrypoints);
     runtime_routes_section("Routes", &report.routes);
@@ -70,18 +73,22 @@ pub fn runtime(report: &RuntimeReport) {
 
 pub fn proof_map(report: &ProofMapReport) {
     println!("# Proof Map\n");
+    map_snapshot_line();
     if let Some(scope) = &report.scope {
         println!("Scope: `{scope}`");
     }
     if !report.changed.is_empty() {
         println!("Changed: `{}`", report.changed.join("`, `"));
     }
-    proof_surface_section("Direct", &report.direct);
-    proof_surface_section("Indirect", &report.indirect);
-    proof_surface_section("E2E", &report.e2e);
-    proof_surface_section("Contract", &report.contract);
+    proof_map_surface_sections(report);
     surface_section("Missing Direct", &report.missing_direct);
-    proof_command_summary_section("Commands", &report.commands);
+    let runnable_commands = report
+        .commands
+        .iter()
+        .filter(|proof| crate::proof_classification::proof_surface_is_runnable_validation(proof))
+        .cloned()
+        .collect::<Vec<_>>();
+    proof_command_summary_section("Runnable Commands", &runnable_commands);
     if !report.fallback.is_empty() {
         println!("\n## Fallback\n");
         println!("{}", code_block("bash", &report.fallback));
@@ -91,8 +98,63 @@ pub fn proof_map(report: &ProofMapReport) {
     section("Expand", &report.expand);
 }
 
+fn proof_map_surface_sections(report: &ProofMapReport) {
+    let mut runnable = Vec::new();
+    let mut direct_evidence = Vec::new();
+    let mut mediated = Vec::new();
+    let mut soft = Vec::new();
+    let mut setup = Vec::new();
+    for proof in report
+        .direct
+        .iter()
+        .chain(report.indirect.iter())
+        .chain(report.e2e.iter())
+        .chain(report.contract.iter())
+    {
+        if crate::proof_classification::proof_surface_is_setup_or_support(proof) {
+            setup.push(proof.clone());
+        } else if proof_map_surface_is_mediated(proof) {
+            mediated.push(proof.clone());
+        } else if crate::proof_classification::proof_surface_is_soft_evidence(proof) {
+            soft.push(proof.clone());
+        } else if crate::proof_classification::proof_surface_is_runnable_validation(proof) {
+            runnable.push(proof.clone());
+        } else {
+            direct_evidence.push(proof.clone());
+        }
+    }
+    proof_surface_section("Hard Proof", &runnable);
+    proof_surface_section("Direct Evidence", &direct_evidence);
+    proof_surface_section("Mediated Evidence", &mediated);
+    proof_surface_section("Soft Token Evidence", &soft);
+    proof_surface_section("Setup / Support Surfaces", &setup);
+    if !mediated.is_empty() {
+        println!(
+            "\nMediated evidence is connected through a direct consumer, dependency, symbol consumer, barrel, or runtime bridge. It does not replace direct proof or remove Unknown entries."
+        );
+    }
+    if !soft.is_empty() {
+        println!(
+            "\nSoft token evidence is token/name/path surface overlap. It does not replace deterministic proof or remove Unknown entries."
+        );
+    }
+    if !setup.is_empty() {
+        println!(
+            "\nSetup/support surfaces are connected rails such as install, codegen, migration, seed, deploy, release, watch, or dev-server steps. They are not validation proof."
+        );
+    }
+}
+
+fn proof_map_surface_is_mediated(proof: &ProofSurface) -> bool {
+    proof.evidence.ends_with("_via_direct_consumer")
+        || proof.evidence.ends_with("_via_direct_dependency")
+        || proof.evidence.ends_with("_via_local_symbol_consumer")
+        || proof.evidence.ends_with("_owning_file")
+}
+
 pub fn delete(report: &DeleteReport) {
     println!("# Delete Lens\n");
+    map_snapshot_line();
     println!("Anchor: `{}`", report.anchor.path);
     cone_section("Direct Users", &report.direct_users);
     cone_section("Symbol Users", &report.symbol_users);
@@ -108,6 +170,7 @@ pub fn delete(report: &DeleteReport) {
 
 pub fn boundary_map(report: &BoundaryMapReport) {
     println!("# Boundary Map\n");
+    map_snapshot_line();
     println!("Scope: `{}`", report.scope);
     cone_section("Actual Cross Edges", &report.actual_cross_edges);
     render_file_summaries("Public Boundary Files", &report.public_boundary_files);
@@ -135,6 +198,7 @@ pub fn boundary_map(report: &BoundaryMapReport) {
 
 pub fn flow(report: &FlowReport) {
     println!("# Flow Lens\n");
+    map_snapshot_line();
     println!("Anchor: `{}`", report.anchor);
     println!("Precision: `{}`", report.precision);
     if !report.steps.is_empty() {
@@ -171,6 +235,7 @@ pub fn flow(report: &FlowReport) {
 
 pub fn siblings(report: &SiblingsReport) {
     println!("# Siblings Lens\n");
+    map_snapshot_line();
     println!("Scope: `{}`", report.scope);
     surface_section("Same Kind", &report.same_kind);
     surface_section("Route/Service/Test Triplets", &report.route_service_test_triplets);
@@ -184,6 +249,7 @@ pub fn siblings(report: &SiblingsReport) {
 
 pub fn place(report: &PlaceReport) {
     println!("# Place Lens\n");
+    map_snapshot_line();
     println!("Scope: `{}`", report.scope);
     println!("Kind: `{}`", report.requested_kind);
     surface_section("Existing Surfaces", &report.existing_surfaces);
@@ -222,7 +288,7 @@ fn surface_section(title: &str, surfaces: &[Surface]) {
             println!("  examples: {examples}");
         }
         if surface.hidden_count > 0 {
-            println!("  hidden: {} examples", surface.hidden_count);
+            println!("  additional examples: {}", surface.hidden_count);
         }
     }
 }

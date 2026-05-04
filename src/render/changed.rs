@@ -1,5 +1,6 @@
 pub fn changed(report: &ChangedReport, section_filter: Option<&str>) {
     println!("# Changed Map\n");
+    map_snapshot_line();
     println!("Selector: `{}`", report.selector);
     if report.total_changed_count > report.changed.len() {
         println!(
