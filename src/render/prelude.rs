@@ -4,6 +4,10 @@ pub fn set_map_prelude(prelude: MapPrelude) {
     let _ = MAP_PRELUDE.set(prelude);
 }
 
+fn current_map_prelude() -> Option<&'static MapPrelude> {
+    MAP_PRELUDE.get()
+}
+
 fn map_prelude_line_or_snapshot_line() {
     if let Some(prelude) = MAP_PRELUDE.get() {
         println!("{}", compact_prelude_line(prelude));

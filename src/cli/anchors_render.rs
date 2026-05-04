@@ -123,9 +123,10 @@ mod tests {
     fn proof_run_uses_fallback_when_only_soft_evidence_exists() {
         let report = ProofReport {
             kind: "proof_plan",
-            schema_version: "7",
+            schema_version: "8",
             target: Some("src/routes.ts".to_string()),
             changed: Vec::new(),
+            selector: "src/routes.ts".to_string(),
             risk: "medium".to_string(),
             proofs: vec![ProofSurface {
                 command: Some("pnpm exec vitest run tests/routes.test.ts".to_string()),
@@ -139,6 +140,7 @@ mod tests {
                     "test_surface",
                 )],
             }],
+            coverage: None,
             fallback: vec!["pnpm test".to_string()],
             unknowns: Vec::new(),
             hidden: Vec::new(),
@@ -158,9 +160,10 @@ mod tests {
     fn proof_run_uses_fallback_when_only_setup_surface_exists() {
         let report = ProofReport {
             kind: "proof_plan",
-            schema_version: "7",
+            schema_version: "8",
             target: Some("pnpm-workspace.yaml".to_string()),
             changed: Vec::new(),
+            selector: "pnpm-workspace.yaml".to_string(),
             risk: "medium".to_string(),
             proofs: vec![ProofSurface {
                 command: Some("pnpm install --frozen-lockfile".to_string()),
@@ -174,6 +177,7 @@ mod tests {
                     "ci_step",
                 )],
             }],
+            coverage: None,
             fallback: vec!["pnpm test".to_string()],
             unknowns: Vec::new(),
             hidden: Vec::new(),

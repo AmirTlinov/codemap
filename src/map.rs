@@ -6,12 +6,13 @@ use serde::Serialize;
 use crate::cache;
 use crate::evidence::{import_statement_locations, line_looks_like_import_or_reexport};
 use crate::model::{
-    BoundaryFinding, BoundaryMapReport, BoundaryReport, ChangedMapDelta, ChangedProofCommand,
-    ChangedProofSummary, ChangedReport, ChangedSymbol, ConeReport, ContractReport, DeleteReport,
-    DiffMapReport, DirectorySurface, Domain, DomainRef, EnvDeclaration, EnvSurface,
-    EvidenceLocation, EvidenceStrength, FileInfo, FileSummary, FlowReport, FlowStep, GitChange,
-    GraphEdge, GraphLens, HiddenGroup, ImpactCluster, ImpactReport, LsReport, PackageDependency,
-    PlaceReport, Project, ProofMapReport, ProofReport, ProofSurface, Risk, RuntimeReport,
+    BoundaryFinding, BoundaryMapReport, BoundaryReport, ChangedCouplingFact, ChangedMapDelta,
+    ChangedProofCommand, ChangedProofSummary, ChangedReport, ChangedRisk, ChangedSymbol,
+    ConeReport, ContractReport, DeleteReport, DiffMapReport, DirectorySurface, Domain, DomainRef,
+    EnvDeclaration, EnvSurface, EvidenceLocation, EvidenceStrength, FileInfo, FileSummary,
+    FlowReport, FlowStep, GitChange, GraphEdge, GraphLens, HiddenGroup, ImpactCluster,
+    ImpactReport, LsReport, PackageDependency, PlaceReport, Project, ProofCoverageSummary,
+    ProofCoveredPath, ProofGap, ProofMapReport, ProofReport, ProofSurface, Risk, RuntimeReport,
     RuntimeRoute, SiblingsReport, StructuralEdge, Surface, TeachProofCommand, TeachReport,
     TeachRolePattern, Unknown, VerificationPlan, XrayCard,
 };

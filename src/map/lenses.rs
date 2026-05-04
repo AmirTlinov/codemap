@@ -1,4 +1,6 @@
 include!("lenses/changed.rs");
+include!("lenses/changed_truth.rs");
+include!("lenses/changed_truth_paths.rs");
 include!("lenses/changed_receipt_events.rs");
 include!("lenses/changed_structural_events.rs");
 include!("lenses/changed_fail_open_unknowns.rs");

@@ -7,6 +7,10 @@ fn changed_proof_section(report: &ChangedReport, compact: bool) {
     let evidence_only = changed_proof_evidence_only_surfaces(report);
     let setup = changed_proof_groups_by_class(&setup_grouped, ChangedProofGroupClass::Setup);
     let soft = changed_proof_groups_by_class(&soft_grouped, ChangedProofGroupClass::Soft);
+    if compact && report.total_changed_count > 20 {
+        changed_proof_large_compact_summary(report, &runnable, &evidence_only, &setup, &soft);
+        return;
+    }
     if runnable.is_empty() && report.proof.fallback.is_empty() {
         println!("No runnable proof command inferred.");
     }
@@ -14,29 +18,57 @@ fn changed_proof_section(report: &ChangedReport, compact: bool) {
     if !evidence_only.is_empty() {
         println!("\n## Evidence Surfaces");
         changed_proof_render_evidence_surfaces(&evidence_only, compact, &report.selector);
-        println!(
-            "\nEvidence surfaces are source-backed links without a runnable command. They do not replace runnable proof commands or remove Unknown entries."
-        );
+        if !compact {
+            println!(
+                "\nEvidence surfaces are source-backed links without a runnable command. They do not replace runnable proof commands or remove Unknown entries."
+            );
+        }
     }
     if !setup.is_empty() {
         println!("\n## Setup / Support Surfaces");
         changed_proof_render_groups(&setup, compact, &report.selector);
-        println!(
-            "\nSetup/support surfaces are connected rails such as install, codegen, migration, seed, deploy, release, watch, or dev-server steps. They are not validation proof and are not run by `--run`."
-        );
+        if !compact {
+            println!(
+                "\nSetup/support surfaces are connected rails such as install, codegen, migration, seed, deploy, release, watch, or dev-server steps. They are not validation proof and are not run by `--run`."
+            );
+        }
     }
     if !soft.is_empty() {
         println!("\n## Soft Evidence");
         changed_proof_render_groups(&soft, compact, &report.selector);
-        println!(
-            "\nSoft evidence is token/name/path surface overlap. It does not replace deterministic proof or remove Unknown entries."
-        );
+        if !compact {
+            println!(
+                "\nSoft evidence is token/name/path surface overlap. It does not replace deterministic proof or remove Unknown entries."
+            );
+        }
     }
     if !report.proof.fallback.is_empty() {
         println!("\n### Fallback");
         println!("{}", code_block("bash", &report.proof.fallback));
     }
     changed_proof_sensor_counts(report, compact);
+}
+
+fn changed_proof_large_compact_summary(
+    report: &ChangedReport,
+    runnable: &[(&String, &(Vec<&ProofSurface>, usize))],
+    evidence_only: &[&ProofSurface],
+    setup: &[(&String, &(Vec<&ProofSurface>, usize))],
+    soft: &[(&String, &(Vec<&ProofSurface>, usize))],
+) {
+    println!("- runnable command groups: `{}`", runnable.len());
+    println!("- evidence-only sensors: `{}`", evidence_only.len());
+    println!("- setup/support groups: `{}`", setup.len());
+    println!("- soft evidence groups: `{}`", soft.len());
+    println!("- fallback commands: `{}`", report.proof.fallback.len());
+    println!(
+        "- expand: `{}`",
+        root_aware_expand(&format!(
+            "codemap changed{} --section proof",
+            changed_selector_suffix(&report.selector)
+        ))
+    );
+    changed_proof_sensor_counts(report, true);
 }
 
 fn changed_proof_evidence_only_surfaces(report: &ChangedReport) -> Vec<&ProofSurface> {

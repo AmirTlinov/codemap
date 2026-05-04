@@ -69,7 +69,11 @@ pub fn proof(report: &ProofReport, section_filter: Option<&str>) {
     }
     if !report.changed.is_empty() {
         println!("Changed anchors:");
-        println!("{}", bullet(&report.changed, true, Some(20)));
+        if proof_large_changed_compact(report) {
+            proof_changed_anchor_summary(report);
+        } else {
+            println!("{}", bullet(&report.changed, true, Some(20)));
+        }
         println!();
     }
     println!("\n## Summary\n");
@@ -95,7 +99,12 @@ pub fn proof(report: &ProofReport, section_filter: Option<&str>) {
         println!("\n{}", report.run_hint);
         return;
     }
-    if !report.proofs.is_empty() {
+    if let Some(coverage) = &report.coverage {
+        proof_coverage_section(coverage);
+    }
+    if proof_large_changed_compact(report) {
+        proof_large_changed_summary(report);
+    } else if !report.proofs.is_empty() {
         proof_plan_surface_sections(report, false);
     }
     if !report.fallback.is_empty() {
@@ -120,6 +129,65 @@ fn render_proof_filtered_section(report: &ProofReport, section: &str) {
     }
 }
 
+fn proof_large_changed_compact(report: &ProofReport) -> bool {
+    report.target.is_none() && report.changed.len() > 20
+}
+
+fn proof_changed_anchor_summary(report: &ProofReport) {
+    let sample = report
+        .changed
+        .iter()
+        .take(5)
+        .map(|path| format!("`{path}`"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let hidden = report.changed.len().saturating_sub(5);
+    if hidden == 0 {
+        println!("- sample: {sample}");
+    } else {
+        println!("- sample: {sample}; hidden: `{hidden}` anchors");
+    }
+    let changed_suffix = proof_changed_command_selector_suffix(report);
+    println!(
+        "- expand: `{}`",
+        root_aware_expand(&format!(
+            "codemap changed{changed_suffix} --section observed --limit {}",
+            report.changed.len()
+        ))
+    );
+}
+
+fn proof_large_changed_summary(report: &ProofReport) {
+    let runnable = report
+        .proofs
+        .iter()
+        .filter(|proof| crate::proof_classification::proof_surface_is_runnable_validation(proof))
+        .count();
+    let evidence_only = report
+        .proofs
+        .iter()
+        .filter(|proof| crate::proof_classification::proof_surface_is_evidence_only(proof))
+        .count();
+    let setup = report
+        .proofs
+        .iter()
+        .filter(|proof| crate::proof_classification::proof_surface_is_setup_or_support(proof))
+        .count();
+    let soft = report
+        .proofs
+        .iter()
+        .filter(|proof| crate::proof_classification::proof_surface_is_soft_evidence(proof))
+        .count();
+    println!("\n## Proof\n");
+    println!("- runnable deterministic sensors: `{runnable}`");
+    println!("- evidence-only sensors: `{evidence_only}`");
+    println!("- setup/support sensors: `{setup}`");
+    println!("- soft evidence sensors: `{soft}`");
+    if let Some(expand) = proof_detail_expand(report, report.proofs.len()) {
+        println!("- expand: `{}`", root_aware_expand(&expand));
+    }
+}
+
 fn proof_observed_section(report: &ProofReport) {
     println!("## Observed\n");
     if let Some(target) = &report.target {
@@ -133,6 +201,13 @@ fn proof_observed_section(report: &ProofReport) {
         println!("- selected anchors: `0`");
     }
     println!("- proof surfaces: `{}`", report.proofs.len());
+    if let Some(coverage) = &report.coverage {
+        println!("- coverage changed files: `{}`", coverage.changed_count);
+        println!(
+            "- coverage missing direct proof: `{}`",
+            coverage.missing.len()
+        );
+    }
     println!("- fallback commands: `{}`", report.fallback.len());
     println!("- unknown entries: `{}`", report.unknowns.len());
     println!("- hidden groups: `{}`", report.hidden.len());

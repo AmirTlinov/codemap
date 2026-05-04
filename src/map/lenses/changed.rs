@@ -25,7 +25,7 @@ pub fn changed_report(
     if total_changed_count == 0 && git_state.is_empty() {
         return ChangedReport {
             kind: "changed_report",
-            schema_version: "5",
+            schema_version: "6",
             selector: selector.clone(),
             display_limit: limit,
             proof_plan_cache: None,
@@ -47,6 +47,8 @@ pub fn changed_report(
                 removed_proof_surfaces: 0,
                 new_unknowns: 0,
             },
+            risks: Vec::new(),
+            coupling: Vec::new(),
             impact: Vec::new(),
             proof: ChangedProofSummary {
                 commands: Vec::new(),
@@ -75,6 +77,8 @@ pub fn changed_report(
         proof_cache_limit,
     );
     let proof_map = proof_map_report(project, None, changed, selector.clone(), limit, false);
+    let risks = changed_risks(project, &changed_paths, &git_state, &proof_map, &selector);
+    let coupling = changed_coupling(project, &changed_paths, &proof_map, &selector);
     let mut hidden = Vec::new();
     hidden.extend(prefix_hidden("observed", &diff.hidden, &selector, limit));
     hidden.extend(prefix_hidden("links", &impact.hidden, &selector, limit));
@@ -100,7 +104,7 @@ pub fn changed_report(
     );
     ChangedReport {
         kind: "changed_report",
-        schema_version: "5",
+        schema_version: "6",
         selector: selector.clone(),
         display_limit: limit,
         proof_plan_cache: Some(Box::new(proof_plan_cache)),
@@ -170,6 +174,8 @@ pub fn changed_report(
                 "new unknowns hidden by limit",
             ),
         },
+        risks,
+        coupling,
         impact: impact.clusters,
         proof: changed_proof_summary(proof_map, limit),
         unknowns,
@@ -181,7 +187,7 @@ pub fn changed_report(
 pub fn clean_changed_report(selector: String, limit: usize) -> ChangedReport {
     ChangedReport {
         kind: "changed_report",
-        schema_version: "5",
+        schema_version: "6",
         selector: selector.clone(),
         display_limit: limit.max(1),
         proof_plan_cache: None,
@@ -203,6 +209,8 @@ pub fn clean_changed_report(selector: String, limit: usize) -> ChangedReport {
             removed_proof_surfaces: 0,
             new_unknowns: 0,
         },
+        risks: Vec::new(),
+        coupling: Vec::new(),
         impact: Vec::new(),
         proof: ChangedProofSummary {
             commands: Vec::new(),

@@ -184,11 +184,26 @@ fn proof_detail_expand(report: &ProofReport, limit: usize) -> Option<String> {
         ));
     }
     if !report.changed.is_empty() {
+        let selector = proof_map_changed_selector(report);
         return Some(format!(
-            "codemap proof-map --changed --raw-sensors --limit {limit}"
+            "codemap proof-map {selector} --raw-sensors --limit {limit}"
         ));
     }
     None
+}
+
+fn proof_changed_command_selector_suffix(report: &ProofReport) -> String {
+    match report.selector.as_str() {
+        "" | "changed" | "--changed" => String::new(),
+        selector => format!(" {selector}"),
+    }
+}
+
+fn proof_map_changed_selector(report: &ProofReport) -> String {
+    match report.selector.as_str() {
+        "" | "changed" | "--changed" => "--changed".to_string(),
+        selector => selector.to_string(),
+    }
 }
 
 fn shell_quote_for_markdown(value: &str) -> String {

@@ -4,8 +4,9 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::model::{
-    ChangedMapDelta, ChangedProofSummary, ChangedReport, ChangedStructuralEvent, FileSummary,
-    GitChange, HiddenGroup, ImpactCluster, ProofReport, ProofSurface, Unknown,
+    ChangedCouplingFact, ChangedMapDelta, ChangedProofSummary, ChangedReport, ChangedRisk,
+    ChangedStructuralEvent, FileSummary, GitChange, HiddenGroup, ImpactCluster,
+    ProofCoverageSummary, ProofReport, ProofSurface, Unknown,
 };
 
 use super::{
@@ -155,6 +156,8 @@ struct CachedChangedReport {
     git_state: Vec<GitChange>,
     structural_events: Vec<ChangedStructuralEvent>,
     map_delta: ChangedMapDelta,
+    risks: Vec<ChangedRisk>,
+    coupling: Vec<ChangedCouplingFact>,
     impact: Vec<ImpactCluster>,
     proof: ChangedProofSummary,
     unknowns: Vec<Unknown>,
@@ -173,6 +176,8 @@ impl CachedChangedReport {
             git_state: report.git_state.clone(),
             structural_events: report.structural_events.clone(),
             map_delta: report.map_delta.clone(),
+            risks: report.risks.clone(),
+            coupling: report.coupling.clone(),
             impact: report.impact.clone(),
             proof: report.proof.clone(),
             unknowns: report.unknowns.clone(),
@@ -184,7 +189,7 @@ impl CachedChangedReport {
     fn into_report(self, limit: usize) -> ChangedReport {
         ChangedReport {
             kind: "changed_report",
-            schema_version: "5",
+            schema_version: "6",
             selector: self.selector,
             display_limit: limit,
             proof_plan_cache: None,
@@ -193,6 +198,8 @@ impl CachedChangedReport {
             git_state: self.git_state,
             structural_events: self.structural_events,
             map_delta: self.map_delta,
+            risks: self.risks,
+            coupling: self.coupling,
             impact: self.impact,
             proof: self.proof,
             unknowns: self.unknowns,
@@ -208,8 +215,11 @@ struct CachedProofReport {
     schema_version: String,
     target: Option<String>,
     changed: Vec<String>,
+    #[serde(default)]
+    selector: String,
     risk: String,
     proofs: Vec<ProofSurface>,
+    coverage: Option<ProofCoverageSummary>,
     fallback: Vec<String>,
     unknowns: Vec<Unknown>,
     hidden: Vec<HiddenGroup>,
@@ -224,8 +234,10 @@ impl CachedProofReport {
             schema_version: report.schema_version.to_string(),
             target: report.target.clone(),
             changed: report.changed.clone(),
+            selector: report.selector.clone(),
             risk: report.risk.clone(),
             proofs: report.proofs.clone(),
+            coverage: report.coverage.clone(),
             fallback: report.fallback.clone(),
             unknowns: report.unknowns.clone(),
             hidden: report.hidden.clone(),
@@ -237,11 +249,13 @@ impl CachedProofReport {
     fn into_report(self) -> ProofReport {
         ProofReport {
             kind: "proof_plan",
-            schema_version: "7",
+            schema_version: "8",
             target: self.target,
             changed: self.changed,
+            selector: self.selector,
             risk: self.risk,
             proofs: self.proofs,
+            coverage: self.coverage,
             fallback: self.fallback,
             unknowns: self.unknowns,
             hidden: self.hidden,

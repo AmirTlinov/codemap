@@ -111,6 +111,8 @@ pub struct ChangedReport {
     pub git_state: Vec<GitChange>,
     pub structural_events: Vec<ChangedStructuralEvent>,
     pub map_delta: ChangedMapDelta,
+    pub risks: Vec<ChangedRisk>,
+    pub coupling: Vec<ChangedCouplingFact>,
     pub impact: Vec<ImpactCluster>,
     pub proof: ChangedProofSummary,
     pub unknowns: Vec<Unknown>,
@@ -152,6 +154,27 @@ pub struct ChangedMapDelta {
     pub added_proof_surfaces: usize,
     pub removed_proof_surfaces: usize,
     pub new_unknowns: usize,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ChangedRisk {
+    pub kind: String,
+    pub severity: String,
+    pub count: usize,
+    pub paths: Vec<String>,
+    pub evidence: Vec<EvidenceLocation>,
+    pub effect: String,
+    pub expand: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ChangedCouplingFact {
+    pub kind: String,
+    pub status: String,
+    pub paths: Vec<String>,
+    pub evidence: Vec<EvidenceLocation>,
+    pub effect: String,
+    pub expand: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

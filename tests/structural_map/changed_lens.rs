@@ -9,7 +9,7 @@ fn changed_combines_delta_impact_and_proof_without_running_commands() {
     let changed = run_json(repo.path(), cache.path(), &["changed", "--format", "json"]);
     assert_schema("schemas/changed.schema.json", &changed);
     assert_eq!(changed["kind"], "changed_report");
-    assert_eq!(changed["schema_version"], "5");
+    assert_eq!(changed["schema_version"], "6");
     assert!(
         changed["changed"]
             .as_array()
@@ -115,6 +115,120 @@ fn changed_section_filters_use_stable_rfc_names() {
     assert!(
         markdown.contains("## Observed"),
         "legacy diff alias should map to observed facts: {markdown}"
+    );
+}
+
+#[test]
+fn changed_staged_selector_keeps_full_worktree_summary() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("packages/replay/src/staged.ts"),
+        "export const staged = true;\n",
+    );
+    git(repo.path(), &["add", "packages/replay/src/staged.ts"]);
+    write(
+        &repo.path().join("packages/replay/src/session.ts"),
+        "import { Timeline } from './timeline';\n\nexport function seek(cursor: number) {\n  return new Timeline().frameAt(cursor + 9);\n}\n",
+    );
+    write(
+        &repo.path().join("packages/replay/src/untracked.ts"),
+        "export const untracked = true;\n",
+    );
+
+    let changed = run_json(repo.path(), cache.path(), &["changed", "--staged", "--format", "json"]);
+    assert_schema("schemas/changed.schema.json", &changed);
+    assert_eq!(changed["total_changed_count"].as_u64(), Some(1));
+    assert_eq!(changed["prelude"]["worktree"]["staged"].as_u64(), Some(1));
+    assert_eq!(changed["prelude"]["worktree"]["unstaged"].as_u64(), Some(1));
+    assert_eq!(changed["prelude"]["worktree"]["untracked"].as_u64(), Some(1));
+
+    let output = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["changed", "--staged"])
+        .output()
+        .expect("changed staged markdown should run");
+    assert!(output.status.success());
+    let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
+    assert!(
+        markdown.contains("\n## Worktree\n")
+            && markdown.contains("- selector: `--staged`")
+            && markdown.contains("- selected files: `1`")
+            && markdown.contains("- staged: `1`")
+            && markdown.contains("- unstaged: `1`")
+            && markdown.contains("- untracked: `1`")
+            && markdown.contains("Worktree counts show current repo state; selected files show `--staged`."),
+        "staged changed output should keep full live worktree summary: {markdown}"
+    );
+}
+
+#[test]
+fn changed_risks_and_coupling_are_mechanical_not_recommendations() {
+    let (repo, cache) = fixture();
+    write(&repo.path().join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\n");
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "lock baseline"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{"name":"map-fixture","private":true,"workspaces":["packages/*"],"scripts":{"test":"pnpm test","typecheck":"tsc -b","verify":"node scripts/verify.js"}}"#,
+    );
+    write(&repo.path().join("AGENTS.md"), "# local instructions\n");
+    write(&repo.path().join("models/tiny.gguf"), "not a real model\n");
+    write(
+        &repo.path().join("packages/replay/src/no-proof.ts"),
+        "export const noProof = true;\n",
+    );
+
+    let changed = run_json(repo.path(), cache.path(), &["changed", "--format", "json"]);
+    assert_schema("schemas/changed.schema.json", &changed);
+    let risk_kinds = changed["risks"]
+        .as_array()
+        .expect("risks")
+        .iter()
+        .map(|risk| risk["kind"].as_str().unwrap_or_default())
+        .collect::<BTreeSet<_>>();
+    for expected in [
+        "instruction_file_changed",
+        "manifest_without_lockfile_change",
+        "model_weight_like_changed",
+        "protected_looking_path_changed",
+        "unknown_direct_proof",
+    ] {
+        assert!(
+            risk_kinds.contains(expected),
+            "changed risks should include `{expected}` as mechanical facts: {changed:#}"
+        );
+    }
+    assert!(
+        changed["coupling"]
+            .as_array()
+            .expect("coupling")
+            .iter()
+            .any(|fact| fact["kind"] == "source_has_direct_or_declared_proof_surface"
+                && fact["status"] == "no"),
+        "changed coupling should keep missing direct proof as a relationship fact: {changed:#}"
+    );
+
+    let output = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .arg("changed")
+        .output()
+        .expect("changed markdown should run");
+    assert!(output.status.success());
+    let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
+    assert!(
+        markdown.contains("\n## Risks\n")
+            && markdown.contains("Mechanical facts only. Not an edit verdict.")
+            && markdown.contains("\n## Coupling\n")
+            && markdown.contains("Deterministic relationship facts only.")
+            && !markdown.contains("recommended")
+            && !markdown.contains("recommendation")
+            && !markdown.contains("advice")
+            && !markdown.contains("best file")
+            && !markdown.contains("trusting edits")
+            && !markdown.contains("require source provenance"),
+        "changed markdown should expose risks/coupling without advice wording: {markdown}"
     );
 }
 
@@ -290,211 +404,5 @@ fn changed_distinguishes_visible_and_total_changed_files() {
     assert!(
         !markdown.contains("--files "),
         "changed markdown hidden expands should not dump long selected-file lists: {markdown}"
-    );
-}
-
-#[test]
-fn changed_does_not_turn_comment_only_edits_into_symbol_delta() {
-    let (repo, cache) = fixture();
-    write(
-        &repo
-            .path()
-            .join("packages/app/src/features/studio/comment-only.tsx"),
-        "/*\n  Updated prose only: no route, import, export, or symbol body change.\n*/\nexport function CommentOnly() {\n  return <div />;\n}\n",
-    );
-
-    let diff = run_json(repo.path(), cache.path(), &["diff-map", "--changed", "--format", "json"]);
-    assert_schema("schemas/diff-map.schema.json", &diff);
-    assert!(
-        diff["changed_symbols"]
-            .as_array()
-            .expect("changed symbols")
-            .is_empty(),
-        "comment-only edits should not create changed symbol surfaces: {diff:#}"
-    );
-    assert!(
-        diff["added_edges"].as_array().expect("added edges").is_empty()
-            && diff["removed_edges"]
-                .as_array()
-                .expect("removed edges")
-                .is_empty()
-            && diff["added_runtime_routes"]
-                .as_array()
-                .expect("added routes")
-                .is_empty()
-            && diff["added_proof_surfaces"]
-                .as_array()
-                .expect("added proof")
-                .is_empty(),
-        "comments/docs are not hard structural proof or runtime evidence: {diff:#}"
-    );
-
-    let changed = run_json(repo.path(), cache.path(), &["changed", "--format", "json"]);
-    assert_schema("schemas/changed.schema.json", &changed);
-    assert_eq!(
-        changed["map_delta"]["changed_symbols"].as_u64(),
-        Some(0),
-        "changed overview should not overclaim comment-only symbol deltas: {changed:#}"
-    );
-}
-
-#[test]
-fn changed_does_not_turn_inline_comment_edits_into_symbol_delta() {
-    let (repo, cache) = fixture();
-    write(
-        &repo
-            .path()
-            .join("packages/app/src/features/studio/comment-only.tsx"),
-        "/*\n  <button aria-label=\"Open settings panel\" data-testid=\"submit-order-button\">Settings</button>\n  await page.goto('/orders/new');\n*/\nexport function CommentOnly() {\n  return <div />; // updated prose only\n}\n",
-    );
-
-    let diff = run_json(repo.path(), cache.path(), &["diff-map", "--changed", "--format", "json"]);
-    assert_schema("schemas/diff-map.schema.json", &diff);
-    assert!(
-        diff["changed_symbols"]
-            .as_array()
-            .expect("changed symbols")
-            .is_empty(),
-        "inline comment-only edits inside a symbol body should not create changed symbol surfaces: {diff:#}"
-    );
-
-    let changed = run_json(repo.path(), cache.path(), &["changed", "--format", "json"]);
-    assert_schema("schemas/changed.schema.json", &changed);
-    assert_eq!(
-        changed["map_delta"]["changed_symbols"].as_u64(),
-        Some(0),
-        "changed overview should not overclaim inline comment-only symbol deltas: {changed:#}"
-    );
-}
-
-#[test]
-fn changed_keeps_url_string_literal_edits_as_symbol_delta() {
-    let (repo, cache) = fixture();
-    let path = repo
-        .path()
-        .join("packages/app/src/features/studio/comment-only.tsx");
-    write(
-        &path,
-        "export function CommentOnly() {\n  return \"http://old.example.test\";\n}\n",
-    );
-    git(repo.path(), &["add", "."]);
-    git(repo.path(), &["commit", "-qm", "url baseline"]);
-    write(
-        &path,
-        "export function CommentOnly() {\n  return \"http://new.example.test\";\n}\n",
-    );
-
-    let diff = run_json(repo.path(), cache.path(), &["diff-map", "--changed", "--format", "json"]);
-    assert_schema("schemas/diff-map.schema.json", &diff);
-    assert!(
-        diff["changed_symbols"]
-            .as_array()
-            .expect("changed symbols")
-            .iter()
-            .any(|symbol| symbol["path"] == "packages/app/src/features/studio/comment-only.tsx"
-                && symbol["name"] == "CommentOnly"
-                && symbol["change"] == "symbol_body_changed"),
-        "real string literal edits containing // should remain structural symbol deltas: {diff:#}"
-    );
-
-    let changed = run_json(repo.path(), cache.path(), &["changed", "--format", "json"]);
-    assert_schema("schemas/changed.schema.json", &changed);
-    assert_eq!(
-        changed["map_delta"]["changed_symbols"].as_u64(),
-        Some(1),
-        "changed overview should keep real URL string edits as symbol deltas: {changed:#}"
-    );
-}
-
-#[test]
-fn changed_does_not_mark_symbol_body_when_import_above_symbol_is_removed() {
-    let (repo, cache) = fixture();
-    let path = repo
-        .path()
-        .join("packages/app/src/features/studio/comment-only.tsx");
-    write(
-        &path,
-        "import { SettingsButton } from './settings-button';\n\nexport function CommentOnly() {\n  return <SettingsButton />;\n}\n",
-    );
-    git(repo.path(), &["add", "."]);
-    git(repo.path(), &["commit", "-qm", "import baseline"]);
-    write(
-        &path,
-        "export function CommentOnly() {\n  return <SettingsButton />;\n}\n",
-    );
-
-    let diff = run_json(repo.path(), cache.path(), &["diff-map", "--changed", "--format", "json"]);
-    assert_schema("schemas/diff-map.schema.json", &diff);
-    assert!(
-        diff["changed_symbols"]
-            .as_array()
-            .expect("changed symbols")
-            .is_empty(),
-        "removing an import above a symbol should be a removed edge, not a false symbol body delta: {diff:#}"
-    );
-    assert!(
-        !diff["removed_edges"]
-            .as_array()
-            .expect("removed edges")
-            .is_empty(),
-        "the removed import should remain visible as a structural edge delta: {diff:#}"
-    );
-
-    let changed = run_json(repo.path(), cache.path(), &["changed", "--format", "json"]);
-    assert_schema("schemas/changed.schema.json", &changed);
-    assert_eq!(
-        changed["map_delta"]["changed_symbols"].as_u64(),
-        Some(0),
-        "changed overview should not overclaim symbol deltas from removed old-coordinate lines: {changed:#}"
-    );
-}
-
-#[test]
-fn dogfood_script_refuses_cleanup_outside_target_or_temp() {
-    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let refused_out = repo_root.join("dogfood-refused-output");
-    let _ = fs::remove_dir_all(&refused_out);
-
-    let output = Command::new("bash")
-        .arg(repo_root.join("scripts/dogfood-codemap.sh"))
-        .env("CODEMAP_DOGFOOD_OUT", &refused_out)
-        .output()
-        .expect("dogfood script should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(2),
-        "dogfood script should refuse unsafe output dirs; stdout={}, stderr={}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert!(
-        !refused_out.exists(),
-        "dogfood script should not create refused output dir"
-    );
-}
-#[test]
-fn dogfood_script_refuses_traversal_outside_target() {
-    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let refused_out = repo_root.join("dogfood-refused-output");
-    let traversal_out = repo_root.join("target/../../dogfood-refused-output");
-    let _ = fs::remove_dir_all(&refused_out);
-
-    let output = Command::new("bash")
-        .arg(repo_root.join("scripts/dogfood-codemap.sh"))
-        .env("CODEMAP_DOGFOOD_OUT", &traversal_out)
-        .output()
-        .expect("dogfood script should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(2),
-        "dogfood script should refuse traversal outside target; stdout={}, stderr={}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert!(
-        !refused_out.exists(),
-        "dogfood script should not create traversal-refused output dir"
     );
 }

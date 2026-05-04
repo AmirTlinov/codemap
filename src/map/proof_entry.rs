@@ -118,20 +118,25 @@ pub fn proof_report(
     let mut hidden = Vec::new();
     let mut risk = Risk::Low;
     let discovery_limit = usize::MAX;
+    let mut coverage = None;
     if target.is_none() && !changed.is_empty() {
         let impact = impact_report(project, changed.clone(), depth, limit.max(changed.len()));
         for cluster in &impact.clusters {
             risk = risk.max(impact_level_from_str(&cluster.risk));
         }
+        let mut proofs_by_anchor = BTreeMap::new();
         for anchor in &changed {
-            proofs.extend(proof_surfaces_for_anchor(
+            let anchor_proofs = proof_surfaces_for_anchor(
                 project,
                 anchor,
                 depth,
                 discovery_limit,
-            ));
+            );
+            proofs_by_anchor.insert(anchor.clone(), anchor_proofs.clone());
+            proofs.extend(anchor_proofs);
         }
         proofs.extend(ctx_changed_proof_surfaces(project));
+        coverage = Some(proof_coverage_summary(&changed, &proofs_by_anchor));
     } else {
         for anchor in &anchors {
             if let Some((file_rel, symbol_name)) = split_symbol_anchor(anchor) {
@@ -272,17 +277,109 @@ pub fn proof_report(
     }
     ProofReport {
         kind: "proof_plan",
-        schema_version: "7",
+        schema_version: "8",
         target,
         changed,
+        selector,
         risk: risk.as_str().to_string(),
         proofs,
+        coverage,
         fallback,
         unknowns,
         hidden,
         expand,
         run_hint: "codemap proof prints only by default; use --run to execute proof commands"
             .to_string(),
+    }
+}
+
+fn proof_coverage_summary(
+    changed: &[String],
+    proofs_by_anchor: &BTreeMap<String, Vec<ProofSurface>>,
+) -> ProofCoverageSummary {
+    let mut summary = ProofCoverageSummary {
+        changed_count: changed.len(),
+        runnable_deterministic: Vec::new(),
+        evidence_only: Vec::new(),
+        setup_support_only: Vec::new(),
+        soft_only: Vec::new(),
+        missing: Vec::new(),
+    };
+    for path in changed {
+        let proofs = proofs_by_anchor.get(path).map(Vec::as_slice).unwrap_or(&[]);
+        let runnable = proofs
+            .iter()
+            .filter(|proof| {
+                crate::proof_classification::proof_surface_is_runnable_validation(proof)
+            })
+            .collect::<Vec<_>>();
+        if !runnable.is_empty() {
+            summary
+                .runnable_deterministic
+                .push(proof_covered_path(path, &runnable));
+            continue;
+        }
+        let evidence_only = proofs
+            .iter()
+            .filter(|proof| crate::proof_classification::proof_surface_is_evidence_only(proof))
+            .collect::<Vec<_>>();
+        if !evidence_only.is_empty() {
+            summary
+                .evidence_only
+                .push(proof_covered_path(path, &evidence_only));
+            continue;
+        }
+        let setup = proofs
+            .iter()
+            .filter(|proof| crate::proof_classification::proof_surface_is_setup_or_support(proof))
+            .collect::<Vec<_>>();
+        if !setup.is_empty() {
+            summary
+                .setup_support_only
+                .push(proof_covered_path(path, &setup));
+            continue;
+        }
+        let soft = proofs
+            .iter()
+            .filter(|proof| crate::proof_classification::proof_surface_is_soft_evidence(proof))
+            .collect::<Vec<_>>();
+        if !soft.is_empty() {
+            summary.soft_only.push(proof_covered_path(path, &soft));
+            continue;
+        }
+        summary.missing.push(ProofGap {
+            path: path.clone(),
+            kind: "direct_deterministic_proof_not_found".to_string(),
+            effect: "no direct runnable, evidence-only, setup/support, or soft proof sensor was found for this changed path".to_string(),
+            expand: format!("codemap proof-map --files {} --raw-sensors", shell_quote(path)),
+        });
+    }
+    summary
+}
+
+fn proof_covered_path(path: &str, proofs: &[&ProofSurface]) -> ProofCoveredPath {
+    let evidence = proofs
+        .iter()
+        .map(|proof| proof.evidence.clone())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    let commands = proofs
+        .iter()
+        .map(|proof| {
+            proof
+                .command
+                .clone()
+                .unwrap_or_else(|| proof.evidence.clone())
+        })
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    ProofCoveredPath {
+        path: path.to_string(),
+        sensor_count: proofs.len(),
+        evidence,
+        commands,
     }
 }
 
@@ -348,14 +445,16 @@ fn changed_path_needs_missing_deterministic_proof_unknown(project: &Project, rel
     })
 }
 
-pub fn clean_proof_report(_selector: String) -> ProofReport {
+pub fn clean_proof_report(selector: String) -> ProofReport {
     ProofReport {
         kind: "proof_plan",
-        schema_version: "7",
+        schema_version: "8",
         target: None,
         changed: Vec::new(),
+        selector,
         risk: "low".to_string(),
         proofs: Vec::new(),
+        coverage: None,
         fallback: Vec::new(),
         unknowns: Vec::new(),
         hidden: Vec::new(),

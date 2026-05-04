@@ -12,6 +12,9 @@ pub fn changed(report: &ChangedReport, section_filter: Option<&str>) {
         println!("Changed: `{}` files", report.changed.len());
     }
     if report.changed.is_empty() && report.git_state.is_empty() {
+        if matches!(section_filter, None | Some("observed")) {
+            changed_worktree_section(report, false);
+        }
         println!("\nNo changed anchors detected.");
         if section_filter == Some("hidden") {
             changed_hidden_section(report, &changed_render_hidden(report, false), true, false);
@@ -32,10 +35,17 @@ pub fn changed(report: &ChangedReport, section_filter: Option<&str>) {
     let compact = show_all && changed_should_compact(report);
     let hidden = changed_render_hidden(report, compact);
     if matches!(section_filter, None | Some("observed")) {
-        changed_observed_section(report, true, compact);
+        changed_worktree_section(report, compact);
     }
     if matches!(section_filter, None | Some("roles")) {
         changed_roles_section(report, true, compact);
+    }
+    if matches!(section_filter, None | Some("links")) {
+        changed_coupling_section(report, true, compact);
+    }
+    if matches!(section_filter, None | Some("observed")) {
+        changed_risks_section(report, true, compact);
+        changed_observed_section(report, true, compact);
     }
     if matches!(section_filter, None | Some("links")) {
         changed_links_section(report, show_all, true);
@@ -48,7 +58,11 @@ pub fn changed(report: &ChangedReport, section_filter: Option<&str>) {
     }
     if show_all {
         changed_hidden_section(report, &hidden, false, compact);
-        section("Expand", &report.expand);
+        if compact {
+            changed_compact_expand_section(report);
+        } else {
+            section("Expand", &report.expand);
+        }
     }
 }
 
@@ -106,6 +120,149 @@ fn changed_render_limit(report: &ChangedReport, compact: bool) -> usize {
 
 fn changed_should_compact(report: &ChangedReport) -> bool {
     report.display_limit >= 30 && (report.total_changed_count > 20 || report.changed.len() > 5)
+}
+
+fn changed_risks_section(report: &ChangedReport, force: bool, compact: bool) {
+    let has_live_untracked = current_map_prelude()
+        .is_some_and(|prelude| prelude.worktree.untracked > 0)
+        && !report
+            .risks
+            .iter()
+            .any(|risk| risk.kind == "untracked_files_present");
+    let has_live_conflicts = current_map_prelude()
+        .is_some_and(|prelude| prelude.worktree.conflicted > 0)
+        && !report
+            .risks
+            .iter()
+            .any(|risk| risk.kind == "conflicts_present");
+    if report.risks.is_empty() && !has_live_untracked && !has_live_conflicts {
+        if force {
+            println!("\n## Risks\n");
+            println!("No mechanical changed risks found.");
+        }
+        return;
+    }
+    println!("\n## Risks\n");
+    if !compact {
+        println!("Mechanical facts only. Not an edit verdict.\n");
+    }
+    if let Some(prelude) = current_map_prelude() {
+        if has_live_untracked {
+            println!(
+                "- `untracked_files_present` [low; count={}]",
+                prelude.worktree.untracked
+            );
+            println!("  effect: untracked paths exist in the current worktree");
+        }
+        if has_live_conflicts {
+            println!(
+                "- `conflicts_present` [high; count={}]",
+                prelude.worktree.conflicted
+            );
+            println!("  effect: conflicted paths exist in the current worktree");
+        }
+    }
+    let limit = changed_render_limit(report, compact);
+    for risk in report.risks.iter().take(limit) {
+        changed_risk_line(risk, compact);
+    }
+    let hidden = report.risks.len().saturating_sub(limit);
+    if hidden > 0 {
+        println!("- hidden risk groups: `{hidden}`");
+        println!(
+            "  expand: `{}`",
+            root_aware_expand(&format!(
+                "codemap changed{} --section observed --limit {}",
+                changed_selector_suffix(&report.selector),
+                report.risks.len()
+            ))
+        );
+    }
+}
+
+fn changed_risk_line(risk: &crate::model::ChangedRisk, compact: bool) {
+    if compact {
+        println!(
+            "- `{}` [{}; count={}]; sample: {}",
+            risk.kind,
+            risk.severity,
+            risk.count,
+            changed_preview_paths(&risk.paths, 3)
+        );
+        return;
+    }
+    println!(
+        "- `{}` [{}; count={}]",
+        risk.kind, risk.severity, risk.count
+    );
+    if !risk.paths.is_empty() {
+        println!("  paths: {}", changed_preview_paths(&risk.paths, 8));
+    }
+    println!("  effect: {}", risk.effect);
+    if let Some(expand) = &risk.expand {
+        println!("  expand: `{}`", root_aware_expand(expand));
+    }
+}
+
+fn changed_coupling_section(report: &ChangedReport, force: bool, compact: bool) {
+    if report.coupling.is_empty() {
+        if force {
+            println!("\n## Coupling\n");
+            println!("No deterministic coupling facts found.");
+        }
+        return;
+    }
+    println!("\n## Coupling\n");
+    if !compact {
+        println!("Deterministic relationship facts only.\n");
+    }
+    let limit = changed_render_limit(report, compact);
+    for fact in report.coupling.iter().take(limit) {
+        if compact {
+            let sample = if fact.paths.is_empty() {
+                String::new()
+            } else {
+                format!("; sample: {}", changed_preview_paths(&fact.paths, 3))
+            };
+            println!("- `{}` [{}]{sample}", fact.kind, fact.status);
+            continue;
+        }
+        println!("- `{}` [{}]", fact.kind, fact.status);
+        if !fact.paths.is_empty() {
+            println!("  paths: {}", changed_preview_paths(&fact.paths, 8));
+        }
+        println!("  effect: {}", fact.effect);
+        if let Some(expand) = &fact.expand {
+            println!("  expand: `{}`", root_aware_expand(expand));
+        }
+    }
+    let hidden = report.coupling.len().saturating_sub(limit);
+    if hidden > 0 {
+        println!("- hidden coupling facts: `{hidden}`");
+        println!(
+            "  expand: `{}`",
+            root_aware_expand(&format!(
+                "codemap changed{} --section links --limit {}",
+                changed_selector_suffix(&report.selector),
+                report.coupling.len()
+            ))
+        );
+    }
+}
+
+fn changed_preview_paths(paths: &[String], limit: usize) -> String {
+    let shown = paths
+        .iter()
+        .take(limit)
+        .map(|path| format!("`{path}`"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let hidden = paths.len().saturating_sub(limit);
+    if hidden == 0 {
+        shown
+    } else {
+        format!("{shown} +{hidden} hidden")
+    }
 }
 
 fn changed_observed_section(report: &ChangedReport, force: bool, compact: bool) {

@@ -19,7 +19,7 @@
   ],
   "properties": {
     "kind": { "const": "proof_plan" },
-    "schema_version": { "const": "7" },
+    "schema_version": { "const": "8" },
     "prelude": { "$ref": "#/$defs/map_prelude" },
     "target": {
       "anyOf": [{ "type": "string" }, { "type": "null" }]
@@ -31,6 +31,9 @@
     "proofs": {
       "type": "array",
       "items": { "$ref": "#/$defs/proof_surface" }
+    },
+    "coverage": {
+      "anyOf": [{ "$ref": "#/$defs/proof_coverage_summary" }, { "type": "null" }]
     },
     "fallback": {
       "type": "array",
@@ -191,6 +194,63 @@
       "properties": {
         "reason": { "type": "string" },
         "count": { "type": "integer", "minimum": 0 },
+        "expand": { "type": "string" }
+      }
+    },
+    "proof_coverage_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changed_count",
+        "runnable_deterministic",
+        "evidence_only",
+        "setup_support_only",
+        "soft_only",
+        "missing"
+      ],
+      "properties": {
+        "changed_count": { "type": "integer", "minimum": 0 },
+        "runnable_deterministic": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/proof_covered_path" }
+        },
+        "evidence_only": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/proof_covered_path" }
+        },
+        "setup_support_only": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/proof_covered_path" }
+        },
+        "soft_only": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/proof_covered_path" }
+        },
+        "missing": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/proof_gap" }
+        }
+      }
+    },
+    "proof_covered_path": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sensor_count", "evidence", "commands"],
+      "properties": {
+        "path": { "type": "string" },
+        "sensor_count": { "type": "integer", "minimum": 0 },
+        "evidence": { "type": "array", "items": { "type": "string" } },
+        "commands": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "proof_gap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "kind", "effect", "expand"],
+      "properties": {
+        "path": { "type": "string" },
+        "kind": { "type": "string" },
+        "effect": { "type": "string" },
         "expand": { "type": "string" }
       }
     },
