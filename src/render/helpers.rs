@@ -84,6 +84,8 @@ fn proof_surface_section(title: &str, proofs: &[ProofSurface]) {
 }
 
 fn proof_command_summary_section(title: &str, proofs: &[ProofSurface]) {
+    const COMMAND_SUMMARY_LIMIT: usize = 8;
+
     if proofs.is_empty() {
         return;
     }
@@ -99,8 +101,13 @@ fn proof_command_summary_section(title: &str, proofs: &[ProofSurface]) {
         println!("- no command inferred");
         return;
     }
-    for command in commands {
+    let total = commands.len();
+    for command in commands.iter().take(COMMAND_SUMMARY_LIMIT) {
         println!("- `{command}`");
+    }
+    let hidden = total.saturating_sub(COMMAND_SUMMARY_LIMIT);
+    if hidden > 0 {
+        println!("- hidden runnable commands: `{hidden}`");
     }
 }
 
