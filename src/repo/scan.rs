@@ -1,6 +1,45 @@
 fn scan_files(root: &Path) -> Result<(BTreeMap<String, FileInfo>, ScanStats)> {
     let mut stats = ScanStatsBuilder::default();
     let rels = list_candidate_files_with_stats(root, &mut stats);
+    let (files, scan_stats) = scan_candidate_rels(root, rels);
+    stats.merge(scan_stats);
+    stats.files_scanned = files.len();
+    Ok((files, stats.finish()))
+}
+
+fn scan_candidate_rels(root: &Path, rels: Vec<String>) -> (BTreeMap<String, FileInfo>, ScanStatsBuilder) {
+    let worker_count = scan_worker_count(rels.len());
+    if worker_count <= 1 {
+        return scan_candidate_rels_sequential(root, rels);
+    }
+
+    let chunk_size = rels.len().div_ceil(worker_count).max(1);
+    let mut results = Vec::new();
+    std::thread::scope(|scope| {
+        let mut handles = Vec::new();
+        for chunk in rels.chunks(chunk_size) {
+            let chunk = chunk.to_vec();
+            handles.push(scope.spawn(move || scan_candidate_rels_sequential(root, chunk)));
+        }
+        for handle in handles {
+            results.push(handle.join().expect("scan worker should not panic"));
+        }
+    });
+
+    let mut files = BTreeMap::new();
+    let mut stats = ScanStatsBuilder::default();
+    for (worker_files, worker_stats) in results {
+        files.extend(worker_files);
+        stats.merge(worker_stats);
+    }
+    (files, stats)
+}
+
+fn scan_candidate_rels_sequential(
+    root: &Path,
+    rels: Vec<String>,
+) -> (BTreeMap<String, FileInfo>, ScanStatsBuilder) {
+    let mut stats = ScanStatsBuilder::default();
     let mut files = BTreeMap::new();
     for rel in rels {
         if rel.is_empty() {
@@ -14,8 +53,18 @@ fn scan_files(root: &Path) -> Result<(BTreeMap<String, FileInfo>, ScanStats)> {
             files.insert(rel, info);
         }
     }
-    stats.files_scanned = files.len();
-    Ok((files, stats.finish()))
+    (files, stats)
+}
+
+fn scan_worker_count(file_count: usize) -> usize {
+    if file_count < 256 {
+        return 1;
+    }
+    std::thread::available_parallelism()
+        .map(usize::from)
+        .unwrap_or(1)
+        .min(8)
+        .min(file_count)
 }
 
 fn scan_selected_files(root: &Path, rels: &BTreeSet<String>) -> (BTreeMap<String, FileInfo>, ScanStats) {
@@ -339,6 +388,23 @@ struct ScanStatsBuilder {
 }
 
 impl ScanStatsBuilder {
+    fn merge(&mut self, other: ScanStatsBuilder) {
+        self.files_visited += other.files_visited;
+        self.files_scanned += other.files_scanned;
+        self.bytes_scanned += other.bytes_scanned;
+        self.merge_groups(GroupKind::Ignored, other.ignored);
+        self.merge_groups(GroupKind::Skipped, other.skipped);
+        self.merge_groups(GroupKind::Generated, other.generated);
+    }
+
+    fn merge_groups(&mut self, kind: GroupKind, groups: BTreeMap<String, ScanGroupBuilder>) {
+        for (reason, group) in groups {
+            for rel in group.seen {
+                self.record_group(kind, &reason, &rel);
+            }
+        }
+    }
+
     fn record_ignored(&mut self, reason: &str, rel: &str) {
         self.record_group(GroupKind::Ignored, reason, &ignored_group_unit(reason, rel));
     }

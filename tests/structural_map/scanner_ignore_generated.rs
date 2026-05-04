@@ -34,6 +34,42 @@ fn scanner_reports_ignored_dirs_and_generated_header_surfaces() {
         &repo.path().join("dist/ignored.ts"),
         "export const ignoredBuildOutput = true;\n",
     );
+    write(
+        &repo.path().join(".next-dev/cache/webpack/chunk.js"),
+        "export const nextDevBuildOutput = true;\n",
+    );
+    write(
+        &repo.path().join(".vite/deps/chunk.js"),
+        "export const viteBuildOutput = true;\n",
+    );
+    write(
+        &repo.path().join(".vercel/output/functions/index.func/index.js"),
+        "export const vercelBuildOutput = true;\n",
+    );
+    write(
+        &repo.path().join(".svelte-kit/output/client/app.js"),
+        "export const svelteKitBuildOutput = true;\n",
+    );
+    write(
+        &repo.path().join(".output/server/index.mjs"),
+        "export const nitroBuildOutput = true;\n",
+    );
+    write(
+        &repo.path().join(".parcel-cache/data.js"),
+        "export const parcelBuildOutput = true;\n",
+    );
+    write(
+        &repo.path().join("playwright-report/index.html"),
+        "<html><body>report</body></html>\n",
+    );
+    write(
+        &repo.path().join("test-results/e2e/result.json"),
+        r#"{"status":"passed"}"#,
+    );
+    write(
+        &repo.path().join("storybook-static/index.html"),
+        "<html><body>storybook</body></html>\n",
+    );
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["add", "-f", "node_modules/noise/index.ts"]);
     git(repo.path(), &["commit", "-qm", "scanner policy fixture"]);
@@ -46,7 +82,16 @@ fn scanner_reports_ignored_dirs_and_generated_header_surfaces() {
             .iter()
             .all(|file| !file.as_str().unwrap_or_default().starts_with("node_modules/")
                 && !file.as_str().unwrap_or_default().starts_with("vendor/")
-                && !file.as_str().unwrap_or_default().starts_with("dist/")),
+                && !file.as_str().unwrap_or_default().starts_with("dist/")
+                && !file.as_str().unwrap_or_default().starts_with(".next-dev/")
+                && !file.as_str().unwrap_or_default().starts_with(".vite/")
+                && !file.as_str().unwrap_or_default().starts_with(".vercel/")
+                && !file.as_str().unwrap_or_default().starts_with(".svelte-kit/")
+                && !file.as_str().unwrap_or_default().starts_with(".output/")
+                && !file.as_str().unwrap_or_default().starts_with(".parcel-cache/")
+                && !file.as_str().unwrap_or_default().starts_with("playwright-report/")
+                && !file.as_str().unwrap_or_default().starts_with("test-results/")
+                && !file.as_str().unwrap_or_default().starts_with("storybook-static/")),
         "ignored dependency/vendor/build dirs should not become source files: {files:#}"
     );
     assert!(
@@ -111,6 +156,34 @@ fn scanner_reports_ignored_dirs_and_generated_header_surfaces() {
                     .iter()
                     .any(|example| example == "vendor")),
         "doctor should explain ignored vendor dirs: {doctor:#}"
+    );
+    assert!(
+        doctor["scanner"]["ignored"]
+            .as_array()
+            .expect("ignored groups")
+            .iter()
+            .any(|group| group["reason"] == "common_ignore_dir:.next-dev"
+                && group["count"] == 1
+                && group["examples"]
+                    .as_array()
+                    .expect(".next-dev examples")
+                    .iter()
+                    .any(|example| example == ".next-dev")),
+        "doctor should explain framework dev build dirs: {doctor:#}"
+    );
+    assert!(
+        doctor["scanner"]["ignored"]
+            .as_array()
+            .expect("ignored groups")
+            .iter()
+            .any(|group| group["reason"] == "common_ignore_dir:.vercel"
+                && group["count"] == 1
+                && group["examples"]
+                    .as_array()
+                    .expect(".vercel examples")
+                    .iter()
+                    .any(|example| example == ".vercel")),
+        "doctor should explain framework deploy build dirs: {doctor:#}"
     );
     assert!(
         doctor["scanner"]["generated"]

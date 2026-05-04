@@ -51,6 +51,9 @@ pub fn run() -> Result<()> {
     if let Some(()) = try_cached_proof_map_fast_path(&cli.command, &root_selection)? {
         return Ok(());
     }
+    if let Some(()) = try_cold_root_proof_map_fast_path(&cli.command, &root_selection)? {
+        return Ok(());
+    }
     if let Some(()) = try_cached_siblings_fast_path(&cli.command, &root_selection)? {
         return Ok(());
     }

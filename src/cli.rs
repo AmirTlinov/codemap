@@ -4,6 +4,7 @@ include!("cli/run.rs");
 include!("cli/fast_paths.rs");
 include!("cli/fast_paths_root_ls.rs");
 include!("cli/fast_paths_root_graph.rs");
+include!("cli/fast_paths_root_proof_map.rs");
 include!("cli/fast_paths_proof_map.rs");
 include!("cli/fast_paths_siblings_place.rs");
 include!("cli/schema_and_roots.rs");
