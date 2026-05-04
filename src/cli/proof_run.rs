@@ -11,11 +11,13 @@ fn proof(project: &crate::model::Project, args: ProofArgs) -> Result<()> {
     };
     let report = map::proof_report(project, target, changed, selector, args.depth, limit);
     maybe_write_proof_changed_lens_cache(project, &args, &report);
+    let prelude = repo::map_prelude(&project.root);
     if args.run {
+        render::set_map_prelude(prelude);
         render::proof(&report, proof_section_name(args.section));
         return run_proof_plan(project, &report);
     }
-    output(args.format, &report, || {
+    output_with_prelude(args.format, &report, &prelude, || {
         render::proof(&report, proof_section_name(args.section))
     })
 }

@@ -26,7 +26,8 @@ fn try_cached_ls_fast_path(
     }) else {
         return Ok(None);
     };
-    output(args.format, &report, || {
+    let prelude = repo::map_prelude(&root);
+    output_with_prelude(args.format, &report, &prelude, || {
         render::ls(&report, ls_section_name(args.section))
     })?;
     Ok(Some(()))
@@ -60,7 +61,8 @@ fn try_cached_cone_fast_path(
     }) else {
         return Ok(None);
     };
-    output(args.format, &report, || {
+    let prelude = repo::map_prelude(&root);
+    output_with_prelude(args.format, &report, &prelude, || {
         render::cone(&report, cone_section_name(args.section))
     })?;
     Ok(Some(()))
@@ -93,7 +95,8 @@ fn try_clean_changed_fast_path(
     let limit = changed_limit(args);
     let report = map::clean_changed_report(selector, limit);
     set_inventory_map_snapshot(&root);
-    output(args.format, &report, || {
+    let prelude = repo::map_prelude(&root);
+    output_with_prelude(args.format, &report, &prelude, || {
         render::changed(&report, changed_section_name(args.section))
     })?;
     Ok(Some(()))
@@ -135,7 +138,8 @@ fn try_cached_changed_fast_path(
     else {
         return Ok(None);
     };
-    output(args.format, &report, || {
+    let prelude = repo::map_prelude(&root);
+    output_with_prelude(args.format, &report, &prelude, || {
         render::changed(&report, changed_section_name(args.section))
     })?;
     Ok(Some(()))
@@ -163,7 +167,8 @@ fn try_clean_proof_changed_fast_path(
     }
     let report = map::clean_proof_report(selector);
     set_inventory_map_snapshot(&root);
-    output(args.format, &report, || {
+    let prelude = repo::map_prelude(&root);
+    output_with_prelude(args.format, &report, &prelude, || {
         render::proof(&report, proof_section_name(args.section))
     })?;
     Ok(Some(()))
@@ -205,7 +210,8 @@ fn try_cached_proof_changed_fast_path(
     ) else {
         return Ok(None);
     };
-    output(args.format, &report, || {
+    let prelude = repo::map_prelude(&root);
+    output_with_prelude(args.format, &report, &prelude, || {
         render::proof(&report, proof_section_name(args.section))
     })?;
     Ok(Some(()))

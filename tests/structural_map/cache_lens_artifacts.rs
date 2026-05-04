@@ -464,6 +464,12 @@ fn cached_lens_artifact_exists(cache_root: &Path, name: &str) -> bool {
         .any(|entry| entry.path().join(name).exists())
 }
 
+fn cached_lens_artifact_json(cache_root: &Path, name: &str) -> Value {
+    let path = lens_artifact_path(cache_root, name);
+    let text = fs::read_to_string(&path).expect("lens artifact should be readable");
+    serde_json::from_str(&text).expect("lens artifact json")
+}
+
 fn poison_lens_report_field(cache_root: &Path, name: &str, field: &str, value: &str) {
     let path = lens_artifact_path(cache_root, name);
     let text = fs::read_to_string(&path).expect("lens artifact should be readable");

@@ -9,10 +9,25 @@ fn assert_lens_markdown_eq(left: &str, right: &str, message: &str) {
 }
 
 fn assert_map_snapshot_has_provenance(text: &str) {
+    if text.lines().any(|line| line.starts_with("Repo:")) {
+        assert!(
+            text.contains("worktree=`") || text.contains("  worktree: `"),
+            "repo prelude should carry worktree truth: {text}"
+        );
+        assert!(
+            text.contains("remote_refs=`") || text.contains("  remote_refs: `"),
+            "repo prelude should carry remote currentness boundary: {text}"
+        );
+        assert!(
+            text.contains("no network used"),
+            "repo prelude must state that remote currentness is local-only: {text}"
+        );
+        return;
+    }
     let snapshot = text
         .lines()
         .find(|line| line.starts_with("Map Snapshot:"))
-        .expect("markdown output should include a map snapshot line");
+        .expect("markdown output should include a map snapshot or repo prelude line");
     assert!(
         snapshot.contains("branch=`")
             && snapshot.contains("dirty=`")

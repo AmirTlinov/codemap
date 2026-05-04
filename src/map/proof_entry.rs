@@ -272,7 +272,7 @@ pub fn proof_report(
     }
     ProofReport {
         kind: "proof_plan",
-        schema_version: "6",
+        schema_version: "7",
         target,
         changed,
         risk: risk.as_str().to_string(),
@@ -351,7 +351,7 @@ fn changed_path_needs_missing_deterministic_proof_unknown(project: &Project, rel
 pub fn clean_proof_report(_selector: String) -> ProofReport {
     ProofReport {
         kind: "proof_plan",
-        schema_version: "6",
+        schema_version: "7",
         target: None,
         changed: Vec::new(),
         risk: "low".to_string(),

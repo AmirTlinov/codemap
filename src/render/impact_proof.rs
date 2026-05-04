@@ -59,7 +59,7 @@ fn render_impact_cluster(cluster: &ImpactCluster) {
 
 pub fn proof(report: &ProofReport, section_filter: Option<&str>) {
     println!("# Proof Plan\n");
-    map_snapshot_line();
+    map_prelude_line_or_snapshot_line();
     if let Some(section) = section_filter {
         render_proof_filtered_section(report, section);
         return;

@@ -71,7 +71,7 @@ fn cone_symbol_report(
     });
     Some(ConeReport {
         kind: "cone_report",
-        schema_version: "6",
+        schema_version: "7",
         anchor,
         depth,
         xray,
@@ -117,7 +117,7 @@ fn cone_missing_symbol_report(
     let xray = empty_xray_card(&anchor, &unknowns);
     ConeReport {
         kind: "cone_report",
-        schema_version: "6",
+        schema_version: "7",
         anchor,
         depth,
         xray,

@@ -12,6 +12,22 @@ fn output<T: serde::Serialize>(
     }
 }
 
+fn output_with_prelude<T: serde::Serialize>(
+    format: OutputFormat,
+    value: &T,
+    prelude: &crate::model::MapPrelude,
+    markdown: impl FnOnce(),
+) -> Result<()> {
+    match format {
+        OutputFormat::Json => render::print_json_with_prelude(value, prelude),
+        OutputFormat::Markdown => {
+            render::set_map_prelude(prelude.clone());
+            markdown();
+            Ok(())
+        }
+    }
+}
+
 #[derive(serde::Serialize)]
 struct FilesReport {
     kind: &'static str,
@@ -77,4 +93,3 @@ fn files_markdown(report: &FilesReport) {
         }
     }
 }
-

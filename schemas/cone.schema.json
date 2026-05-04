@@ -7,6 +7,7 @@
   "required": [
     "kind",
     "schema_version",
+    "prelude",
     "anchor",
     "depth",
     "xray",
@@ -22,7 +23,8 @@
   ],
   "properties": {
     "kind": { "const": "cone_report" },
-    "schema_version": { "const": "6" },
+    "schema_version": { "const": "7" },
+    "prelude": { "$ref": "#/$defs/map_prelude" },
     "anchor": { "$ref": "#/$defs/file_summary" },
     "depth": { "type": "integer", "minimum": 0 },
     "xray": { "$ref": "#/$defs/xray_card" },
@@ -64,6 +66,93 @@
     }
   },
   "$defs": {
+    "map_prelude": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["root", "cwd", "cwd_rel", "git_root", "vcs", "head", "branch", "remote", "worktree", "freshness", "unknowns"],
+      "properties": {
+        "root": { "type": "string" },
+        "cwd": { "type": "string" },
+        "cwd_rel": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "git_root": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "vcs": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "head": { "$ref": "#/$defs/head_prelude" },
+        "branch": { "$ref": "#/$defs/branch_prelude" },
+        "remote": { "$ref": "#/$defs/remote_prelude" },
+        "worktree": { "$ref": "#/$defs/worktree_prelude" },
+        "freshness": { "$ref": "#/$defs/freshness_prelude" },
+        "unknowns": { "type": "array", "items": { "$ref": "#/$defs/prelude_unknown" } }
+      }
+    },
+    "head_prelude": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["oid", "short", "detached", "unborn"],
+      "properties": {
+        "oid": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "short": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "detached": { "type": "boolean" },
+        "unborn": { "type": "boolean" }
+      }
+    },
+    "branch_prelude": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "upstream", "upstream_gone", "ahead", "behind"],
+      "properties": {
+        "name": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "upstream": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "upstream_gone": { "type": "boolean" },
+        "ahead": { "anyOf": [{ "type": "integer", "minimum": 0 }, { "type": "null" }] },
+        "behind": { "anyOf": [{ "type": "integer", "minimum": 0 }, { "type": "null" }] }
+      }
+    },
+    "remote_prelude": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "display", "sanitized_url"],
+      "properties": {
+        "name": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "display": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "sanitized_url": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+      }
+    },
+    "worktree_prelude": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["clean", "staged", "unstaged", "untracked", "conflicted", "renamed", "deleted", "typechanged"],
+      "properties": {
+        "clean": { "type": "boolean" },
+        "staged": { "type": "integer", "minimum": 0 },
+        "unstaged": { "type": "integer", "minimum": 0 },
+        "untracked": { "type": "integer", "minimum": 0 },
+        "conflicted": { "type": "integer", "minimum": 0 },
+        "renamed": { "type": "integer", "minimum": 0 },
+        "deleted": { "type": "integer", "minimum": 0 },
+        "typechanged": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "freshness_prelude": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["network_used", "remote_refs", "remote_currentness", "fetch_head_mtime", "evidence"],
+      "properties": {
+        "network_used": { "type": "boolean" },
+        "remote_refs": { "type": "string", "enum": ["local_only", "not_applicable"] },
+        "remote_currentness": { "type": "string", "enum": ["unknown"] },
+        "fetch_head_mtime": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "evidence": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "prelude_unknown": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "effect"],
+      "properties": {
+        "kind": { "type": "string" },
+        "effect": { "type": "string" }
+      }
+    },
     "evidence_strength": {
       "type": "string",
       "enum": ["low", "medium", "high", "hard"]

@@ -145,7 +145,7 @@ fn limit_edge_section(
 
 fn directory_has_files(project: &Project, rel: &str) -> bool {
     if rel == "." {
-        return !project.files.is_empty();
+        return project.root.is_dir();
     }
     let prefix = format!("{}/", rel.trim_end_matches('/'));
     project.files.keys().any(|file| file.starts_with(&prefix))

@@ -231,6 +231,7 @@ pub struct DirectorySurface {
     pub hidden_count: usize,
 }
 
+include!("model/prelude.rs");
 include!("model/lens_reports.rs");
 include!("model/teach_reports.rs");
 

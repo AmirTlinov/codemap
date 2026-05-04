@@ -3,6 +3,7 @@ include!("repo/constants.rs");
 include!("repo/cache_delta.rs");
 include!("repo/project.rs");
 include!("repo/root.rs");
+include!("repo/prelude.rs");
 include!("repo/config.rs");
 include!("repo/scan.rs");
 include!("repo/roles_structural_surfaces.rs");

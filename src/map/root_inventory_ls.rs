@@ -98,7 +98,7 @@ pub(crate) fn root_inventory_ls_report(root: &Path, files: &[String], limit: usi
 
     LsReport {
         kind: "ls_report",
-        schema_version: "3",
+        schema_version: "4",
         path: ".".to_string(),
         mode: "directory".to_string(),
         anchor: None,

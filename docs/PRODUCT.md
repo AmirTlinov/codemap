@@ -41,6 +41,30 @@ Focused lenses remain public and supported, but they are deep map targets:
 `doctor`, `status`, `files`, `schema`, `bootstrap`, `init`, `anchors`, and
 `boundaries` are diagnostics or setup surfaces, not primary map commands.
 
+## MapPrelude
+
+Primary map outputs may include a fresh local-only repo/worktree prelude. The
+prelude is read-only, non-network, non-actionable, and not cached as structural
+map truth.
+
+It may say:
+
+- branch/head/upstream/ahead/behind from local git refs;
+- worktree counts;
+- remote URL display;
+- local remote refs currentness unknown;
+- no network used.
+
+It must not:
+
+- fetch;
+- pull;
+- prune;
+- call `ls-remote`;
+- claim the remote is current;
+- recommend actions;
+- mark operations safe or unsafe.
+
 ## Surfaces
 
 `codemap ls <file-or-dir>` shows what exists at that level: file symbols, package/domain surfaces, imports, incoming counts, tests, hidden generic counts, and the next useful map command.
@@ -59,7 +83,10 @@ Focused lenses remain public and supported, but they are deep map targets:
 
 `codemap proof <anchor|changed>` returns the smallest structural proof surfaces it can justify. It prefers adjacent/importing tests and package-local commands before broad fallbacks. It never runs by default.
 
-`codemap proof-map <scope>|--changed` shows observed proof surfaces around an area: direct, indirect, e2e, contract, missing direct proof evidence for important surfaces, and commands.
+`codemap proof-map <scope>|--changed` shows observed proof surfaces around
+an area using the shared evidence taxonomy: hard, direct evidence, mediated
+evidence, soft evidence, setup/support surfaces, missing direct proof evidence
+for important surfaces, and commands.
 
 `codemap delete <anchor>` shows deletion blockers and mechanical cleanup hints from references, reexports, package exports, tests, and runtime refs. It must not say “safe to delete”.
 

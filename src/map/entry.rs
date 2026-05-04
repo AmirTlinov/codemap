@@ -13,17 +13,25 @@ pub fn ls_report(project: &Project, path: &str, include_hidden: bool, limit: usi
     }
     LsReport {
         kind: "ls_report",
-        schema_version: "3",
+        schema_version: "4",
         path: rel.clone(),
         mode: "missing".to_string(),
         anchor: None,
         directory: Vec::new(),
         edges: Vec::new(),
         hidden: Vec::new(),
-        next: vec![format!(
+        next: missing_ls_next(&rel),
+    }
+}
+
+fn missing_ls_next(rel: &str) -> Vec<String> {
+    if rel == "." {
+        Vec::new()
+    } else {
+        vec![format!(
             "codemap ls {}",
-            shell_quote(&parent_anchor_for_missing(&rel))
-        )],
+            shell_quote(&parent_anchor_for_missing(rel))
+        )]
     }
 }
 
@@ -147,7 +155,7 @@ pub fn cone_report(
     });
     ConeReport {
         kind: "cone_report",
-        schema_version: "6",
+        schema_version: "7",
         anchor,
         depth,
         xray,

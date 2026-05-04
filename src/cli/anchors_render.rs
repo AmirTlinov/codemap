@@ -123,7 +123,7 @@ mod tests {
     fn proof_run_uses_fallback_when_only_soft_evidence_exists() {
         let report = ProofReport {
             kind: "proof_plan",
-            schema_version: "6",
+            schema_version: "7",
             target: Some("src/routes.ts".to_string()),
             changed: Vec::new(),
             risk: "medium".to_string(),
@@ -158,7 +158,7 @@ mod tests {
     fn proof_run_uses_fallback_when_only_setup_surface_exists() {
         let report = ProofReport {
             kind: "proof_plan",
-            schema_version: "6",
+            schema_version: "7",
             target: Some("pnpm-workspace.yaml".to_string()),
             changed: Vec::new(),
             risk: "medium".to_string(),

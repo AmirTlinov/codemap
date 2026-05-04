@@ -2,6 +2,18 @@
 
 ## 2026-05-04
 
+- Issue: empty non-git roots rendered as missing anchors with a self-referential `ls .` expand.
+  - Evidence: installed PATH `codemap 0.2.22`, command
+    `codemap --root /tmp/codemap-nongit-prelude-smoke ls .`.
+  - Observed: prelude correctly said `vcs=none`, but the structural body said `Mode: missing` and
+    `Expand: codemap --root /tmp/codemap-nongit-prelude-smoke ls .`.
+  - Why it hurts trust: an existing empty root is still a directory scope; calling it missing makes the map
+    look stale or unable to distinguish "empty" from "not found".
+  - Boundary: this is not a MapPrelude falsehood; the live repo overlay was correct. The old `ls` directory
+    detector required indexed files under root.
+  - Status: fixed in `0.2.22`; root `.` now remains a directory anchor even with zero indexed files, and
+    regression `empty_non_git_root_stays_directory_anchor` prevents the self-expand.
+
 - Issue: `proof-map --format json` still uses legacy bucket names that can overstate soft evidence.
   - Evidence: live local build on `/Users/amir/Documents/projects/tools/cli/ctx`, command
     `cargo run --quiet --bin codemap -- proof-map src/map/cone_xray.rs --format json`.

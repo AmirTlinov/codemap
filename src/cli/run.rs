@@ -97,7 +97,8 @@ pub fn run() -> Result<()> {
             };
             let report = map::ls_report(&project, &path, args.include_hidden, limit);
             maybe_write_ls_lens_cache(&project, &path, &args, &report);
-            output(args.format, &report, || {
+            let prelude = repo::map_prelude(&project.root);
+            output_with_prelude(args.format, &report, &prelude, || {
                 render::ls(&report, ls_section_name(args.section))
             })
         }
@@ -107,7 +108,8 @@ pub fn run() -> Result<()> {
             let report =
                 map::cone_report(&project, &path, args.depth, args.include_hidden, args.limit);
             maybe_write_cone_lens_cache(&project, &path, &args, &report);
-            output(args.format, &report, || {
+            let prelude = repo::map_prelude(&project.root);
+            output_with_prelude(args.format, &report, &prelude, || {
                 render::cone(&report, cone_section_name(args.section))
             })
         }
@@ -140,7 +142,8 @@ pub fn run() -> Result<()> {
             );
             maybe_write_changed_lens_cache(&project, &args, limit, &report);
             maybe_write_proof_changed_lens_cache_from_changed(&project, &args, &report);
-            output(args.format, &report, || {
+            let prelude = repo::map_prelude(&project.root);
+            output_with_prelude(args.format, &report, &prelude, || {
                 render::changed(&report, changed_section_name(args.section))
             })
         }

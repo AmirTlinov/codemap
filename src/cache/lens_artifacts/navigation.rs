@@ -178,7 +178,7 @@ impl CachedLsReport {
     fn into_report(self) -> LsReport {
         LsReport {
             kind: "ls_report",
-            schema_version: "3",
+            schema_version: "4",
             path: self.path,
             mode: self.mode,
             anchor: self.anchor,
@@ -233,7 +233,7 @@ impl CachedConeReport {
     fn into_report(self) -> ConeReport {
         ConeReport {
             kind: "cone_report",
-            schema_version: "6",
+            schema_version: "7",
             anchor: self.anchor,
             depth: self.depth,
             xray: self.xray,

@@ -25,7 +25,7 @@ pub fn changed_report(
     if total_changed_count == 0 && git_state.is_empty() {
         return ChangedReport {
             kind: "changed_report",
-            schema_version: "4",
+            schema_version: "5",
             selector: selector.clone(),
             display_limit: limit,
             proof_plan_cache: None,
@@ -100,7 +100,7 @@ pub fn changed_report(
     );
     ChangedReport {
         kind: "changed_report",
-        schema_version: "4",
+        schema_version: "5",
         selector: selector.clone(),
         display_limit: limit,
         proof_plan_cache: Some(Box::new(proof_plan_cache)),
@@ -181,7 +181,7 @@ pub fn changed_report(
 pub fn clean_changed_report(selector: String, limit: usize) -> ChangedReport {
     ChangedReport {
         kind: "changed_report",
-        schema_version: "4",
+        schema_version: "5",
         selector: selector.clone(),
         display_limit: limit.max(1),
         proof_plan_cache: None,

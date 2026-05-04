@@ -95,7 +95,7 @@ fn cone_directory_report(
     });
     ConeReport {
         kind: "cone_report",
-        schema_version: "6",
+        schema_version: "7",
         anchor,
         depth,
         xray,

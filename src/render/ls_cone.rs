@@ -1,6 +1,6 @@
 pub fn ls(report: &LsReport, section_filter: Option<&str>) {
     println!("# Structural LS\n");
-    map_snapshot_line();
+    map_prelude_line_or_snapshot_line();
     println!("Path: `{}`", report.path);
     println!("Mode: `{}`", report.mode);
     match report.mode.as_str() {
@@ -53,7 +53,7 @@ pub fn ls(report: &LsReport, section_filter: Option<&str>) {
 
 pub fn cone(report: &ConeReport, section_filter: Option<&str>) {
     println!("# Structural Cone\n");
-    map_snapshot_line();
+    map_prelude_line_or_snapshot_line();
     println!("Anchor: `{}`", report.anchor.path);
     println!("Depth: `{}`", report.depth);
     if matches!(section_filter, None | Some("observed")) {

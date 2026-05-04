@@ -115,7 +115,7 @@ fn first_class_structural_surfaces_do_not_fall_to_unknown_roles() {
             && markdown.contains("declares_script -> `script:test`")
             && markdown.contains("runs_command -> `command:cargo test`")
             && markdown.contains("uses_lockfile -> `Cargo.lock`")
-            && !markdown.contains("`unknown`"),
+            && !markdown.contains("- `unknown`"),
         "Cargo.toml cone should expose manifest owner facts, not only roles: {markdown}"
     );
 }

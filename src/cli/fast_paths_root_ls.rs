@@ -27,7 +27,8 @@ fn try_cold_root_ls_fast_path(
     let fingerprint = crate::cache::inventory_fingerprint(&root, &files);
     let report = map::root_inventory_ls_report(&root, &files, args.limit);
     set_inventory_map_snapshot_with_fingerprint(&root, &fingerprint);
-    output(args.format, &report, || {
+    let prelude = repo::map_prelude(&root);
+    output_with_prelude(args.format, &report, &prelude, || {
         render::ls(&report, ls_section_name(args.section))
     })?;
     Ok(Some(()))
