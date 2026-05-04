@@ -17,9 +17,12 @@ fn proof(project: &crate::model::Project, args: ProofArgs) -> Result<()> {
         render::proof(&report, proof_section_name(args.section));
         return run_proof_plan(project, &report);
     }
-    output_with_prelude(args.format, &report, &prelude, || {
-        render::proof(&report, proof_section_name(args.section))
-    })
+    output_with_prelude(
+        output_format_with_json_alias(args.format, args.json),
+        &report,
+        &prelude,
+        || render::proof(&report, proof_section_name(args.section)),
+    )
 }
 
 fn maybe_write_proof_changed_lens_cache(

@@ -143,6 +143,8 @@ struct LsArgs {
     limit: usize,
     #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
     format: OutputFormat,
+    #[arg(long, hide = true)]
+    json: bool,
 }
 
 #[derive(Debug, Args)]
@@ -158,6 +160,8 @@ struct ConeArgs {
     limit: usize,
     #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
     format: OutputFormat,
+    #[arg(long, hide = true)]
+    json: bool,
 }
 
 #[derive(Debug, Args)]
@@ -246,6 +250,8 @@ struct ChangedArgs {
     limit: usize,
     #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
     format: OutputFormat,
+    #[arg(long, hide = true)]
+    json: bool,
 }
 
 #[derive(Debug, Args)]
@@ -294,6 +300,8 @@ struct ProofArgs {
     run: bool,
     #[arg(long, value_enum, default_value_t = default_output_format(), help = "Output format; markdown is the agent default, json is an integration escape hatch")]
     format: OutputFormat,
+    #[arg(long, hide = true)]
+    json: bool,
 }
 
 #[derive(Debug, Args)]
@@ -462,6 +470,10 @@ fn default_output_format() -> OutputFormat {
         "json" => OutputFormat::Json,
         _ => OutputFormat::Markdown,
     }
+}
+
+fn output_format_with_json_alias(format: OutputFormat, json: bool) -> OutputFormat {
+    if json { OutputFormat::Json } else { format }
 }
 
 fn default_graph_output_format() -> GraphOutputFormat {

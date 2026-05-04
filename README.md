@@ -178,9 +178,9 @@ codemap init --write-minimal
 codemap init --agents
 ```
 
-Markdown is the default agent-facing format. Use `CODEMAP_FORMAT=json` or the
-hidden `--format json` flag for strict integrations. Mermaid output is limited
-to `codemap graph`.
+Markdown is the default agent-facing format. Use `--json`, `--format json`, or
+`CODEMAP_FORMAT=json` for strict integrations. Mermaid output is limited to
+`codemap graph`.
 
 ## Agent Integration
 

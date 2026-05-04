@@ -7,7 +7,7 @@ fn changed_proof_section(report: &ChangedReport, compact: bool) {
     let evidence_only = changed_proof_evidence_only_surfaces(report);
     let setup = changed_proof_groups_by_class(&setup_grouped, ChangedProofGroupClass::Setup);
     let soft = changed_proof_groups_by_class(&soft_grouped, ChangedProofGroupClass::Soft);
-    if compact && report.total_changed_count > 20 {
+    if compact {
         changed_proof_large_compact_summary(report, &runnable, &evidence_only, &setup, &soft);
         return;
     }
@@ -56,11 +56,22 @@ fn changed_proof_large_compact_summary(
     setup: &[(&String, &(Vec<&ProofSurface>, usize))],
     soft: &[(&String, &(Vec<&ProofSurface>, usize))],
 ) {
-    println!("- runnable command groups: `{}`", runnable.len());
-    println!("- evidence-only sensors: `{}`", evidence_only.len());
-    println!("- setup/support groups: `{}`", setup.len());
-    println!("- soft evidence groups: `{}`", soft.len());
-    println!("- fallback commands: `{}`", report.proof.fallback.len());
+    println!(
+        "- groups: runnable=`{}`; evidence_only=`{}`; setup_support=`{}`; soft=`{}`; fallback=`{}`",
+        runnable.len(),
+        evidence_only.len(),
+        setup.len(),
+        soft.len(),
+        report.proof.fallback.len()
+    );
+    let visible_group_count = runnable.len().min(COMPACT_CHANGED_PROOF_COMMAND_LIMIT);
+    for (command, _) in runnable.iter().take(visible_group_count) {
+        println!("### `{command}`");
+    }
+    if runnable.len() > visible_group_count {
+        let hidden_command_groups = runnable.len() - visible_group_count;
+        println!("- hidden proof command groups: `{hidden_command_groups}`");
+    }
     println!(
         "- expand: `{}`",
         root_aware_expand(&format!(

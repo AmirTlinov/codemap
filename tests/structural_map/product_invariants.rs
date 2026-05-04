@@ -77,6 +77,36 @@ fn codemap_format_json_applies_to_hidden_structural_outputs() {
     }
 }
 
+#[test]
+fn primary_commands_accept_json_alias_as_machine_escape_hatch() {
+    let (repo, cache) = fixture();
+    let cases = vec![
+        (vec!["ls", ".", "--json"], "ls_report"),
+        (
+            vec!["cone", "packages/replay/src/session.ts", "--json"],
+            "cone_report",
+        ),
+        (vec!["changed", "--json"], "changed_report"),
+        (
+            vec!["proof", "packages/replay/src/session.ts", "--json"],
+            "proof_plan",
+        ),
+    ];
+
+    for (args, kind) in cases {
+        let report = run_json(repo.path(), cache.path(), &args);
+        assert_eq!(
+            report["kind"], kind,
+            "--json should select schema-backed JSON for primary command {:?}: {report:#}",
+            args
+        );
+        assert!(
+            report.get("prelude").is_some(),
+            "--json primary output should still include fresh repo prelude: {report:#}"
+        );
+    }
+}
+
 fn collect_forbidden_json_keys(
     value: &Value,
     path: &str,

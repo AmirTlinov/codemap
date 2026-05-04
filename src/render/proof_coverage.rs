@@ -23,7 +23,7 @@ fn proof_coverage_path_group(title: &str, paths: &[crate::model::ProofCoveredPat
     if paths.is_empty() {
         return;
     }
-    let limit = if paths.len() > 20 { 3 } else { 8 };
+    let limit = if paths.len() > 5 { 3 } else { 8 };
     println!("\n### {title}");
     for path in paths.iter().take(limit) {
         println!("- `{}` [sensors={}]", path.path, path.sensor_count);
@@ -41,7 +41,7 @@ fn proof_coverage_gaps(gaps: &[crate::model::ProofGap]) {
     if gaps.is_empty() {
         return;
     }
-    let limit = if gaps.len() > 20 { 3 } else { 8 };
+    let limit = if gaps.len() > 5 { 3 } else { 8 };
     println!("\n### Gaps");
     for gap in gaps.iter().take(limit) {
         println!("- `{}` [{}]", gap.path, gap.kind);

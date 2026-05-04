@@ -98,9 +98,12 @@ pub fn run() -> Result<()> {
             let report = map::ls_report(&project, &path, args.include_hidden, limit);
             maybe_write_ls_lens_cache(&project, &path, &args, &report);
             let prelude = repo::map_prelude(&project.root);
-            output_with_prelude(args.format, &report, &prelude, || {
-                render::ls(&report, ls_section_name(args.section))
-            })
+            output_with_prelude(
+                output_format_with_json_alias(args.format, args.json),
+                &report,
+                &prelude,
+                || render::ls(&report, ls_section_name(args.section)),
+            )
         }
         CommandKind::Cone(args) => {
             ensure_valid_config(&project)?;
@@ -109,9 +112,12 @@ pub fn run() -> Result<()> {
                 map::cone_report(&project, &path, args.depth, args.include_hidden, args.limit);
             maybe_write_cone_lens_cache(&project, &path, &args, &report);
             let prelude = repo::map_prelude(&project.root);
-            output_with_prelude(args.format, &report, &prelude, || {
-                render::cone(&report, cone_section_name(args.section))
-            })
+            output_with_prelude(
+                output_format_with_json_alias(args.format, args.json),
+                &report,
+                &prelude,
+                || render::cone(&report, cone_section_name(args.section)),
+            )
         }
         CommandKind::Init(args) => init(&project, args),
         CommandKind::Bootstrap(_) => Ok(()),
@@ -143,9 +149,12 @@ pub fn run() -> Result<()> {
             maybe_write_changed_lens_cache(&project, &args, limit, &report);
             maybe_write_proof_changed_lens_cache_from_changed(&project, &args, &report);
             let prelude = repo::map_prelude(&project.root);
-            output_with_prelude(args.format, &report, &prelude, || {
-                render::changed(&report, changed_section_name(args.section))
-            })
+            output_with_prelude(
+                output_format_with_json_alias(args.format, args.json),
+                &report,
+                &prelude,
+                || render::changed(&report, changed_section_name(args.section)),
+            )
         }
         CommandKind::DiffMap(args) => {
             ensure_valid_config(&project)?;

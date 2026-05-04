@@ -130,7 +130,7 @@ fn render_proof_filtered_section(report: &ProofReport, section: &str) {
 }
 
 fn proof_large_changed_compact(report: &ProofReport) -> bool {
-    report.target.is_none() && report.changed.len() > 20
+    report.target.is_none() && report.changed.len() > 5
 }
 
 fn proof_changed_anchor_summary(report: &ProofReport) {

@@ -28,7 +28,7 @@ fn try_cold_root_ls_fast_path(
     let report = map::root_inventory_ls_report(&root, &files, args.limit);
     set_inventory_map_snapshot_with_fingerprint(&root, &fingerprint);
     let prelude = repo::map_prelude(&root);
-    output_with_prelude(args.format, &report, &prelude, || {
+    output_with_prelude(output_format_with_json_alias(args.format, args.json), &report, &prelude, || {
         render::ls(&report, ls_section_name(args.section))
     })?;
     Ok(Some(()))
