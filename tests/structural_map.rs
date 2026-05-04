@@ -123,6 +123,7 @@ include!("structural_map/map_quality_doctor.rs");
 include!("structural_map/scope_repair.rs");
 include!("structural_map/fixture_matrix.rs");
 include!("structural_map/dogfood_harness.rs");
+include!("structural_map/benchmark_value.rs");
 include!("structural_map/version_bump_guard.rs");
 include!("structural_map/root_aware_expand.rs");
 include!("structural_map/symbol_local_calls.rs");

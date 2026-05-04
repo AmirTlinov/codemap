@@ -18,6 +18,21 @@ imports, configs, schemas, scripts, and tests.
 The win: the agent spends less time wandering and is less likely to reimplement
 code that already exists nearby.
 
+## Measure The Win
+
+Run a read-only benchmark against one or more repos:
+
+```bash
+scripts/benchmark-codemap-value.py . /path/to/another/repo
+```
+
+It compares visible repo text tokens with the daily `codemap` map
+(`ls`, `changed`, `proof changed`, one `cone`) and reports compression,
+path/expand/unknown/proof signals, and captured readable outputs.
+
+This proves context compression and navigation-signal density. It does not
+claim that the model became smarter; that needs a separate A/B task benchmark.
+
 ## Copy-Paste Workflow
 
 Start in a repo:
