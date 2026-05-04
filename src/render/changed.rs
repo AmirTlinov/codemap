@@ -120,7 +120,15 @@ fn changed_render_limit(report: &ChangedReport, compact: bool) -> usize {
 }
 
 fn changed_should_compact(report: &ChangedReport) -> bool {
-    report.display_limit >= 30 && (report.total_changed_count > 20 || report.changed.len() > 5)
+    report.display_limit >= 30
+        && (report.total_changed_count > 20
+            || report.changed.len() > 5
+            || changed_proof_command_groups(report).len() > COMPACT_CHANGED_PROOF_COMMAND_LIMIT
+            || report
+                .hidden
+                .iter()
+                .any(|group| group.reason.contains("proof wiring") && group.count > 50)
+            || report.unknowns.len() > report.display_limit)
 }
 
 fn changed_risks_section(report: &ChangedReport, force: bool, compact: bool) {

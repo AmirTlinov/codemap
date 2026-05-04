@@ -185,7 +185,15 @@ pub fn proof_report(
     }
     let all_proofs = unique_proof_surfaces(proofs);
     let fallback = proof_fallback_commands(project, &anchors, &changed, &all_proofs);
-    let mut wiring = proof_wiring_facts(project, &anchors, &changed, &all_proofs, &fallback);
+    let wiring_discovery_limit = limit.saturating_mul(2).max(6);
+    let (mut wiring, wiring_clipped) = proof_wiring_facts_limited(
+        project,
+        &anchors,
+        &changed,
+        &all_proofs,
+        &fallback,
+        wiring_discovery_limit,
+    );
     let mut unknowns = Vec::new();
     if target.is_none() && !changed.is_empty() {
         unknowns.extend(changed_fail_open_unknowns(project, &changed));
@@ -275,6 +283,17 @@ pub fn proof_report(
         "proof wiring facts hidden by limit",
         &format!("codemap proof {} --section links", selector),
     );
+    if wiring_clipped {
+        hidden.push(HiddenGroup {
+            reason: "proof wiring facts hidden by discovery limit".to_string(),
+            count: 1,
+            expand: format!(
+                "codemap proof {} --section links --limit {}",
+                selector,
+                wiring_discovery_limit.saturating_mul(2)
+            ),
+        });
+    }
     let mut expand = Vec::new();
     if proofs.is_empty()
         && let Some(target) = target.as_ref()
@@ -301,96 +320,6 @@ pub fn proof_report(
         expand,
         run_hint: "codemap proof prints only by default; use --run to execute proof commands"
             .to_string(),
-    }
-}
-
-fn proof_coverage_summary(
-    changed: &[String],
-    proofs_by_anchor: &BTreeMap<String, Vec<ProofSurface>>,
-) -> ProofCoverageSummary {
-    let mut summary = ProofCoverageSummary {
-        changed_count: changed.len(),
-        runnable_deterministic: Vec::new(),
-        evidence_only: Vec::new(),
-        setup_support_only: Vec::new(),
-        soft_only: Vec::new(),
-        missing: Vec::new(),
-    };
-    for path in changed {
-        let proofs = proofs_by_anchor.get(path).map(Vec::as_slice).unwrap_or(&[]);
-        let runnable = proofs
-            .iter()
-            .filter(|proof| {
-                crate::proof_classification::proof_surface_is_runnable_validation(proof)
-            })
-            .collect::<Vec<_>>();
-        if !runnable.is_empty() {
-            summary
-                .runnable_deterministic
-                .push(proof_covered_path(path, &runnable));
-            continue;
-        }
-        let evidence_only = proofs
-            .iter()
-            .filter(|proof| crate::proof_classification::proof_surface_is_evidence_only(proof))
-            .collect::<Vec<_>>();
-        if !evidence_only.is_empty() {
-            summary
-                .evidence_only
-                .push(proof_covered_path(path, &evidence_only));
-            continue;
-        }
-        let setup = proofs
-            .iter()
-            .filter(|proof| crate::proof_classification::proof_surface_is_setup_or_support(proof))
-            .collect::<Vec<_>>();
-        if !setup.is_empty() {
-            summary
-                .setup_support_only
-                .push(proof_covered_path(path, &setup));
-            continue;
-        }
-        let soft = proofs
-            .iter()
-            .filter(|proof| crate::proof_classification::proof_surface_is_soft_evidence(proof))
-            .collect::<Vec<_>>();
-        if !soft.is_empty() {
-            summary.soft_only.push(proof_covered_path(path, &soft));
-            continue;
-        }
-        summary.missing.push(ProofGap {
-            path: path.clone(),
-            kind: "direct_deterministic_proof_not_found".to_string(),
-            effect: "no direct runnable, evidence-only, setup/support, or soft proof sensor was found for this changed path".to_string(),
-            expand: format!("codemap proof-map --files {} --raw-sensors", shell_quote(path)),
-        });
-    }
-    summary
-}
-
-fn proof_covered_path(path: &str, proofs: &[&ProofSurface]) -> ProofCoveredPath {
-    let evidence = proofs
-        .iter()
-        .map(|proof| proof.evidence.clone())
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect();
-    let commands = proofs
-        .iter()
-        .map(|proof| {
-            proof
-                .command
-                .clone()
-                .unwrap_or_else(|| proof.evidence.clone())
-        })
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect();
-    ProofCoveredPath {
-        path: path.to_string(),
-        sensor_count: proofs.len(),
-        evidence,
-        commands,
     }
 }
 

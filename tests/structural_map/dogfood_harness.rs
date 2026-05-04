@@ -53,7 +53,8 @@ fn dogfood_script_runs_daily_and_focused_probes_read_only() {
             && stderr.contains("[dogfood] done repo=")
             && stderr.contains("latency=")
             && stderr.contains("[dogfood] summary probes=")
-            && stderr.contains("slow="),
+            && stderr.contains("slow=")
+            && stderr.contains("primary_slow="),
         "dogfood script should expose live progress on stderr: {stderr}"
     );
 
@@ -154,5 +155,32 @@ fn dogfood_script_runs_daily_and_focused_probes_read_only() {
         status.stdout.is_empty(),
         "dogfood script must not write into target repos: {}",
         String::from_utf8_lossy(&status.stdout)
+    );
+}
+
+#[test]
+fn dogfood_strict_mode_fails_closed_on_summary_violations() {
+    let parent = TempDir::new().expect("dogfood target parent");
+    let out = TempDir::new().expect("dogfood output tempdir");
+    let missing = parent.path().join("missing-repo");
+    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+
+    let output = Command::new("bash")
+        .arg(repo_root.join("scripts/dogfood-codemap.sh"))
+        .env("CODEMAP_BIN", env!("CARGO_BIN_EXE_codemap"))
+        .env("CODEMAP_DOGFOOD_OUT", out.path())
+        .env("CODEMAP_DOGFOOD_STRICT", "1")
+        .arg(&missing)
+        .output()
+        .expect("dogfood script should run");
+
+    assert!(
+        !output.status.success(),
+        "strict dogfood should fail closed when the summary has violations"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("strict_fail") && stderr.contains("failures=1"),
+        "strict dogfood should name the summary violation: {stderr}"
     );
 }

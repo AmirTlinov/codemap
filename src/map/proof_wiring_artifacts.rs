@@ -43,21 +43,44 @@ fn artifact_chain_facts_for_command(
     facts
 }
 
-fn artifact_contract_wiring_facts(
+fn artifact_contract_wiring_facts_limited(
     project: &Project,
     anchor: &str,
     selector: &str,
+    limit: usize,
 ) -> Vec<ProofWiringFact> {
     let Some(file) = project.files.get(anchor) else {
         return Vec::new();
     };
+    if limit == 0 {
+        return Vec::new();
+    }
     if !(file.has_role("receipt") || file.has_role("witness") || file.has_role("owner_doc")) {
         return Vec::new();
     }
     let mut facts = artifact_consumption_facts(project, anchor, selector);
+    facts.truncate(limit);
+    if facts.len() >= limit {
+        return facts;
+    }
     facts.extend(receipt_declared_command_wiring_facts(project, anchor, selector));
-    facts.extend(receipt_field_wiring_facts(project, anchor, selector));
-    facts.extend(markdown_declared_field_wiring_facts(project, anchor, selector));
+    facts.truncate(limit);
+    if facts.len() >= limit {
+        return facts;
+    }
+    let remaining = limit.saturating_sub(facts.len());
+    facts.extend(receipt_field_wiring_facts_limited(
+        project, anchor, selector, remaining,
+    ));
+    facts.truncate(limit);
+    if facts.len() >= limit {
+        return facts;
+    }
+    let remaining = limit.saturating_sub(facts.len());
+    facts.extend(markdown_declared_field_wiring_facts_limited(
+        project, anchor, selector, remaining,
+    ));
+    facts.truncate(limit);
     facts
 }
 
@@ -124,14 +147,26 @@ fn receipt_declared_command_wiring_facts(
     proof_surface_wiring_facts(project, &proof, selector)
 }
 
-fn receipt_field_wiring_facts(project: &Project, rel: &str, selector: &str) -> Vec<ProofWiringFact> {
+fn receipt_field_wiring_facts_limited(
+    project: &Project,
+    rel: &str,
+    selector: &str,
+    limit: usize,
+) -> Vec<ProofWiringFact> {
     let Ok(text) = std::fs::read_to_string(project.root.join(rel)) else {
         return Vec::new();
     };
+    if limit == 0 {
+        return Vec::new();
+    }
     let fields = declared_receipt_fields(rel, &text);
+    let consumer_texts = proof_wiring_consumer_texts(project, rel);
     let mut facts = Vec::new();
     for (field, line) in fields.into_iter().take(12) {
-        let consumers = field_consumers(project, rel, &field);
+        if facts.len() >= limit {
+            break;
+        }
+        let consumers = field_consumers_from_texts(&consumer_texts, &field);
         if consumers.is_empty() {
             let status = if receipt_field_is_execution(&field) {
                 "executed"
@@ -153,9 +188,12 @@ fn receipt_field_wiring_facts(project: &Project, rel: &str, selector: &str) -> V
             ));
             continue;
         }
-        let load_bearing = consumers
-            .iter()
-            .any(|(consumer, _)| file_has_predicate_language(project, consumer));
+        let load_bearing = consumers.iter().any(|(consumer, _)| {
+            consumer_texts
+                .iter()
+                .find(|(rel, _)| rel == consumer)
+                .is_some_and(|(_, text)| text_has_predicate_language(text))
+        });
         let status = if receipt_field_is_execution(&field) {
             "executed"
         } else if receipt_field_is_schema(&field) && load_bearing {
@@ -192,14 +230,18 @@ fn receipt_field_wiring_facts(project: &Project, rel: &str, selector: &str) -> V
     facts
 }
 
-fn markdown_declared_field_wiring_facts(
+fn markdown_declared_field_wiring_facts_limited(
     project: &Project,
     rel: &str,
     selector: &str,
+    limit: usize,
 ) -> Vec<ProofWiringFact> {
     let Ok(artifact_text) = std::fs::read_to_string(project.root.join(rel)) else {
         return Vec::new();
     };
+    if limit == 0 {
+        return Vec::new();
+    }
     let present_fields = declared_receipt_fields(rel, &artifact_text)
         .into_iter()
         .map(|(field, _)| field)
@@ -209,6 +251,9 @@ fn markdown_declared_field_wiring_facts(
     let mut facts = Vec::new();
     let mut seen = BTreeSet::new();
     for file in project.files.values() {
+        if facts.len() >= limit {
+            break;
+        }
         if file.rel == rel || file.language != "markdown" {
             continue;
         }
@@ -219,7 +264,13 @@ fn markdown_declared_field_wiring_facts(
             continue;
         }
         for (index, line) in text.lines().enumerate() {
+            if facts.len() >= limit {
+                break;
+            }
             for field in markdown_declared_fields(line) {
+                if facts.len() >= limit {
+                    break;
+                }
                 if !seen.insert((file.rel.clone(), field.clone())) {
                     continue;
                 }

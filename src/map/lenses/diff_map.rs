@@ -32,12 +32,28 @@ pub fn diff_map_report(
     let mut hidden = Vec::new();
     let selector = diff_map_selector(&changed, &mode);
     let diff_expand = format!("codemap diff-map {selector} --limit <larger-number>");
+    let deltas = git_unified_zero_deltas(project, &changed, &mode);
+    let text_scan_paths = changed
+        .iter()
+        .filter(|rel| diff_path_needs_runtime_scan(rel))
+        .cloned()
+        .collect::<Vec<_>>();
+    let current_texts = diff_current_file_texts(project, &text_scan_paths, &mode);
+    let base_texts = diff_base_file_texts(project, &text_scan_paths, &mode);
     for rel in &changed {
-        let delta = git_unified_zero_delta(project, rel, &mode);
-        let added_code = diff_current_runtime_code(project, rel, &mode);
-        let removed_code = diff_base_runtime_code(project, rel, &mode);
-        let added_framework_context = diff_current_file_text(project, rel, &mode)
-            .as_deref()
+        let current_text = current_texts.get(rel);
+        let base_text = base_texts.get(rel);
+        let delta = deltas.get(rel).cloned().unwrap_or_default();
+        let added_code = current_text
+            .map(String::as_str)
+            .map(runtime_code_line_lookup)
+            .unwrap_or_default();
+        let removed_code = base_text
+            .map(String::as_str)
+            .map(runtime_code_line_lookup)
+            .unwrap_or_default();
+        let added_framework_context = current_text
+            .map(String::as_str)
             .map(unsupported_framework_route_context)
             .unwrap_or_default();
         if let Some(file) = project.files.get(rel) {
@@ -53,12 +69,14 @@ pub fn diff_map_report(
             changed_summaries.push(missing_file_summary(project, rel));
             new_unknowns.push(unknown_unindexed_anchor(rel));
         }
-        if diff_file_is_added(project, rel, &mode)
+        if current_text.is_some()
+            && base_text.is_none()
             && let Some(route) = runtime_route_from_path_convention(rel)
         {
             added_runtime_routes.push(route);
         }
-        if diff_file_is_removed(project, rel, &mode)
+        if current_text.is_none()
+            && base_text.is_some()
             && let Some(route) = runtime_route_from_path_convention(rel)
         {
             removed_runtime_routes.push(route);
@@ -290,33 +308,82 @@ fn changed_snapshot_selector(changed: &[String]) -> String {
     format!("--files {files}")
 }
 
-fn diff_file_is_added(project: &Project, rel: &str, mode: &DiffMapMode) -> bool {
-    let current_exists = diff_current_file_text(project, rel, mode).is_some();
-    let base_exists = diff_base_file_text(project, rel, mode).is_some();
-    current_exists && !base_exists
+fn diff_path_needs_runtime_scan(rel: &str) -> bool {
+    let lower = rel.to_ascii_lowercase();
+    if lower.ends_with("lock")
+        || lower.ends_with(".lock")
+        || lower.ends_with("-lock.yaml")
+        || lower.ends_with("-lock.yml")
+        || lower.ends_with("package-lock.json")
+        || lower.ends_with("cargo.lock")
+        || lower.ends_with("pnpm-lock.yaml")
+        || lower.ends_with("yarn.lock")
+        || lower.ends_with("bun.lockb")
+    {
+        return false;
+    }
+    matches!(
+        std::path::Path::new(rel)
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .map(str::to_ascii_lowercase)
+            .as_deref(),
+        Some(
+            "ts" | "tsx"
+                | "js"
+                | "jsx"
+                | "mjs"
+                | "cjs"
+                | "rs"
+                | "go"
+                | "py"
+                | "swift"
+                | "java"
+                | "kt"
+                | "kts"
+                | "sh"
+                | "bash"
+                | "zsh"
+        )
+    )
 }
 
-fn diff_file_is_removed(project: &Project, rel: &str, mode: &DiffMapMode) -> bool {
-    let current_exists = diff_current_file_text(project, rel, mode).is_some();
-    let base_exists = diff_base_file_text(project, rel, mode).is_some();
-    !current_exists && base_exists
-}
-
-fn diff_current_file_text(project: &Project, rel: &str, mode: &DiffMapMode) -> Option<String> {
+fn diff_current_file_texts(
+    project: &Project,
+    rels: &[String],
+    mode: &DiffMapMode,
+) -> BTreeMap<String, String> {
     match mode {
-        DiffMapMode::Staged => git_show_file(project, ":", rel),
-        DiffMapMode::WorkingTree | DiffMapMode::Since(_) => {
-            std::fs::read_to_string(project.root.join(rel)).ok()
-        }
+        DiffMapMode::Staged => git_show_files(project, ":", rels),
+        DiffMapMode::WorkingTree | DiffMapMode::Since(_) => rels
+            .iter()
+            .filter_map(|rel| {
+                std::fs::read_to_string(project.root.join(rel))
+                    .ok()
+                    .map(|text| (rel.clone(), text))
+            })
+            .collect(),
     }
 }
 
-fn diff_base_file_text(project: &Project, rel: &str, mode: &DiffMapMode) -> Option<String> {
+fn diff_current_file_text(project: &Project, rel: &str, mode: &DiffMapMode) -> Option<String> {
+    diff_current_file_texts(project, &[rel.to_string()], mode).remove(rel)
+}
+
+fn diff_base_file_texts(
+    project: &Project,
+    rels: &[String],
+    mode: &DiffMapMode,
+) -> BTreeMap<String, String> {
     let revision = match mode {
         DiffMapMode::WorkingTree | DiffMapMode::Staged => "HEAD",
         DiffMapMode::Since(base) => base.as_str(),
     };
-    git_show_file(project, revision, rel)
+    git_show_files(project, revision, rels)
+}
+
+fn diff_base_file_text(project: &Project, rel: &str, mode: &DiffMapMode) -> Option<String> {
+    diff_base_file_texts(project, &[rel.to_string()], mode).remove(rel)
 }
 
 fn env_surfaces_from_diff_line(

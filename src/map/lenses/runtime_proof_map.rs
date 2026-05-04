@@ -196,6 +196,12 @@ pub fn proof_map_report(
     let mut wiring = Vec::new();
     let mut wiring_seen = BTreeSet::new();
     let mut global_wiring_surfaces = Vec::new();
+    let wiring_discovery_limit = if raw_sensors {
+        usize::MAX
+    } else {
+        limit.saturating_mul(2).max(6)
+    };
+    let mut wiring_clipped = false;
     let runtime_facts = runtime_fact_index_for_paths(project, &route_index_paths);
     let expand_larger_limit = proof_map_expand(&proof_selector, false);
     let expand_raw_sensors = proof_map_expand(&proof_selector, true);
@@ -226,11 +232,16 @@ pub fn proof_map_report(
                 file_routes.clone(),
                 &runtime_facts,
             );
-            push_unique_proof_wiring(
-                &mut wiring,
-                &mut wiring_seen,
-                proof_wiring_facts(project, std::slice::from_ref(seed), &[], &route_surfaces, &[]),
+            let (facts, clipped) = proof_wiring_facts_limited(
+                project,
+                std::slice::from_ref(seed),
+                &[],
+                &route_surfaces,
+                &[],
+                wiring_discovery_limit.saturating_sub(wiring.len()),
             );
+            wiring_clipped |= clipped;
+            push_unique_proof_wiring(&mut wiring, &mut wiring_seen, facts);
             surfaces.extend(route_surfaces);
             unknowns.extend(route_proof_unknowns_for_routes(
                 project,
@@ -262,11 +273,16 @@ pub fn proof_map_report(
         {
             unknowns.push(unknown);
         }
-        push_unique_proof_wiring(
-            &mut wiring,
-            &mut wiring_seen,
-            proof_wiring_facts(project, std::slice::from_ref(seed), &[], &proofs, &[]),
+        let (facts, clipped) = proof_wiring_facts_limited(
+            project,
+            std::slice::from_ref(seed),
+            &[],
+            &proofs,
+            &[],
+            wiring_discovery_limit.saturating_sub(wiring.len()),
         );
+        wiring_clipped |= clipped;
+        push_unique_proof_wiring(&mut wiring, &mut wiring_seen, facts);
         for proof in proofs {
             surfaces.push(proof);
         }
@@ -277,11 +293,16 @@ pub fn proof_map_report(
         unknowns.push(unknown);
         scope_expand.push(expand);
     }
-    push_unique_proof_wiring(
-        &mut wiring,
-        &mut wiring_seen,
-        proof_wiring_facts(project, &seeds, &changed, &global_wiring_surfaces, &[]),
+    let (facts, clipped) = proof_wiring_facts_limited(
+        project,
+        &seeds,
+        &changed,
+        &global_wiring_surfaces,
+        &[],
+        wiring_discovery_limit.saturating_sub(wiring.len()),
     );
+    wiring_clipped |= clipped;
+    push_unique_proof_wiring(&mut wiring, &mut wiring_seen, facts);
     let mut hard = Vec::new();
     let mut direct_evidence = Vec::new();
     let mut mediated_evidence = Vec::new();
@@ -409,12 +430,27 @@ pub fn proof_map_report(
         .cloned()
         .collect::<Vec<_>>();
     let fallback = proof_fallback_commands(project, &seeds, &changed, &fallback_sources);
-    push_unique_proof_wiring(
-        &mut wiring,
-        &mut wiring_seen,
-        proof_wiring_facts(project, &seeds, &changed, &[], &fallback),
+    let (facts, clipped) = proof_wiring_facts_limited(
+        project,
+        &seeds,
+        &changed,
+        &[],
+        &fallback,
+        wiring_discovery_limit.saturating_sub(wiring.len()),
     );
+    wiring_clipped |= clipped;
+    push_unique_proof_wiring(&mut wiring, &mut wiring_seen, facts);
     sort_proof_wiring_facts(&mut wiring);
+    if wiring_clipped {
+        hidden.push(HiddenGroup {
+            reason: "proof wiring facts hidden by discovery limit".to_string(),
+            count: 1,
+            expand: expand_with_concrete_limit(
+                &expand_larger_limit,
+                wiring_discovery_limit.saturating_mul(2),
+            ),
+        });
+    }
     if scope.as_deref() != Some(".") {
         unknowns.extend(proof_wiring_unknowns(&wiring));
     }

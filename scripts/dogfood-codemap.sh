@@ -9,6 +9,8 @@ canonical_path() {
 raw_out_dir="${CODEMAP_DOGFOOD_OUT:-$repo_root/target/dogfood-codemap}"
 out_dir="$(canonical_path "$raw_out_dir")"
 cache_dir="${CODEMAP_DOGFOOD_CACHE:-$out_dir/cache}"
+strict="${CODEMAP_DOGFOOD_STRICT:-0}"
+max_slow="${CODEMAP_DOGFOOD_MAX_SLOW:-0}"
 repo_target="$(canonical_path "$repo_root/target")"
 resolved_tmp="$(canonical_path "${TMPDIR:-/tmp}")"
 
@@ -394,11 +396,16 @@ done
 while IFS= read -r summary_file; do
   cat "$summary_file" >>"$out_dir/summary.jsonl"
 done < <(find "$out_dir" -maxdepth 1 -type f -name '*.summary.jsonl' ! -name 'summary.jsonl' | sort)
-summary_counts="$(python3 - "$out_dir/summary.jsonl" <<'PY'
+summary_counts="$(python3 - "$out_dir/summary.jsonl" "$strict" "$max_slow" <<'PY'
 import json
 import sys
 
 path = sys.argv[1]
+strict = sys.argv[2] not in {"", "0", "false", "False", "no", "NO"}
+try:
+    max_slow = int(sys.argv[3])
+except Exception:
+    max_slow = 0
 rows = []
 with open(path, encoding="utf-8") as fh:
     for line in fh:
@@ -409,7 +416,39 @@ failures = sum(1 for row in rows if row.get("status", 0) != 0)
 over = sum(1 for row in rows if row.get("budget_status") == "over")
 trust = sum(int(row.get("trust_violations", 0) or 0) for row in rows)
 slow = sum(1 for row in rows if row.get("latency_status") == "slow")
-print(f"probes={len(rows)} failures={failures} over_budget={over} slow={slow} trust_violations={trust}")
+primary_labels = {
+    "ls_root",
+    "changed",
+    "proof_changed",
+    "proof_map_root",
+    "cone_owner",
+    "proof_owner",
+}
+primary_slow = sum(
+    1
+    for row in rows
+    if row.get("label") in primary_labels and row.get("latency_status") == "slow"
+)
+summary = (
+    f"probes={len(rows)} failures={failures} over_budget={over} "
+    f"slow={slow} primary_slow={primary_slow} trust_violations={trust}"
+)
+print(summary)
+if strict:
+    problems = []
+    if failures:
+        problems.append(f"failures={failures}")
+    if over:
+        problems.append(f"over_budget={over}")
+    if trust:
+        problems.append(f"trust_violations={trust}")
+    if primary_slow:
+        problems.append(f"primary_slow={primary_slow}")
+    if slow > max_slow:
+        problems.append(f"slow={slow} > max_slow={max_slow}")
+    if problems:
+        print("strict_fail " + " ".join(problems), file=sys.stderr)
+        sys.exit(1)
 PY
 )"
 progress "summary $summary_counts path=$out_dir/summary.jsonl"

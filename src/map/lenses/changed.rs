@@ -69,16 +69,19 @@ pub fn changed_report(
     }
     let diff = diff_map_report(project, changed.clone(), limit, mode);
     let impact = impact_report(project, changed.clone(), 1, limit);
-    let proof_changed = changed.clone();
-    let proof_plan_cache = proof_report(
-        project,
-        None,
-        proof_changed,
-        changed_proof_selector(&selector),
-        1,
-        proof_cache_limit,
-    );
     let proof_map = proof_map_report(project, None, changed, selector.clone(), limit, false);
+    let proof_plan_cache = if changed_paths.len() <= 5 {
+        Some(Box::new(proof_report(
+            project,
+            None,
+            changed_paths.clone(),
+            changed_proof_selector(&selector),
+            1,
+            proof_cache_limit,
+        )))
+    } else {
+        None
+    };
     let risks = changed_risks(project, &changed_paths, &git_state, &proof_map, &selector);
     let coupling = changed_coupling(project, &changed_paths, &proof_map, &selector);
     let mut hidden = Vec::new();
@@ -89,7 +92,9 @@ pub fn changed_report(
     unknowns.extend(diff.new_unknowns.clone());
     unknowns.extend(impact.unknowns.clone());
     unknowns.extend(proof_map.unknowns.clone());
-    unknowns.extend(proof_plan_cache.unknowns.clone());
+    if let Some(proof) = proof_plan_cache.as_deref() {
+        unknowns.extend(proof.unknowns.clone());
+    }
     unknowns.extend(changed_fail_open_unknowns(project, &changed_paths));
     dedupe_unknowns(&mut unknowns);
     let unknown_expand = format!(
@@ -109,7 +114,7 @@ pub fn changed_report(
         schema_version: "8",
         selector: selector.clone(),
         display_limit: limit,
-        proof_plan_cache: Some(Box::new(proof_plan_cache)),
+        proof_plan_cache,
         total_changed_count,
         changed: impact.changed.clone(),
         git_state,

@@ -160,22 +160,28 @@ fn artifact_consumers(project: &Project, artifact: &str) -> Vec<(String, usize)>
     consumers
 }
 
-fn field_consumers(project: &Project, owner: &str, field: &str) -> Vec<(String, usize)> {
+fn proof_wiring_consumer_texts(project: &Project, owner: &str) -> Vec<(String, String)> {
+    project
+        .files
+        .values()
+        .filter(|file| file.rel != owner)
+        .filter(|file| proof_wiring_file_can_consume_artifact(file))
+        .filter(|file| proof_wiring_file_can_consume_evidence(file))
+        .filter_map(|file| {
+            std::fs::read_to_string(project.root.join(&file.rel))
+                .ok()
+                .map(|text| (file.rel.clone(), text))
+        })
+        .collect()
+}
+
+fn field_consumers_from_texts(texts: &[(String, String)], field: &str) -> Vec<(String, usize)> {
     let needle = format!("\"{field}\"");
     let mut consumers = Vec::new();
-    for file in project.files.values() {
-        if file.rel == owner || !proof_wiring_file_can_consume_artifact(file) {
-            continue;
-        }
-        if !proof_wiring_file_can_consume_evidence(file) {
-            continue;
-        }
-        let Ok(text) = std::fs::read_to_string(project.root.join(&file.rel)) else {
-            continue;
-        };
+    for (rel, text) in texts {
         for (index, line) in text.lines().enumerate() {
             if line.contains(&needle) || line.contains(field) {
-                consumers.push((file.rel.clone(), index + 1));
+                consumers.push((rel.clone(), index + 1));
                 break;
             }
         }
@@ -338,6 +344,10 @@ fn file_has_predicate_language(project: &Project, rel: &str) -> bool {
     let Ok(text) = std::fs::read_to_string(project.root.join(rel)) else {
         return false;
     };
+    text_has_predicate_language(&text)
+}
+
+fn text_has_predicate_language(text: &str) -> bool {
     let lower = text.to_ascii_lowercase();
     [
         "pass",

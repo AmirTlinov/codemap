@@ -1,28 +1,53 @@
-fn proof_wiring_facts(
+fn proof_wiring_facts_limited(
     project: &Project,
     anchors: &[String],
     changed: &[String],
     proofs: &[ProofSurface],
     fallback: &[String],
-) -> Vec<ProofWiringFact> {
+    limit: usize,
+) -> (Vec<ProofWiringFact>, bool) {
     let mut facts = Vec::new();
     let mut seen = BTreeSet::new();
+    let mut clipped = false;
     let selector = proof_wiring_selector(anchors, changed);
     for proof in proofs {
+        if facts.len() >= limit {
+            clipped = true;
+            break;
+        }
         push_unique_proof_wiring(
             &mut facts,
             &mut seen,
             proof_surface_wiring_facts(project, proof, &selector),
         );
+        if facts.len() > limit {
+            facts.truncate(limit);
+            clipped = true;
+            break;
+        }
     }
     for anchor in anchors {
+        if facts.len() >= limit {
+            clipped = true;
+            break;
+        }
+        let remaining = limit.saturating_sub(facts.len());
         push_unique_proof_wiring(
             &mut facts,
             &mut seen,
-            artifact_contract_wiring_facts(project, anchor, &selector),
+            artifact_contract_wiring_facts_limited(project, anchor, &selector, remaining),
         );
+        if facts.len() > limit {
+            facts.truncate(limit);
+            clipped = true;
+            break;
+        }
     }
     for command in fallback {
+        if facts.len() >= limit {
+            clipped = true;
+            break;
+        }
         let proof = ProofSurface {
             command: Some(command.clone()),
             path: None,
@@ -36,9 +61,14 @@ fn proof_wiring_facts(
             &mut seen,
             proof_surface_wiring_facts(project, &proof, &selector),
         );
+        if facts.len() > limit {
+            facts.truncate(limit);
+            clipped = true;
+            break;
+        }
     }
     sort_proof_wiring_facts(&mut facts);
-    facts
+    (facts, clipped)
 }
 
 type ProofWiringKey = (String, String, String, Option<String>, String);
