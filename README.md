@@ -1,69 +1,33 @@
 # codemap
 
-A read-only project x-ray for AI coding agents.
+Read-only project x-ray for AI coding agents.
 
-`codemap` helps an agent stop guessing where to look. It shows what exists in a
-repository, what connects to what, what changed, what can verify it, and what is
-still unknown.
+Give an agent `codemap` when you want it to understand a repository before
+editing code. It replaces a messy first pass of `pwd`, `ls`, `rg`, `git status`,
+manifest hunting, import chasing, and test guessing with one compact structural
+map.
 
-It is useful when the agent would otherwise burn time stitching together `pwd`,
-`ls`, `rg`, `git status`, imports, manifests, scripts, configs, schemas, and
-tests by hand.
+## What The Agent Gets
 
-## Why It Helps
+| Need | Command | Result |
+| --- | --- | --- |
+| Understand the repo shape | `codemap ls .` | Packages, folders, scripts, configs, schemas, tests, boundary facts |
+| Understand one area or file | `codemap cone <anchor> --depth 1` | Inputs, outputs, consumers, state, effects, nearby helpers, proof, unknowns |
+| Understand current edits | `codemap changed` | Live branch/worktree, changed surfaces, coupling, mechanical risks, proof links |
+| Understand verification | `codemap proof changed` | Runnable proof surfaces, evidence-only surfaces, broad fallbacks, proof gaps |
 
-- The agent sees the current repo, branch, head, dirty files, and untracked files.
-- It can find nearby code surfaces: imports, exports, tests, scripts, configs,
-  schemas, routes, receipts, and helpers.
-- It can see who consumes a file and what the file consumes.
-- It can see proof surfaces and proof gaps before claiming something is tested.
-- It gets exact next expand commands instead of a giant context dump.
-- `Unknown` stays visible when static structure is not enough.
+The useful part is not "AI magic". The useful part is that the agent sees the
+repo wires before it starts reading random files.
 
-This usually means fewer blind `rg` passes, less repeated work, and faster first
-orientation in an unfamiliar repo.
+## Daily Copy-Paste Flow
 
-## What It Is Not
-
-`codemap` is not a recommender, semantic search tool, embedding index, LLM
-summary, task router, architecture judge, or correctness proof.
-
-It does not say "best file", "safe change", "good architecture", or "this test
-proves correctness".
-
-It says: found, linked, missing, soft, proven by this surface, unknown.
-
-## Install
-
-From this repository:
-
-```bash
-cargo install --path . --locked --force
-codemap --version
-codemap doctor
-```
-
-`codemap` writes no files into target repositories by default. Its cache lives
-outside the repo:
-
-```txt
-macOS:   ~/Library/Caches/codemap/
-Linux:   ~/.cache/codemap/
-Windows: %LOCALAPPDATA%/codemap/
-```
-
-Use `CODEMAP_CACHE_DIR=/path` to move the cache, or `CODEMAP_NO_CACHE=1` to
-disable cache writes.
-
-## Daily Flow
-
-Start wide:
+At repo start:
 
 ```bash
 codemap ls .
 ```
 
-Open the relevant folder or file:
+Before touching a file or folder:
 
 ```bash
 codemap ls <scope-or-file>
@@ -77,38 +41,62 @@ codemap changed
 codemap proof changed
 ```
 
-That is the main workflow.
+That is the normal workflow.
 
-## Main Commands
+## What It Shows
 
-| Command | What it answers |
-| --- | --- |
-| `codemap ls [scope]` | What exists here? |
-| `codemap cone <anchor> --depth 1` | What surrounds this file, folder, symbol, manifest, config, or schema? |
-| `codemap changed` | What is true in the worktree after edits? |
-| `codemap proof <anchor\|changed>` | What can verify this, and what proof is missing? |
-
-`proof` prints by default. It runs commands only with explicit `--run`.
+- where the agent is: root, cwd, branch, head, upstream, dirty state;
+- what exists nearby: files, packages, public surfaces, scripts, configs,
+  schemas, routes, tests, receipts;
+- what connects: imports, exports, consumers, sibling surfaces, proof surfaces;
+- what changed: staged, unstaged, untracked, generated files, lockfiles,
+  docs/config/source/test surfaces;
+- what can verify it: tests, build/check scripts, proof runners, receipts,
+  fallbacks;
+- what is missing: no direct test import, unresolved runner, missing proof
+  surface, unknown consumer;
+- where to go next: exact `Expand` commands.
 
 ## How To Read The Output
 
-Common sections:
+| Section | Meaning |
+| --- | --- |
+| `Repo` / `Worktree` | Current local git truth. No network is used. |
+| `Surface Hints` | What kind of files exist or changed. Not intent. |
+| `Coupling` | Deterministic relationships. Not advice. |
+| `Risks` | Mechanical facts such as conflicts, generated files, lockfile drift, large binaries. Not a safety verdict. |
+| `Proof` | What can verify this anchor or changed set. |
+| `Unknown` | What `codemap` could not prove statically. |
+| `Expand` | Exact next command for deeper detail. |
 
-- `Repo` / `Worktree`: current local git truth. No network is used.
-- `Surface Hints`: what kind of files changed or exist nearby.
-- `Coupling`: deterministic relationships, not advice.
-- `Risks`: mechanical facts such as conflicts, generated files, lockfile drift,
-  or large binary changes. These are not safety verdicts.
-- `Proof`: what can verify the anchor or changed files.
-- `Unknown`: where the map cannot prove a relationship.
-- `Expand`: exact next commands for deeper detail.
+`Unknown` is a feature. It means the tool did not invent certainty.
 
-If `codemap` says `Unknown`, that is useful. It means the tool did not invent an
-answer.
+## Install
 
-## Drill Down Only When Needed
+From this repository:
 
-Most deeper views are discovered through `Expand` lines in the output:
+```bash
+cargo install --path . --locked --force
+codemap --version
+codemap doctor
+```
+
+`codemap` does not write into target repositories by default. Its cache lives
+outside the repo:
+
+```txt
+macOS:   ~/Library/Caches/codemap/
+Linux:   ~/.cache/codemap/
+Windows: %LOCALAPPDATA%/codemap/
+```
+
+Use `CODEMAP_CACHE_DIR=/path` to move the cache, or `CODEMAP_NO_CACHE=1` to
+disable cache writes.
+
+## Focused Drill-Downs
+
+You usually do not need to memorize these. Main commands print them as `Expand`
+targets when they matter.
 
 ```bash
 codemap changed --section proof
@@ -122,12 +110,21 @@ codemap siblings <scope>
 codemap place <scope> --kind test
 ```
 
-Readable text is the default. JSON exists only for integrations:
+Readable text is the default. JSON exists for integrations:
 
 ```bash
 codemap proof changed --format json
 codemap changed --json
 ```
+
+## Boundaries
+
+`codemap` does not rank files, recommend fixes, judge architecture, prove
+correctness, use embeddings, use an LLM in the hard path, fetch from the network,
+or run project commands unless you explicitly use `proof --run`.
+
+It reports facts with provenance: found, linked, missing, soft, proven by this
+surface, unknown.
 
 ## Optional Project Hints
 
