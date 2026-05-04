@@ -166,6 +166,15 @@ fn symbol_anchor_cone_links_same_file_symbol_body_uses() {
             .is_empty(),
         "same-file consumer proof should suppress broad fallback: {choose_proof:#}"
     );
+    assert!(
+        choose_proof["unknowns"]
+            .as_array()
+            .expect("choose unknowns")
+            .iter()
+            .any(|unknown| unknown["kind"] == "direct_test_import_not_found"
+                && unknown["path"] == "src/local-flow.tsx#chooseFocus"),
+        "mediated symbol-consumer proof must not hide missing direct proof for the selected symbol: {choose_proof:#}"
+    );
 
     let argument_cone = run_json(
         repo.path(),
@@ -216,4 +225,3 @@ fn symbol_anchor_cone_links_same_file_symbol_body_uses() {
         );
     }
 }
-

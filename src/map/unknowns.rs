@@ -104,13 +104,38 @@ fn unknown_ci_validation_step_not_found(path: &str) -> Unknown {
 }
 
 fn unresolved_import_unknowns(project: &Project, file: &FileInfo) -> Vec<Unknown> {
-    file.unresolved_imports
+    let mut unknowns = file
+        .unresolved_imports
         .iter()
         .map(|spec| {
             unknown_unresolved_import(
                 &file.rel,
                 spec,
                 unresolved_import_line(project, file, spec),
+            )
+        })
+        .collect::<Vec<_>>();
+    unknowns.extend(rust_include_blind_spot_unknowns(project, file));
+    unknowns
+}
+
+fn rust_include_blind_spot_unknowns(project: &Project, file: &FileInfo) -> Vec<Unknown> {
+    if file.ext != "rs" {
+        return Vec::new();
+    }
+    let Ok(text) = std::fs::read_to_string(project.root.join(&file.rel)) else {
+        return Vec::new();
+    };
+    repo::rust_include_blind_spot_lines(&text)
+        .into_iter()
+        .map(|line| {
+            unknown(
+                "rust_include_unresolved",
+                Some(&file.rel),
+                Some(line),
+                "Rust include! target is not a static .rs string literal",
+                "included Rust fragments share the parent lexical scope; dependencies inside unresolved include! fragments are not represented in this cone",
+                Some(format!("codemap ls {}", shell_quote(&file.rel))),
             )
         })
         .collect()

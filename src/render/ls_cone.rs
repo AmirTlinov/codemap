@@ -93,6 +93,7 @@ fn render_cone_proof(edges: &[StructuralEdge]) {
             "evidence_surface" => evidence.push(edge.clone()),
             "setup_support_surface" => setup.push(edge.clone()),
             "soft_evidence_surface" => soft.push(edge.clone()),
+            "tests" if cone_edge_is_soft_proof(edge) => soft.push(edge.clone()),
             _ => proof.push(edge.clone()),
         }
     }
@@ -110,6 +111,34 @@ fn render_cone_proof(edges: &[StructuralEdge]) {
             "\nSoft evidence is token/name/path surface overlap. It does not replace deterministic proof or remove Unknown entries."
         );
     }
+}
+
+fn cone_edge_is_soft_proof(edge: &StructuralEdge) -> bool {
+    let mediated = edge.evidence.ends_with("_via_direct_consumer")
+        || edge.evidence.ends_with("_via_direct_dependency")
+        || edge.evidence.ends_with("_via_local_symbol_consumer");
+    let base = crate::proof_classification::proof_base_evidence(&edge.evidence);
+    mediated
+        || matches!(
+            base,
+            "test_name"
+                | "e2e_surface_phrase"
+                | "e2e_path_surface"
+                | "test_surface_phrase"
+                | "test_surface_tokens"
+                | "script_path_token"
+                | "script_surface_match"
+        )
+        || (edge.strength < crate::model::EvidenceStrength::High
+            && !matches!(
+                base,
+                "test_import"
+                    | "test_imported_symbol_reference"
+                    | "test_reexported_symbol_reference"
+                    | "test_support_import"
+                    | "test_symbol_reference"
+                    | "e2e_route"
+            ))
 }
 
 fn edge_location_summary(edge: &StructuralEdge) -> String {

@@ -120,3 +120,24 @@
   - Why it hurts trust: weak path/name/script overlap looks like actionable proof. It also leaks old role vocabulary through `role_script_target`.
   - Boundary: the script rows are source-backed and may be useful soft hints, but they are not deterministic proof for the anchor/scope.
   - Follow-up: render these rows only under `Soft Evidence` with the disclaimer, add/surface `Unknown` when no direct deterministic proof exists, and expand dogfood trust checks to catch `role_script_target` plus false `unknown_lines` counts.
+
+- Issue: `cone` still renders soft proof edges under the generic `Proof` section.
+  - Evidence: live PATH `codemap 0.2.12`, repo `/Users/amir/Documents/projects/Sillentway-VPN`, command `codemap --root /Users/amir/Documents/projects/Sillentway-VPN cone src/masque-core/src/client/routing.rs --depth 1`.
+  - Observed: `cone` prints `test_surface_tokens`, `test_surface_tokens_via_direct_consumer`, and `test_import_via_direct_consumer` under `## Proof`, while `codemap proof src/masque-core/src/client/routing.rs` correctly renders the same set as `## Soft Evidence` and keeps `direct_test_import_not_found`.
+  - Why it hurts trust: agents read `cone` and `proof` together. If `proof` says the evidence is soft but `cone` presents the same rows as proof, `cone` can still look stronger than the evidence supports.
+  - Boundary: the edges are useful and source-backed; the issue is section semantics and hard/soft separation in the human cone output.
+  - Status: fixed in the same `0.2.12` slice; repeated live PATH probe renders these rows under `## Soft Evidence`.
+
+- Issue: `changed` proof sensor counts can contradict Unknown for mediated/soft proof.
+  - Evidence: live PATH `codemap 0.2.12`, repo `/Users/amir/Documents/projects/Sillentway-VPN`, output `target/dogfood-live-0.2.12-20260504T041504/Sillentway-VPN_.changed.md`.
+  - Observed: `changed` prints `Sensor Counts - direct: 8; indirect: 9; missing_direct: 0` while the same report has no runnable proof command and `Unknown direct_test_import_not_found: 6`.
+  - Why it hurts trust: a count named `direct` sounds like direct deterministic proof. When soft token/mediated sensors feed that count, the summary weakens the fail-open Unknown contract.
+  - Boundary: the raw sensors may be useful, but the count vocabulary must not imply proof coverage.
+  - Status: fixed in `0.2.13`; repeated live PATH probe renders `runnable_direct: 0`, `soft: 17`, and `missing_direct_unknown: 6` for the same changed set.
+
+- Issue: symbol-anchor mediated proof could suppress broad fallback without any fail-open Unknown.
+  - Evidence: reviewer repro during the `0.2.14` slice using `codemap proof 'src/local-flow.tsx#chooseFocus' --format json` on a focused fixture.
+  - Observed: proof contained `test_imported_symbol_reference_via_local_symbol_consumer` with `strength: medium`, `fallback: []`, and `unknowns: []`.
+  - Why it hurts trust: `_via_local_symbol_consumer` is useful mediated evidence, but without Unknown it can look like enough direct symbol proof.
+  - Boundary: suppressing broad fallback is acceptable when an exact mediated runnable command exists; the defect was absence of a missing-direct proof Unknown.
+  - Status: fixed in `0.2.14`; symbol anchors now emit `direct_test_import_not_found` when no direct/specific proof exists.

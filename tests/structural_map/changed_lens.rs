@@ -279,8 +279,8 @@ fn changed_distinguishes_visible_and_total_changed_files() {
         "changed markdown should not return to Git State, Map Delta, or proof sensor table spam: {markdown}"
     );
     assert!(
-        markdown.contains("\n### Sensor Counts\n") && markdown.contains("- direct: `"),
-        "changed proof summary should render sensor counts as compact bullets: {markdown}"
+        markdown.contains("\n### Sensor Counts\n") && markdown.contains("- runnable_direct: `"),
+        "changed proof summary should render public sensor counts as compact bullets: {markdown}"
     );
     assert!(
         markdown.contains("git state rows hidden by limit"),

@@ -26,6 +26,10 @@ fn rust_include_and_file_module_edges_are_structural() {
         "include!(r#\"map/raw_include.rs\"#);\n",
     );
     write(
+        &repo.path().join("src/dynamic_include.rs"),
+        "pub fn before() {}\ninclude!(concat!(env!(\"OUT_DIR\"), \"/generated.rs\"));\npub fn after() {}\n",
+    );
+    write(
         &repo.path().join("src/map/status.rs"),
         "pub fn status() -> &'static str {\n    \"ok\"\n}\n",
     );
@@ -128,6 +132,20 @@ fn rust_include_and_file_module_edges_are_structural() {
             .all(|edge| edge["from"] != "src/commented.rs"),
         "Rust include! text inside comments or strings must not create structural edges: {commented_cone:#}"
     );
+    let commented_source_cone = run_json(
+        repo.path(),
+        cache.path(),
+        &["cone", "src/commented.rs", "--format", "json"],
+    );
+    assert_schema("schemas/cone.schema.json", &commented_source_cone);
+    assert!(
+        commented_source_cone["unknowns"]
+            .as_array()
+            .expect("commented source unknowns")
+            .iter()
+            .all(|unknown| unknown["kind"] != "rust_include_unresolved"),
+        "Rust include! text inside comments or strings must not create blind-spot Unknowns: {commented_source_cone:#}"
+    );
 
     let lifetime_cone = run_json(
         repo.path(),
@@ -163,5 +181,23 @@ fn rust_include_and_file_module_edges_are_structural() {
                 && edge["type"] == "imported_by"
                 && edge["evidence"] == "reverse_import"),
         "Rust raw-string include! should create structural include edges: {raw_include_cone:#}"
+    );
+
+    let dynamic_include_cone = run_json(
+        repo.path(),
+        cache.path(),
+        &["cone", "src/dynamic_include.rs", "--format", "json"],
+    );
+    assert_schema("schemas/cone.schema.json", &dynamic_include_cone);
+    assert!(
+        dynamic_include_cone["unknowns"]
+            .as_array()
+            .expect("dynamic include unknowns")
+            .iter()
+            .any(|unknown| unknown["kind"] == "rust_include_unresolved"
+                && unknown["path"] == "src/dynamic_include.rs"
+                && unknown["line_start"] == 2
+                && unknown["reason"] == "Rust include! target is not a static .rs string literal"),
+        "dynamic Rust include! must fail open with typed Unknown and line provenance: {dynamic_include_cone:#}"
     );
 }

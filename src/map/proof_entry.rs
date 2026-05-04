@@ -207,6 +207,21 @@ pub fn proof_report(
         ));
     }
     if let Some(target) = target.as_ref()
+        && let Some((file_rel, _symbol_name)) = split_symbol_anchor(target)
+        && let Some(file) = project.files.get(&file_rel)
+        && changed_should_check_direct_proof(file)
+        && !all_proofs.iter().any(proof_surface_satisfies_specific_proof)
+    {
+        unknowns.push(unknown(
+            "direct_test_import_not_found",
+            Some(target),
+            None,
+            "no direct test import, symbol reference, support import, or e2e route visit was found for this symbol proof anchor",
+            "mediated symbol-consumer proof may still be visible, but it does not prove a direct test sensor for the selected symbol",
+            Some(format!("codemap proof-map {} --raw-sensors", shell_quote(target))),
+        ));
+    }
+    if let Some(target) = target.as_ref()
         && let Some(file) = project.files.get(target)
         && file_uses_ci_run_step_syntax(file)
         && !all_proofs

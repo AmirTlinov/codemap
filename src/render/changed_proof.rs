@@ -123,25 +123,73 @@ fn changed_proof_render_evidence_surfaces(
 
 fn changed_proof_sensor_counts(report: &ChangedReport, compact: bool) {
     println!("\n### Sensor Counts");
+    let counts = changed_proof_public_sensor_counts(report);
     if compact {
         println!(
-            "- direct: `{}`; indirect: `{}`; e2e: `{}`; contract: `{}`; missing_direct: `{}`",
-            report.proof.direct.len(),
-            report.proof.indirect.len(),
-            report.proof.e2e.len(),
-            report.proof.contract.len(),
-            report.proof.missing_direct.len()
+            "- runnable_direct: `{}`; soft: `{}`; evidence_only: `{}`; setup_support: `{}`; missing_direct_unknown: `{}`",
+            counts.runnable_direct,
+            counts.soft,
+            counts.evidence_only,
+            counts.setup_support,
+            counts.missing_direct_unknown
         );
     } else {
         for (kind, count) in [
-            ("direct", report.proof.direct.len()),
-            ("indirect", report.proof.indirect.len()),
-            ("e2e", report.proof.e2e.len()),
-            ("contract", report.proof.contract.len()),
-            ("missing_direct", report.proof.missing_direct.len()),
+            ("runnable_direct", counts.runnable_direct),
+            ("soft", counts.soft),
+            ("evidence_only", counts.evidence_only),
+            ("setup_support", counts.setup_support),
+            ("missing_direct_unknown", counts.missing_direct_unknown),
         ] {
             println!("- {kind}: `{count}`");
         }
+    }
+}
+
+struct ChangedProofPublicSensorCounts {
+    runnable_direct: usize,
+    soft: usize,
+    evidence_only: usize,
+    setup_support: usize,
+    missing_direct_unknown: usize,
+}
+
+fn changed_proof_public_sensor_counts(report: &ChangedReport) -> ChangedProofPublicSensorCounts {
+    let sensors = report
+        .proof
+        .direct
+        .iter()
+        .chain(report.proof.indirect.iter())
+        .chain(report.proof.e2e.iter())
+        .chain(report.proof.contract.iter())
+        .collect::<Vec<_>>();
+    let runnable_direct = sensors
+        .iter()
+        .filter(|sensor| crate::proof_classification::proof_surface_is_runnable_validation(sensor))
+        .count();
+    let soft = sensors
+        .iter()
+        .filter(|sensor| crate::proof_classification::proof_surface_is_soft_evidence(sensor))
+        .count();
+    let evidence_only = sensors
+        .iter()
+        .filter(|sensor| crate::proof_classification::proof_surface_is_evidence_only(sensor))
+        .count();
+    let setup_support = sensors
+        .iter()
+        .filter(|sensor| crate::proof_classification::proof_surface_is_setup_or_support(sensor))
+        .count();
+    let unknown_direct = report
+        .unknowns
+        .iter()
+        .filter(|unknown| unknown.kind == "direct_test_import_not_found")
+        .count();
+    ChangedProofPublicSensorCounts {
+        runnable_direct,
+        soft,
+        evidence_only,
+        setup_support,
+        missing_direct_unknown: unknown_direct.max(report.proof.missing_direct.len()),
     }
 }
 

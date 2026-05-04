@@ -86,7 +86,7 @@ fn soft_token_proof_does_not_hide_missing_deterministic_proof_or_fallback() {
     );
     let markdown = String::from_utf8(changed.stdout).expect("markdown utf8");
     assert!(
-        markdown.contains("- missing_direct: `1`") && markdown.contains("### Fallback"),
+        markdown.contains("- missing_direct_unknown: `1`") && markdown.contains("### Fallback"),
         "changed proof should show missing deterministic proof and fallback with soft evidence: {markdown}"
     );
 

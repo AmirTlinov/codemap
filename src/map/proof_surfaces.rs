@@ -34,7 +34,7 @@ fn proof_surfaces_for_anchor(
             });
         }
     }
-    if depth <= 1 && !out.is_empty() {
+    if depth <= 1 && out.iter().any(proof_surface_satisfies_specific_proof) {
         return out;
     }
     let mut consumers = direct_consumer_edges(project, anchor);
@@ -42,13 +42,16 @@ fn proof_surfaces_for_anchor(
     for consumer in consumers.into_iter().take(limit) {
         for (test, evidence, strength) in strict_test_edges_for_file(project, &consumer.from, limit)
         {
+            let evidence = format!("{evidence}_via_direct_consumer");
+            let from = &consumer.from;
+            let locations = proof_surface_locations_for_target(project, from, &test, &evidence);
             out.push(ProofSurface {
                 command: proof_command_for_test(project, &test),
-                locations: proof_surface_locations_for_target(project, &consumer.from, &test, &evidence),
+                locations,
                 path: Some(test),
                 reason: proof_reason_for_evidence(&evidence, "direct consumer"),
                 evidence,
-                strength,
+                strength: mediated_proof_strength(strength),
             });
         }
     }
@@ -64,13 +67,16 @@ fn proof_surfaces_for_anchor(
                 for (test, evidence, strength) in
                     strict_test_edges_for_file(project, &second.from, limit)
                 {
+                    let evidence = format!("{evidence}_via_direct_consumer");
+                    let from = &second.from;
+                    let locations = proof_surface_locations_for_target(project, from, &test, &evidence);
                     out.push(ProofSurface {
                         command: proof_command_for_test(project, &test),
-                        locations: proof_surface_locations_for_target(project, &second.from, &test, &evidence),
+                        locations,
                         path: Some(test),
                         reason: proof_reason_for_evidence(&evidence, "depth-2 consumer"),
                         evidence,
-                        strength,
+                        strength: mediated_proof_strength(strength),
                     });
                 }
             }

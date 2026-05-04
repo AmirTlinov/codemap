@@ -217,6 +217,103 @@ fn extract_rust_include_specs(text: &str) -> BTreeSet<String> {
     specs
 }
 
+pub(crate) fn rust_include_blind_spot_lines(text: &str) -> Vec<usize> {
+    let bytes = text.as_bytes();
+    let mut lines = Vec::new();
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'/' && bytes.get(index + 1) == Some(&b'/') {
+            index += 2;
+            while index < bytes.len() && bytes[index] != b'\n' {
+                index += 1;
+            }
+            continue;
+        }
+        if bytes[index] == b'/' && bytes.get(index + 1) == Some(&b'*') {
+            let mut depth = 1usize;
+            index += 2;
+            while index + 1 < bytes.len() && depth > 0 {
+                if bytes[index] == b'/' && bytes[index + 1] == b'*' {
+                    depth += 1;
+                    index += 2;
+                    continue;
+                }
+                if bytes[index] == b'*' && bytes[index + 1] == b'/' {
+                    depth = depth.saturating_sub(1);
+                    index += 2;
+                    continue;
+                }
+                index += 1;
+            }
+            continue;
+        }
+        if let Some((len, hashes)) = rust_raw_string_start(bytes, index) {
+            index += len;
+            while index < bytes.len() && !rust_raw_string_end_at(bytes, index, hashes) {
+                index += 1;
+            }
+            index = (index + hashes + 1).min(bytes.len());
+            continue;
+        }
+        if bytes[index] == b'"' {
+            index += 1;
+            while index < bytes.len() {
+                if bytes[index] == b'\\' {
+                    index = (index + 2).min(bytes.len());
+                    continue;
+                }
+                if bytes[index] == b'"' {
+                    index += 1;
+                    break;
+                }
+                index += 1;
+            }
+            continue;
+        }
+        if let Some(len) = rust_char_literal_len(bytes, index) {
+            index += len;
+            continue;
+        }
+        if rust_identifier_at(bytes, index, b"include")
+            && let Some((static_spec, next)) =
+                parse_rust_include_invocation(bytes, index + "include".len())
+        {
+            if !static_spec {
+                lines.push(byte_line_number(text, index));
+            }
+            index = next;
+            continue;
+        }
+        index += 1;
+    }
+    lines
+}
+
+fn parse_rust_include_invocation(bytes: &[u8], mut index: usize) -> Option<(bool, usize)> {
+    index = skip_ascii_space(bytes, index);
+    if bytes.get(index) != Some(&b'!') {
+        return None;
+    }
+    index = skip_ascii_space(bytes, index + 1);
+    if bytes.get(index) != Some(&b'(') {
+        return None;
+    }
+    index = skip_ascii_space(bytes, index + 1);
+    if let Some((spec, next)) = parse_rust_string_literal(bytes, index) {
+        return Some((spec.ends_with(".rs"), next));
+    }
+    Some((false, index.saturating_add(1)))
+}
+
+fn byte_line_number(text: &str, byte_index: usize) -> usize {
+    text.as_bytes()
+        .iter()
+        .take(byte_index)
+        .filter(|byte| **byte == b'\n')
+        .count()
+        + 1
+}
+
 fn parse_rust_include_spec(bytes: &[u8], mut index: usize) -> Option<(String, usize)> {
     index = skip_ascii_space(bytes, index);
     if bytes.get(index) != Some(&b'!') {

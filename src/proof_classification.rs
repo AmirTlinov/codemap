@@ -59,6 +59,9 @@ pub fn proof_surface_is_soft_evidence(proof: &ProofSurface) -> bool {
 }
 
 pub fn proof_evidence_is_direct_validation(evidence: &str) -> bool {
+    if proof_evidence_is_mediated(evidence) {
+        return false;
+    }
     matches!(
         proof_base_evidence(evidence),
         "test_import"
@@ -97,6 +100,9 @@ pub fn proof_command_is_readonly_migration_status(command: &str) -> bool {
 }
 
 fn proof_evidence_is_soft_match(evidence: &str) -> bool {
+    if proof_evidence_is_mediated(evidence) {
+        return true;
+    }
     matches!(
         proof_base_evidence(evidence),
         "script_path_token"
@@ -107,6 +113,12 @@ fn proof_evidence_is_soft_match(evidence: &str) -> bool {
             | "test_surface_phrase"
             | "test_surface_tokens"
     )
+}
+
+fn proof_evidence_is_mediated(evidence: &str) -> bool {
+    evidence.ends_with("_via_direct_consumer")
+        || evidence.ends_with("_via_direct_dependency")
+        || evidence.ends_with("_via_local_symbol_consumer")
 }
 
 pub fn proof_text_is_setup_or_support(text: &str) -> bool {

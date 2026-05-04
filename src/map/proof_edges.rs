@@ -45,13 +45,20 @@ fn cone_proof_edges_with_direct_consumers(
                     seed.clone(),
                     "tests",
                     format!("{evidence}_via_direct_consumer"),
-                    strength,
+                    mediated_proof_strength(strength),
                     locations,
                 ));
             }
         }
     }
     dedupe_proof_edges_by_endpoint(edges)
+}
+
+fn mediated_proof_strength(strength: EvidenceStrength) -> EvidenceStrength {
+    match strength {
+        EvidenceStrength::Hard | EvidenceStrength::High => EvidenceStrength::Medium,
+        other => other,
+    }
 }
 
 fn proof_edges_via_direct_dependencies(
