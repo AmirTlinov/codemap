@@ -479,8 +479,9 @@ fn changed_proof_samples(sensors: &[&ProofSurface], compact: bool) {
     for sensor in sensors.iter().take(sample_limit) {
         let path = sensor.path.as_deref().unwrap_or("none");
         println!(
-            "  - `{}` [{}; {}] {}",
+            "  - `{}`{} [{}; {}] {}",
             path,
+            proof_target_suffix(sensor),
             public_evidence_label(&sensor.evidence),
             format!("{:?}", sensor.strength).to_ascii_lowercase(),
             proof_location_summary(&sensor.locations)

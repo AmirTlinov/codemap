@@ -1,4 +1,5 @@
 include!("lenses/changed.rs");
+include!("lenses/changed_report_sections.rs");
 include!("lenses/changed_truth.rs");
 include!("lenses/changed_truth_paths.rs");
 include!("lenses/changed_receipt_events.rs");
@@ -20,6 +21,7 @@ include!("lenses/runtime_root_containers.rs");
 include!("lenses/runtime_worker_jobs.rs");
 include!("lenses/runtime_proof_helpers.rs");
 include!("lenses/runtime_proof_map.rs");
+include!("lenses/runtime_proof_map_limits.rs");
 include!("lenses/runtime_proof_map_selection.rs");
 include!("lenses/boundary_map.rs");
 include!("lenses/flow_runtime_entrypoints.rs");

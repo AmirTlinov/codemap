@@ -51,6 +51,23 @@ fn proof_wiring_summary_section(facts: &[ProofWiringFact], expand: Option<&str>)
         (None, Some(expand)) => println!("- expand: `{}`", root_aware_expand(expand)),
         (None, None) => {}
     }
+    if let Some(fact) = facts
+        .iter()
+        .find(|fact| matches!(fact.status.as_str(), "missing" | "unknown"))
+    {
+        let path = fact
+            .path
+            .as_ref()
+            .map(|path| format!(" path={}", code(path)))
+            .unwrap_or_default();
+        println!(
+            "- sample: [{}] `{}` `{}`{} — {}",
+            fact.status, fact.stage, fact.subject, path, fact.effect
+        );
+        if let Some(expand) = &fact.expand {
+            println!("  expand: `{}`", root_aware_expand(expand));
+        }
+    }
 }
 
 fn proof_wiring_has_material_summary(facts: &[ProofWiringFact]) -> bool {

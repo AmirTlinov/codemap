@@ -57,6 +57,7 @@ fn manifest_script_proof_surfaces(project: &Project, file: &FileInfo) -> Vec<Pro
         .map(|(name, command, line)| ProofSurface {
             command: package_script_command(project, package, &name),
             path: Some(package.manifest.clone()),
+            target_anchor: Some(file.rel.clone()),
             evidence: manifest_script_evidence(&name, &command).to_string(),
             strength: EvidenceStrength::Hard,
             reason: format!("package manifest defines `{name}` script: {command}"),
@@ -78,6 +79,7 @@ fn schema_script_proof_surfaces(project: &Project, file: &FileInfo) -> Vec<Proof
         .map(|(name, command, line)| ProofSurface {
             command: package_script_command(project, package, &name),
             path: Some(package.manifest.clone()),
+            target_anchor: Some(file.rel.clone()),
             evidence: "schema_package_script".to_string(),
             strength: EvidenceStrength::Hard,
             reason: format!("package script references schema tooling: `{name}` -> {command}"),
@@ -122,6 +124,7 @@ fn env_consumer_proof_surfaces(project: &Project, file: &FileInfo) -> Vec<ProofS
                 out.push(ProofSurface {
                     command: None,
                     path: Some(candidate.rel.clone()),
+                    target_anchor: Some(file.rel.clone()),
                     evidence: "env_consumer_reference".to_string(),
                     strength: EvidenceStrength::High,
                     reason: format!("source reads env key `{name}` declared in {}", file.rel),
@@ -201,6 +204,7 @@ where
             out.push(ProofSurface {
                 command: Some(step.command.clone()),
                 path: Some(ci.rel.clone()),
+                target_anchor: Some(file.rel.clone()),
                 evidence: evidence.to_string(),
                 strength: EvidenceStrength::High,
                 reason: format!("{reason} for {}", file.rel),
@@ -240,6 +244,7 @@ where
             out.push(ProofSurface {
                 command: ci_inline_run_command(line),
                 path: Some(ci.rel.clone()),
+                target_anchor: Some(file.rel.clone()),
                 evidence: evidence.to_string(),
                 strength: EvidenceStrength::High,
                 reason: format!("{reason} for {}", file.rel),

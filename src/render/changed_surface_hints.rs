@@ -44,8 +44,12 @@ fn changed_roles_section(report: &ChangedReport, force: bool, compact: bool) {
         println!("prefix: `{prefix}`");
     }
     let mut rendered = std::collections::BTreeSet::new();
+    let compact_roles = compact_changed_roles(&grouped, compact);
     for role in CHANGED_ROLE_ORDER {
         if let Some(entries) = grouped.get(*role) {
+            if compact && !compact_roles.contains(role) {
+                continue;
+            }
             changed_role_entries(
                 role,
                 entries,
@@ -60,6 +64,9 @@ fn changed_roles_section(report: &ChangedReport, force: bool, compact: bool) {
         if rendered.contains(&role) {
             continue;
         }
+        if compact && !compact_roles.contains(role.as_str()) {
+            continue;
+        }
         changed_role_entries(
             &role,
             &entries,
@@ -67,6 +74,66 @@ fn changed_roles_section(report: &ChangedReport, force: bool, compact: bool) {
             changed_render_limit(report, compact),
             compact,
         );
+    }
+    if compact && compact_roles.hidden > 0 {
+        println!(
+            "- hidden surface hint groups: `{}`; expand: `{}`",
+            compact_roles.hidden,
+            root_aware_expand(&format!(
+                "codemap changed{} --section roles",
+                changed_selector_suffix(&report.selector)
+            ))
+        );
+    }
+}
+
+const COMPACT_CHANGED_ROLE_GROUP_LIMIT: usize = 12;
+
+struct CompactChangedRoles {
+    visible: std::collections::BTreeSet<String>,
+    hidden: usize,
+}
+
+impl CompactChangedRoles {
+    fn contains(&self, role: &str) -> bool {
+        self.visible.contains(role)
+    }
+}
+
+fn compact_changed_roles(
+    grouped: &std::collections::BTreeMap<String, Vec<(String, String)>>,
+    compact: bool,
+) -> CompactChangedRoles {
+    if !compact || grouped.len() <= COMPACT_CHANGED_ROLE_GROUP_LIMIT {
+        return CompactChangedRoles {
+            visible: grouped.keys().cloned().collect(),
+            hidden: 0,
+        };
+    }
+    let mut roles = grouped
+        .iter()
+        .map(|(role, entries)| {
+            let order = CHANGED_ROLE_ORDER
+                .iter()
+                .position(|ordered| *ordered == role)
+                .unwrap_or(usize::MAX);
+            (role.clone(), entries.len(), order)
+        })
+        .collect::<Vec<_>>();
+    roles.sort_by(|left, right| {
+        right
+            .1
+            .cmp(&left.1)
+            .then_with(|| left.2.cmp(&right.2))
+            .then_with(|| left.0.cmp(&right.0))
+    });
+    CompactChangedRoles {
+        visible: roles
+            .iter()
+            .take(COMPACT_CHANGED_ROLE_GROUP_LIMIT)
+            .map(|(role, _, _)| role.clone())
+            .collect(),
+        hidden: grouped.len() - COMPACT_CHANGED_ROLE_GROUP_LIMIT,
     }
 }
 

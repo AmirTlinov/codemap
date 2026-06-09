@@ -3,9 +3,16 @@ fn proof_map_seed_selection(
     scope: Option<&str>,
     changed: &[String],
     raw_sensors: bool,
+    limit: usize,
 ) -> (Vec<String>, usize) {
     let Some(scope) = scope else {
-        return (changed.to_vec(), 0);
+        if raw_sensors || changed.len() <= limit {
+            return (changed.to_vec(), 0);
+        }
+        return (
+            changed_section_paths(project, changed, limit),
+            changed.len().saturating_sub(limit),
+        );
     };
     if !directory_has_files(project, scope) {
         return (vec![scope.to_string()], 0);

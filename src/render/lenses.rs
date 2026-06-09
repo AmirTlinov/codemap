@@ -78,7 +78,7 @@ pub fn proof_map(report: &ProofMapReport) {
         println!("Scope: `{scope}`");
     }
     if !report.changed.is_empty() {
-        println!("Changed: `{}`", report.changed.join("`, `"));
+        proof_map_changed_summary(report);
     }
     if proof_map_should_compact(report) {
         proof_map_compact_surface_summary(report);
@@ -101,6 +101,37 @@ pub fn proof_map(report: &ProofMapReport) {
     unknown_section(&report.unknowns);
     hidden_section(&report.hidden);
     section("Expand", &report.expand);
+}
+
+fn proof_map_changed_summary(report: &ProofMapReport) {
+    let sample = report
+        .changed
+        .iter()
+        .take(5)
+        .map(|path| format!("`{path}`"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let hidden = report.changed.len().saturating_sub(5);
+    if hidden == 0 {
+        println!("Changed: {sample}");
+    } else {
+        println!("Changed: sample: {sample}; hidden: `{hidden}` anchors");
+    }
+    println!(
+        "Changed expand: `{}`",
+        root_aware_expand(&format!(
+            "codemap changed{} --section observed --limit {}",
+            proof_map_changed_selector_suffix(&report.selector),
+            report.changed.len()
+        ))
+    );
+}
+
+fn proof_map_changed_selector_suffix(selector: &str) -> String {
+    match selector {
+        "" | "changed" | "--changed" => String::new(),
+        selector => format!(" {selector}"),
+    }
 }
 
 fn proof_map_wiring_expand(report: &ProofMapReport) -> String {

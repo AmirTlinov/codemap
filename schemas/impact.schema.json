@@ -7,6 +7,7 @@
   "required": [
     "kind",
     "schema_version",
+    "selector",
     "changed",
     "clusters",
     "hidden",
@@ -16,6 +17,7 @@
   "properties": {
     "kind": { "const": "impact_report" },
     "schema_version": { "const": "4" },
+    "selector": { "type": "string" },
     "changed": {
       "type": "array",
       "items": { "$ref": "#/$defs/file_summary" }

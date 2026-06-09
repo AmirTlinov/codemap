@@ -12,6 +12,7 @@ fn route_proof_surfaces_for_routes(
                 .map(move |edge| ProofSurface {
                     command: proof_command_for_test(project, &edge.from),
                     path: Some(edge.from),
+                    target_anchor: Some(route.file.clone()),
                     evidence: edge.evidence,
                     strength: edge.strength,
                     reason: format!("e2e visits runtime route {label}"),

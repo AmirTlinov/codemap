@@ -265,6 +265,7 @@ pub struct ProofReport {
 pub struct ProofSurface {
     pub command: Option<String>,
     pub path: Option<String>,
+    pub target_anchor: Option<String>,
     pub evidence: String,
     pub strength: EvidenceStrength,
     pub reason: String,

@@ -274,7 +274,7 @@ fn proof_fallback_commands(
     let impacted = if changed.is_empty() {
         Vec::new()
     } else {
-        let impact = impact_report(project, changed.to_vec(), 1, 30);
+        let impact = impact_report(project, changed.to_vec(), "--changed".to_string(), 1, 30);
         impact
             .clusters
             .iter()

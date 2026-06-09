@@ -131,6 +131,7 @@ mod tests {
             proofs: vec![ProofSurface {
                 command: Some("pnpm exec vitest run tests/routes.test.ts".to_string()),
                 path: Some("tests/routes.test.ts".to_string()),
+                target_anchor: Some("src/routes.ts".to_string()),
                 evidence: "test_surface_tokens".to_string(),
                 strength: EvidenceStrength::Medium,
                 reason: "test path/symbols match anchor surface".to_string(),
@@ -169,6 +170,7 @@ mod tests {
             proofs: vec![ProofSurface {
                 command: Some("pnpm install --frozen-lockfile".to_string()),
                 path: Some(".github/workflows/ci.yml".to_string()),
+                target_anchor: Some("pnpm-workspace.yaml".to_string()),
                 evidence: "workspace_manifest_ci_reference".to_string(),
                 strength: EvidenceStrength::Hard,
                 reason: "CI run step references workspace setup".to_string(),

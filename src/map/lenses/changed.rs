@@ -29,6 +29,7 @@ pub fn changed_report(
             selector: selector.clone(),
             display_limit: limit,
             proof_plan_cache: None,
+            proof_map_cache: None,
             total_changed_count,
             changed: Vec::new(),
             git_state,
@@ -67,9 +68,10 @@ pub fn changed_report(
             expand: changed_expand(&selector),
         };
     }
-    let diff = diff_map_report(project, changed.clone(), limit, mode);
-    let impact = impact_report(project, changed.clone(), 1, limit);
+    let diff = diff_map_report(project, changed.clone(), selector.clone(), limit, mode);
+    let impact = impact_report(project, changed.clone(), selector.clone(), 1, limit);
     let proof_map = proof_map_report(project, None, changed, selector.clone(), limit, false);
+    let proof_map_cache = Some(Box::new(proof_map.clone()));
     let proof_plan_cache = if changed_paths.len() <= 5 {
         Some(Box::new(proof_report(
             project,
@@ -82,8 +84,15 @@ pub fn changed_report(
     } else {
         None
     };
-    let risks = changed_risks(project, &changed_paths, &git_state, &proof_map, &selector);
-    let coupling = changed_coupling(project, &changed_paths, &proof_map, &selector);
+    let risks = changed_risks(
+        project,
+        &changed_paths,
+        &changed_paths,
+        &git_state,
+        &proof_map,
+        &selector,
+    );
+    let coupling = changed_coupling(project, &changed_paths, &changed_paths, &proof_map, &selector);
     let mut hidden = Vec::new();
     hidden.extend(prefix_hidden("observed", &diff.hidden, &selector, limit));
     hidden.extend(prefix_hidden("links", &impact.hidden, &selector, limit));
@@ -115,6 +124,7 @@ pub fn changed_report(
         selector: selector.clone(),
         display_limit: limit,
         proof_plan_cache,
+        proof_map_cache,
         total_changed_count,
         changed: impact.changed.clone(),
         git_state,
@@ -188,52 +198,6 @@ pub fn changed_report(
         proof: changed_proof_summary(proof_map, limit),
         unknowns,
         hidden,
-        expand: changed_expand(&selector),
-    }
-}
-
-pub fn clean_changed_report(selector: String, limit: usize) -> ChangedReport {
-    ChangedReport {
-        kind: "changed_report",
-        schema_version: "8",
-        selector: selector.clone(),
-        display_limit: limit.max(1),
-        proof_plan_cache: None,
-        total_changed_count: 0,
-        changed: Vec::new(),
-        git_state: Vec::new(),
-        structural_events: Vec::new(),
-        map_delta: ChangedMapDelta {
-            added_edges: 0,
-            removed_edges: 0,
-            changed_symbols: 0,
-            added_exports: 0,
-            removed_exports: 0,
-            added_runtime_routes: 0,
-            removed_runtime_routes: 0,
-            added_env: 0,
-            removed_env: 0,
-            added_proof_surfaces: 0,
-            removed_proof_surfaces: 0,
-            new_unknowns: 0,
-        },
-        risks: Vec::new(),
-        coupling: Vec::new(),
-        boundary_facts: BoundaryFacts::default(),
-        impact: Vec::new(),
-        proof: ChangedProofSummary {
-            commands: Vec::new(),
-            fallback: Vec::new(),
-            hard: Vec::new(),
-            direct_evidence: Vec::new(),
-            mediated_evidence: Vec::new(),
-            soft_evidence: Vec::new(),
-            setup_support: Vec::new(),
-            missing_direct: Vec::new(),
-            wiring: Vec::new(),
-        },
-        unknowns: Vec::new(),
-        hidden: Vec::new(),
         expand: changed_expand(&selector),
     }
 }

@@ -27,7 +27,7 @@ fn classify_roles(root: &Path, info: &mut FileInfo) {
     {
         info.roles.insert("example".to_string());
     }
-    if is_test_path(&rel) && is_source_ext(&info.ext) {
+    if is_test_path(&rel, &info.ext) && is_source_ext(&info.ext) {
         let support_like = is_test_support_path(&rel) || name == "__init__.py" || name == "conftest.py";
         if support_like && !source_has_test_declaration(root, info) {
             info.roles.insert("test_support".to_string());
@@ -366,7 +366,7 @@ fn has_generated_header(root: &Path, info: &FileInfo) -> bool {
         || (header.contains("generated") && header.contains("do not edit"))
 }
 
-fn is_test_path(rel: &str) -> bool {
+fn is_test_path(rel: &str, ext: &str) -> bool {
     rel.contains("/tests/")
         || rel.contains("/test/")
         || rel.starts_with("tests/")
@@ -376,11 +376,12 @@ fn is_test_path(rel: &str) -> bool {
         || rel.contains(".spec.")
         || rel.ends_with("_test.rs")
         || rel.ends_with("_test.go")
-        || rel
-            .rsplit('/')
-            .next()
-            .map(|name| name.starts_with("test_"))
-            .unwrap_or(false)
+        || (ext == "py"
+            && rel
+                .rsplit('/')
+                .next()
+                .map(|name| name.starts_with("test_"))
+                .unwrap_or(false))
 }
 
 fn is_e2e_test_path(rel: &str) -> bool {

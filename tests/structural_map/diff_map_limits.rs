@@ -17,6 +17,10 @@ fn diff_map_limit_does_not_skip_selected_changed_files() {
     );
     assert_schema("schemas/diff-map.schema.json", &changed);
     assert_eq!(
+        changed["selector"], "--changed",
+        "diff-map should preserve the selected changed-set as a compact selector: {changed:#}"
+    );
+    assert_eq!(
         changed["changed"].as_array().expect("changed").len(),
         1,
         "limit should bound rendered changed summaries: {changed:#}"
@@ -28,11 +32,8 @@ fn diff_map_limit_does_not_skip_selected_changed_files() {
             .iter()
             .any(|group| group["reason"] == "changed file summaries hidden by limit"
                 && group["count"] == 2
-                && group["expand"].as_str().is_some_and(|expand| {
-                    expand.starts_with("codemap diff-map --files packages/replay/src/a-delta.ts,packages/replay/src/b-delta.ts,packages/replay/src/c-delta.ts --limit ")
-                        && !expand.contains("<larger-number>")
-                })),
-        "diff-map should expose hidden changed summaries with a concrete full selected-file snapshot: {changed:#}"
+                && group["expand"] == "codemap diff-map --changed --limit 3"),
+        "diff-map should expand the selected changed-set without materializing every file path: {changed:#}"
     );
     assert!(
         changed["hidden"]

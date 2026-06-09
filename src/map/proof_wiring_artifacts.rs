@@ -139,6 +139,7 @@ fn receipt_declared_command_wiring_facts(
     let proof = ProofSurface {
         command: Some(command),
         path: Some(rel.to_string()),
+        target_anchor: Some(rel.to_string()),
         evidence: "artifact_declared_command".to_string(),
         strength: EvidenceStrength::High,
         reason: "artifact/receipt declares a proof command".to_string(),

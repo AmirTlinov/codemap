@@ -10,12 +10,15 @@ fn proof_coverage_section(coverage: &crate::model::ProofCoverageSummary) {
         "- setup/support only: `{}`",
         coverage.setup_support_only.len()
     );
-    println!("- soft only: `{}`", coverage.soft_only.len());
+    println!(
+        "- non-closing soft evidence: `{}`",
+        coverage.soft_only.len()
+    );
     println!("- missing direct proof: `{}`", coverage.missing.len());
     proof_coverage_path_group("Runnable Deterministic", &coverage.runnable_deterministic);
     proof_coverage_path_group("Evidence Only", &coverage.evidence_only);
     proof_coverage_path_group("Setup / Support Only", &coverage.setup_support_only);
-    proof_coverage_path_group("Soft Only", &coverage.soft_only);
+    proof_coverage_path_group("Non-Closing Soft Evidence", &coverage.soft_only);
     proof_coverage_gaps(&coverage.missing);
 }
 

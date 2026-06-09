@@ -45,6 +45,7 @@ fn codemap_changed_proof_surfaces(project: &Project) -> Vec<ProofSurface> {
             Some(ProofSurface {
                 command: Some(command.to_string()),
                 path: project.config_path.clone(),
+                target_anchor: None,
                 evidence: "codemap_proof_changed".to_string(),
                 strength: EvidenceStrength::Hard,
                 reason: ".codemap.yml proof.changed command".to_string(),
@@ -85,6 +86,7 @@ fn role_aware_command_proof_surfaces(project: &Project, anchor: &str) -> Vec<Pro
         .map(|(_, command, script, evidence, strength)| ProofSurface {
             command: Some(command),
             path: script.path.clone().or_else(|| Some(rel.clone())),
+            target_anchor: Some(rel.clone()),
             evidence: evidence.to_string(),
             strength,
             reason: format!(

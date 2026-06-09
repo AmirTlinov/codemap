@@ -353,10 +353,11 @@
     "proof_surface": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["command", "path", "evidence", "strength", "reason", "locations"],
+      "required": ["command", "path", "target_anchor", "evidence", "strength", "reason", "locations"],
       "properties": {
         "command": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
         "path": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "target_anchor": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
         "evidence": { "type": "string" },
         "strength": { "$ref": "#/$defs/evidence_strength" },
         "reason": { "type": "string" },

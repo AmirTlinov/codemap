@@ -7,6 +7,7 @@ pub enum DiffMapMode {
 pub fn diff_map_report(
     project: &Project,
     changed: Vec<String>,
+    selector: String,
     limit: usize,
     mode: DiffMapMode,
 ) -> DiffMapReport {
@@ -30,7 +31,11 @@ pub fn diff_map_report(
     let mut removed_proof_surfaces = Vec::new();
     let mut new_unknowns = Vec::new();
     let mut hidden = Vec::new();
-    let selector = diff_map_selector(&changed, &mode);
+    let selector = if selector.trim().is_empty() {
+        "--changed".to_string()
+    } else {
+        selector
+    };
     let diff_expand = format!("codemap diff-map {selector} --limit <larger-number>");
     let deltas = git_unified_zero_deltas(project, &changed, &mode);
     let text_scan_paths = changed
@@ -267,6 +272,7 @@ pub fn diff_map_report(
     DiffMapReport {
         kind: "diff_map_report",
         schema_version: "2",
+        selector: selector.clone(),
         changed: changed_summaries,
         added_edges,
         removed_edges,
@@ -286,26 +292,6 @@ pub fn diff_map_report(
             format!("codemap proof-map {selector}"),
         ],
     }
-}
-
-fn diff_map_selector(changed: &[String], mode: &DiffMapMode) -> String {
-    match mode {
-        DiffMapMode::Staged => "--staged".to_string(),
-        DiffMapMode::Since(since) => format!("--since {}", shell_quote(since)),
-        DiffMapMode::WorkingTree => changed_snapshot_selector(changed),
-    }
-}
-
-fn changed_snapshot_selector(changed: &[String]) -> String {
-    if changed.is_empty() {
-        return "--changed".to_string();
-    }
-    let files = changed
-        .iter()
-        .map(|file| shell_quote(file))
-        .collect::<Vec<_>>()
-        .join(",");
-    format!("--files {files}")
 }
 
 fn diff_path_needs_runtime_scan(rel: &str) -> bool {
@@ -420,6 +406,7 @@ fn proof_surfaces_from_diff_line(
         .map(|route| ProofSurface {
             command: None,
             path: Some(rel.to_string()),
+            target_anchor: Some(rel.to_string()),
             evidence: evidence.to_string(),
             strength: EvidenceStrength::High,
             reason: format!("e2e visits runtime route {route}"),

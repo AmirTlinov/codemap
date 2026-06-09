@@ -73,6 +73,7 @@ pub(crate) fn root_inventory_proof_map_report(
     ProofMapReport {
         kind: "proof_map_report",
         schema_version: "4",
+        selector: ".".to_string(),
         scope: Some(".".to_string()),
         changed: Vec::new(),
         hard,

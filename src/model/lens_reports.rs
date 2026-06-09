@@ -51,6 +51,7 @@ pub struct XrayCard {
 pub struct ImpactReport {
     pub kind: &'static str,
     pub schema_version: &'static str,
+    pub selector: String,
     pub changed: Vec<FileSummary>,
     pub clusters: Vec<ImpactCluster>,
     pub hidden: Vec<HiddenGroup>,
@@ -80,6 +81,7 @@ fn default_low_risk() -> String {
 pub struct DiffMapReport {
     pub kind: &'static str,
     pub schema_version: &'static str,
+    pub selector: String,
     pub changed: Vec<FileSummary>,
     pub added_edges: Vec<StructuralEdge>,
     pub removed_edges: Vec<StructuralEdge>,
@@ -106,6 +108,8 @@ pub struct ChangedReport {
     pub display_limit: usize,
     #[serde(skip)]
     pub proof_plan_cache: Option<Box<ProofReport>>,
+    #[serde(skip)]
+    pub proof_map_cache: Option<Box<ProofMapReport>>,
     pub total_changed_count: usize,
     pub changed: Vec<FileSummary>,
     pub git_state: Vec<GitChange>,
@@ -268,6 +272,7 @@ pub struct EnvSurface {
 pub struct ProofMapReport {
     pub kind: &'static str,
     pub schema_version: &'static str,
+    pub selector: String,
     pub scope: Option<String>,
     pub changed: Vec<String>,
     pub hard: Vec<ProofSurface>,

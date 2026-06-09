@@ -144,7 +144,7 @@ fn changed_manifest_unknowns(project: &Project, rel: &str) -> Vec<Unknown> {
             None,
             "no workspace package consumer was found for this manifest",
             "consumer map only includes deterministic manifest dependency edges",
-            Some(format!("codemap graph --lens causal {}", shell_quote(rel))),
+            Some(format!("codemap graph --path {} --lens causal", shell_quote(rel))),
         ));
     }
     unknowns

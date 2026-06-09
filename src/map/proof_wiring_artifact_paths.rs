@@ -38,6 +38,7 @@ fn collect_artifact_paths_from_resolved_runner(
             &ProofSurface {
                 command: Some(command.to_string()),
                 path: proof_path.map(str::to_string),
+                target_anchor: proof_path.map(str::to_string),
                 evidence: "artifact_runner_resolution".to_string(),
                 strength: EvidenceStrength::Medium,
                 reason: "temporary package resolution surface".to_string(),

@@ -89,6 +89,15 @@ const SOURCE_PATH_ROLE_RULES: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "render_surface",
+        &["render", "renderer", "markdown", "output", "outputs"],
+    ),
+    ("helper_surface", &["helper", "helpers", "prelude"]),
+    ("proof_surface", &["proof", "coverage", "wiring"]),
+    ("contract_surface", &["contract", "contracts"]),
+    ("analysis_surface", &["analysis", "analyzer", "analyser"]),
+    ("teach_surface", &["teach", "teaching"]),
+    (
         "extractor",
         &[
             "scan",

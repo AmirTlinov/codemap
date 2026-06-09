@@ -51,6 +51,7 @@ fn proof_wiring_facts_limited(
         let proof = ProofSurface {
             command: Some(command.clone()),
             path: None,
+            target_anchor: None,
             evidence: "fallback_command".to_string(),
             strength: EvidenceStrength::Medium,
             reason: "fallback command is broad structural proof, not direct proof".to_string(),

@@ -57,6 +57,9 @@ pub fn changed(report: &ChangedReport, section_filter: Option<&str>) {
     if matches!(section_filter, None | Some("unknown")) {
         changed_unknown_section(report, true, compact);
     }
+    if !show_all {
+        changed_hidden_section(report, &hidden, false, false);
+    }
     if show_all {
         changed_hidden_section(report, &hidden, false, compact);
         if compact {

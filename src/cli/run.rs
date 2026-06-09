@@ -127,8 +127,8 @@ pub fn run() -> Result<()> {
         CommandKind::Schema(_) => Ok(()),
         CommandKind::Impact(args) => {
             ensure_valid_config(&project)?;
-            let changed = changed_from_args(&project, &args)?;
-            let report = map::impact_report(&project, changed, args.depth, args.limit);
+            let (changed, selector) = impact_inputs(&project, &args)?;
+            let report = map::impact_report(&project, changed, selector, args.depth, args.limit);
             output(args.format, &report, || render::impact(&report))
         }
         CommandKind::Changed(args) => {
@@ -140,36 +140,42 @@ pub fn run() -> Result<()> {
             } else {
                 args.limit
             };
-            let report = map::changed_report(
-                &project,
-                changed,
-                selector,
-                mode,
-                git_state,
-                limit,
-                DEFAULT_PROOF_LIMIT,
-            );
-            maybe_write_changed_lens_cache(&project, &args, limit, &report);
+            let format = output_format_with_json_alias(args.format, args.json);
+            let section = changed_section_name(args.section);
+            let section_report =
+                section.filter(|section| !args.include_hidden && *section != "hidden");
+            let report = if let Some(section) = section_report {
+                map::changed_report_for_section(
+                    &project, changed, selector, mode, git_state, limit, section,
+                )
+            } else {
+                map::changed_report(
+                    &project,
+                    changed,
+                    selector,
+                    mode,
+                    git_state,
+                    limit,
+                    DEFAULT_PROOF_LIMIT,
+                )
+            };
+            if section_report.is_none() {
+                maybe_write_changed_lens_cache(&project, &args, limit, &report);
+            }
             maybe_write_proof_changed_lens_cache_from_changed(&project, &args, &report);
+            maybe_write_proof_map_lens_cache_from_changed(&project, &args, limit, &report);
             let prelude = repo::map_prelude(&project.root);
             output_with_prelude(
-                output_format_with_json_alias(args.format, args.json),
+                format,
                 &report,
                 &prelude,
-                || render::changed(&report, changed_section_name(args.section)),
+                || render::changed(&report, section),
             )
         }
         CommandKind::DiffMap(args) => {
             ensure_valid_config(&project)?;
-            let changed = changed_from_diff_map_args(&project, &args)?;
-            let mode = if args.staged {
-                map::DiffMapMode::Staged
-            } else if let Some(since) = args.since.clone() {
-                map::DiffMapMode::Since(since)
-            } else {
-                map::DiffMapMode::WorkingTree
-            };
-            let report = map::diff_map_report(&project, changed, args.limit, mode);
+            let (changed, selector, mode) = diff_map_inputs(&project, &args)?;
+            let report = map::diff_map_report(&project, changed, selector, args.limit, mode);
             output(args.format, &report, || render::diff_map(&report))
         }
         CommandKind::Contract(args) => {

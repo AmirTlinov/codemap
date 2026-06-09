@@ -92,6 +92,7 @@ fn cone_directory_report(
         proof: &proof,
         unknowns: &unknowns,
         limit,
+        include_hidden,
     });
     ConeReport {
         kind: "cone_report",

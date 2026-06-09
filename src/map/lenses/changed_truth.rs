@@ -1,11 +1,12 @@
 fn changed_risks(
     project: &Project,
     changed_paths: &[String],
+    selected_paths: &[String],
     git_state: &[GitChange],
     proof_map: &ProofMapReport,
     selector: &str,
 ) -> Vec<ChangedRisk> {
-    let changed_set = changed_paths.iter().cloned().collect::<BTreeSet<_>>();
+    let selected_set = selected_paths.iter().cloned().collect::<BTreeSet<_>>();
     let mut risks = Vec::new();
     push_changed_risk(
         &mut risks,
@@ -86,7 +87,7 @@ fn changed_risks(
             .iter()
             .filter(|path| {
                 changed_manifest_for_lockfile(path)
-                    .is_some_and(|manifest| !changed_set.contains(&manifest))
+                    .is_some_and(|manifest| !selected_set.contains(&manifest))
             })
             .cloned()
             .collect(),
@@ -103,7 +104,7 @@ fn changed_risks(
             .filter(|path| {
                 changed_lockfiles_for_manifest(project, path)
                     .iter()
-                    .any(|lockfile| !changed_set.contains(lockfile))
+                    .any(|lockfile| !selected_set.contains(lockfile))
             })
             .cloned()
             .collect(),
@@ -183,26 +184,27 @@ fn push_changed_risk(
 fn changed_coupling(
     project: &Project,
     changed_paths: &[String],
+    selected_paths: &[String],
     proof_map: &ProofMapReport,
     selector: &str,
 ) -> Vec<ChangedCouplingFact> {
-    let changed_set = changed_paths.iter().cloned().collect::<BTreeSet<_>>();
+    let selected_set = selected_paths.iter().cloned().collect::<BTreeSet<_>>();
     let mut facts = Vec::new();
-    let pair_paths = changed_paths
+    let pair_paths = selected_paths
         .iter()
         .filter(|path| {
             changed_manifest_for_lockfile(path)
-                .is_some_and(|manifest| changed_set.contains(&manifest))
+                .is_some_and(|manifest| selected_set.contains(&manifest))
                 || changed_lockfiles_for_manifest(project, path)
                     .into_iter()
-                    .any(|lockfile| changed_set.contains(&lockfile))
+                    .any(|lockfile| selected_set.contains(&lockfile))
         })
         .cloned()
         .collect::<Vec<_>>();
     push_changed_coupling(
         &mut facts,
         "lockfile_manifest_pair",
-        if changed_paths.iter().any(|path| {
+        if selected_paths.iter().any(|path| {
             changed_manifest_for_lockfile(path).is_some()
                 || !changed_lockfiles_for_manifest(project, path).is_empty()
         }) {

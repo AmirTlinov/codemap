@@ -11,6 +11,7 @@ mod tests {
         ProofSurface {
             command: Some(command.to_string()),
             path: Some(path.to_string()),
+            target_anchor: Some(path.to_string()),
             evidence: evidence.to_string(),
             strength,
             reason: format!("{evidence} reason"),

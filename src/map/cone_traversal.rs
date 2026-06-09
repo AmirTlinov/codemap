@@ -68,6 +68,7 @@ fn cone_symbol_report(
         proof: &proof,
         unknowns: &unknowns,
         limit,
+        include_hidden,
     });
     Some(ConeReport {
         kind: "cone_report",

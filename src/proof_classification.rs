@@ -142,6 +142,7 @@ fn proof_evidence_is_soft_match(evidence: &str) -> bool {
             | "e2e_path_surface"
             | "test_surface_phrase"
             | "test_surface_tokens"
+            | "test_role_surface_match"
     )
 }
 
@@ -268,6 +269,7 @@ mod tests {
         ProofSurface {
             command: command.map(str::to_string),
             path: Some("package.json".to_string()),
+            target_anchor: Some("package.json".to_string()),
             evidence: evidence.to_string(),
             strength,
             reason: "fixture".to_string(),

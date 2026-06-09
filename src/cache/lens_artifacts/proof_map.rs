@@ -2,6 +2,7 @@ use std::path::Path;
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use crate::model::{HiddenGroup, ProofMapReport, ProofSurface, ProofWiringFact, Surface, Unknown};
 
@@ -19,16 +20,30 @@ pub fn read_proof_map_report(
     limit: usize,
     raw_sensors: bool,
 ) -> Option<ProofMapReport> {
-    let cached: CachedProofMapLens =
-        read_lens_artifact(cache_dir, "proof-map-current.json", version, root)?;
-    if cached.scope.as_deref() != scope
-        || cached.selector != selector
-        || cached.limit != limit
-        || cached.raw_sensors != raw_sensors
-    {
-        return None;
+    let artifact = proof_map_artifact_name(scope, selector, limit, raw_sensors);
+    if let Some(cached) = read_matching_proof_map_artifact(
+        cache_dir,
+        &artifact,
+        version,
+        root,
+        scope,
+        selector,
+        limit,
+        raw_sensors,
+    ) {
+        return Some(cached.report.into_report());
     }
-    Some(cached.report.into_report())
+    read_matching_proof_map_artifact(
+        cache_dir,
+        "proof-map-current.json",
+        version,
+        root,
+        scope,
+        selector,
+        limit,
+        raw_sensors,
+    )
+    .map(|cached| cached.report.into_report())
 }
 
 pub fn write_proof_map_report(
@@ -51,7 +66,59 @@ pub fn write_proof_map_report(
         raw_sensors,
         report: CachedProofMapReport::from_report(report),
     };
+    let artifact = proof_map_artifact_name(report.scope.as_deref(), selector, limit, raw_sensors);
+    write_lens_artifact(cache_dir, &artifact, &cached)?;
     write_lens_artifact(cache_dir, "proof-map-current.json", &cached)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn read_matching_proof_map_artifact(
+    cache_dir: &Path,
+    artifact: &str,
+    version: &str,
+    root: &Path,
+    scope: Option<&str>,
+    selector: &str,
+    limit: usize,
+    raw_sensors: bool,
+) -> Option<CachedProofMapLens> {
+    let cached: CachedProofMapLens = read_lens_artifact(cache_dir, artifact, version, root)?;
+    if cached.scope.as_deref() != scope
+        || cached.selector != selector
+        || cached.limit != limit
+        || cached.raw_sensors != raw_sensors
+    {
+        return None;
+    }
+    Some(cached)
+}
+
+fn proof_map_artifact_name(
+    scope: Option<&str>,
+    selector: &str,
+    limit: usize,
+    raw_sensors: bool,
+) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(scope.unwrap_or("").as_bytes());
+    hasher.update([0]);
+    hasher.update(selector.as_bytes());
+    hasher.update([0]);
+    hasher.update(limit.to_string().as_bytes());
+    hasher.update([0]);
+    hasher.update(if raw_sensors {
+        b"raw".as_slice()
+    } else {
+        b"compact".as_slice()
+    });
+    let digest = hasher.finalize();
+    let suffix = digest
+        .iter()
+        .flat_map(|byte| [byte >> 4, byte & 0x0f])
+        .take(16)
+        .map(|n| char::from_digit(n as u32, 16).expect("hex digit"))
+        .collect::<String>();
+    format!("proof-map-{suffix}.json")
 }
 
 #[derive(Deserialize, Serialize)]
@@ -89,6 +156,8 @@ impl LensArtifact for CachedProofMapLens {
 struct CachedProofMapReport {
     kind: String,
     schema_version: String,
+    #[serde(default)]
+    selector: String,
     scope: Option<String>,
     changed: Vec<String>,
     hard: Vec<ProofSurface>,
@@ -111,6 +180,7 @@ impl CachedProofMapReport {
         Self {
             kind: report.kind.to_string(),
             schema_version: report.schema_version.to_string(),
+            selector: report.selector.clone(),
             scope: report.scope.clone(),
             changed: report.changed.clone(),
             hard: report.hard.clone(),
@@ -132,6 +202,13 @@ impl CachedProofMapReport {
         ProofMapReport {
             kind: "proof_map_report",
             schema_version: "4",
+            selector: if self.selector.is_empty() {
+                self.scope
+                    .clone()
+                    .unwrap_or_else(|| "--changed".to_string())
+            } else {
+                self.selector
+            },
             scope: self.scope,
             changed: self.changed,
             hard: self.hard,

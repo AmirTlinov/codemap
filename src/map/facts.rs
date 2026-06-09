@@ -68,7 +68,8 @@ fn proof_surface(
 ) -> ProofSurface {
     ProofSurface {
         command,
-        path,
+        path: path.clone(),
+        target_anchor: path,
         evidence: evidence.to_string(),
         strength,
         reason,

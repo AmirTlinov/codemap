@@ -185,13 +185,14 @@ pub fn proof_map_report(
 ) -> ProofMapReport {
     let limit = limit.max(1);
     let scope = scope.map(|value| repo::normalize_rel_path(&value));
-    let (seeds, hidden_seed_count) = proof_map_seed_selection(project, scope.as_deref(), &changed, raw_sensors);
+    let (seeds, hidden_seed_count) =
+        proof_map_seed_selection(project, scope.as_deref(), &changed, raw_sensors, limit);
     let route_index_paths = proof_map_route_index_paths(project, scope.as_deref(), &seeds);
     let mut surfaces = Vec::new();
     let mut missing_direct = Vec::new();
     let mut unknowns = Vec::new();
     let mut scope_expand = Vec::new();
-    let discovery_limit = usize::MAX;
+    let discovery_limit = proof_map_discovery_limit(scope.as_deref(), &changed, limit, raw_sensors);
     let mut hidden = Vec::new();
     let mut wiring = Vec::new();
     let mut wiring_seen = BTreeSet::new();
@@ -203,13 +204,23 @@ pub fn proof_map_report(
     };
     let mut wiring_clipped = false;
     let runtime_facts = runtime_fact_index_for_paths(project, &route_index_paths);
-    let expand_larger_limit = proof_map_expand(&proof_selector, false);
+    let expand_larger_limit = proof_map_expand(&proof_selector, raw_sensors);
     let expand_raw_sensors = proof_map_expand(&proof_selector, true);
     if hidden_seed_count > 0 {
+        let compact_changed_seed_gate = scope.is_none() && !changed.is_empty() && !raw_sensors;
+        let expand = if compact_changed_seed_gate {
+            &expand_larger_limit
+        } else {
+            &expand_raw_sensors
+        };
         hidden.push(HiddenGroup {
-            reason: "recursive proof seeds hidden at root scope".to_string(),
+            reason: if compact_changed_seed_gate {
+                "changed proof seeds hidden by compact limit".to_string()
+            } else {
+                "recursive proof seeds hidden at root scope".to_string()
+            },
             count: hidden_seed_count,
-            expand: expand_with_concrete_limit(&expand_raw_sensors, seeds.len() + hidden_seed_count),
+            expand: expand_with_concrete_limit(expand, seeds.len() + hidden_seed_count),
         });
     }
     let (current_direct, current_e2e) =
@@ -226,6 +237,7 @@ pub fn proof_map_report(
     for seed in &seeds {
         if let Some(file) = project.files.get(seed) {
             unknowns.extend(unknowns_for_file(project, file));
+            unknowns.extend(proof_target_owner_unknowns(project, seed, file));
             let file_routes = runtime_facts.routes_for_file(seed);
             let route_surfaces = route_proof_surfaces_for_routes(
                 project,
@@ -321,6 +333,7 @@ pub fn proof_map_report(
             crate::proof_classification::ProofSurfaceClass::SetupSupport => setup_support.push(proof),
         }
     }
+    dedupe_unknowns(&mut unknowns);
     if !raw_sensors {
         group_duplicate_proof_surfaces(
             &mut hard,
@@ -467,6 +480,7 @@ pub fn proof_map_report(
     ProofMapReport {
         kind: "proof_map_report",
         schema_version: "4",
+        selector: proof_selector,
         scope,
         changed,
         hard,

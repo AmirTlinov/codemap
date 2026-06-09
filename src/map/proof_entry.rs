@@ -19,6 +19,7 @@ fn is_support_artifact_path(rel: &str) -> bool {
 pub fn impact_report(
     project: &Project,
     changed: Vec<String>,
+    selector: String,
     depth: usize,
     limit: usize,
 ) -> ImpactReport {
@@ -28,6 +29,7 @@ pub fn impact_report(
         .map(|file| repo::normalize_rel_path(&file))
         .filter(|file| file != ".")
         .collect::<Vec<_>>();
+    let selector = normalized_impact_selector(&changed, selector);
     let mut hidden = Vec::new();
     let mut unknowns = Vec::new();
     let mut changed_summaries = Vec::new();
@@ -57,12 +59,12 @@ pub fn impact_report(
         hidden.push(HiddenGroup {
             reason: "changed anchors hidden by limit".to_string(),
             count: changed_count - limit,
-            expand: impact_hidden_changed_expand(&changed, depth, changed_count),
+            expand: impact_hidden_changed_expand(&selector, depth, changed_count),
         });
         hidden.push(HiddenGroup {
             reason: "impact clusters hidden by limit".to_string(),
             count: cluster_reports.len().saturating_sub(limit),
-            expand: impact_hidden_changed_expand(&changed, depth, changed_count),
+            expand: impact_hidden_changed_expand(&selector, depth, changed_count),
         });
         changed_summaries.truncate(limit);
     }
@@ -74,24 +76,36 @@ pub fn impact_report(
     ImpactReport {
         kind: "impact_report",
         schema_version: "4",
+        selector: selector.clone(),
         changed: changed_summaries,
         clusters,
         hidden,
         unknowns,
-        expand: impact_expand_commands(&changed),
+        expand: impact_expand_commands(&changed, &selector),
     }
 }
 
-fn impact_hidden_changed_expand(changed: &[String], depth: usize, limit: usize) -> String {
+fn normalized_impact_selector(changed: &[String], selector: String) -> String {
+    if !selector.trim().is_empty() {
+        return selector;
+    }
     if changed.is_empty() {
-        return format!("codemap impact --changed --depth {depth} --limit {limit}");
+        return String::new();
     }
     let files = changed
         .iter()
         .map(|file| shell_quote(file))
         .collect::<Vec<_>>()
         .join(",");
-    format!("codemap impact --files {files} --depth {depth} --limit {limit}")
+    format!("--files {files}")
+}
+
+fn impact_hidden_changed_expand(selector: &str, depth: usize, limit: usize) -> String {
+    let selector = selector.trim();
+    if selector.is_empty() {
+        return format!("codemap impact --changed --depth {depth} --limit {limit}");
+    }
+    format!("codemap impact {selector} --depth {depth} --limit {limit}")
 }
 
 pub fn proof_report(
@@ -120,7 +134,13 @@ pub fn proof_report(
     let discovery_limit = usize::MAX;
     let mut coverage = None;
     if target.is_none() && !changed.is_empty() {
-        let impact = impact_report(project, changed.clone(), depth, limit.max(changed.len()));
+        let impact = impact_report(
+            project,
+            changed.clone(),
+            selector.clone(),
+            depth,
+            limit.max(changed.len()),
+        );
         for cluster in &impact.clusters {
             risk = risk.max(impact_level_from_str(&cluster.risk));
         }

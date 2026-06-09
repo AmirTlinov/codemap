@@ -22,6 +22,7 @@ fn cargo_manifest_builtin_proof_surfaces(project: &Project, file: &FileInfo) -> 
         .map(|command| ProofSurface {
             command: Some(format!("{prefix}{command}")),
             path: Some(file.rel.clone()),
+            target_anchor: Some(file.rel.clone()),
             evidence: "cargo_manifest_command".to_string(),
             strength: EvidenceStrength::Hard,
             reason: format!("Cargo manifest gives package-local `{command}` surface"),
@@ -50,6 +51,7 @@ fn swift_manifest_builtin_proof_surfaces(
         .map(|command| ProofSurface {
             command: Some(format!("{prefix}{command}")),
             path: Some(file.rel.clone()),
+            target_anchor: Some(file.rel.clone()),
             evidence: "swift_package_command".to_string(),
             strength: EvidenceStrength::Hard,
             reason: format!("Swift package manifest gives package-local `{command}` surface"),
@@ -82,6 +84,7 @@ fn workspace_manifest_script_proof_surfaces(
         .map(|(name, command, line)| ProofSurface {
             command: package_script_command(project, root_package, &name),
             path: Some(root_manifest.clone()),
+            target_anchor: Some(file.rel.clone()),
             evidence: "workspace_manifest_script".to_string(),
             strength: EvidenceStrength::Hard,
             reason: format!("workspace root script `{name}` is tied to {command}"),

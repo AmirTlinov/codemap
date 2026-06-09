@@ -171,6 +171,7 @@
       "required": [
         "command",
         "path",
+        "target_anchor",
         "evidence",
         "strength",
         "reason",
@@ -181,6 +182,9 @@
           "anyOf": [{ "type": "string" }, { "type": "null" }]
         },
         "path": {
+          "anyOf": [{ "type": "string" }, { "type": "null" }]
+        },
+        "target_anchor": {
           "anyOf": [{ "type": "string" }, { "type": "null" }]
         },
         "evidence": { "type": "string" },

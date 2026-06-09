@@ -21,6 +21,7 @@ fn ci_owner_proof_surface_for_step(
     Some(ProofSurface {
         command: Some(step.command),
         path: Some(ci_rel.to_string()),
+        target_anchor: Some(ci_rel.to_string()),
         evidence: evidence.to_string(),
         strength: EvidenceStrength::Hard,
         reason,

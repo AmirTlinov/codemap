@@ -1,15 +1,19 @@
-fn impact_expand_commands(changed: &[String]) -> Vec<String> {
+fn impact_expand_commands(changed: &[String], selector: &str) -> Vec<String> {
     if changed.is_empty() {
         return Vec::new();
     }
-    let files = changed
-        .iter()
-        .map(|file| shell_quote(file))
-        .collect::<Vec<_>>()
-        .join(",");
+    let selector = selector.trim();
+    if selector.is_empty() {
+        return Vec::new();
+    }
+    let proof_selector = if selector == "--changed" {
+        "changed".to_string()
+    } else {
+        selector.to_string()
+    };
     vec![
-        format!("codemap impact --files {files} --depth 2"),
-        format!("codemap proof --files {files}"),
+        format!("codemap impact {selector} --depth 2"),
+        format!("codemap proof {proof_selector}"),
     ]
 }
 

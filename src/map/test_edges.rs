@@ -70,6 +70,15 @@ fn strict_test_edges_for_file(
             ));
             continue;
         }
+        if test_role_surface_matches_anchor(project, rel, file) {
+            scored.push((
+                66usize,
+                file.rel.clone(),
+                "test_role_surface_match".to_string(),
+                EvidenceStrength::Medium,
+            ));
+            continue;
+        }
         if allow_name_match && test_name_matches_source_stem(&file.rel, &lower_stem) {
             scored.push((
                 70usize,
@@ -177,6 +186,35 @@ fn structural_test_surface_match(
         ));
     }
     None
+}
+
+fn test_role_surface_matches_anchor(project: &Project, rel: &str, test: &FileInfo) -> bool {
+    let Some(anchor) = project.files.get(rel) else {
+        return false;
+    };
+    role_surface_proof_roles(anchor)
+        .intersection(&role_surface_proof_roles(test))
+        .next()
+        .is_some()
+}
+
+fn role_surface_proof_roles(file: &FileInfo) -> BTreeSet<String> {
+    role_surface_proof_role_names()
+        .iter()
+        .filter(|role| file.has_role(role))
+        .map(|role| (*role).to_string())
+        .collect()
+}
+
+fn role_surface_proof_role_names() -> &'static [&'static str] {
+    &[
+        "role_classifier",
+        "render_surface",
+        "helper_surface",
+        "contract_surface",
+        "analysis_surface",
+        "teach_surface",
+    ]
 }
 
 fn e2e_path_surface_allowed(project: &Project, rel: &str) -> bool {

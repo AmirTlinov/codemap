@@ -221,6 +221,7 @@ fn xray_edge_label(edge: &StructuralEdge) -> &'static str {
             | "e2e_path_surface"
             | "test_surface_phrase"
             | "test_surface_tokens"
+            | "test_role_surface_match"
             | "script_path_token"
             | "script_surface_match"
             | "proof_neighbor_token_match"

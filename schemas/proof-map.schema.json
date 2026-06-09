@@ -7,6 +7,7 @@
   "required": [
     "kind",
     "schema_version",
+    "selector",
     "scope",
     "changed",
     "hard",
@@ -28,6 +29,9 @@
     },
     "schema_version": {
       "const": "4"
+    },
+    "selector": {
+      "type": "string"
     },
     "scope": {
       "anyOf": [
@@ -453,6 +457,7 @@
       "required": [
         "command",
         "path",
+        "target_anchor",
         "evidence",
         "strength",
         "reason",
@@ -470,6 +475,16 @@
           ]
         },
         "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "target_anchor": {
           "anyOf": [
             {
               "type": "string"

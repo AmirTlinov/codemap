@@ -15,7 +15,10 @@ fn ensure_valid_config(project: &crate::model::Project) -> Result<()> {
     bail!("invalid .codemap semantic anchors; run `codemap anchors validate`")
 }
 
-fn changed_from_args(project: &crate::model::Project, args: &ImpactArgs) -> Result<Vec<String>> {
+fn impact_inputs(
+    project: &crate::model::Project,
+    args: &ImpactArgs,
+) -> Result<(Vec<String>, String)> {
     ensure_single_diff_selector(
         args.changed,
         args.staged,
@@ -24,21 +27,25 @@ fn changed_from_args(project: &crate::model::Project, args: &ImpactArgs) -> Resu
         &args.positional_files,
     )?;
     if args.changed {
-        return Ok(repo::changed_files(&project.root, false, None));
+        return Ok((repo::changed_files(&project.root, false, None), "--changed".to_string()));
     }
     if args.staged {
-        return Ok(repo::changed_files(&project.root, true, None));
+        return Ok((repo::changed_files(&project.root, true, None), "--staged".to_string()));
     }
     if let Some(since) = &args.since {
-        return Ok(repo::changed_files(&project.root, false, Some(since)));
+        return Ok((
+            repo::changed_files(&project.root, false, Some(since)),
+            format!("--since {}", shell_quote_arg(since)),
+        ));
     }
-    parse_files(project, args.files.as_deref(), &args.positional_files)
+    let files = parse_files(project, args.files.as_deref(), &args.positional_files)?;
+    Ok((files.clone(), files_selector(&files)))
 }
 
-fn changed_from_diff_map_args(
+fn diff_map_inputs(
     project: &crate::model::Project,
     args: &DiffMapArgs,
-) -> Result<Vec<String>> {
+) -> Result<(Vec<String>, String, map::DiffMapMode)> {
     ensure_single_diff_selector(
         args.changed,
         args.staged,
@@ -47,15 +54,28 @@ fn changed_from_diff_map_args(
         &args.positional_files,
     )?;
     if args.changed {
-        return Ok(repo::changed_files(&project.root, false, None));
+        return Ok((
+            repo::changed_files(&project.root, false, None),
+            "--changed".to_string(),
+            map::DiffMapMode::WorkingTree,
+        ));
     }
     if args.staged {
-        return Ok(repo::changed_files(&project.root, true, None));
+        return Ok((
+            repo::changed_files(&project.root, true, None),
+            "--staged".to_string(),
+            map::DiffMapMode::Staged,
+        ));
     }
     if let Some(since) = &args.since {
-        return Ok(repo::changed_files(&project.root, false, Some(since)));
+        return Ok((
+            repo::changed_files(&project.root, false, Some(since)),
+            format!("--since {}", shell_quote_arg(since)),
+            map::DiffMapMode::Since(since.clone()),
+        ));
     }
-    parse_files(project, args.files.as_deref(), &args.positional_files)
+    let files = parse_files(project, args.files.as_deref(), &args.positional_files)?;
+    Ok((files.clone(), files_selector(&files), map::DiffMapMode::WorkingTree))
 }
 
 fn changed_inputs(
@@ -336,6 +356,18 @@ fn parse_files(
         out.push(project_relative_arg(project, file)?);
     }
     Ok(out.into_iter().filter(|s| s != ".").collect())
+}
+
+fn files_selector(files: &[String]) -> String {
+    if files.is_empty() {
+        return String::new();
+    }
+    let files_arg = files
+        .iter()
+        .map(|file| shell_quote_arg(file))
+        .collect::<Vec<_>>()
+        .join(",");
+    format!("--files {files_arg}")
 }
 
 fn project_relative_arg(project: &crate::model::Project, value: &str) -> Result<String> {

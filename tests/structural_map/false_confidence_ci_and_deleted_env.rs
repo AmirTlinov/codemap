@@ -208,8 +208,22 @@ fn manifest_script_substrings_do_not_become_hard_proof() {
     );
     let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
     assert!(
-        markdown.contains("package_local_script_not_found"),
-        "substring-only script names should keep package-local script Unknown open: {markdown}"
+        markdown.contains("package_local_script_not_found")
+            && markdown.contains("codemap graph --path package.json --lens causal")
+            && !markdown.contains("codemap graph --lens causal package.json"),
+        "substring-only script names should keep package-local script Unknown open with executable expands: {markdown}"
+    );
+
+    let graph = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["graph", "--path", "package.json", "--lens", "causal"])
+        .output()
+        .expect("graph expand should run");
+    assert!(
+        graph.status.success(),
+        "manifest package_consumer expand should be executable: {}",
+        String::from_utf8_lossy(&graph.stderr)
     );
 }
 

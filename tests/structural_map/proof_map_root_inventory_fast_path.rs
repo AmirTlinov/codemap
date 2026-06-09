@@ -1,4 +1,42 @@
 #[test]
+fn proof_map_compact_wiring_shows_missing_sample_subject() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{"name":"wiring-sample","private":true,"scripts":{"test":"vitest run"}}"#,
+    );
+    write(
+        &repo.path().join("tests/root-smoke.test.ts"),
+        "test('root smoke', () => expect(true).toBe(true));\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "proof wiring sample"]);
+
+    let output = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["proof-map", "."])
+        .output()
+        .expect("proof-map markdown should run");
+    assert!(
+        output.status.success(),
+        "proof-map markdown failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
+    assert!(
+        markdown.contains("status: `missing: 1`")
+            && markdown.contains("- sample: [missing] `declared_command` `current_level_proof_container` path=`tests/`")
+            && markdown.contains("expand: `codemap cone tests/ --depth 2`"),
+        "compact proof wiring should show one concrete missing subject and expand: {markdown}"
+    );
+}
+
+#[test]
 fn proof_map_large_cold_root_uses_bounded_inventory_with_exact_expand() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");

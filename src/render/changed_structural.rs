@@ -6,6 +6,10 @@ fn changed_structural_events_section(report: &ChangedReport, compact: bool) {
     if report.structural_events.is_empty() {
         return;
     }
+    if compact {
+        changed_structural_events_compact_section(report);
+        return;
+    }
     println!("\nstructural events:");
     for events in changed_structural_event_groups(report)
         .values()
@@ -45,6 +49,57 @@ fn changed_structural_events_section(report: &ChangedReport, compact: bool) {
             println!("  expand: `{}`", root_aware_expand(expand));
         }
     }
+}
+
+type ChangedStructuralCompactKey = (String, String, String, Option<String>);
+
+fn changed_structural_events_compact_section(report: &ChangedReport) {
+    println!("\nstructural events:");
+    let mut groups: std::collections::BTreeMap<
+        ChangedStructuralCompactKey,
+        Vec<&crate::model::ChangedStructuralEvent>,
+    > = std::collections::BTreeMap::new();
+    for event in &report.structural_events {
+        groups
+            .entry((
+                event.kind.clone(),
+                event.evidence.clone(),
+                event.effect.clone(),
+                event.old_path.clone(),
+            ))
+            .or_default()
+            .push(event);
+    }
+    for ((kind, evidence, effect, old_path), events) in
+        groups.iter().take(changed_render_limit(report, true))
+    {
+        let paths = events
+            .iter()
+            .map(|event| event.path.clone())
+            .collect::<Vec<_>>();
+        println!(
+            "- `{kind}` [evidence={}; count={}]; sample: {}; effect: {}",
+            public_evidence_label(evidence),
+            events.len(),
+            changed_preview_paths(&paths, 3),
+            effect
+        );
+        if let Some(old_path) = old_path {
+            println!("  old sample: `{old_path}`");
+        }
+    }
+    let hidden = groups.len().saturating_sub(changed_render_limit(report, true));
+    if hidden > 0 {
+        println!("- hidden structural event groups: `{hidden}`");
+    }
+    println!(
+        "  expand: `{}`",
+        root_aware_expand(&format!(
+            "codemap changed{} --section observed --limit {}",
+            changed_selector_suffix(&report.selector),
+            report.structural_events.len()
+        ))
+    );
 }
 
 fn changed_structural_event_groups(report: &ChangedReport) -> ChangedStructuralEventGroups<'_> {

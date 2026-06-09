@@ -408,6 +408,7 @@
       "required": [
         "command",
         "path",
+        "target_anchor",
         "evidence",
         "strength",
         "reason",
@@ -425,6 +426,16 @@
           ]
         },
         "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "target_anchor": {
           "anyOf": [
             {
               "type": "string"

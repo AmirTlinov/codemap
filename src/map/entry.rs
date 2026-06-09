@@ -165,6 +165,7 @@ pub fn cone_report(
         proof: &proof,
         unknowns: &unknowns,
         limit,
+        include_hidden,
     });
     ConeReport {
         kind: "cone_report",

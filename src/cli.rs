@@ -2,6 +2,7 @@ include!("cli/args.rs");
 include!("cli/section_args.rs");
 include!("cli/run.rs");
 include!("cli/fast_paths.rs");
+include!("cli/fast_path_helpers.rs");
 include!("cli/fast_paths_root_ls.rs");
 include!("cli/fast_paths_root_graph.rs");
 include!("cli/fast_paths_root_proof_map.rs");

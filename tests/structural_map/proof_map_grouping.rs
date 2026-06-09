@@ -22,7 +22,7 @@ fn proof_map_groups_duplicate_direct_sensors_in_directory_scope() {
         &["proof-map", "packages/app/src", "--format", "json"],
     );
     assert_schema("schemas/proof-map.schema.json", &proof_map);
-    let duplicate_test_surfaces = proof_map["hard"]
+    let target_anchors = proof_map["hard"]
         .as_array()
         .expect("hard proof surfaces")
         .iter()
@@ -30,22 +30,21 @@ fn proof_map_groups_duplicate_direct_sensors_in_directory_scope() {
             proof["path"] == "packages/app/tests/dual.test.ts"
                 && proof["evidence"] == "test_import"
         })
-        .count();
+        .filter_map(|proof| proof["target_anchor"].as_str())
+        .collect::<Vec<_>>();
     assert_eq!(
-        duplicate_test_surfaces, 1,
-        "directory proof-map should group identical proof sensors instead of repeating one test per seed: {proof_map:#}"
+        target_anchors,
+        vec!["packages/app/src/dual-a.ts", "packages/app/src/dual-b.ts"],
+        "directory proof-map should keep distinct test->target sensors instead of flattening useful target differences: {proof_map:#}"
     );
     assert!(
         proof_map["hidden"]
             .as_array()
             .expect("hidden")
             .iter()
-            .any(|hidden| hidden["reason"].as_str().is_some_and(|reason| {
-                reason == "duplicate hard proof sensors grouped by structural key"
-            }) && hidden["expand"]
-                .as_str()
-                .is_some_and(|expand| expand.contains("--raw-sensors"))),
-        "grouped duplicates should stay visible as hidden count, not disappear silently: {proof_map:#}"
+            .all(|hidden| hidden["reason"].as_str().is_none_or(|reason| reason
+                != "duplicate hard proof sensors grouped by structural key")),
+        "distinct target anchors are not duplicate proof sensors and should not be hidden as grouped duplicates: {proof_map:#}"
     );
 }
 

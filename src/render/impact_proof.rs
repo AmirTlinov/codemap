@@ -246,7 +246,8 @@ fn proof_links_section(report: &ProofReport) {
             .map(|path| code(path))
             .unwrap_or_else(|| "`none`".to_string());
         println!(
-            "- {path} [{}; {}] {} - {}",
+            "- {path}{} [{}; {}] {} - {}",
+            proof_target_suffix(proof),
             public_evidence_label(&proof.evidence),
             format!("{:?}", proof.strength).to_ascii_lowercase(),
             proof_location_summary(&proof.locations),

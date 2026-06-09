@@ -29,7 +29,7 @@ fn siblings_groups_duplicate_proof_pattern_sensors() {
         ],
     );
     assert_schema("schemas/siblings.schema.json", &siblings);
-    let duplicate_count = siblings["proof_pattern"]
+    let target_anchors = siblings["proof_pattern"]
         .as_array()
         .expect("proof pattern")
         .iter()
@@ -37,23 +37,24 @@ fn siblings_groups_duplicate_proof_pattern_sensors() {
             proof["path"] == "packages/app/tests/dual.test.ts"
                 && proof["evidence"] == "test_import"
         })
-        .count();
+        .filter_map(|proof| proof["target_anchor"].as_str())
+        .collect::<Vec<_>>();
     assert_eq!(
-        duplicate_count, 1,
-        "siblings should group repeated proof sensors from the same test file: {siblings:#}"
+        target_anchors,
+        vec![
+            "packages/app/src/dual-a.ts",
+            "packages/app/src/dual-b.ts"
+        ],
+        "siblings should keep distinct proof sensor targets from the same test file: {siblings:#}"
     );
     assert!(
         siblings["hidden"]
             .as_array()
             .expect("hidden")
             .iter()
-            .any(|group| group["reason"]
-                == "duplicate proof pattern sensors grouped by structural key"
-                && group["expand"].as_str().is_some_and(|expand| {
-                    expand.starts_with("codemap proof-map packages/app/src --raw-sensors --limit ")
-                        && !expand.contains("<larger-number>")
-                })),
-        "grouped siblings proof sensors should expose raw proof-map zoom: {siblings:#}"
+            .all(|group| group["reason"]
+                != "duplicate proof pattern sensors grouped by structural key"),
+        "distinct proof sensor targets should not be hidden as duplicate siblings proof sensors: {siblings:#}"
     );
 }
 
@@ -90,7 +91,7 @@ fn place_groups_duplicate_paired_proof_sensors() {
         ],
     );
     assert_schema("schemas/place.schema.json", &place);
-    let duplicate_count = place["paired_proof_pattern"]
+    let target_anchors = place["paired_proof_pattern"]
         .as_array()
         .expect("paired proof pattern")
         .iter()
@@ -98,23 +99,24 @@ fn place_groups_duplicate_paired_proof_sensors() {
             proof["path"] == "packages/app/tests/dual.test.ts"
                 && proof["evidence"] == "test_import"
         })
-        .count();
+        .filter_map(|proof| proof["target_anchor"].as_str())
+        .collect::<Vec<_>>();
     assert_eq!(
-        duplicate_count, 1,
-        "place should group repeated paired proof sensors from the same test file: {place:#}"
+        target_anchors,
+        vec![
+            "packages/app/src/dual-a.ts",
+            "packages/app/src/dual-b.ts"
+        ],
+        "place should keep distinct paired proof sensor targets from the same test file: {place:#}"
     );
     assert!(
         place["hidden"]
             .as_array()
             .expect("hidden")
             .iter()
-            .any(|group| group["reason"]
-                == "duplicate paired proof sensors grouped by structural key"
-                && group["expand"].as_str().is_some_and(|expand| {
-                    expand.starts_with("codemap proof-map packages/app/src --raw-sensors --limit ")
-                        && !expand.contains("<larger-number>")
-                })),
-        "grouped place proof sensors should expose raw proof-map zoom: {place:#}"
+            .all(|group| group["reason"]
+                != "duplicate paired proof sensors grouped by structural key"),
+        "distinct paired proof sensor targets should not be hidden as duplicate place proof sensors: {place:#}"
     );
 }
 

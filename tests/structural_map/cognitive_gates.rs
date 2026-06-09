@@ -76,6 +76,81 @@ fn changed_large_schema_and_script_slice_stays_compact() {
 }
 
 #[test]
+fn changed_self_dogfood_shape_compacts_roles_and_schema_events() {
+    let (repo, cache) = fixture();
+    for index in 0..6 {
+        write(
+            &repo.path().join(format!("schemas/public-{index}.schema.json")),
+            r#"{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "name": { "type": "string" }
+  }
+}
+"#,
+        );
+    }
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "schema baseline"]);
+
+    for index in 0..6 {
+        write(
+            &repo.path().join(format!("schemas/public-{index}.schema.json")),
+            r#"{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "name": { "type": "string" },
+    "target_anchor": { "type": "string" }
+  }
+}
+"#,
+        );
+    }
+    for (path, body) in [
+        (
+            "Cargo.toml",
+            "[package]\nname = \"wide-shape\"\nversion = \"0.1.0\"\n",
+        ),
+        ("Cargo.lock", "# generated lock\n"),
+        ("src/map/proof_surface.rs", "pub fn proof_surface() {}\n"),
+        ("src/repo/roles.rs", "pub fn classify_roles() {}\n"),
+        ("src/render/changed.rs", "pub fn render_changed() {}\n"),
+        ("src/cli/args.rs", "pub fn cli_args() {}\n"),
+        ("src/map/cone_env_surfaces.rs", "pub fn extract_env() {}\n"),
+        ("src/repo/constants.rs", "pub const CONFIG: &str = \"x\";\n"),
+        ("src/map/proof_owner_ci_script_body.rs", "pub fn script_catalog() {}\n"),
+        ("tests/structural_map/wide_shape.rs", "#[test]\nfn wide_shape() {}\n"),
+        ("scripts/check-version-bump.sh", "#!/usr/bin/env bash\nexit 0\n"),
+        (".github/workflows/ci.yml", "name: ci\n"),
+        ("docs/guide.md", "# Guide\n"),
+        ("runtime/receipts/proof.json", "{\"receipt\":true}\n"),
+        ("fixtures/archive/sample.txt", "fixture\n"),
+    ] {
+        write(&repo.path().join(path), body);
+    }
+
+    let markdown = run_markdown(repo.path(), cache.path(), &["changed"]);
+    let line_count = markdown.lines().count();
+    assert!(
+        line_count <= 120,
+        "wide changed overview should stay inside dogfood budget; lines={line_count}\n{markdown}"
+    );
+    assert!(
+        markdown.contains("hidden surface hint groups")
+            && markdown.contains("codemap changed --section roles"),
+        "wide changed overview should compact role groups with an exact expand: {markdown}"
+    );
+    assert!(
+        markdown.contains("`added_schema_field`")
+            && markdown.contains("count=6")
+            && markdown.contains("codemap changed --section observed"),
+        "wide changed overview should group repeated schema-field events without losing expand: {markdown}"
+    );
+}
+
+#[test]
 fn public_markdown_does_not_leak_internal_role_evidence_labels() {
     let (repo, cache) = fixture();
     let contract = run_markdown(repo.path(), cache.path(), &["contract", "package.json"]);

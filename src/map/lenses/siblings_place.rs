@@ -353,6 +353,7 @@ fn direct_test_import_proof_surfaces_for_scope(
             ProofSurface {
                 command: proof_command_for_test(project, &file.rel),
                 path: Some(file.rel.clone()),
+                target_anchor: target.cloned(),
                 evidence: "test_import".to_string(),
                 strength: EvidenceStrength::High,
                 reason: "test imports scope file".to_string(),

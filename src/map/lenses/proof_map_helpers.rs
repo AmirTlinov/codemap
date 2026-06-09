@@ -29,7 +29,7 @@ fn group_duplicate_proof_surfaces(
     *values = out;
 }
 
-fn proof_surface_group_key(value: &ProofSurface) -> (String, String, String) {
+fn proof_surface_group_key(value: &ProofSurface) -> (String, String, String, String) {
     let detail = if value.evidence == "e2e_visited_route" {
         value.reason.clone()
     } else {
@@ -38,6 +38,7 @@ fn proof_surface_group_key(value: &ProofSurface) -> (String, String, String) {
     (
         value.command.clone().unwrap_or_default(),
         value.path.clone().unwrap_or_default(),
+        value.target_anchor.clone().unwrap_or_default(),
         detail,
     )
 }

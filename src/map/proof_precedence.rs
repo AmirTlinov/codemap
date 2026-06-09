@@ -5,6 +5,7 @@ fn unique_proof_surfaces(values: Vec<ProofSurface>) -> Vec<ProofSurface> {
         let key = (
             value.command.clone().unwrap_or_default(),
             value.path.clone().unwrap_or_default(),
+            value.target_anchor.clone().unwrap_or_default(),
         );
         if let Some(index) = seen.get(&key).copied() {
             if proof_surface_precedence(&value) > proof_surface_precedence(&out[index]) {
@@ -150,6 +151,7 @@ fn proof_evidence_precedence(evidence: &str) -> usize {
         "e2e_surface_phrase" => 3,
         "e2e_path_surface" => 2,
         "test_surface_phrase" => 2,
+        "test_role_surface_match" => 1,
         "test_surface_tokens" => 1,
         _ => 0,
     };

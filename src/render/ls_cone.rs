@@ -135,6 +135,7 @@ fn cone_edge_is_soft_proof(edge: &StructuralEdge) -> bool {
                 | "e2e_path_surface"
                 | "test_surface_phrase"
                 | "test_surface_tokens"
+                | "test_role_surface_match"
                 | "script_path_token"
                 | "script_surface_match"
         )
@@ -386,6 +387,12 @@ fn canonical_roles(anchor: &crate::model::FileSummary) -> Vec<String> {
         "script_catalog",
         "cli_surface",
         "map_surface",
+        "render_surface",
+        "helper_surface",
+        "proof_surface",
+        "contract_surface",
+        "analysis_surface",
+        "teach_surface",
         "extractor",
         "config_loader",
         "evidence_surface",

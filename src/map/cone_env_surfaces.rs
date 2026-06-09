@@ -170,6 +170,7 @@ fn cone_owner_env_proof_edges_from_facts(
         .map(|consumer| ProofSurface {
             command: None,
             path: Some(consumer.path.clone()),
+            target_anchor: Some(file.rel.clone()),
             evidence: "env_consumer_reference".to_string(),
             strength: EvidenceStrength::High,
             reason: format!("source reads env key `{}` declared in {}", consumer.key, file.rel),

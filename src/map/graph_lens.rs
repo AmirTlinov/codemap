@@ -106,7 +106,13 @@ fn impact_graph(
     if changed.is_empty() {
         return (Vec::new(), Vec::new(), Vec::new());
     }
-    let report = impact_report(project, changed.to_vec(), 2, usize::MAX);
+    let report = impact_report(
+        project,
+        changed.to_vec(),
+        "--changed".to_string(),
+        2,
+        usize::MAX,
+    );
     let nodes = unique(
         report
             .changed
@@ -145,7 +151,13 @@ fn proof_graph(
     if changed.is_empty() {
         return (Vec::new(), Vec::new(), Vec::new());
     }
-    let report = impact_report(project, changed.to_vec(), 1, usize::MAX);
+    let report = impact_report(
+        project,
+        changed.to_vec(),
+        "--changed".to_string(),
+        1,
+        usize::MAX,
+    );
     let nodes = unique(
         report
             .clusters

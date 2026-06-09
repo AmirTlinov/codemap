@@ -1,4 +1,4 @@
-pub const VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), "+surface-cache-v7");
+pub const VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), "+surface-cache-v9");
 
 const ROOT_MARKERS: &[&str] = &[
     ".codemap.yml",

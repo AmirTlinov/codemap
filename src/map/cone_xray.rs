@@ -27,6 +27,7 @@ struct ConeXrayInput<'a> {
     proof: &'a [StructuralEdge],
     unknowns: &'a [Unknown],
     limit: usize,
+    include_hidden: bool,
 }
 
 fn cone_xray_card(input: ConeXrayInput<'_>) -> XrayCard {
@@ -69,7 +70,12 @@ fn cone_xray_card(input: ConeXrayInput<'_>) -> XrayCard {
             .into_iter()
             .take(limit)
             .collect(),
-        side_effects: xray_side_effects(input.project, input.seed_files, limit),
+        side_effects: xray_side_effects(
+            input.project,
+            input.seed_files,
+            limit,
+            input.include_hidden,
+        ),
         direct_consumers: input
             .incoming
             .iter()
@@ -143,6 +149,7 @@ fn xray_edge_is_soft(edge: &StructuralEdge) -> bool {
             | "e2e_path_surface"
             | "test_surface_phrase"
             | "test_surface_tokens"
+            | "test_role_surface_match"
             | "script_path_token"
             | "script_surface_match"
             | "proof_neighbor_token_match"
@@ -197,6 +204,24 @@ fn xray_role_surfaces(anchor: &FileSummary) -> Vec<Surface> {
             }
             "renderer_ui" => {
                 roles.insert("renderer");
+            }
+            "render_surface" => {
+                roles.insert("render_surface");
+            }
+            "helper_surface" => {
+                roles.insert("helper_surface");
+            }
+            "proof_surface" => {
+                roles.insert("proof_surface");
+            }
+            "contract_surface" => {
+                roles.insert("contract_surface");
+            }
+            "analysis_surface" => {
+                roles.insert("analysis_surface");
+            }
+            "teach_surface" => {
+                roles.insert("teach_surface");
             }
             "proof_runner" | "receipt" | "witness" | "doctor" => {
                 roles.insert("proof");
@@ -322,10 +347,22 @@ fn xray_state_surfaces(
     surfaces
 }
 
-fn xray_side_effects(project: &Project, seed_files: &[String], limit: usize) -> Vec<Surface> {
+fn xray_side_effects(
+    project: &Project,
+    seed_files: &[String],
+    limit: usize,
+    include_hidden: bool,
+) -> Vec<Surface> {
     let mut surfaces = Vec::new();
+    let directory_scope = seed_files.len() > 1;
     for rel in seed_files {
         if let Some(file) = project.files.get(rel) {
+            if directory_scope
+                && !include_hidden
+                && (file.has_role("test") || file.has_role("test_support"))
+            {
+                continue;
+            }
             surfaces.extend(side_effect_surfaces_for_file(project, file));
         }
     }

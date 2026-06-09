@@ -73,7 +73,8 @@ fn proof_surface_section(title: &str, proofs: &[ProofSurface]) {
                 .map(|path| code(path))
                 .unwrap_or_else(|| "`none`".to_string());
             println!(
-                "- {path} [{}; {}] {} - {}",
+                "- {path}{} [{}; {}] {} - {}",
+                proof_target_suffix(proof),
                 public_evidence_label(&proof.evidence),
                 format!("{:?}", proof.strength).to_ascii_lowercase(),
                 proof_location_summary(&proof.locations),
@@ -108,6 +109,17 @@ fn proof_command_summary_section(title: &str, proofs: &[ProofSurface]) {
     let hidden = total.saturating_sub(COMMAND_SUMMARY_LIMIT);
     if hidden > 0 {
         println!("- hidden runnable commands: `{hidden}`");
+    }
+}
+
+fn proof_target_suffix(proof: &ProofSurface) -> String {
+    let Some(target) = proof.target_anchor.as_deref() else {
+        return String::new();
+    };
+    if proof.path.as_deref() == Some(target) {
+        String::new()
+    } else {
+        format!(" -> {}", code(target))
     }
 }
 

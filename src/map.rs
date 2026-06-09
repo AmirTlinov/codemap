@@ -62,6 +62,7 @@ include!("map/proof_owner_ci.rs");
 include!("map/proof_owner_ci_validation.rs");
 include!("map/proof_owner_ci_script_body.rs");
 include!("map/proof_surfaces.rs");
+include!("map/proof_locations.rs");
 include!("map/proof_commands.rs");
 include!("map/proof_wiring.rs");
 include!("map/impact.rs");
