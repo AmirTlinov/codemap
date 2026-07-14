@@ -1,16 +1,10 @@
+// Responsibility: render-status
+use crate::map::StatusReport;
+use crate::render::{bullet, code, table};
 use serde::Serialize;
 use std::path::Path;
 use std::process::Command;
 use std::sync::OnceLock;
-
-use crate::map::StatusReport;
-use crate::model::{
-    BoundaryFinding, BoundaryMapReport, ChangedReport, ConeReport, ContractReport, DeleteReport,
-    DiffMapReport, EnvSurface, EvidenceLocation, FlowReport, GraphEdge, GraphLens, ImpactCluster,
-    ImpactReport, LsReport, MapPrelude, PlaceReport, ProofMapReport, ProofReport, ProofSurface,
-    ProofWiringFact, RuntimeReport, RuntimeRoute, SiblingsReport, StructuralEdge, Surface,
-    TeachReport, Unknown, WhereDefinition, WhereReport,
-};
 
 static EXPAND_ROOT: OnceLock<String> = OnceLock::new();
 static MAP_SNAPSHOT: OnceLock<String> = OnceLock::new();
@@ -26,7 +20,7 @@ pub fn set_brief(value: bool) {
     let _ = BRIEF.set(value);
 }
 
-fn brief() -> bool {
+pub(crate) fn brief() -> bool {
     BRIEF.get().copied().unwrap_or(false)
 }
 
@@ -168,7 +162,7 @@ fn map_snapshot_dirty_count(root: &Path) -> Option<usize> {
     Some(String::from_utf8_lossy(&output.stdout).lines().count())
 }
 
-fn map_snapshot_line() {
+pub(crate) fn map_snapshot_line() {
     if let Some(snapshot) = MAP_SNAPSHOT.get() {
         println!("{snapshot}");
     }
@@ -189,7 +183,7 @@ pub fn print_json<T: Serialize>(value: &T) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn rewrite_expand_fields(value: &mut serde_json::Value) {
+pub(crate) fn rewrite_expand_fields(value: &mut serde_json::Value) {
     match value {
         serde_json::Value::Object(map) => {
             for (key, child) in map {
@@ -290,10 +284,7 @@ pub fn status(report: &StatusReport, doctor: bool) {
                 ],
                 vec!["Cache".to_string(), code(&report.cache_dir)],
                 vec!["Cache state".to_string(), report.cache_state.clone()],
-                vec![
-                    "Cache strategy".to_string(),
-                    report.cache_strategy.clone()
-                ],
+                vec!["Cache strategy".to_string(), report.cache_strategy.clone()],
                 vec![
                     "Zero repo footprint default".to_string(),
                     report.zero_footprint_default.to_string()
@@ -314,10 +305,7 @@ pub fn status(report: &StatusReport, doctor: bool) {
                     "Files scanned".to_string(),
                     report.files_scanned.to_string()
                 ],
-                vec![
-                    "Files reused".to_string(),
-                    report.files_reused.to_string()
-                ],
+                vec!["Files reused".to_string(), report.files_reused.to_string()],
                 vec![
                     "Files visited".to_string(),
                     report.scanner.files_visited.to_string()

@@ -1,8 +1,17 @@
-type ChangedStructuralEventGroupKey = (String, String, String, Option<String>, Option<String>);
-type ChangedStructuralEventGroups<'a> =
-    std::collections::BTreeMap<ChangedStructuralEventGroupKey, Vec<&'a crate::model::ChangedStructuralEvent>>;
+// Responsibility: render-changed-structural
+use crate::model::ChangedReport;
+use crate::render::{
+    changed_preview_paths, changed_render_limit, changed_selector_suffix, proof_location_summary,
+    public_evidence_label, root_aware_expand,
+};
 
-fn changed_structural_events_section(report: &ChangedReport, compact: bool) {
+type ChangedStructuralEventGroupKey = (String, String, String, Option<String>, Option<String>);
+type ChangedStructuralEventGroups<'a> = std::collections::BTreeMap<
+    ChangedStructuralEventGroupKey,
+    Vec<&'a crate::model::ChangedStructuralEvent>,
+>;
+
+pub(crate) fn changed_structural_events_section(report: &ChangedReport, compact: bool) {
     if report.structural_events.is_empty() {
         return;
     }
@@ -88,7 +97,9 @@ fn changed_structural_events_compact_section(report: &ChangedReport) {
             println!("  old sample: `{old_path}`");
         }
     }
-    let hidden = groups.len().saturating_sub(changed_render_limit(report, true));
+    let hidden = groups
+        .len()
+        .saturating_sub(changed_render_limit(report, true));
     if hidden > 0 {
         println!("- hidden structural event groups: `{hidden}`");
     }
@@ -102,7 +113,9 @@ fn changed_structural_events_compact_section(report: &ChangedReport) {
     );
 }
 
-fn changed_structural_event_groups(report: &ChangedReport) -> ChangedStructuralEventGroups<'_> {
+pub(crate) fn changed_structural_event_groups(
+    report: &ChangedReport,
+) -> ChangedStructuralEventGroups<'_> {
     let mut groups = std::collections::BTreeMap::new();
     for event in &report.structural_events {
         groups
@@ -127,12 +140,20 @@ fn changed_structural_effects(events: &[&crate::model::ChangedStructuralEvent], 
         .into_iter()
         .collect::<Vec<_>>();
     if effects.len() <= 1 {
-        let effect = effects.first().copied().unwrap_or("changed structural fact");
+        let effect = effects
+            .first()
+            .copied()
+            .unwrap_or("changed structural fact");
         println!("  effect: {effect}");
         return;
     }
     if compact {
-        let sample = effects.iter().take(2).copied().collect::<Vec<_>>().join("; ");
+        let sample = effects
+            .iter()
+            .take(2)
+            .copied()
+            .collect::<Vec<_>>()
+            .join("; ");
         let hidden = effects.len().saturating_sub(2);
         if hidden > 0 {
             println!("  effects: {sample}; +{hidden} hidden");

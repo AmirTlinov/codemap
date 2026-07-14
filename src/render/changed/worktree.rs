@@ -1,4 +1,8 @@
-fn changed_worktree_section(report: &ChangedReport, compact: bool) {
+// Responsibility: render-changed-worktree
+use crate::model::ChangedReport;
+use crate::render::current_map_prelude;
+
+pub(crate) fn changed_worktree_section(report: &ChangedReport, compact: bool) {
     println!("\n## Worktree\n");
     if let Some(prelude) = current_map_prelude()
         && prelude.vcs.as_deref() == Some("git")
@@ -25,7 +29,11 @@ fn changed_worktree_section(report: &ChangedReport, compact: bool) {
         println!("- deleted: `{}`", prelude.worktree.deleted);
         println!("- typechanged: `{}`", prelude.worktree.typechanged);
     } else {
-        let staged = report.git_state.iter().filter(|change| change.staged).count();
+        let staged = report
+            .git_state
+            .iter()
+            .filter(|change| change.staged)
+            .count();
         let unstaged = report
             .git_state
             .iter()
@@ -44,8 +52,7 @@ fn changed_worktree_section(report: &ChangedReport, compact: bool) {
         if compact {
             println!(
                 "- selector: `{}`; selected files: `{}`; staged=`{staged}`; unstaged=`{unstaged}`; untracked=`{untracked}`; conflicts=`{conflicted}`",
-                report.selector,
-                report.total_changed_count
+                report.selector, report.total_changed_count
             );
             return;
         }

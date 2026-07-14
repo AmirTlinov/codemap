@@ -1,14 +1,20 @@
+// Responsibility: render-prelude
+use crate::model::MapPrelude;
+use crate::render::{brief, map_snapshot_line, rewrite_expand_fields};
+use serde::Serialize;
+use std::sync::OnceLock;
+
 static MAP_PRELUDE: OnceLock<MapPrelude> = OnceLock::new();
 
 pub fn set_map_prelude(prelude: MapPrelude) {
     let _ = MAP_PRELUDE.set(prelude);
 }
 
-fn current_map_prelude() -> Option<&'static MapPrelude> {
+pub(crate) fn current_map_prelude() -> Option<&'static MapPrelude> {
     MAP_PRELUDE.get()
 }
 
-fn map_prelude_line_or_snapshot_line() {
+pub(crate) fn map_prelude_line_or_snapshot_line() {
     if let Some(prelude) = MAP_PRELUDE.get() {
         println!("{}", compact_prelude_line(prelude));
         map_snapshot_line();
@@ -17,7 +23,7 @@ fn map_prelude_line_or_snapshot_line() {
     }
 }
 
-fn map_prelude_block_or_snapshot_line() {
+pub(crate) fn map_prelude_block_or_snapshot_line() {
     if let Some(prelude) = MAP_PRELUDE.get() {
         if brief() {
             println!("{}", compact_prelude_line(prelude));
@@ -26,7 +32,10 @@ fn map_prelude_block_or_snapshot_line() {
         }
         println!("Repo:");
         println!("  root: `{}`", prelude.root);
-        println!("  cwd: `{}`", prelude.cwd_rel.as_deref().unwrap_or(&prelude.cwd));
+        println!(
+            "  cwd: `{}`",
+            prelude.cwd_rel.as_deref().unwrap_or(&prelude.cwd)
+        );
         if let Some(git_root) = &prelude.git_root {
             println!("  git_root: `{git_root}`");
         }
@@ -37,7 +46,10 @@ fn map_prelude_block_or_snapshot_line() {
         }
         let branch = prelude_branch(prelude);
         println!("  branch: `{branch}`");
-        println!("  head: `{}`", prelude.head.short.as_deref().unwrap_or("none"));
+        println!(
+            "  head: `{}`",
+            prelude.head.short.as_deref().unwrap_or("none")
+        );
         println!("  ahead/behind: `{}`", prelude_ahead_behind(prelude));
         println!("  worktree: `{}`", prelude_worktree(prelude));
         if let Some(remote) = prelude.remote.display.as_deref() {

@@ -1,3 +1,7 @@
+// Responsibility: render-teach
+use crate::model::TeachReport;
+use crate::render::{code, code_block, disclaimer, section, table};
+
 pub fn teach(report: &TeachReport) {
     println!("# Repo Dialect Draft\n");
     println!("No repository files were written.\n");
@@ -27,7 +31,9 @@ pub fn teach(report: &TeachReport) {
     );
     if !report.role_patterns.is_empty() {
         println!("\n## Surface Hints\n");
-        disclaimer("Derived from deterministic configured patterns. Not intent, correctness, or ownership truth.");
+        disclaimer(
+            "Derived from deterministic configured patterns. Not intent, correctness, or ownership truth.",
+        );
         for role in &report.role_patterns {
             println!(
                 "- `{}` -> `{}` [{}; matched: `{}`]",

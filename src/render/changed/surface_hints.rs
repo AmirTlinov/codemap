@@ -1,4 +1,11 @@
-fn changed_roles_section(report: &ChangedReport, force: bool, compact: bool) {
+// Responsibility: render-changed-surface-hints
+use crate::model::ChangedReport;
+use crate::render::{
+    canonical_roles, changed_common_dir_prefix, changed_relative_path, changed_render_limit,
+    changed_selector_suffix, disclaimer, root_aware_expand,
+};
+
+pub(crate) fn changed_roles_section(report: &ChangedReport, force: bool, compact: bool) {
     let mut paths_with_summaries = std::collections::BTreeSet::new();
     let mut grouped: std::collections::BTreeMap<String, Vec<(String, String)>> =
         std::collections::BTreeMap::new();
@@ -34,7 +41,9 @@ fn changed_roles_section(report: &ChangedReport, force: bool, compact: bool) {
         entries.dedup();
     }
     println!("\n## Surface Hints\n");
-    disclaimer("Derived from deterministic path/name/extension/manifest/git patterns. Not change intent, correctness, or verification sufficiency.");
+    disclaimer(
+        "Derived from deterministic path/name/extension/manifest/git patterns. Not change intent, correctness, or verification sufficiency.",
+    );
     let paths = grouped
         .values()
         .flat_map(|entries| entries.iter().map(|(path, _)| path.as_str()))

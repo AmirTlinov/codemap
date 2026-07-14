@@ -1,3 +1,15 @@
+// Responsibility: render-proof-impact
+use crate::model::{ImpactCluster, ImpactReport, ProofReport, Unknown};
+use crate::render::{
+    bullet, code, code_block, disclaimer, grouped_edge_list, hidden_section,
+    map_prelude_line_or_snapshot_line, map_snapshot_line, proof_changed_command_selector_suffix,
+    proof_coverage_section, proof_detail_expand, proof_location_summary,
+    proof_map_changed_selector, proof_most_direct_section, proof_plan_surface_sections,
+    proof_target_suffix, proof_wiring_section, proof_wiring_summary_section, public_evidence_label,
+    render_file_summaries, root_aware_expand, section, shell_quote_for_markdown, unknown_section,
+    unknown_where,
+};
+
 pub fn impact(report: &ImpactReport) {
     println!("# Structural Impact\n");
     map_snapshot_line();
@@ -30,7 +42,9 @@ fn render_impact_summary_lines(clusters: &[ImpactCluster]) {
         let verification_count = cluster
             .proof
             .iter()
-            .filter(|edge| !crate::proof_classification::proof_evidence_is_soft_match(&edge.evidence))
+            .filter(|edge| {
+                !crate::proof_classification::proof_evidence_is_soft_match(&edge.evidence)
+            })
             .count();
         let soft_count = cluster.proof.len().saturating_sub(verification_count);
         let soft_suffix = if soft_count > 0 {
@@ -64,7 +78,11 @@ fn render_impact_cluster(cluster: &ImpactCluster) {
         println!("{}", bullet(&cluster.reasons, false, Some(6)));
     }
     grouped_edge_list("direct consumers", &cluster.direct_consumers, 12);
-    grouped_edge_list("cross-boundary consumers", &cluster.cross_boundary_consumers, 12);
+    grouped_edge_list(
+        "cross-boundary consumers",
+        &cluster.cross_boundary_consumers,
+        12,
+    );
     grouped_edge_list("contract links", &cluster.contract_links, 12);
     grouped_edge_list("verification surfaces", &cluster.proof, 12);
 }
@@ -106,7 +124,9 @@ pub fn proof(report: &ProofReport, section_filter: Option<&str>) {
                 "\nNo changed anchors selected. `codemap proof changed` has no verification surface scope in a clean repo."
             );
         } else {
-            println!("\nNo verification surface found. Use `codemap cone <path>` to inspect edges first.");
+            println!(
+                "\nNo verification surface found. Use `codemap cone <path>` to inspect edges first."
+            );
         }
         println!("\n{}", report.run_hint);
         return;
@@ -148,9 +168,9 @@ fn proof_large_changed_compact(report: &ProofReport) -> bool {
         && (report.changed.len() > 5
             || (report.changed.len() > 3
                 && report
-                .hidden
-                .iter()
-                .any(|group| group.reason.contains("verification wiring") && group.count > 50))
+                    .hidden
+                    .iter()
+                    .any(|group| group.reason.contains("verification wiring") && group.count > 50))
             || report
                 .unknowns
                 .iter()
@@ -247,7 +267,11 @@ fn proof_links_section(report: &ProofReport) {
         );
         return;
     }
-    proof_wiring_section(&report.wiring, false, proof_wiring_expand(report).as_deref());
+    proof_wiring_section(
+        &report.wiring,
+        false,
+        proof_wiring_expand(report).as_deref(),
+    );
     if report.proofs.is_empty() {
         return;
     }
@@ -278,7 +302,9 @@ fn proof_links_section(report: &ProofReport) {
 
 fn proof_roles_section(report: &ProofReport) {
     println!("## Surface Hints\n");
-    disclaimer("Derived from deterministic path/name/extension/manifest patterns. Not intent, correctness, or ownership truth.");
+    disclaimer(
+        "Derived from deterministic path/name/extension/manifest patterns. Not intent, correctness, or ownership truth.",
+    );
     let runnable = report
         .proofs
         .iter()
@@ -371,7 +397,10 @@ fn proof_compact_unknowns_section(report: &ProofReport) {
     let mut grouped: std::collections::BTreeMap<&str, Vec<&Unknown>> =
         std::collections::BTreeMap::new();
     for unknown in &report.unknowns {
-        grouped.entry(unknown.kind.as_str()).or_default().push(unknown);
+        grouped
+            .entry(unknown.kind.as_str())
+            .or_default()
+            .push(unknown);
     }
     for (kind, unknowns) in grouped {
         let sample = unknowns
@@ -407,7 +436,7 @@ fn proof_hidden_section(report: &ProofReport) {
     hidden_section(&report.hidden);
 }
 
-fn proof_empty_section(title: &str, detail: &str) {
+pub(crate) fn proof_empty_section(title: &str, detail: &str) {
     println!("## {title}\n");
     println!("{detail}");
 }

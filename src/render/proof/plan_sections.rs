@@ -1,4 +1,11 @@
-fn proof_plan_surface_sections(report: &ProofReport, force: bool) {
+// Responsibility: render-proof-plan-sections
+use crate::model::{EvidenceLocation, ProofReport, ProofSurface};
+use crate::render::{
+    code, disclaimer, proof_empty_section, proof_target_suffix, public_evidence_label,
+    root_aware_expand,
+};
+
+pub(crate) fn proof_plan_surface_sections(report: &ProofReport, force: bool) {
     let runnable = report
         .proofs
         .iter()
@@ -123,7 +130,7 @@ fn proof_plan_surface_samples(report: &ProofReport, proofs: &[&ProofSurface]) {
 // Commands whose sensors have a direct structural link to the target/changed
 // files (importing/e2e tests, not soft/mediated matches). A fact, not a
 // recommendation or sufficiency verdict.
-fn proof_most_direct_section(report: &ProofReport) {
+pub(crate) fn proof_most_direct_section(report: &ProofReport) {
     let mut commands = std::collections::BTreeSet::new();
     for proof in &report.proofs {
         if crate::proof_classification::proof_surface_is_runnable_validation(proof)
@@ -149,7 +156,7 @@ fn proof_most_direct_section(report: &ProofReport) {
     }
 }
 
-fn proof_display_command(proof: &ProofSurface) -> String {
+pub(crate) fn proof_display_command(proof: &ProofSurface) -> String {
     let Some(command) = &proof.command else {
         return public_evidence_label(&proof.evidence);
     };
@@ -174,7 +181,7 @@ fn proof_display_command(proof: &ProofSurface) -> String {
     command.clone()
 }
 
-fn evidence_counts(proofs: &[&ProofSurface]) -> Vec<(String, usize)> {
+pub(crate) fn evidence_counts(proofs: &[&ProofSurface]) -> Vec<(String, usize)> {
     let mut counts = std::collections::BTreeMap::new();
     for proof in proofs {
         *counts
@@ -184,7 +191,7 @@ fn evidence_counts(proofs: &[&ProofSurface]) -> Vec<(String, usize)> {
     counts.into_iter().collect()
 }
 
-fn strength_counts(proofs: &[&ProofSurface]) -> Vec<(String, usize)> {
+pub(crate) fn strength_counts(proofs: &[&ProofSurface]) -> Vec<(String, usize)> {
     let mut counts = std::collections::BTreeMap::new();
     for proof in proofs {
         *counts
@@ -194,7 +201,7 @@ fn strength_counts(proofs: &[&ProofSurface]) -> Vec<(String, usize)> {
     counts.into_iter().collect()
 }
 
-fn proof_count_line(label: &str, counts: Vec<(String, usize)>) {
+pub(crate) fn proof_count_line(label: &str, counts: Vec<(String, usize)>) {
     if counts.is_empty() {
         return;
     }
@@ -206,7 +213,7 @@ fn proof_count_line(label: &str, counts: Vec<(String, usize)>) {
     println!("- {label}: {values}");
 }
 
-fn proof_detail_expand(report: &ProofReport, limit: usize) -> Option<String> {
+pub(crate) fn proof_detail_expand(report: &ProofReport, limit: usize) -> Option<String> {
     if let Some(target) = &report.target {
         return Some(format!(
             "codemap proof-map {} --raw-sensors --limit {limit}",
@@ -222,21 +229,21 @@ fn proof_detail_expand(report: &ProofReport, limit: usize) -> Option<String> {
     None
 }
 
-fn proof_changed_command_selector_suffix(report: &ProofReport) -> String {
+pub(crate) fn proof_changed_command_selector_suffix(report: &ProofReport) -> String {
     match report.selector.as_str() {
         "" | "changed" | "--changed" => String::new(),
         selector => format!(" {selector}"),
     }
 }
 
-fn proof_map_changed_selector(report: &ProofReport) -> String {
+pub(crate) fn proof_map_changed_selector(report: &ProofReport) -> String {
     match report.selector.as_str() {
         "" | "changed" | "--changed" => "--changed".to_string(),
         selector => selector.to_string(),
     }
 }
 
-fn shell_quote_for_markdown(value: &str) -> String {
+pub(crate) fn shell_quote_for_markdown(value: &str) -> String {
     if value
         .chars()
         .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '/' | '.' | '_' | '-' | '#'))
@@ -247,7 +254,7 @@ fn shell_quote_for_markdown(value: &str) -> String {
     }
 }
 
-fn proof_location_summary(locations: &[EvidenceLocation]) -> String {
+pub(crate) fn proof_location_summary(locations: &[EvidenceLocation]) -> String {
     let Some(first) = locations.first() else {
         return "unknown".to_string();
     };

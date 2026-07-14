@@ -1,4 +1,11 @@
-fn changed_links_section(report: &ChangedReport, compact: bool, force: bool) {
+// Responsibility: render-changed-sections
+use crate::model::{ChangedReport, ImpactCluster, Unknown};
+use crate::render::{
+    bullet, changed_common_dir_prefix, changed_relative_path, changed_render_limit,
+    changed_selector_suffix, grouped_edge_list, root_aware_expand, unknown_section, unknown_where,
+};
+
+pub(crate) fn changed_links_section(report: &ChangedReport, compact: bool, force: bool) {
     if report.impact.is_empty() {
         if force {
             println!("\n## Links\n");
@@ -26,7 +33,11 @@ fn changed_links_section(report: &ChangedReport, compact: bool, force: bool) {
             println!("{}", bullet(&cluster.reasons, false, Some(6)));
         }
         grouped_edge_list("direct consumers", &cluster.direct_consumers, 8);
-        grouped_edge_list("cross-boundary consumers", &cluster.cross_boundary_consumers, 8);
+        grouped_edge_list(
+            "cross-boundary consumers",
+            &cluster.cross_boundary_consumers,
+            8,
+        );
         grouped_edge_list("contract links", &cluster.contract_links, 8);
         if !cluster.proof.is_empty() {
             let (verification, soft) = changed_cluster_verification_counts(cluster);
@@ -58,9 +69,12 @@ fn changed_link_large_compact_summary(report: &ChangedReport) {
         .impact
         .iter()
         .map(changed_cluster_verification_counts)
-        .fold((0, 0), |(verification_total, soft_total), (verification, soft)| {
-            (verification_total + verification, soft_total + soft)
-        });
+        .fold(
+            (0, 0),
+            |(verification_total, soft_total), (verification, soft)| {
+                (verification_total + verification, soft_total + soft)
+            },
+        );
     println!(
         "- clusters: `{}` [direct={direct}; cross={cross}; contract={contract}; verification={verification}{}]",
         report.impact.len(),
@@ -125,7 +139,10 @@ fn changed_cluster_verification_counts(cluster: &ImpactCluster) -> (usize, usize
         .iter()
         .filter(|edge| !crate::proof_classification::proof_evidence_is_soft_match(&edge.evidence))
         .count();
-    (verification, cluster.proof.len().saturating_sub(verification))
+    (
+        verification,
+        cluster.proof.len().saturating_sub(verification),
+    )
 }
 
 fn changed_soft_suffix(soft: usize) -> String {
@@ -136,7 +153,7 @@ fn changed_soft_suffix(soft: usize) -> String {
     }
 }
 
-fn changed_unknown_section(report: &ChangedReport, force: bool, compact: bool) {
+pub(crate) fn changed_unknown_section(report: &ChangedReport, force: bool, compact: bool) {
     let values = &report.unknowns;
     if values.is_empty() {
         if force {
@@ -155,7 +172,10 @@ fn changed_unknown_section(report: &ChangedReport, force: bool, compact: bool) {
     let mut grouped: std::collections::BTreeMap<&str, Vec<&Unknown>> =
         std::collections::BTreeMap::new();
     for unknown in values {
-        grouped.entry(unknown.kind.as_str()).or_default().push(unknown);
+        grouped
+            .entry(unknown.kind.as_str())
+            .or_default()
+            .push(unknown);
     }
     for (kind, unknowns) in grouped {
         let sample = unknowns

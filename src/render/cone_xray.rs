@@ -1,4 +1,8 @@
-fn render_cone_xray(report: &ConeReport) {
+// Responsibility: render-cone-xray
+use crate::model::{ConeReport, StructuralEdge};
+use crate::render::{code, edge_location_summary, public_evidence_label, unknown_where};
+
+pub(crate) fn render_cone_xray(report: &ConeReport) {
     let xray = &report.xray;
     if xray.roles.is_empty()
         && xray.inputs.is_empty()
@@ -164,7 +168,9 @@ fn render_xray_proof_bucket(label: &str, edges: &[StructuralEdge]) {
     }
     let hidden = edges.len().saturating_sub(XRAY_PROOF_LIMIT);
     if hidden > 0 {
-        println!("- [Unknown] {hidden} more {label} verification sensors hidden by compact x-ray limit");
+        println!(
+            "- [Unknown] {hidden} more {label} verification sensors hidden by compact x-ray limit"
+        );
     }
 }
 
@@ -202,7 +208,7 @@ fn xray_surface_label(surface: &crate::model::Surface) -> &'static str {
     }
 }
 
-fn xray_edge_label(edge: &StructuralEdge) -> &'static str {
+pub(crate) fn xray_edge_label(edge: &StructuralEdge) -> &'static str {
     if edge.evidence.ends_with("_via_direct_consumer")
         || edge.evidence.ends_with("_via_direct_dependency")
         || edge.evidence.ends_with("_via_local_symbol_consumer")

@@ -1,4 +1,8 @@
-fn changed_compact_expand_section(report: &ChangedReport) {
+// Responsibility: render-changed-expand
+use crate::model::ChangedReport;
+use crate::render::root_aware_expand;
+
+pub(crate) fn changed_compact_expand_section(report: &ChangedReport) {
     if report.expand.is_empty() {
         return;
     }

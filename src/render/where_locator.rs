@@ -1,3 +1,11 @@
+// Responsibility: render-where-locator
+use crate::model::{WhereDefinition, WhereReport};
+use crate::render::{
+    disclaimer, edge_location_summary, grouped_edge_list, hidden_section, public_evidence_label,
+    render_cone_observed, render_cone_proof, render_cone_xray, root_aware_expand, section,
+    unknown_section, xray_edge_label,
+};
+
 pub fn where_locator(report: &WhereReport) {
     println!("# Structural Where\n");
     println!("Query: `{}`", report.query);
@@ -19,7 +27,9 @@ fn render_where_not_found(report: &WhereReport) {
     println!("No indexed definition matches this exact symbol name.");
     if !report.soft_suggestions.is_empty() {
         println!("\n## Soft Name Matches\n");
-        disclaimer("Soft substring matches over symbol names. Deterministic, not ranked, not an answer.");
+        disclaimer(
+            "Soft substring matches over symbol names. Deterministic, not ranked, not an answer.",
+        );
         for suggestion in &report.soft_suggestions {
             let more = if suggestion.definition_count > 1 {
                 format!(" (+{} more definitions)", suggestion.definition_count - 1)

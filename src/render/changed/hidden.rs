@@ -1,4 +1,8 @@
-fn changed_hidden_section(
+// Responsibility: render-changed-hidden
+use crate::model::ChangedReport;
+use crate::render::{changed_selector_suffix, hidden_section, root_aware_expand};
+
+pub(crate) fn changed_hidden_section(
     report: &ChangedReport,
     hidden: &[crate::model::HiddenGroup],
     force: bool,
@@ -24,7 +28,10 @@ fn changed_hidden_section(
         } else {
             String::new()
         };
-        println!("- hidden groups: `{}`; reasons: {reasons}{suffix}", hidden.len());
+        println!(
+            "- hidden groups: `{}`; reasons: {reasons}{suffix}",
+            hidden.len()
+        );
         println!(
             "  expand: `{}`",
             root_aware_expand(&format!(

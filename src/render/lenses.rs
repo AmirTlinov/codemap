@@ -1,3 +1,17 @@
+// Responsibility: render-lenses
+use crate::model::{
+    BoundaryMapReport, ContractReport, DeleteReport, DiffMapReport, EnvSurface, FlowReport,
+    PlaceReport, ProofMapReport, ProofSurface, RuntimeReport, RuntimeRoute, SiblingsReport,
+    Surface,
+};
+use crate::render::{
+    boundaries, code, code_block, cone_section, contract_exports_section, hidden_section,
+    map_snapshot_line, plain_section, proof_command_summary_section, proof_location_summary,
+    proof_surface_section, proof_wiring_summary_section, public_evidence_label,
+    public_surface_kind_label, root_aware_expand, section, shell_quote_for_markdown, table,
+    unknown_section,
+};
+
 pub fn diff_map(report: &DiffMapReport) {
     println!("# Diff Map\n");
     map_snapshot_line();
@@ -21,7 +35,10 @@ pub fn diff_map(report: &DiffMapReport) {
     env_section("Added Env", &report.added_env);
     env_section("Removed Env", &report.removed_env);
     proof_surface_section("Added Verification Surfaces", &report.added_proof_surfaces);
-    proof_surface_section("Removed Verification Surfaces", &report.removed_proof_surfaces);
+    proof_surface_section(
+        "Removed Verification Surfaces",
+        &report.removed_proof_surfaces,
+    );
     unknown_section(&report.new_unknowns);
     hidden_section(&report.hidden);
     section("Expand", &report.expand);
@@ -40,7 +57,10 @@ pub fn contract(report: &ContractReport) {
                     "Contract kind".to_string(),
                     public_evidence_label(&report.contract_kind),
                 ],
-                vec!["Public surface".to_string(), report.public_surface.to_string()],
+                vec![
+                    "Public surface".to_string(),
+                    report.public_surface.to_string()
+                ],
             ],
         )
     );
@@ -160,17 +180,28 @@ fn proof_map_surface_count(report: &ProofMapReport) -> usize {
 fn proof_map_compact_surface_summary(report: &ProofMapReport) {
     println!("\n## Verification Surfaces\n");
     println!("- runnable verification surfaces: `{}`", report.hard.len());
-    println!("- direct linked surfaces: `{}`", report.direct_evidence.len());
-    println!("- mediated linked surfaces: `{}`", report.mediated_evidence.len());
+    println!(
+        "- direct linked surfaces: `{}`",
+        report.direct_evidence.len()
+    );
+    println!(
+        "- mediated linked surfaces: `{}`",
+        report.mediated_evidence.len()
+    );
     println!("- soft surface matches: `{}`", report.soft_evidence.len());
     println!("- setup/support: `{}`", report.setup_support.len());
-    println!("- no direct linked surface: `{}`", report.missing_direct.len());
+    println!(
+        "- no direct linked surface: `{}`",
+        report.missing_direct.len()
+    );
     println!(
         "- expand: `{}`",
         root_aware_expand(&proof_map_wiring_expand(report))
     );
     if !report.soft_evidence.is_empty() {
-        println!("- soft surface matches are token/name/path overlap; they do not create direct linked verification surfaces.");
+        println!(
+            "- soft surface matches are token/name/path overlap; they do not create direct linked verification surfaces."
+        );
     }
     if !report.setup_support.is_empty() {
         println!("- setup/support surfaces are rails, not verification command surfaces.");
@@ -286,7 +317,10 @@ pub fn siblings(report: &SiblingsReport) {
     map_snapshot_line();
     println!("Scope: `{}`", report.scope);
     surface_section("Same Kind", &report.same_kind);
-    surface_section("Route/Service/Test Triplets", &report.route_service_test_triplets);
+    surface_section(
+        "Route/Service/Test Triplets",
+        &report.route_service_test_triplets,
+    );
     cone_section("Shared Helpers", &report.shared_helpers);
     cone_section("Shared Contracts", &report.shared_contracts);
     lens_proof_sensor_section("Verification Sensors", &report.proof_pattern);
@@ -405,7 +439,7 @@ fn env_section(title: &str, env: &[EnvSurface]) {
     }
 }
 
-fn render_file_summaries(title: &str, files: &[crate::model::FileSummary]) {
+pub(crate) fn render_file_summaries(title: &str, files: &[crate::model::FileSummary]) {
     if files.is_empty() {
         return;
     }

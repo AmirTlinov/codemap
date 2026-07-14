@@ -1,4 +1,7 @@
-fn proof_coverage_section(coverage: &crate::model::ProofCoverageSummary) {
+// Responsibility: render-proof-coverage
+use crate::render::root_aware_expand;
+
+pub(crate) fn proof_coverage_section(coverage: &crate::model::ProofCoverageSummary) {
     println!("\n## Changed Surface Coverage\n");
     println!("- changed files: `{}`", coverage.changed_count);
     println!(
@@ -10,10 +13,7 @@ fn proof_coverage_section(coverage: &crate::model::ProofCoverageSummary) {
         "- setup/support only: `{}`",
         coverage.setup_support_only.len()
     );
-    println!(
-        "- soft surface match only: `{}`",
-        coverage.soft_only.len()
-    );
+    println!("- soft surface match only: `{}`", coverage.soft_only.len());
     println!(
         "- no direct linked verification surface: `{}`",
         coverage.missing.len()

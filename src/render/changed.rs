@@ -1,3 +1,28 @@
+// Responsibility: changed-lens-rendering
+mod expand;
+mod hidden;
+mod proof;
+mod proof_soft;
+mod sections;
+mod structural;
+mod surface_hints;
+mod worktree;
+
+pub(crate) use expand::*;
+pub(crate) use hidden::*;
+pub(crate) use proof::*;
+pub(crate) use proof_soft::*;
+pub(crate) use sections::*;
+pub(crate) use structural::*;
+pub(crate) use surface_hints::*;
+pub(crate) use worktree::*;
+
+use crate::model::ChangedReport;
+use crate::render::{
+    boundary_facts_section, current_map_prelude, disclaimer, map_prelude_block_or_snapshot_line,
+    root_aware_expand, section,
+};
+
 pub fn changed(report: &ChangedReport, section_filter: Option<&str>) {
     println!("# Changed Map\n");
     map_prelude_block_or_snapshot_line();
@@ -75,7 +100,7 @@ pub fn changed(report: &ChangedReport, section_filter: Option<&str>) {
     }
 }
 
-const COMPACT_CHANGED_PROOF_COMMAND_LIMIT: usize = 3;
+pub(crate) const COMPACT_CHANGED_PROOF_COMMAND_LIMIT: usize = 3;
 
 fn changed_render_hidden(report: &ChangedReport, compact: bool) -> Vec<crate::model::HiddenGroup> {
     let mut hidden = report.hidden.clone();
@@ -107,7 +132,8 @@ fn changed_render_hidden(report: &ChangedReport, compact: bool) -> Vec<crate::mo
         let proof_group_count = changed_proof_command_groups(report).len();
         if proof_group_count > COMPACT_CHANGED_PROOF_COMMAND_LIMIT {
             hidden.push(crate::model::HiddenGroup {
-                reason: "runnable command surface groups hidden by compact changed view".to_string(),
+                reason: "runnable command surface groups hidden by compact changed view"
+                    .to_string(),
                 count: proof_group_count - COMPACT_CHANGED_PROOF_COMMAND_LIMIT,
                 expand: format!(
                     "codemap changed{} --section proof",
@@ -119,7 +145,7 @@ fn changed_render_hidden(report: &ChangedReport, compact: bool) -> Vec<crate::mo
     hidden
 }
 
-fn changed_render_limit(report: &ChangedReport, compact: bool) -> usize {
+pub(crate) fn changed_render_limit(report: &ChangedReport, compact: bool) -> usize {
     if compact && report.display_limit >= 30 {
         report.display_limit.min(5)
     } else {
@@ -270,7 +296,7 @@ fn changed_coupling_section(report: &ChangedReport, force: bool, compact: bool) 
     }
 }
 
-fn changed_preview_paths(paths: &[String], limit: usize) -> String {
+pub(crate) fn changed_preview_paths(paths: &[String], limit: usize) -> String {
     let shown = paths
         .iter()
         .take(limit)
@@ -334,7 +360,7 @@ fn visible_git_state_count(report: &ChangedReport, compact: bool) -> usize {
     changed_render_limit(report, compact).min(report.git_state.len())
 }
 
-fn changed_selector_suffix(selector: &str) -> String {
+pub(crate) fn changed_selector_suffix(selector: &str) -> String {
     if selector == "--changed" {
         String::new()
     } else {
@@ -403,14 +429,11 @@ fn changed_anchor_section(report: &ChangedReport, compact: bool) {
     }
 }
 
-fn changed_common_dir_prefix(paths: &[&str]) -> Option<String> {
+pub(crate) fn changed_common_dir_prefix(paths: &[&str]) -> Option<String> {
     if paths.len() < 2 {
         return None;
     }
-    let mut common = paths
-        .first()?
-        .split('/')
-        .collect::<Vec<_>>();
+    let mut common = paths.first()?.split('/').collect::<Vec<_>>();
     common.pop();
     for path in paths.iter().skip(1) {
         let mut segments = path.split('/').collect::<Vec<_>>();
@@ -428,7 +451,7 @@ fn changed_common_dir_prefix(paths: &[&str]) -> Option<String> {
     Some(format!("{}/", common.join("/")))
 }
 
-fn changed_relative_path(path: &str, prefix: Option<&str>) -> String {
+pub(crate) fn changed_relative_path(path: &str, prefix: Option<&str>) -> String {
     prefix
         .and_then(|prefix| path.strip_prefix(prefix))
         .unwrap_or(path)

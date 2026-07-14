@@ -1,9 +1,19 @@
-fn changed_proof_section(report: &ChangedReport, compact: bool, detailed_wiring: bool) {
+// Responsibility: render-changed-proof
+use crate::model::{ChangedReport, ProofSurface};
+use crate::render::{
+    COMPACT_CHANGED_PROOF_COMMAND_LIMIT, changed_proof_render_soft_summary,
+    changed_selector_suffix, code_block, evidence_counts, proof_count_line, proof_display_command,
+    proof_location_summary, proof_target_suffix, proof_wiring_section,
+    proof_wiring_summary_section, public_evidence_label, root_aware_expand, strength_counts,
+};
+
+pub(crate) fn changed_proof_section(report: &ChangedReport, compact: bool, detailed_wiring: bool) {
     println!("\n## Verification Surfaces");
     let runnable_grouped = changed_proof_command_groups(report);
     let setup_grouped = changed_proof_surface_groups(report.proof.setup_support.iter());
     let soft_grouped = changed_proof_surface_groups(report.proof.soft_evidence.iter());
-    let runnable = changed_proof_groups_by_class(&runnable_grouped, ChangedProofGroupClass::Runnable);
+    let runnable =
+        changed_proof_groups_by_class(&runnable_grouped, ChangedProofGroupClass::Runnable);
     let evidence_only = changed_proof_evidence_only_surfaces(report);
     let setup = changed_proof_groups_by_class(&setup_grouped, ChangedProofGroupClass::Setup);
     let soft = changed_proof_groups_by_class(&soft_grouped, ChangedProofGroupClass::Soft);
@@ -114,7 +124,7 @@ fn changed_proof_wiring_counts(report: &ChangedReport) {
     );
 }
 
-fn changed_proof_selector(selector: &str) -> String {
+pub(crate) fn changed_proof_selector(selector: &str) -> String {
     if selector == "--changed" {
         "changed".to_string()
     } else {
@@ -122,7 +132,7 @@ fn changed_proof_selector(selector: &str) -> String {
     }
 }
 
-fn changed_proof_evidence_only_surfaces(report: &ChangedReport) -> Vec<&ProofSurface> {
+pub(crate) fn changed_proof_evidence_only_surfaces(report: &ChangedReport) -> Vec<&ProofSurface> {
     let mut seen = std::collections::BTreeSet::new();
     let mut surfaces = Vec::new();
     for sensor in report
@@ -330,7 +340,7 @@ fn changed_proof_render_groups(
     }
 }
 
-fn changed_proof_command_groups(
+pub(crate) fn changed_proof_command_groups(
     report: &ChangedReport,
 ) -> std::collections::BTreeMap<String, (Vec<&ProofSurface>, usize)> {
     let mut grouped: std::collections::BTreeMap<String, (Vec<&ProofSurface>, usize)> =
@@ -365,7 +375,7 @@ fn changed_proof_command_groups(
     grouped
 }
 
-fn changed_proof_surface_groups<'a>(
+pub(crate) fn changed_proof_surface_groups<'a>(
     surfaces: impl Iterator<Item = &'a ProofSurface>,
 ) -> std::collections::BTreeMap<String, (Vec<&'a ProofSurface>, usize)> {
     let mut grouped: std::collections::BTreeMap<String, (Vec<&ProofSurface>, usize)> =
@@ -388,9 +398,11 @@ fn changed_proof_command_group_details(
 ) {
     if sensors.is_empty() {
         println!("- no sensor details");
-    } else if compact && sensors.iter().all(|sensor| {
-        crate::proof_classification::proof_surface_is_soft_evidence(sensor)
-    }) {
+    } else if compact
+        && sensors
+            .iter()
+            .all(|sensor| crate::proof_classification::proof_surface_is_soft_evidence(sensor))
+    {
         changed_proof_soft_group_summary(sensors);
     } else {
         println!("- sensors: `{}`", sensors.len());

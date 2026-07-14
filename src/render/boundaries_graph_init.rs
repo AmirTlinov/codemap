@@ -1,3 +1,7 @@
+// Responsibility: render-boundaries-graph-init
+use crate::model::{BoundaryFinding, GraphEdge, GraphLens};
+use crate::render::{bullet, code, escape_mermaid, mermaid_id, root_aware_expand, table};
+
 pub fn boundaries(findings: &[BoundaryFinding]) {
     println!("# Boundary Check\n");
     if findings.is_empty() {

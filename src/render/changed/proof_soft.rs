@@ -1,4 +1,8 @@
-fn changed_proof_render_soft_summary(
+// Responsibility: render-changed-proof-soft
+use crate::model::ProofSurface;
+use crate::render::{proof_location_summary, public_evidence_label, root_aware_expand};
+
+pub(crate) fn changed_proof_render_soft_summary(
     grouped: &[(&String, &(Vec<&ProofSurface>, usize))],
     selector: &str,
 ) {

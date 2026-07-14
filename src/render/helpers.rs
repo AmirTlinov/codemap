@@ -1,12 +1,16 @@
+// Responsibility: render-helpers
+use crate::model::{ProofSurface, StructuralEdge, Surface, Unknown};
+use crate::render::{brief, edge_location_summary, proof_location_summary, root_aware_expand};
+
 // Repeated provenance/boundary disclaimers. Agents internalize these once, so in
 // `--brief` mode they are suppressed to save tokens; the default keeps them.
-fn disclaimer(text: &str) {
+pub(crate) fn disclaimer(text: &str) {
     if !brief() {
         println!("{text}\n");
     }
 }
 
-fn section(title: &str, values: &[String]) {
+pub(crate) fn section(title: &str, values: &[String]) {
     if values.is_empty() {
         return;
     }
@@ -18,7 +22,7 @@ fn section(title: &str, values: &[String]) {
     println!("{}", bullet(&values, true, Some(20)));
 }
 
-fn plain_section(title: &str, values: &[String]) {
+pub(crate) fn plain_section(title: &str, values: &[String]) {
     if values.is_empty() {
         return;
     }
@@ -26,7 +30,7 @@ fn plain_section(title: &str, values: &[String]) {
     println!("{}", bullet(values, false, Some(20)));
 }
 
-fn unknown_section(values: &[Unknown]) {
+pub(crate) fn unknown_section(values: &[Unknown]) {
     if values.is_empty() {
         return;
     }
@@ -34,7 +38,10 @@ fn unknown_section(values: &[Unknown]) {
     let mut grouped: std::collections::BTreeMap<&str, Vec<&Unknown>> =
         std::collections::BTreeMap::new();
     for unknown in values {
-        grouped.entry(unknown.kind.as_str()).or_default().push(unknown);
+        grouped
+            .entry(unknown.kind.as_str())
+            .or_default()
+            .push(unknown);
     }
     for (kind, unknowns) in grouped {
         println!("- `{kind}`");
@@ -54,7 +61,7 @@ fn unknown_section(values: &[Unknown]) {
     }
 }
 
-fn proof_surface_section(title: &str, proofs: &[ProofSurface]) {
+pub(crate) fn proof_surface_section(title: &str, proofs: &[ProofSurface]) {
     if proofs.is_empty() {
         return;
     }
@@ -92,7 +99,7 @@ fn proof_surface_section(title: &str, proofs: &[ProofSurface]) {
     }
 }
 
-fn proof_command_summary_section(title: &str, proofs: &[ProofSurface]) {
+pub(crate) fn proof_command_summary_section(title: &str, proofs: &[ProofSurface]) {
     const COMMAND_SUMMARY_LIMIT: usize = 8;
 
     if proofs.is_empty() {
@@ -120,7 +127,7 @@ fn proof_command_summary_section(title: &str, proofs: &[ProofSurface]) {
     }
 }
 
-fn proof_target_suffix(proof: &ProofSurface) -> String {
+pub(crate) fn proof_target_suffix(proof: &ProofSurface) -> String {
     let Some(target) = proof.target_anchor.as_deref() else {
         return String::new();
     };
@@ -131,7 +138,7 @@ fn proof_target_suffix(proof: &ProofSurface) -> String {
     }
 }
 
-fn contract_exports_section(title: &str, surfaces: &[Surface]) {
+pub(crate) fn contract_exports_section(title: &str, surfaces: &[Surface]) {
     if surfaces.is_empty() {
         return;
     }
@@ -170,7 +177,7 @@ fn contract_exports_section(title: &str, surfaces: &[Surface]) {
     }
 }
 
-fn hidden_section(hidden: &[crate::model::HiddenGroup]) {
+pub(crate) fn hidden_section(hidden: &[crate::model::HiddenGroup]) {
     if hidden.is_empty() {
         return;
     }
@@ -181,7 +188,7 @@ fn hidden_section(hidden: &[crate::model::HiddenGroup]) {
     }
 }
 
-fn unknown_where(unknown: &Unknown) -> String {
+pub(crate) fn unknown_where(unknown: &Unknown) -> String {
     unknown
         .path
         .as_ref()
@@ -195,7 +202,7 @@ fn unknown_where(unknown: &Unknown) -> String {
         .unwrap_or_else(|| "none".to_string())
 }
 
-fn grouped_edge_list(title: &str, edges: &[StructuralEdge], limit: usize) {
+pub(crate) fn grouped_edge_list(title: &str, edges: &[StructuralEdge], limit: usize) {
     if edges.is_empty() {
         return;
     }
@@ -225,7 +232,7 @@ fn grouped_edge_list(title: &str, edges: &[StructuralEdge], limit: usize) {
     }
 }
 
-fn cone_section(title: &str, edges: &[StructuralEdge]) {
+pub(crate) fn cone_section(title: &str, edges: &[StructuralEdge]) {
     if edges.is_empty() {
         return;
     }
@@ -249,7 +256,7 @@ pub(crate) fn table(headers: &[&str], rows: Vec<Vec<String>>) -> String {
     out.join("\n")
 }
 
-fn bullet(values: &[String], code_style: bool, limit: Option<usize>) -> String {
+pub(crate) fn bullet(values: &[String], code_style: bool, limit: Option<usize>) -> String {
     let mut items: Vec<String> = values.to_vec();
     if let Some(limit) = limit
         && items.len() > limit
@@ -274,18 +281,18 @@ fn bullet(values: &[String], code_style: bool, limit: Option<usize>) -> String {
         .join("\n")
 }
 
-fn code(value: &str) -> String {
+pub(crate) fn code(value: &str) -> String {
     format!("`{value}`")
 }
 
-fn code_block(lang: &str, commands: &[String]) -> String {
+pub(crate) fn code_block(lang: &str, commands: &[String]) -> String {
     if commands.is_empty() {
         return format!("```{lang}\n# no command inferred\n```");
     }
     format!("```{lang}\n{}\n```", commands.join("\n"))
 }
 
-fn public_evidence_label(evidence: &str) -> String {
+pub(crate) fn public_evidence_label(evidence: &str) -> String {
     if evidence == "role_script_target" {
         return "script_surface_match".to_string();
     }
@@ -298,7 +305,7 @@ fn public_evidence_label(evidence: &str) -> String {
         .unwrap_or_else(|| evidence.to_string())
 }
 
-fn public_surface_kind_label(kind: &str) -> String {
+pub(crate) fn public_surface_kind_label(kind: &str) -> String {
     match kind {
         "missing_direct_proof" => "missing_direct_linked_surface".to_string(),
         "no_structural_proof_surface" => "no_structural_verification_surface".to_string(),
@@ -306,7 +313,7 @@ fn public_surface_kind_label(kind: &str) -> String {
     }
 }
 
-fn mermaid_id(value: &str) -> String {
+pub(crate) fn mermaid_id(value: &str) -> String {
     let body: String = value
         .chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
@@ -314,6 +321,6 @@ fn mermaid_id(value: &str) -> String {
     format!("n_{body}")
 }
 
-fn escape_mermaid(value: &str) -> String {
+pub(crate) fn escape_mermaid(value: &str) -> String {
     value.replace('"', "'").replace('\n', " ")
 }

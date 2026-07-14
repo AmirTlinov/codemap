@@ -1,3 +1,11 @@
+// Responsibility: render-ls-cone
+use crate::model::{ConeReport, LsReport, StructuralEdge};
+use crate::render::{
+    boundary_facts_section, bullet, code, cone_section, disclaimer, grouped_edge_list,
+    hidden_section, map_prelude_line_or_snapshot_line, public_evidence_label, render_cone_xray,
+    root_aware_expand, section, unknown_section,
+};
+
 pub fn ls(report: &LsReport, section_filter: Option<&str>) {
     println!("# Structural LS\n");
     map_prelude_line_or_snapshot_line();
@@ -23,7 +31,10 @@ pub fn ls(report: &LsReport, section_filter: Option<&str>) {
         grouped_edge_list("links", &report.edges, limit);
     }
     if matches!(section_filter, Some("proof")) {
-        render_empty_ls_section("Verification Surfaces", "Verification surfaces are not computed by ls.");
+        render_empty_ls_section(
+            "Verification Surfaces",
+            "Verification surfaces are not computed by ls.",
+        );
     }
     if matches!(section_filter, Some("unknown")) {
         let detail = if report.mode == "missing" {
@@ -89,7 +100,7 @@ pub fn cone(report: &ConeReport, section_filter: Option<&str>) {
     }
 }
 
-fn render_cone_proof(edges: &[StructuralEdge]) {
+pub(crate) fn render_cone_proof(edges: &[StructuralEdge]) {
     if edges.is_empty() {
         return;
     }
@@ -151,7 +162,7 @@ fn cone_edge_is_soft_proof(edge: &StructuralEdge) -> bool {
             ))
 }
 
-fn edge_location_summary(edge: &StructuralEdge) -> String {
+pub(crate) fn edge_location_summary(edge: &StructuralEdge) -> String {
     let Some(first) = edge.locations.first() else {
         return "unknown".to_string();
     };
@@ -215,7 +226,7 @@ fn render_anchor_summary(title: &str, anchor: &crate::model::FileSummary) {
     println!("- imported by: `{}`", anchor.imported_by_count);
 }
 
-fn render_cone_observed(report: &ConeReport) {
+pub(crate) fn render_cone_observed(report: &ConeReport) {
     render_anchor_summary("Observed", &report.anchor);
     render_declared_env_keys(&report.declared_env);
 }
@@ -295,7 +306,9 @@ fn render_ls_directory_roles(report: &LsReport) {
         return;
     }
     println!("\n## Surface Hints\n");
-    disclaimer("Derived from deterministic path/name/extension/manifest patterns. Not intent, correctness, or ownership truth.");
+    disclaimer(
+        "Derived from deterministic path/name/extension/manifest patterns. Not intent, correctness, or ownership truth.",
+    );
     for (role, count) in roles {
         println!("- `{role}`: `{count}` surfaces");
     }
@@ -312,11 +325,13 @@ fn render_roles(anchor: &crate::model::FileSummary) {
         return;
     }
     println!("\n## Surface Hints\n");
-    disclaimer("Derived from deterministic path/name/extension/manifest patterns. Not intent, correctness, or ownership truth.");
+    disclaimer(
+        "Derived from deterministic path/name/extension/manifest patterns. Not intent, correctness, or ownership truth.",
+    );
     println!("{}", bullet(&roles, true, None));
 }
 
-fn canonical_roles(anchor: &crate::model::FileSummary) -> Vec<String> {
+pub(crate) fn canonical_roles(anchor: &crate::model::FileSummary) -> Vec<String> {
     let mut roles = std::collections::BTreeSet::new();
     let local = anchor.roles.iter().map(String::as_str).collect::<Vec<_>>();
     let path = anchor.path.to_ascii_lowercase();
@@ -327,7 +342,10 @@ fn canonical_roles(anchor: &crate::model::FileSummary) -> Vec<String> {
                 "receipt" | "witness" | "fixture" | "generated" | "archive" | "build_output"
             )
         });
-    if local.iter().any(|role| matches!(*role, "test" | "e2e_test" | "test_support")) {
+    if local
+        .iter()
+        .any(|role| matches!(*role, "test" | "e2e_test" | "test_support"))
+    {
         roles.insert("test".to_string());
     }
     if local.contains(&"public_boundary") || anchor.kind == "public_boundary" {
@@ -413,7 +431,11 @@ fn canonical_roles(anchor: &crate::model::FileSummary) -> Vec<String> {
     if support_artifact_hint_path(&path) {
         roles.insert("witness".to_string());
     }
-    if path.contains("/dist/") || path.starts_with("dist/") || path.contains("/build/") || path.starts_with("build/") {
+    if path.contains("/dist/")
+        || path.starts_with("dist/")
+        || path.contains("/build/")
+        || path.starts_with("build/")
+    {
         roles.insert("build_output".to_string());
     }
     if path.ends_with(".md") && (path.contains("/contracts/") || path.contains("contract")) {

@@ -1,4 +1,8 @@
-fn proof_wiring_section(facts: &[ProofWiringFact], compact: bool, expand: Option<&str>) {
+// Responsibility: render-proof-wiring
+use crate::model::{EvidenceLocation, ProofWiringFact};
+use crate::render::{code, root_aware_expand};
+
+pub(crate) fn proof_wiring_section(facts: &[ProofWiringFact], compact: bool, expand: Option<&str>) {
     if facts.is_empty() {
         return;
     }
@@ -37,7 +41,7 @@ fn proof_wiring_section(facts: &[ProofWiringFact], compact: bool, expand: Option
     }
 }
 
-fn proof_wiring_summary_section(facts: &[ProofWiringFact], expand: Option<&str>) {
+pub(crate) fn proof_wiring_summary_section(facts: &[ProofWiringFact], expand: Option<&str>) {
     if facts.is_empty() || !proof_wiring_has_material_summary(facts) {
         return;
     }
@@ -45,7 +49,10 @@ fn proof_wiring_summary_section(facts: &[ProofWiringFact], expand: Option<&str>)
     let status = proof_wiring_status_summary(facts);
     match (status, expand) {
         (Some(status), Some(expand)) => {
-            println!("- status: {status}; expand: `{}`", root_aware_expand(expand));
+            println!(
+                "- status: {status}; expand: `{}`",
+                root_aware_expand(expand)
+            );
         }
         (Some(status), None) => println!("- status: {status}"),
         (None, Some(expand)) => println!("- expand: `{}`", root_aware_expand(expand)),

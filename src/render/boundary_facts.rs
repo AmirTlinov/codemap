@@ -1,4 +1,11 @@
-fn boundary_facts_section(facts: &crate::model::BoundaryFacts, force: bool, compact: bool) {
+// Responsibility: render-boundary-facts
+use crate::render::{code, disclaimer, public_evidence_label};
+
+pub(crate) fn boundary_facts_section(
+    facts: &crate::model::BoundaryFacts,
+    force: bool,
+    compact: bool,
+) {
     if boundary_facts_empty(facts) {
         if force {
             println!("\n## Boundary Facts\n");
@@ -65,7 +72,11 @@ fn boundary_fact_group(
     }
     println!("{title}:");
     for fact in facts.iter().take(8) {
-        println!("- `{}` [{}]", fact.path, public_evidence_label(&fact.evidence));
+        println!(
+            "- `{}` [{}]",
+            fact.path,
+            public_evidence_label(&fact.evidence)
+        );
         println!("  effect: {}", fact.effect);
     }
     let hidden = facts.len().saturating_sub(8);
