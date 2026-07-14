@@ -1,3 +1,4 @@
+// Responsibility: project-inventory-and-fact-primitives
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
@@ -6,20 +7,24 @@ use serde::{Deserialize, Serialize};
 pub type ImportBindingMap = BTreeMap<String, String>;
 pub type ImportBindingsBySpec = BTreeMap<String, ImportBindingMap>;
 
-mod boundary_facts;
+mod boundary;
+mod changed_reports;
+mod cone_reports;
 mod config;
 mod lens_reports;
 mod prelude;
-mod proof_coverage;
-mod proof_wiring;
+mod proof_reports;
+mod structure_reports;
 mod teach_reports;
 
-pub use boundary_facts::*;
+pub use boundary::*;
+pub use changed_reports::*;
+pub use cone_reports::*;
 pub use config::*;
 pub use lens_reports::*;
 pub use prelude::*;
-pub use proof_coverage::*;
-pub use proof_wiring::*;
+pub use proof_reports::*;
+pub use structure_reports::*;
 pub use teach_reports::*;
 
 #[derive(Debug, Clone, Serialize)]
@@ -208,20 +213,6 @@ pub struct Unknown {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct LsReport {
-    pub kind: &'static str,
-    pub schema_version: &'static str,
-    pub path: String,
-    pub mode: String,
-    pub anchor: Option<FileSummary>,
-    pub directory: Vec<DirectorySurface>,
-    pub boundary_facts: BoundaryFacts,
-    pub edges: Vec<StructuralEdge>,
-    pub hidden: Vec<HiddenGroup>,
-    pub next: Vec<String>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FileSummary {
     pub path: String,
     pub kind: String,
@@ -233,51 +224,6 @@ pub struct FileSummary {
     pub exports: Vec<String>,
     pub imports: Vec<String>,
     pub imported_by_count: usize,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct DirectorySurface {
-    pub id: String,
-    pub kind: String,
-    pub path: Option<String>,
-    pub role: Option<String>,
-    pub evidence: String,
-    pub strength: EvidenceStrength,
-    pub count: usize,
-    pub examples: Vec<String>,
-    pub hidden_count: usize,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ProofReport {
-    pub kind: &'static str,
-    pub schema_version: &'static str,
-    pub target: Option<String>,
-    pub changed: Vec<String>,
-    #[serde(skip_serializing)]
-    pub selector: String,
-    #[serde(skip_serializing)]
-    pub risk: String,
-    pub proofs: Vec<ProofSurface>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub coverage: Option<ProofCoverageSummary>,
-    pub wiring: Vec<ProofWiringFact>,
-    pub fallback: Vec<String>,
-    pub unknowns: Vec<Unknown>,
-    pub hidden: Vec<HiddenGroup>,
-    pub expand: Vec<String>,
-    pub run_hint: String,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct ProofSurface {
-    pub command: Option<String>,
-    pub path: Option<String>,
-    pub target_anchor: Option<String>,
-    pub evidence: String,
-    pub strength: EvidenceStrength,
-    pub reason: String,
-    pub locations: Vec<EvidenceLocation>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -369,44 +315,4 @@ pub struct CacheArtifactStatus {
     pub exists: bool,
     pub bytes: Option<u64>,
     pub fingerprint_match: Option<bool>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct BoundaryFinding {
-    pub from: String,
-    pub to: String,
-    pub status: String,
-    pub reason: String,
-    pub recovery: Vec<String>,
-    pub provenance: String,
-    pub strength: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct BoundaryReport {
-    pub kind: &'static str,
-    pub schema_version: &'static str,
-    pub findings: Vec<BoundaryFinding>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct GraphLens {
-    pub kind: &'static str,
-    pub schema_version: &'static str,
-    pub domain: DomainRef,
-    pub lens: String,
-    pub nodes: Vec<String>,
-    pub edges: Vec<GraphEdge>,
-    pub hidden: Vec<HiddenGroup>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct GraphEdge {
-    pub from: String,
-    pub to: String,
-    #[serde(rename = "type")]
-    pub edge_type: String,
-    pub evidence: String,
-    pub strength: EvidenceStrength,
-    pub locations: Vec<EvidenceLocation>,
 }
