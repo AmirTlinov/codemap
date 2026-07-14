@@ -50,7 +50,7 @@ fn cone_directory_report(
         &mut hidden,
         include_hidden,
         limit,
-        "directory proof edges hidden by limit",
+        "directory verification edges hidden by limit",
         &format!(
             "codemap cone {} --depth {depth} --all",
             shell_quote(rel)

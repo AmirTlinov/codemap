@@ -91,7 +91,7 @@ fn proof_map_schema_unknowns_match_exact_proof_unknowns() {
         assert!(
             proof_kinds.iter().any(|value| value == kind)
                 && proof_map_kinds.iter().any(|value| value == kind),
-            "schema unknown `{kind}` should be visible in proof and proof-map: proof={proof:#} proof_map={proof_map:#}"
+            "schema unknown `{kind}` should be visible in proof and proof-map: proof_json={proof:#} proof_map_json={proof_map:#}"
         );
     }
 }
@@ -105,7 +105,7 @@ fn changed_writes_reusable_compact_proof_map_cache() {
     );
 
     let _ = run_lens_stdout(repo.path(), cache.path(), &["changed", "--limit", "1"]);
-    let proof_map = run_lens_stdout(
+    let proof_map = run_lens_stdout_with_cache_telemetry(
         repo.path(),
         cache.path(),
         &["proof-map", "--changed", "--limit", "1"],
@@ -130,7 +130,7 @@ fn changed_proof_section_writes_reusable_compact_proof_map_cache() {
         cache.path(),
         &["changed", "--section", "proof", "--limit", "1"],
     );
-    let proof_map = run_lens_stdout(
+    let proof_map = run_lens_stdout_with_cache_telemetry(
         repo.path(),
         cache.path(),
         &["proof-map", "--changed", "--limit", "1"],
@@ -397,4 +397,21 @@ fn proof_map_keyed_artifact_count(cache_root: &Path) -> usize {
                 .is_some_and(|name| name.starts_with("proof-map-") && name.ends_with(".json"))
         })
         .count()
+}
+
+fn run_lens_stdout_with_cache_telemetry(repo: &Path, cache: &Path, args: &[&str]) -> String {
+    let output = codemap()
+        .current_dir(repo)
+        .env("CODEMAP_CACHE_DIR", cache)
+        .env("CODEMAP_CACHE_TELEMETRY", "1")
+        .args(args)
+        .output()
+        .expect("codemap should run");
+    assert!(
+        output.status.success(),
+        "codemap {:?} failed: {}",
+        args,
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout).expect("utf8 stdout")
 }

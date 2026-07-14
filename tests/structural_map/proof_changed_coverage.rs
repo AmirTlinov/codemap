@@ -22,10 +22,10 @@ fn proof_changed_renders_coverage_summary_and_gaps() {
     assert!(
         coverage["runnable_deterministic"]
             .as_array()
-            .expect("runnable deterministic")
+            .expect("compatible runnable bucket")
             .iter()
             .any(|entry| entry["path"] == "packages/replay/src/direct-proof.ts"),
-        "proof changed should mark direct test imports as runnable deterministic coverage: {proof:#}"
+        "proof changed JSON should keep direct test imports in the compatible runnable_deterministic bucket: {proof:#}"
     );
     assert!(
         coverage["missing"]
@@ -34,7 +34,7 @@ fn proof_changed_renders_coverage_summary_and_gaps() {
             .iter()
             .any(|entry| entry["path"] == "packages/replay/src/no-proof.ts"
                 && entry["kind"] == "direct_deterministic_proof_not_found"),
-        "proof changed should keep missing direct proof gaps by changed path: {proof:#}"
+        "proof changed JSON should keep compatible missing direct-link gaps by changed path: {proof:#}"
     );
 
     let output = codemap()
@@ -50,9 +50,9 @@ fn proof_changed_renders_coverage_summary_and_gaps() {
     );
     let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
     assert!(
-        markdown.contains("\n## Coverage\n")
-            && markdown.contains("- runnable deterministic: `1`")
-            && markdown.contains("- missing direct proof: `1`")
+        markdown.contains("\n## Changed Surface Coverage\n")
+            && markdown.contains("- runnable command surface: `1`")
+            && markdown.contains("- no direct linked verification surface: `1`")
             && markdown.contains("packages/replay/src/direct-proof.ts")
             && markdown.contains("packages/replay/src/no-proof.ts")
             && markdown.contains(
@@ -123,4 +123,49 @@ fn write_many_staged_files(root: &std::path::Path, count: usize) {
         );
     }
     git(root, &["add", "packages/replay/src"]);
+}
+
+#[test]
+fn proof_changed_most_direct_commands_reflect_direct_links_only() {
+    // A file with a direct importing test surfaces a most-direct command, framed
+    // as a fact (not a recommendation).
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("packages/replay/src/direct-cmd.ts"),
+        "export function directCmd() {\n  return 1;\n}\n",
+    );
+    write(
+        &repo.path().join("packages/replay/tests/direct-cmd.test.ts"),
+        "import { directCmd } from '../src/direct-cmd';\n\ntest('d', () => {\n  expect(directCmd()).toBe(1);\n});\n",
+    );
+    let with_direct = proof_changed_markdown(repo.path(), cache.path());
+    assert!(
+        with_direct.contains("## Most-Direct Commands")
+            && with_direct.contains("Not a sufficiency verdict, not a recommendation"),
+        "a direct test import should surface a fact-framed most-direct command: {with_direct}"
+    );
+
+    // A docs-only change with no direct verification link must not invent one.
+    let (repo2, cache2) = fixture();
+    write(&repo2.path().join("README.md"), "# changed docs\n");
+    let docs_only = proof_changed_markdown(repo2.path(), cache2.path());
+    assert!(
+        !docs_only.contains("## Most-Direct Commands"),
+        "a change with no direct verification link must not show a most-direct command: {docs_only}"
+    );
+}
+
+fn proof_changed_markdown(repo: &std::path::Path, cache: &std::path::Path) -> String {
+    let output = codemap()
+        .current_dir(repo)
+        .env("CODEMAP_CACHE_DIR", cache)
+        .args(["proof", "changed"])
+        .output()
+        .expect("proof changed should run");
+    assert!(
+        output.status.success(),
+        "proof changed failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout).expect("utf8")
 }

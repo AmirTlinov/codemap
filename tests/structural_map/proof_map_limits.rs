@@ -36,7 +36,7 @@ fn proof_map_counts_hidden_direct_surfaces_before_limit() {
             .as_array()
             .expect("hidden")
             .iter()
-            .any(|group| group["reason"] == "hard proof surfaces hidden by limit"
+            .any(|group| group["reason"] == "runnable verification surfaces hidden by limit"
                 && group["count"] == 2
                 && group["expand"]
                     == "codemap proof-map packages/replay/src/multi-proof.ts --limit 3"),

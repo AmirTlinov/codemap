@@ -54,7 +54,7 @@ fn proof_wiring_facts_limited(
             target_anchor: None,
             evidence: "fallback_command".to_string(),
             strength: EvidenceStrength::Medium,
-            reason: "fallback command is broad structural proof, not direct proof".to_string(),
+            reason: "fallback command is a broad structural verification surface, not a direct linked surface".to_string(),
             locations: vec![EvidenceLocation::aggregate("fallback_command")],
         };
         push_unique_proof_wiring(
@@ -148,8 +148,8 @@ fn proof_surface_wiring_facts(
             ("declared_command", "soft"),
             subject,
             proof.path.clone(),
-            "proof surface relation is token/name/path overlap",
-            "soft evidence does not close deterministic proof wiring or remove Unknown entries",
+            "verification surface relation is token/name/path overlap",
+            "soft surface match does not create direct verification wiring or remove Unknown entries",
             proof.locations.clone(),
             proof_wiring_expand_for_proof(selector, proof),
         ));
@@ -160,8 +160,8 @@ fn proof_surface_wiring_facts(
             ("declared_command", "missing"),
             subject,
             proof.path.clone(),
-            "proof surface has no runnable command",
-            "this remains evidence only; it does not close deterministic proof wiring",
+            "verification surface has no runnable command",
+            "this remains a linked surface only; it does not create direct verification wiring",
             proof.locations.clone(),
             proof_wiring_expand_for_proof(selector, proof),
         ));
@@ -172,7 +172,7 @@ fn proof_surface_wiring_facts(
         ("declared_command", "wired"),
         command.clone(),
         proof.path.clone(),
-        "proof surface declares a command",
+        "verification surface declares a command",
         "command declaration is visible, but later wiring stages still decide whether it resolves",
         proof.locations.clone(),
         proof_wiring_expand_for_proof(selector, proof),

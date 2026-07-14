@@ -29,7 +29,11 @@ fn changed_links_section(report: &ChangedReport, compact: bool, force: bool) {
         grouped_edge_list("cross-boundary consumers", &cluster.cross_boundary_consumers, 8);
         grouped_edge_list("contract links", &cluster.contract_links, 8);
         if !cluster.proof.is_empty() {
-            println!("proof links: {}", cluster.proof.len());
+            let (verification, soft) = changed_cluster_verification_counts(cluster);
+            println!("verification links: {verification}");
+            if soft > 0 {
+                println!("soft links: {soft}");
+            }
         }
     }
 }
@@ -50,14 +54,17 @@ fn changed_link_large_compact_summary(report: &ChangedReport) {
         .iter()
         .map(|cluster| cluster.contract_links.len())
         .sum::<usize>();
-    let proof = report
+    let (verification, soft) = report
         .impact
         .iter()
-        .map(|cluster| cluster.proof.len())
-        .sum::<usize>();
+        .map(changed_cluster_verification_counts)
+        .fold((0, 0), |(verification_total, soft_total), (verification, soft)| {
+            (verification_total + verification, soft_total + soft)
+        });
     println!(
-        "- clusters: `{}` [direct={direct}; cross={cross}; contract={contract}; proof={proof}]",
-        report.impact.len()
+        "- clusters: `{}` [direct={direct}; cross={cross}; contract={contract}; verification={verification}{}]",
+        report.impact.len(),
+        changed_soft_suffix(soft),
     );
     println!(
         "- expand: `{}`",
@@ -84,13 +91,15 @@ fn changed_link_summary_lines(report: &ChangedReport, limit: usize) {
             .strip_prefix("changed:")
             .map(|path| changed_relative_path(path, prefix.as_deref()))
             .unwrap_or_else(|| cluster.id.clone());
+        let (verification, soft) = changed_cluster_verification_counts(cluster);
         println!(
-            "- `{}` [direct={}; cross={}; contract={}; proof={}]",
+            "- `{}` [direct={}; cross={}; contract={}; verification={}{}]",
             label,
             cluster.direct_consumers.len(),
             cluster.cross_boundary_consumers.len(),
             cluster.contract_links.len(),
-            cluster.proof.len()
+            verification,
+            changed_soft_suffix(soft)
         );
         if !cluster.reasons.is_empty() {
             println!("  facts: {}", cluster.reasons.join("; "));
@@ -107,6 +116,23 @@ fn changed_link_summary_lines(report: &ChangedReport, limit: usize) {
                 clusters.len()
             ))
         );
+    }
+}
+
+fn changed_cluster_verification_counts(cluster: &ImpactCluster) -> (usize, usize) {
+    let verification = cluster
+        .proof
+        .iter()
+        .filter(|edge| !crate::proof_classification::proof_evidence_is_soft_match(&edge.evidence))
+        .count();
+    (verification, cluster.proof.len().saturating_sub(verification))
+}
+
+fn changed_soft_suffix(soft: usize) -> String {
+    if soft > 0 {
+        format!("; soft={soft}")
+    } else {
+        String::new()
     }
 }
 

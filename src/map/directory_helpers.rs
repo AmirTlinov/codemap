@@ -229,7 +229,6 @@ fn directory_role_surface(project: &Project, dir: &str) -> Option<String> {
         "fixture",
         "schema_contract",
         "build_ci",
-        "docs",
         "test",
         "repo_discovery",
         "cache",

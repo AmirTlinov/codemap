@@ -46,6 +46,11 @@ fn public_json_reports_validate_against_manifest_schemas() {
             allow_failure: false,
         },
         PublicJsonReport {
+            manifest_kind: "where",
+            args: &["where", "seek", "--format", "json"],
+            allow_failure: false,
+        },
+        PublicJsonReport {
             manifest_kind: "graph",
             args: &["graph", "--lens", "causal", "--format", "json"],
             allow_failure: false,

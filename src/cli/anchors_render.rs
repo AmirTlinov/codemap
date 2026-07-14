@@ -25,7 +25,7 @@ fn anchors_markdown(report: &AnchorValidation) {
                     report.summary.verification_defaults.to_string()
                 ],
                 vec![
-                    "Proof changed".to_string(),
+                    "Verification surfaces for changed paths".to_string(),
                     report.summary.proof_changed_commands.to_string()
                 ],
             ],
@@ -147,7 +147,7 @@ mod tests {
             unknowns: Vec::new(),
             hidden: Vec::new(),
             expand: Vec::new(),
-            run_hint: "codemap proof prints only by default; use --run to execute proof commands"
+            run_hint: "codemap proof prints a verification surface plan by default; use --run to execute rendered commands"
                 .to_string(),
         };
 
@@ -186,7 +186,7 @@ mod tests {
             unknowns: Vec::new(),
             hidden: Vec::new(),
             expand: Vec::new(),
-            run_hint: "codemap proof prints only by default; use --run to execute proof commands"
+            run_hint: "codemap proof prints a verification surface plan by default; use --run to execute rendered commands"
                 .to_string(),
         };
 
@@ -335,7 +335,7 @@ mod tests {
             full_only_if_triggered: Vec::new(),
         };
 
-        let commands = planned_run_commands(&plan, false).expect("safe proof commands");
+        let commands = planned_run_commands(&plan, false).expect("safe verification commands");
 
         assert_eq!(
             commands,

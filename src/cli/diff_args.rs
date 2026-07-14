@@ -34,7 +34,7 @@ fn impact_inputs(
     }
     if let Some(since) = &args.since {
         return Ok((
-            repo::changed_files(&project.root, false, Some(since)),
+            since_delta_or_git_ref(project, since),
             format!("--since {}", shell_quote_arg(since)),
         ));
     }
@@ -68,20 +68,28 @@ fn diff_map_inputs(
         ));
     }
     if let Some(since) = &args.since {
-        return Ok((
-            repo::changed_files(&project.root, false, Some(since)),
-            format!("--since {}", shell_quote_arg(since)),
-            map::DiffMapMode::Since(since.clone()),
-        ));
+        let (changed, mode) = match classify_since(project, since) {
+            SinceKind::Snapshot { changed, .. } => (changed, map::DiffMapMode::WorkingTree),
+            _ => (
+                repo::changed_files(&project.root, false, Some(since)),
+                map::DiffMapMode::Since(since.clone()),
+            ),
+        };
+        return Ok((changed, format!("--since {}", shell_quote_arg(since)), mode));
     }
     let files = parse_files(project, args.files.as_deref(), &args.positional_files)?;
     Ok((files.clone(), files_selector(&files), map::DiffMapMode::WorkingTree))
 }
 
-fn changed_inputs(
-    project: &crate::model::Project,
-    args: &ChangedArgs,
-) -> Result<(Vec<String>, String, map::DiffMapMode, Vec<crate::model::GitChange>)> {
+type ChangedInputs = (
+    Vec<String>,
+    String,
+    map::DiffMapMode,
+    Vec<crate::model::GitChange>,
+    Option<crate::model::Unknown>,
+);
+
+fn changed_inputs(project: &crate::model::Project, args: &ChangedArgs) -> Result<ChangedInputs> {
     ensure_single_diff_selector(
         args.changed,
         args.staged,
@@ -97,17 +105,33 @@ fn changed_inputs(
             "--staged".to_string(),
             map::DiffMapMode::Staged,
             git_state,
+            None,
         ));
     }
     if let Some(since) = &args.since {
-        let changed = repo::changed_files(&project.root, false, Some(since));
-        let git_state = repo::git_changes(&project.root, false, Some(since));
-        return Ok((
-            changed,
-            format!("--since {}", shell_quote_arg(since)),
-            map::DiffMapMode::Since(since.clone()),
-            git_state,
-        ));
+        return Ok(match classify_since(project, since) {
+            SinceKind::Snapshot { changed, git_state } => (
+                changed,
+                format!("--since {}", shell_quote_arg(since)),
+                map::DiffMapMode::WorkingTree,
+                git_state,
+                None,
+            ),
+            SinceKind::GitRef => (
+                repo::changed_files(&project.root, false, Some(since)),
+                format!("--since {}", shell_quote_arg(since)),
+                map::DiffMapMode::Since(since.clone()),
+                repo::git_changes(&project.root, false, Some(since)),
+                None,
+            ),
+            SinceKind::FailOpen => (
+                repo::changed_files(&project.root, false, None),
+                "--changed".to_string(),
+                map::DiffMapMode::WorkingTree,
+                repo::git_changes(&project.root, false, None),
+                Some(snapshot_not_found_unknown(since)),
+            ),
+        });
     }
     let explicit = parse_files(project, args.files.as_deref(), &args.positional_files)?;
     if !explicit.is_empty() {
@@ -131,6 +155,7 @@ fn changed_inputs(
             format!("--files {selector}"),
             map::DiffMapMode::WorkingTree,
             git_state,
+            None,
         ));
     }
     let changed = repo::changed_files(&project.root, false, None);
@@ -140,6 +165,7 @@ fn changed_inputs(
         "--changed".to_string(),
         map::DiffMapMode::WorkingTree,
         git_state,
+        None,
     ))
 }
 
@@ -235,7 +261,7 @@ fn proof_map_inputs(
     if let Some(since) = &args.since {
         return Ok((
             None,
-            repo::changed_files(&project.root, false, Some(since)),
+            since_delta_or_git_ref(project, since),
             format!("--since {}", shell_quote_arg(since)),
         ));
     }
@@ -255,36 +281,41 @@ fn proof_map_inputs(
     Ok((None, files, format!("--files {files_arg}")))
 }
 
-fn proof_inputs(
-    project: &crate::model::Project,
-    args: &ProofArgs,
-) -> Result<(Option<String>, Vec<String>, String)> {
+type ProofInputs = (
+    Option<String>,
+    Vec<String>,
+    String,
+    Option<crate::model::Unknown>,
+);
+
+fn proof_inputs(project: &crate::model::Project, args: &ProofArgs) -> Result<ProofInputs> {
     ensure_single_proof_selector(args)?;
     if let Some(target) = args.target.as_deref() {
         if target == "changed" {
+            if let Some(since) = &args.since {
+                return Ok(proof_since_inputs(project, since));
+            }
             return Ok((
                 None,
                 repo::changed_files(&project.root, false, None),
                 "changed".to_string(),
+                None,
             ));
         }
         let target = project_relative_arg(project, target)?;
         let selector = shell_quote_arg(&target);
-        return Ok((Some(target), Vec::new(), selector));
+        return Ok((Some(target), Vec::new(), selector, None));
     }
     if args.staged {
         return Ok((
             None,
             repo::changed_files(&project.root, true, None),
             "--staged".to_string(),
+            None,
         ));
     }
     if let Some(since) = &args.since {
-        return Ok((
-            None,
-            repo::changed_files(&project.root, false, Some(since)),
-            format!("--since {}", shell_quote_arg(since)),
-        ));
+        return Ok(proof_since_inputs(project, since));
     }
     let files = parse_files(project, args.files.as_deref(), &[])?;
     if !files.is_empty() {
@@ -293,7 +324,7 @@ fn proof_inputs(
             .map(|file| shell_quote_arg(file))
             .collect::<Vec<_>>()
             .join(",");
-        return Ok((None, files, format!("--files {files_arg}")));
+        return Ok((None, files, format!("--files {files_arg}"), None));
     }
     bail!("codemap proof needs an exact target, changed, --staged, --since, or --files");
 }
@@ -307,8 +338,11 @@ fn ensure_single_proof_selector(args: &ProofArgs) -> Result<()> {
         .as_deref()
         .map(|value| !value.trim().is_empty())
         .unwrap_or(false);
+    // `proof changed --since <token>` is one selector: proof over the since-delta.
+    let target_is_changed_since =
+        args.target.as_deref() == Some("changed") && args.since.is_some();
     let count = [
-        args.target.is_some(),
+        args.target.is_some() && !target_is_changed_since,
         args.staged,
         args.since.is_some(),
         explicit_files,

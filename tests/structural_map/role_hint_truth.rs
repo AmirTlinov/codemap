@@ -56,6 +56,50 @@ fn rust_text_renderers_do_not_become_renderer_ui_from_render_path() {
             .any(|role| role == "renderer_ui"),
         "Rust text renderers must not become renderer_ui from render path: {ls:#}"
     );
+    assert!(
+        !ls["anchor"]["roles"]
+            .as_array()
+            .expect("roles")
+            .iter()
+            .any(|role| role == "map_surface"),
+        "Rust text renderers must not become map_surface from generic `changed` wording: {ls:#}"
+    );
+}
+
+#[test]
+fn nested_agent_bootstrap_does_not_turn_source_dirs_into_docs_surfaces() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(&repo.path().join("src/cli/AGENTS.md"), "# CLI Bootstrap\n");
+    write(&repo.path().join("src/render/AGENTS.md"), "# Render Bootstrap\n");
+    write(
+        &repo.path().join("src/cli/args.rs"),
+        "pub struct CliArgs;\n",
+    );
+    write(
+        &repo.path().join("src/render/changed.rs"),
+        "pub fn render_changed_text() {}\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "nested agent docs"]);
+
+    let ls = run_json(repo.path(), cache.path(), &["ls", "src", "--format", "json"]);
+    assert_schema("schemas/ls.schema.json", &ls);
+    let directory = ls["directory"].as_array().expect("directory");
+    assert!(
+        !directory.iter().any(|surface| {
+            surface["kind"] == "docs"
+                && surface["examples"]
+                    .as_array()
+                    .expect("examples")
+                    .iter()
+                    .any(|example| example == "src/cli/" || example == "src/render/")
+        }),
+        "nested AGENTS.md files should remain instruction/doc files, not make source dirs docs surfaces: {ls:#}"
+    );
 }
 
 #[test]
@@ -187,6 +231,9 @@ fn current_public_docs_do_not_restore_role_or_coverage_verdict_wording() {
     for forbidden in [
         "mutation roles",
         "proof coverage surfaces",
+        "hard proof",
+        "missing direct proof",
+        "proof surfaces it can justify",
         "roles prove",
         "Role patterns",
         "Unclassified Source Files",
@@ -199,5 +246,9 @@ fn current_public_docs_do_not_restore_role_or_coverage_verdict_wording() {
     assert!(
         public_docs.contains("Surface Hints"),
         "public docs should teach the compatibility section as Surface Hints"
+    );
+    assert!(
+        public_docs.contains("verification surface map"),
+        "public docs should define proof/proof-map as verification surface output, not proof verdicts"
     );
 }

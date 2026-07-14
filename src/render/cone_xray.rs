@@ -138,14 +138,14 @@ fn render_xray_proof(xray: &crate::model::XrayCard) {
     {
         return;
     }
-    println!("Proof Sensors:");
-    render_xray_proof_bucket("Hard", &xray.proof_hard);
+    println!("Verification Sensors:");
+    render_xray_proof_bucket("Runnable", &xray.proof_hard);
     render_xray_proof_bucket("Direct", &xray.proof_direct);
     render_xray_proof_bucket("Mediated", &xray.proof_mediated);
     render_xray_proof_bucket("Soft", &xray.proof_soft);
     if !xray.proof_soft.is_empty() {
         println!(
-            "- [Unknown] soft proof evidence is name/path/token overlap; it is not runnable proof"
+            "- [Unknown] soft surface matches are name/path/token overlap; they are not runnable command surfaces"
         );
     }
 }
@@ -164,7 +164,7 @@ fn render_xray_proof_bucket(label: &str, edges: &[StructuralEdge]) {
     }
     let hidden = edges.len().saturating_sub(XRAY_PROOF_LIMIT);
     if hidden > 0 {
-        println!("- [Unknown] {hidden} more {label} proof sensors hidden by compact x-ray limit");
+        println!("- [Unknown] {hidden} more {label} verification sensors hidden by compact x-ray limit");
     }
 }
 

@@ -102,7 +102,7 @@ pub fn contract_report(
         &mut hidden,
         include_hidden,
         limit,
-        "contract proof edges hidden by limit",
+        "contract verification edges hidden by limit",
         &include_hidden_expand,
     );
     let mut unknowns = project

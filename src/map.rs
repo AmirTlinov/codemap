@@ -14,7 +14,8 @@ use crate::model::{
     HiddenGroup, ImpactCluster, ImpactReport, LsReport, PackageDependency, PlaceReport, Project,
     ProofCoverageSummary, ProofCoveredPath, ProofGap, ProofMapReport, ProofReport, ProofSurface,
     ProofWiringFact, Risk, RuntimeReport, RuntimeRoute, SiblingsReport, StructuralEdge, Surface,
-    TeachProofCommand, TeachReport, TeachRolePattern, Unknown, VerificationPlan, XrayCard,
+    TeachProofCommand, TeachReport, TeachRolePattern, Unknown, VerificationPlan, WhereDefinition,
+    WhereReport, WhereSuggestion, XrayCard,
 };
 use crate::repo;
 
@@ -44,6 +45,7 @@ include!("map/proof_edges.rs");
 include!("map/directory_helpers.rs");
 include!("map/symbol_summary.rs");
 include!("map/symbol_edges.rs");
+include!("map/where_locator.rs");
 include!("map/symbol_body_refs.rs");
 include!("map/jsx_and_exports.rs");
 include!("map/js_export_scan.rs");

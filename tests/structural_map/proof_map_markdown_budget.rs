@@ -35,7 +35,7 @@ fn proof_map_runnable_command_summary_stays_bounded() {
     assert!(output.status.success());
     let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
     let runnable = markdown
-        .split("## Runnable Commands")
+        .split("## Runnable Command Surfaces")
         .nth(1)
         .and_then(|section| section.split("\n## ").next())
         .expect("runnable commands section");
@@ -45,7 +45,7 @@ fn proof_map_runnable_command_summary_stays_bounded() {
         .count();
     assert!(
         visible_commands <= 8,
-        "proof-map runnable command summary should stay bounded; visible={visible_commands}: {markdown}"
+        "proof-map runnable command surface summary should stay bounded; visible={visible_commands}: {markdown}"
     );
     assert!(
         runnable.contains("- hidden runnable commands: `"),

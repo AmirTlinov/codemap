@@ -9,16 +9,25 @@ use crate::model::{
     DiffMapReport, EnvSurface, EvidenceLocation, FlowReport, GraphEdge, GraphLens, ImpactCluster,
     ImpactReport, LsReport, MapPrelude, PlaceReport, ProofMapReport, ProofReport, ProofSurface,
     ProofWiringFact, RuntimeReport, RuntimeRoute, SiblingsReport, StructuralEdge, Surface,
-    TeachReport, Unknown,
+    TeachReport, Unknown, WhereDefinition, WhereReport,
 };
 
 static EXPAND_ROOT: OnceLock<String> = OnceLock::new();
 static MAP_SNAPSHOT: OnceLock<String> = OnceLock::new();
+static BRIEF: OnceLock<bool> = OnceLock::new();
 
 pub fn set_expand_root(root: Option<&Path>) {
     if let Some(root) = root {
         let _ = EXPAND_ROOT.set(root.to_string_lossy().to_string());
     }
+}
+
+pub fn set_brief(value: bool) {
+    let _ = BRIEF.set(value);
+}
+
+fn brief() -> bool {
+    BRIEF.get().copied().unwrap_or(false)
 }
 
 pub fn set_map_snapshot(project: &crate::model::Project) {
@@ -59,6 +68,16 @@ pub fn set_inventory_map_snapshot_parts(root: &Path, fingerprint: Option<&str>, 
     );
 }
 
+// Cache telemetry (state/strategy/external_cache/location) is debug-only: agents
+// never need the cache path or fingerprint provenance. It is opt-in on the snapshot
+// line via CODEMAP_CACHE_TELEMETRY=1 and otherwise stays only in the `doctor` and
+// `status` tables.
+fn cache_telemetry_enabled() -> bool {
+    std::env::var("CODEMAP_CACHE_TELEMETRY").is_ok_and(|value| !value.is_empty() && value != "0")
+}
+
+// The snapshot token is the full per-file fingerprint; it doubles as the
+// `--since` delta token (see cache::snapshots).
 fn set_map_snapshot_full(
     root: &Path,
     fingerprint: Option<&str>,
@@ -67,30 +86,45 @@ fn set_map_snapshot_full(
     cache_location: Option<&str>,
 ) {
     let fingerprint = fingerprint.unwrap_or("unknown");
-    let short_fingerprint = fingerprint.get(..12).unwrap_or(fingerprint);
-    let head = map_snapshot_git_head(root).unwrap_or_else(|| "none".to_string());
-    let branch = map_snapshot_git_branch(root).unwrap_or_else(|| "unknown".to_string());
-    let dirty = map_snapshot_dirty_count(root).unwrap_or(0);
-    let cache_state = cache_state.unwrap_or("unknown");
-    let cache_strategy = cache_strategy.unwrap_or("unknown");
-    let external_cache = if crate::cache::cache_enabled() {
-        "enabled"
+    let snapshot = fingerprint.get(..16).unwrap_or(fingerprint);
+    let line = if brief() {
+        format!("Map Snapshot: snapshot=`{snapshot}`; schema=`structural:5`; repo_footprint=`zero`")
     } else {
-        "disabled"
+        let head = map_snapshot_git_head(root).unwrap_or_else(|| "none".to_string());
+        let branch = map_snapshot_git_branch(root).unwrap_or_else(|| "unknown".to_string());
+        let dirty = map_snapshot_dirty_count(root).unwrap_or(0);
+        if cache_telemetry_enabled() {
+            let short_fingerprint = fingerprint.get(..12).unwrap_or(fingerprint);
+            let external_cache = if crate::cache::cache_enabled() {
+                "enabled"
+            } else {
+                "disabled"
+            };
+            format!(
+                "Map Snapshot: root=`{}`; head=`{}`; branch=`{}`; dirty=`{}`; snapshot=`{}`; fingerprint=`{}`; cache=`{}` strategy=`{}` external_cache=`{}` location=`{}`; schema=`structural:5`; repo_footprint=`zero`",
+                root.to_string_lossy(),
+                head,
+                branch,
+                dirty,
+                snapshot,
+                short_fingerprint,
+                cache_state.unwrap_or("unknown"),
+                cache_strategy.unwrap_or("unknown"),
+                external_cache,
+                cache_location.unwrap_or("unknown"),
+            )
+        } else {
+            format!(
+                "Map Snapshot: root=`{}`; head=`{}`; branch=`{}`; dirty=`{}`; snapshot=`{}`; schema=`structural:5`; repo_footprint=`zero`",
+                root.to_string_lossy(),
+                head,
+                branch,
+                dirty,
+                snapshot
+            )
+        }
     };
-    let cache_location = cache_location.unwrap_or("unknown");
-    let _ = MAP_SNAPSHOT.set(format!(
-        "Map Snapshot: root=`{}`; head=`{}`; branch=`{}`; dirty=`{}`; fingerprint=`{}`; cache=`{}` strategy=`{}` external_cache=`{}` location=`{}`; schema=`structural:5`; repo_footprint=`zero`",
-        root.to_string_lossy(),
-        head,
-        branch,
-        dirty,
-        short_fingerprint,
-        cache_state,
-        cache_strategy,
-        external_cache,
-        cache_location
-    ));
+    let _ = MAP_SNAPSHOT.set(line);
 }
 
 fn map_snapshot_git_head(root: &Path) -> Option<String> {

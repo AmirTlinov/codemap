@@ -27,7 +27,7 @@ fn resolve_proof_command_fact(
             ("runner", "wired"),
             command.to_string(),
             proof.path.clone(),
-            format!("runner `{}` is a known static proof runner", parsed.runner),
+            format!("runner `{}` is a known static verification runner", parsed.runner),
             "runner is structurally recognized; codemap did not execute it",
             proof.locations.clone(),
             proof_wiring_expand_for_proof(selector, proof),
@@ -57,7 +57,7 @@ fn resolve_make_like_command(
             command.to_string(),
             proof.path.clone(),
             "make/just command has no target token",
-            "declared proof command cannot resolve to a target",
+            "declared verification command cannot resolve to a target",
             proof.locations.clone(),
             proof_wiring_expand_for_proof(selector, proof),
         );
@@ -72,7 +72,7 @@ fn resolve_make_like_command(
             command.to_string(),
             script.path.clone(),
             format!("{} target `{target}` is declared", parsed.runner),
-            "declared proof command resolves to a local target; codemap did not run it",
+            "declared verification command resolves to a local target; codemap did not run it",
             script
                 .path
                 .as_ref()
@@ -90,7 +90,7 @@ fn resolve_make_like_command(
         command.to_string(),
         proof.path.clone(),
         format!("{} target `{target}` was not found", parsed.runner),
-        "declared proof command references a missing local target",
+        "declared verification command references a missing local target",
         proof.locations.clone(),
         Some("codemap ls . --section links".to_string()),
     )
@@ -119,7 +119,7 @@ fn resolve_package_command(
                 command.to_string(),
                 Some(package.manifest.clone()),
                 format!("package script `{name}` resolves to `{body}`"),
-                "declared proof command resolves through the package manifest; codemap did not run it",
+                "declared verification command resolves through the package manifest; codemap did not run it",
                 vec![EvidenceLocation::line(&package.manifest, line, "package_script")],
                 Some(format!("codemap cone {} --depth 2", shell_quote(&package.manifest))),
             );
@@ -129,7 +129,7 @@ fn resolve_package_command(
             command.to_string(),
             Some(package.manifest.clone()),
             format!("package script `{script_name}` was not found"),
-            "declared proof command references a missing package script",
+            "declared verification command references a missing package script",
             vec![EvidenceLocation::path(&package.manifest, "package_manifest")],
             Some(format!("codemap cone {} --depth 2", shell_quote(&package.manifest))),
         );

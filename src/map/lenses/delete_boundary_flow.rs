@@ -109,7 +109,7 @@ pub fn delete_report(
         checklist.push("remove or update package public exports shown above".to_string());
     }
     if !tests.is_empty() {
-        checklist.push("update direct proof surfaces shown above".to_string());
+        checklist.push("update direct linked verification surfaces shown above".to_string());
     }
     if !runtime_refs.is_empty() {
         checklist.push("inspect runtime references shown above".to_string());
@@ -371,7 +371,7 @@ pub fn flow_report(
         &mut hidden,
         include_hidden,
         limit,
-        "flow proof edges hidden by limit",
+        "flow verification edges hidden by limit",
         &include_hidden_expand,
     );
     truncate_with_hidden(

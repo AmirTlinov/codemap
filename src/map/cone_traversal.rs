@@ -46,7 +46,7 @@ fn cone_symbol_report(
         &mut hidden,
         include_hidden,
         limit,
-        "symbol proof edges hidden by limit",
+        "symbol verification edges hidden by limit",
         &format!(
             "codemap cone {} --all",
             shell_quote(&anchor_path)

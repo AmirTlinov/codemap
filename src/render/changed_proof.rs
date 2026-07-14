@@ -1,5 +1,5 @@
 fn changed_proof_section(report: &ChangedReport, compact: bool, detailed_wiring: bool) {
-    println!("\n## Proof");
+    println!("\n## Verification Surfaces");
     let runnable_grouped = changed_proof_command_groups(report);
     let setup_grouped = changed_proof_surface_groups(report.proof.setup_support.iter());
     let soft_grouped = changed_proof_surface_groups(report.proof.soft_evidence.iter());
@@ -12,35 +12,29 @@ fn changed_proof_section(report: &ChangedReport, compact: bool, detailed_wiring:
         return;
     }
     if runnable.is_empty() && report.proof.fallback.is_empty() {
-        println!("No runnable proof command inferred.");
+        println!("No runnable command surface found for this slice.");
     }
     changed_proof_render_groups(&runnable, compact, &report.selector);
     if !evidence_only.is_empty() {
-        println!("\n## Evidence Surfaces");
+        println!("\n## Linked Surfaces");
         changed_proof_render_evidence_surfaces(&evidence_only, compact, &report.selector);
-        if !compact {
-            println!(
-                "\nEvidence surfaces are source-backed links without a runnable command. They do not replace runnable proof commands or remove Unknown entries."
-            );
-        }
+        println!(
+            "\nLinked surfaces are source-backed relations without a runnable command. They do not replace runnable command surfaces or remove Unknown entries."
+        );
     }
     if !setup.is_empty() {
         println!("\n## Setup / Support Surfaces");
         changed_proof_render_groups(&setup, compact, &report.selector);
-        if !compact {
-            println!(
-                "\nSetup/support surfaces are connected rails such as install, codegen, migration, seed, deploy, release, watch, or dev-server steps. They are not validation proof and are not run by `--run`."
-            );
-        }
+        println!(
+            "\nSetup/support surfaces are connected rails such as install, codegen, migration, seed, deploy, release, watch, or dev-server steps. They are not verification command surfaces and are not run by `--run`."
+        );
     }
     if !soft.is_empty() {
-        println!("\n## Soft Evidence");
-        changed_proof_render_groups(&soft, compact, &report.selector);
-        if !compact {
-            println!(
-                "\nSoft evidence is token/name/path surface overlap. It does not replace deterministic proof or remove Unknown entries."
-            );
-        }
+        println!("\n## Soft Surface Matches");
+        changed_proof_render_soft_summary(&soft, &report.selector);
+        println!(
+            "\nSoft surface matches are token/name/path overlap. They do not create a direct linked verification surface or remove Unknown entries."
+        );
     }
     if !report.proof.fallback.is_empty() {
         println!("\n### Fallback");
@@ -84,11 +78,11 @@ fn changed_proof_large_compact_summary(
             .map(|(command, _)| format!("`{command}`"))
             .collect::<Vec<_>>()
             .join(", ");
-        println!("- proof commands: {commands}");
+        println!("- runnable command surfaces: {commands}");
     }
     if runnable.len() > visible_group_count {
         let hidden_command_groups = runnable.len() - visible_group_count;
-        println!("- hidden proof command groups: `{hidden_command_groups}`");
+        println!("- hidden runnable command surface groups: `{hidden_command_groups}`");
     }
     println!(
         "- expand: `{}`",
@@ -325,7 +319,7 @@ fn changed_proof_render_groups(
     }
     if compact && total_group_count > visible_group_count {
         let hidden_command_groups = total_group_count - visible_group_count;
-        println!("\n- hidden proof command groups: `{hidden_command_groups}`");
+        println!("\n- hidden runnable command surface groups: `{hidden_command_groups}`");
         println!(
             "  expand: `{}`",
             root_aware_expand(&format!(
@@ -462,7 +456,7 @@ fn changed_proof_class_line(sensors: &[&ProofSurface]) {
         .count();
     if evidence > 0 || setup > 0 || soft > 0 {
         println!(
-            "- proof class: `runnable: {runnable}`, `evidence: {evidence}`, `setup_support: {setup}`, `soft_evidence: {soft}`"
+            "- surface class: `runnable: {runnable}`, `linked: {evidence}`, `setup_support: {setup}`, `soft_match: {soft}`"
         );
     }
 }

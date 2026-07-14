@@ -125,6 +125,7 @@ fn cold_large_root_ls_uses_bounded_inventory_map() {
     let markdown = codemap()
         .current_dir(repo.path())
         .env("CODEMAP_CACHE_DIR", cache.path())
+        .env("CODEMAP_CACHE_TELEMETRY", "1")
         .args(["ls", "."])
         .output()
         .expect("cold root ls markdown should run");

@@ -28,8 +28,15 @@ fn daily_workflow_markdown_stays_compact_and_non_ritualistic() {
     }
 
     let proof = run_markdown(repo.path(), cache.path(), &["proof", "changed"]);
+    // `Most-Direct Commands` deliberately echoes direct commands as a top-of-output
+    // summary; the detailed Runnable section must still group sensors by command
+    // instead of repeating one.
+    let runnable_detail = proof
+        .split_once("## Runnable Command Surfaces")
+        .map(|(_, rest)| rest)
+        .unwrap_or(proof.as_str());
     assert!(
-        proof.matches("vitest run").count() <= 1,
+        runnable_detail.matches("vitest run").count() <= 1,
         "proof should group sensors by command instead of repeating the same command: {proof}"
     );
 }
@@ -171,8 +178,8 @@ fn public_markdown_does_not_leak_internal_role_evidence_labels() {
         );
     }
     assert!(
-        siblings.contains("## Proof Sensors"),
-        "siblings markdown should use neutral source-backed proof sensor wording: {siblings}"
+        siblings.contains("## Verification Sensors"),
+        "siblings markdown should use neutral source-backed verification sensor wording: {siblings}"
     );
 }
 
@@ -196,10 +203,10 @@ fn soft_script_matches_render_under_soft_evidence() {
 
     let markdown = run_markdown(repo.path(), cache.path(), &["siblings", ".storybook"]);
     assert!(
-        markdown.contains("## Soft Evidence")
+        markdown.contains("## Soft Surface Matches")
             && markdown.contains("script_surface_match")
-            && !markdown.contains("## Proof Sensors"),
-        "script/path overlap should render as soft evidence, not as deterministic proof: {markdown}"
+            && !markdown.contains("## Verification Sensors"),
+        "script/path overlap should render as soft surface matches, not as runnable verification: {markdown}"
     );
 }
 

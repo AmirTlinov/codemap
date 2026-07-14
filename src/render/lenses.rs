@@ -20,8 +20,8 @@ pub fn diff_map(report: &DiffMapReport) {
     runtime_routes_section("Removed Runtime Routes", &report.removed_runtime_routes);
     env_section("Added Env", &report.added_env);
     env_section("Removed Env", &report.removed_env);
-    proof_surface_section("Added Proof Surfaces", &report.added_proof_surfaces);
-    proof_surface_section("Removed Proof Surfaces", &report.removed_proof_surfaces);
+    proof_surface_section("Added Verification Surfaces", &report.added_proof_surfaces);
+    proof_surface_section("Removed Verification Surfaces", &report.removed_proof_surfaces);
     unknown_section(&report.new_unknowns);
     hidden_section(&report.hidden);
     section("Expand", &report.expand);
@@ -49,7 +49,7 @@ pub fn contract(report: &ContractReport) {
     cone_section("Producers", &report.producers);
     cone_section("Consumers", &report.consumers);
     cone_section("Cross Package Consumers", &report.cross_package_consumers);
-    cone_section("Proof", &report.proof);
+    cone_section("Verification Surfaces", &report.proof);
     unknown_section(&report.unknowns);
     hidden_section(&report.hidden);
     section("Expand", &report.expand);
@@ -65,14 +65,14 @@ pub fn runtime(report: &RuntimeReport) {
     env_section("Env", &report.env);
     surface_section("Workers", &report.workers);
     surface_section("CI", &report.ci);
-    cone_section("Proof", &report.proof);
+    cone_section("Verification Surfaces", &report.proof);
     unknown_section(&report.unknowns);
     hidden_section(&report.hidden);
     section("Expand", &report.expand);
 }
 
 pub fn proof_map(report: &ProofMapReport) {
-    println!("# Proof Map\n");
+    println!("# Verification Surface Map\n");
     map_snapshot_line();
     if let Some(scope) = &report.scope {
         println!("Scope: `{scope}`");
@@ -85,14 +85,14 @@ pub fn proof_map(report: &ProofMapReport) {
     } else {
         proof_map_surface_sections(report);
     }
-    surface_section("Missing Direct", &report.missing_direct);
+    surface_section("No Direct Linked Surface", &report.missing_direct);
     let runnable_commands = report
         .commands
         .iter()
         .filter(|proof| crate::proof_classification::proof_surface_is_runnable_validation(proof))
         .cloned()
         .collect::<Vec<_>>();
-    proof_command_summary_section("Runnable Commands", &runnable_commands);
+    proof_command_summary_section("Runnable Command Surfaces", &runnable_commands);
     proof_wiring_summary_section(&report.wiring, Some(&proof_map_wiring_expand(report)));
     if !report.fallback.is_empty() {
         println!("\n## Fallback\n");
@@ -158,44 +158,44 @@ fn proof_map_surface_count(report: &ProofMapReport) -> usize {
 }
 
 fn proof_map_compact_surface_summary(report: &ProofMapReport) {
-    println!("\n## Proof Surfaces\n");
-    println!("- hard proof: `{}`", report.hard.len());
-    println!("- direct evidence: `{}`", report.direct_evidence.len());
-    println!("- mediated evidence: `{}`", report.mediated_evidence.len());
-    println!("- soft evidence: `{}`", report.soft_evidence.len());
+    println!("\n## Verification Surfaces\n");
+    println!("- runnable verification surfaces: `{}`", report.hard.len());
+    println!("- direct linked surfaces: `{}`", report.direct_evidence.len());
+    println!("- mediated linked surfaces: `{}`", report.mediated_evidence.len());
+    println!("- soft surface matches: `{}`", report.soft_evidence.len());
     println!("- setup/support: `{}`", report.setup_support.len());
-    println!("- missing direct: `{}`", report.missing_direct.len());
+    println!("- no direct linked surface: `{}`", report.missing_direct.len());
     println!(
         "- expand: `{}`",
         root_aware_expand(&proof_map_wiring_expand(report))
     );
     if !report.soft_evidence.is_empty() {
-        println!("- soft evidence is token/name/path overlap; it does not close deterministic proof gaps.");
+        println!("- soft surface matches are token/name/path overlap; they do not create direct linked verification surfaces.");
     }
     if !report.setup_support.is_empty() {
-        println!("- setup/support surfaces are rails, not validation proof.");
+        println!("- setup/support surfaces are rails, not verification command surfaces.");
     }
 }
 
 fn proof_map_surface_sections(report: &ProofMapReport) {
-    proof_surface_section("Hard Proof", &report.hard);
-    proof_surface_section("Direct Evidence", &report.direct_evidence);
-    proof_surface_section("Mediated Evidence", &report.mediated_evidence);
-    proof_surface_section("Soft Token Evidence", &report.soft_evidence);
+    proof_surface_section("Runnable Verification Surfaces", &report.hard);
+    proof_surface_section("Direct Linked Surfaces", &report.direct_evidence);
+    proof_surface_section("Mediated Linked Surfaces", &report.mediated_evidence);
+    proof_surface_section("Soft Surface Matches", &report.soft_evidence);
     proof_surface_section("Setup / Support Surfaces", &report.setup_support);
     if !report.mediated_evidence.is_empty() {
         println!(
-            "\nMediated evidence is connected through a direct consumer, dependency, symbol consumer, barrel, or runtime bridge. It does not replace direct proof or remove Unknown entries."
+            "\nMediated linked surfaces are connected through a direct consumer, dependency, symbol consumer, barrel, or runtime bridge. They do not replace a direct linked verification surface or remove Unknown entries."
         );
     }
     if !report.soft_evidence.is_empty() {
         println!(
-            "\nSoft token evidence is token/name/path surface overlap. It does not replace deterministic proof or remove Unknown entries."
+            "\nSoft surface matches are token/name/path overlap. They do not create a direct linked verification surface or remove Unknown entries."
         );
     }
     if !report.setup_support.is_empty() {
         println!(
-            "\nSetup/support surfaces are connected rails such as install, codegen, migration, seed, deploy, release, watch, or dev-server steps. They are not validation proof."
+            "\nSetup/support surfaces are connected rails such as install, codegen, migration, seed, deploy, release, watch, or dev-server steps. They are not verification command surfaces."
         );
     }
 }
@@ -275,7 +275,7 @@ pub fn flow(report: &FlowReport) {
     }
     surface_section("Side Effects", &report.side_effects);
     cone_section("Contracts", &report.contracts);
-    cone_section("Proof", &report.proof);
+    cone_section("Verification Surfaces", &report.proof);
     unknown_section(&report.unknown_breaks);
     hidden_section(&report.hidden);
     section("Expand", &report.expand);
@@ -289,7 +289,7 @@ pub fn siblings(report: &SiblingsReport) {
     surface_section("Route/Service/Test Triplets", &report.route_service_test_triplets);
     cone_section("Shared Helpers", &report.shared_helpers);
     cone_section("Shared Contracts", &report.shared_contracts);
-    lens_proof_sensor_section("Proof Sensors", &report.proof_pattern);
+    lens_proof_sensor_section("Verification Sensors", &report.proof_pattern);
     unknown_section(&report.unknowns);
     hidden_section(&report.hidden);
     section("Expand", &report.expand);
@@ -302,7 +302,7 @@ pub fn place(report: &PlaceReport) {
     println!("Kind: `{}`", report.requested_kind);
     surface_section("Existing Surfaces", &report.existing_surfaces);
     plain_section("Local Conventions", &report.local_conventions);
-    lens_proof_sensor_section("Paired Proof Sensors", &report.paired_proof_pattern);
+    lens_proof_sensor_section("Paired Verification Sensors", &report.paired_proof_pattern);
     cone_section("Shared Contracts", &report.shared_contracts);
     unknown_section(&report.unknowns);
     hidden_section(&report.hidden);
@@ -322,7 +322,7 @@ fn surface_section(title: &str, surfaces: &[Surface]) {
             .unwrap_or_else(|| "aggregate".to_string());
         println!(
             "- {label} [{}; {}; {}]",
-            surface.kind,
+            public_surface_kind_label(&surface.kind),
             public_evidence_label(&surface.evidence),
             format!("{:?}", surface.strength).to_ascii_lowercase()
         );
@@ -349,14 +349,14 @@ fn lens_proof_sensor_section(title: &str, proofs: &[ProofSurface]) {
         .iter()
         .all(crate::proof_classification::proof_surface_is_soft_evidence)
     {
-        "Soft Evidence"
+        "Soft Surface Matches"
     } else {
         title
     };
     proof_surface_section(title, proofs);
-    if title == "Soft Evidence" {
+    if title == "Soft Surface Matches" {
         println!(
-            "\nSoft evidence is token/name/path surface overlap. It does not replace deterministic proof or remove Unknown entries."
+            "\nSoft surface matches are token/name/path overlap. They do not create a direct linked verification surface or remove Unknown entries."
         );
     }
 }

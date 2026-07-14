@@ -178,12 +178,12 @@ pub fn changed_report(
             added_proof_surfaces: count_with_hidden(
                 diff.added_proof_surfaces.len(),
                 &diff.hidden,
-                "added proof surfaces hidden by limit",
+                "added verification surfaces hidden by limit",
             ),
             removed_proof_surfaces: count_with_hidden(
                 diff.removed_proof_surfaces.len(),
                 &diff.hidden,
-                "removed proof surfaces hidden by limit",
+                "removed verification surfaces hidden by limit",
             ),
             new_unknowns: count_with_hidden(
                 diff.new_unknowns.len(),

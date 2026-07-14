@@ -25,6 +25,32 @@ fn runtime_scope_files<'a>(
     (current_level, hidden)
 }
 
+// On the root scope, still extract routes from nested files — the most
+// signal-bearing, low-volume runtime category — so an agent gets an overview
+// without a second round. Entrypoints stay current-level (package containers)
+// because they are high-volume; other nested runtime files stay hidden in
+// `hidden_scope_count`.
+fn extend_root_nested_routes<'a>(
+    project: &'a Project,
+    current_level: &[&'a FileInfo],
+    routes: &mut Vec<RuntimeRoute>,
+    proof: &mut Vec<StructuralEdge>,
+) {
+    let current: BTreeSet<&str> = current_level.iter().map(|file| file.rel.as_str()).collect();
+    let nested: Vec<&FileInfo> = files_under_directory(project, ".")
+        .into_iter()
+        .filter(|file| !current.contains(file.rel.as_str()))
+        .collect();
+    let facts = runtime_fact_index_for_files(project, nested.iter().copied());
+    for file in &nested {
+        let file_routes = facts.routes_for_file(&file.rel);
+        for route in &file_routes {
+            proof.extend(route_reference_edges_with_index(project, route, &facts));
+        }
+        routes.extend(file_routes);
+    }
+}
+
 fn dedupe_runtime_entrypoints(values: Vec<Surface>) -> Vec<Surface> {
     let manifest_targets = values
         .iter()

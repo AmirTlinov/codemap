@@ -2,7 +2,7 @@ fn proof_wiring_section(facts: &[ProofWiringFact], compact: bool, expand: Option
     if facts.is_empty() {
         return;
     }
-    println!("\n## Proof Wiring");
+    println!("\n## Verification Wiring");
     proof_wiring_status_counts(facts);
     let limit = if compact { 6 } else { 14 };
     for fact in facts.iter().take(limit) {
@@ -41,7 +41,7 @@ fn proof_wiring_summary_section(facts: &[ProofWiringFact], expand: Option<&str>)
     if facts.is_empty() || !proof_wiring_has_material_summary(facts) {
         return;
     }
-    println!("\n## Proof Wiring");
+    println!("\n## Verification Wiring");
     let status = proof_wiring_status_summary(facts);
     match (status, expand) {
         (Some(status), Some(expand)) => {

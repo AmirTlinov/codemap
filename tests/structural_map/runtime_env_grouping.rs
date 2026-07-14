@@ -145,7 +145,7 @@ fn runtime_reports_hidden_proof_edges_when_limited() {
             .as_array()
             .expect("hidden")
             .iter()
-            .any(|group| group["reason"] == "runtime proof edges hidden by limit"
+            .any(|group| group["reason"] == "runtime verification edges hidden by limit"
                 && group["expand"].as_str().is_some_and(|expand| {
                     expand.starts_with("codemap runtime packages/app/src --all --limit ")
                         && !expand.contains("<larger-number>")

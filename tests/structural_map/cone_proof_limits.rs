@@ -33,7 +33,7 @@ fn cone_counts_hidden_proof_edges_before_limit() {
             .as_array()
             .expect("hidden")
             .iter()
-            .any(|group| group["reason"] == "proof edges hidden by limit"
+            .any(|group| group["reason"] == "verification edges hidden by limit"
                 && group["count"] == 4
                 && group["expand"]
                     == "codemap cone packages/replay/src/multi-proof.ts --depth 1 --all --limit 5"),

@@ -1,3 +1,10 @@
+// A snapshot-token `--since` must skip the git-status fast paths: they would treat
+// the token as an empty git diff and report "clean". Fall through to the full path
+// so snapshot_delta runs.
+fn since_is_snapshot_token(since: Option<&str>) -> bool {
+    since.is_some_and(crate::cache::looks_like_snapshot_token)
+}
+
 fn try_cached_ls_fast_path(
     command: &CommandKind,
     root_selection: &repo::RootSelection,
@@ -83,6 +90,9 @@ fn try_clean_changed_fast_path(
         args.files.as_deref(),
         &args.positional_files,
     )?;
+    if since_is_snapshot_token(args.since.as_deref()) {
+        return Ok(None);
+    }
     if changed_has_explicit_files(args) {
         return Ok(None);
     }
@@ -117,6 +127,9 @@ fn try_cached_changed_fast_path(
         args.files.as_deref(),
         &args.positional_files,
     )?;
+    if since_is_snapshot_token(args.since.as_deref()) {
+        return Ok(None);
+    }
     if changed_has_explicit_files(args) {
         return Ok(None);
     }
@@ -159,6 +172,9 @@ fn try_clean_proof_changed_fast_path(
     if proof_has_explicit_target_or_files(args) || args.run || args.include_hidden {
         return Ok(None);
     }
+    if since_is_snapshot_token(args.since.as_deref()) {
+        return Ok(None);
+    }
     if args.target.as_deref() != Some("changed") && !args.staged && args.since.is_none() {
         return Ok(None);
     }
@@ -186,6 +202,9 @@ fn try_cached_proof_changed_fast_path(
     };
     ensure_single_proof_selector(args)?;
     if proof_has_explicit_target_or_files(args) || args.run || args.include_hidden {
+        return Ok(None);
+    }
+    if since_is_snapshot_token(args.since.as_deref()) {
         return Ok(None);
     }
     if args.target.as_deref() != Some("changed") && !args.staged && args.since.is_none() {

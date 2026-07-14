@@ -14,7 +14,7 @@ fn changed_fail_open_unknowns(project: &Project, changed: &[String]) -> Vec<Unkn
                 Some(rel),
                 None,
                 "no direct test import, symbol reference, support import, or e2e route visit was found for this changed anchor",
-                "proof map may still show scripts or soft evidence, but no deterministic direct test sensor was found",
+                "proof-map may still show scripts or soft matches, but no direct linked test surface was found",
                 Some(format!("codemap proof-map {} --raw-sensors", shell_quote(rel))),
             ));
         }

@@ -27,6 +27,7 @@ fn schema_text(kind: SchemaKind) -> &'static str {
         SchemaKind::Flow => include_str!("../../schemas/flow.schema.json"),
         SchemaKind::Siblings => include_str!("../../schemas/siblings.schema.json"),
         SchemaKind::Place => include_str!("../../schemas/place.schema.json"),
+        SchemaKind::Where => include_str!("../../schemas/where.schema.json"),
         SchemaKind::Anchors => include_str!("../../schemas/anchors.schema.json"),
         SchemaKind::AnchorValidation => include_str!("../../schemas/anchor-validation.schema.json"),
         SchemaKind::Graph => include_str!("../../schemas/graph.schema.json"),

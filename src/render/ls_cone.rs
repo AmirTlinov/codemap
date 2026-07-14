@@ -23,7 +23,7 @@ pub fn ls(report: &LsReport, section_filter: Option<&str>) {
         grouped_edge_list("links", &report.edges, limit);
     }
     if matches!(section_filter, Some("proof")) {
-        render_empty_ls_section("Proof", "Proof surfaces are not computed by ls.");
+        render_empty_ls_section("Verification Surfaces", "Verification surfaces are not computed by ls.");
     }
     if matches!(section_filter, Some("unknown")) {
         let detail = if report.mode == "missing" {
@@ -106,18 +106,18 @@ fn render_cone_proof(edges: &[StructuralEdge]) {
             _ => proof.push(edge.clone()),
         }
     }
-    cone_section("Proof", &proof);
-    cone_section("Evidence Surfaces", &evidence);
+    cone_section("Verification Surfaces", &proof);
+    cone_section("Linked Surfaces", &evidence);
     cone_section("Setup / Support Surfaces", &setup);
-    cone_section("Soft Evidence", &soft);
+    cone_section("Soft Surface Matches", &soft);
     if !setup.is_empty() {
         println!(
-            "\nSetup/support surfaces are connected rails such as install, codegen, migration, seed, deploy, release, watch, or dev-server steps. They are not treated as validation proof."
+            "\nSetup/support surfaces are connected rails such as install, codegen, migration, seed, deploy, release, watch, or dev-server steps. They are not treated as verification command surfaces."
         );
     }
     if !soft.is_empty() {
         println!(
-            "\nSoft evidence is token/name/path surface overlap. It does not replace deterministic proof or remove Unknown entries."
+            "\nSoft surface matches are token/name/path overlap. They do not create a direct linked verification surface or remove Unknown entries."
         );
     }
 }
@@ -295,7 +295,7 @@ fn render_ls_directory_roles(report: &LsReport) {
         return;
     }
     println!("\n## Surface Hints\n");
-    println!("Derived from deterministic path/name/extension/manifest patterns. Not intent, correctness, or ownership truth.\n");
+    disclaimer("Derived from deterministic path/name/extension/manifest patterns. Not intent, correctness, or ownership truth.");
     for (role, count) in roles {
         println!("- `{role}`: `{count}` surfaces");
     }
@@ -312,7 +312,7 @@ fn render_roles(anchor: &crate::model::FileSummary) {
         return;
     }
     println!("\n## Surface Hints\n");
-    println!("Derived from deterministic path/name/extension/manifest patterns. Not intent, correctness, or ownership truth.\n");
+    disclaimer("Derived from deterministic path/name/extension/manifest patterns. Not intent, correctness, or ownership truth.");
     println!("{}", bullet(&roles, true, None));
 }
 

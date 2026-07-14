@@ -48,7 +48,7 @@ fn soft_token_proof_does_not_hide_missing_deterministic_proof_or_fallback() {
             .expect("unknowns")
             .iter()
             .any(|unknown| unknown["kind"] == "missing_deterministic_proof"),
-        "soft proof must keep missing deterministic proof visible as Unknown: {proof:#}"
+        "soft proof must keep missing direct-link uncertainty visible as Unknown: {proof:#}"
     );
 
     let proof_map = run_json(
@@ -82,7 +82,7 @@ fn soft_token_proof_does_not_hide_missing_deterministic_proof_or_fallback() {
             .as_array()
             .expect("missing_direct")
             .is_empty(),
-        "proof-map should keep missing direct proof visible when only soft evidence exists: {proof_map:#}"
+        "proof-map should keep missing direct links visible when only soft matches exist: {proof_map:#}"
     );
     assert!(
         proof_map["unknowns"]
@@ -106,13 +106,53 @@ fn soft_token_proof_does_not_hide_missing_deterministic_proof_or_fallback() {
     );
     let proof_map_text = String::from_utf8(proof_map_markdown.stdout).expect("proof-map utf8");
     assert!(
-        proof_map_text.contains("## Soft Token Evidence")
+        proof_map_text.contains("## Soft Surface Matches")
             && proof_map_text.contains("## Unknown")
             && proof_map_text.contains("missing_deterministic_proof")
-            && proof_map_text.contains("does not replace deterministic proof")
+            && proof_map_text.contains("do not create a direct linked verification surface")
+            && !proof_map_text.contains("missing_direct_proof")
             && !proof_map_text.contains("\n## Direct\n")
-            && !proof_map_text.contains("\n## Hard Proof\n"),
+            && !proof_map_text.contains("\n## Runnable Verification Surfaces\n"),
         "proof-map markdown must keep Unknown when token/name evidence is the only proof sensor: {proof_map_text}"
+    );
+
+    let impact = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["impact", "--files", "src/routes.ts"])
+        .output()
+        .expect("impact should run");
+    assert!(
+        impact.status.success(),
+        "impact failed: {}",
+        String::from_utf8_lossy(&impact.stderr)
+    );
+    let impact_markdown = String::from_utf8(impact.stdout).expect("impact markdown utf8");
+    assert!(
+        impact_markdown.contains("verification=0; soft="),
+        "soft-only verification edges should not inflate the main verification count: {impact_markdown}"
+    );
+
+    let changed_links = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["changed", "--files", "src/routes.ts", "--section", "links"])
+        .output()
+        .expect("changed links should run");
+    assert!(
+        changed_links.status.success(),
+        "changed links failed: {}",
+        String::from_utf8_lossy(&changed_links.stderr)
+    );
+    let changed_links_markdown =
+        String::from_utf8(changed_links.stdout).expect("changed links markdown utf8");
+    assert!(
+        ((changed_links_markdown.contains("verification=0; soft=")
+            && !changed_links_markdown.contains("verification=1]"))
+            || (changed_links_markdown.contains("verification links: 0")
+                && changed_links_markdown.contains("soft links: 1")))
+            && !changed_links_markdown.contains("proof links: 1"),
+        "changed links should not count soft-only proof edges as verification mass: {changed_links_markdown}"
     );
 
     let changed = codemap()
@@ -131,10 +171,10 @@ fn soft_token_proof_does_not_hide_missing_deterministic_proof_or_fallback() {
         (markdown.contains("- missing_direct_unknown: `1`")
             || markdown.contains("missing_direct_unknown=`1`"))
             && markdown.contains("### Fallback"),
-        "changed proof should show missing deterministic proof and fallback with soft evidence: {markdown}"
+        "changed proof should show missing direct-link uncertainty and fallback with soft matches: {markdown}"
     );
     assert!(
-        markdown.contains("Map Snapshot: root=`") && markdown.contains("fingerprint=`"),
+        markdown.contains("Map Snapshot: root=`") && markdown.contains("snapshot=`"),
         "changed maps should carry a compact snapshot boundary in markdown output: {markdown}"
     );
 
@@ -157,7 +197,7 @@ fn soft_token_proof_does_not_hide_missing_deterministic_proof_or_fallback() {
         "proof --section unknown should isolate proof Unknown entries: {proof_unknown_markdown}"
     );
     assert!(
-        !proof_unknown_markdown.contains("## Proof")
+        !proof_unknown_markdown.contains("## Verification Surfaces")
             && !proof_unknown_markdown.contains("## Fallback"),
         "proof --section unknown should not dump proof/fallback sections: {proof_unknown_markdown}"
     );
@@ -175,9 +215,9 @@ fn soft_token_proof_does_not_hide_missing_deterministic_proof_or_fallback() {
     );
     let proof_only_markdown = String::from_utf8(proof_only.stdout).expect("proof markdown utf8");
     assert!(
-        proof_only_markdown.contains("## Soft Evidence")
+        proof_only_markdown.contains("## Soft Surface Matches")
             && proof_only_markdown.contains("## Fallback")
-            && proof_only_markdown.contains("does not replace deterministic proof"),
+            && proof_only_markdown.contains("do not create a direct linked verification surface"),
         "proof --section proof should label soft proof separately and keep fallback commands: {proof_only_markdown}"
     );
     assert!(

@@ -24,6 +24,7 @@ pub fn run() -> Result<()> {
         repo::RootSelection::Auto
     };
     render::set_expand_root(cli.root.as_deref());
+    render::set_brief(cli.brief || codemap_brief_env());
     if let Some(()) = try_cached_ls_fast_path(&cli.command, &root_selection)? {
         return Ok(());
     }
@@ -122,6 +123,26 @@ pub fn run() -> Result<()> {
                 || render::cone(&report, cone_section_name(args.section)),
             )
         }
+        CommandKind::Where(args) => {
+            ensure_valid_config(&project)?;
+            let limit = if args.include_hidden {
+                usize::MAX / 2
+            } else {
+                args.limit
+            };
+            let report = map::where_report(
+                &project,
+                &args.query,
+                args.kind.as_deref(),
+                args.include_hidden,
+                limit,
+            );
+            output(
+                output_format_with_json_alias(args.format, args.json),
+                &report,
+                || render::where_locator(&report),
+            )
+        }
         CommandKind::Init(args) => init(&project, args),
         CommandKind::Bootstrap(_) => Ok(()),
         CommandKind::Schema(_) => Ok(()),
@@ -134,7 +155,8 @@ pub fn run() -> Result<()> {
         CommandKind::Changed(args) => {
             ensure_valid_config(&project)?;
             accept_depth_compat(args.depth, "changed")?;
-            let (changed, selector, mode, git_state) = changed_inputs(&project, &args)?;
+            let (changed, selector, mode, git_state, since_notice) =
+                changed_inputs(&project, &args)?;
             let limit = if args.include_hidden {
                 usize::MAX / 2
             } else {
@@ -144,7 +166,7 @@ pub fn run() -> Result<()> {
             let section = changed_section_name(args.section);
             let section_report =
                 section.filter(|section| !args.include_hidden && *section != "hidden");
-            let report = if let Some(section) = section_report {
+            let mut report = if let Some(section) = section_report {
                 map::changed_report_for_section(
                     &project, changed, selector, mode, git_state, limit, section,
                 )
@@ -164,6 +186,11 @@ pub fn run() -> Result<()> {
             }
             maybe_write_proof_changed_lens_cache_from_changed(&project, &args, &report);
             maybe_write_proof_map_lens_cache_from_changed(&project, &args, limit, &report);
+            // Inject the fail-open snapshot notice after cache writes so it never
+            // pollutes the cached report.
+            if let Some(notice) = since_notice {
+                report.unknowns.push(notice);
+            }
             let prelude = repo::map_prelude(&project.root);
             output_with_prelude(
                 format,
@@ -331,6 +358,10 @@ pub fn run() -> Result<()> {
             }
         },
     }
+}
+
+fn codemap_brief_env() -> bool {
+    env::var("CODEMAP_BRIEF").is_ok_and(|value| !value.is_empty() && value != "0")
 }
 
 fn accept_depth_compat(depth: usize, command: &str) -> Result<()> {

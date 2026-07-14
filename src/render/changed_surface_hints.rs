@@ -34,7 +34,7 @@ fn changed_roles_section(report: &ChangedReport, force: bool, compact: bool) {
         entries.dedup();
     }
     println!("\n## Surface Hints\n");
-    println!("Derived from deterministic path/name/extension/manifest/git patterns. Not change intent, correctness, or proof sufficiency.\n");
+    disclaimer("Derived from deterministic path/name/extension/manifest/git patterns. Not change intent, correctness, or verification sufficiency.");
     let paths = grouped
         .values()
         .flat_map(|entries| entries.iter().map(|(path, _)| path.as_str()))

@@ -1,13 +1,15 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
-use std::process::Command;
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 pub use super::fingerprint_delta::CacheFileDelta;
+use super::git_probe::{
+    current_git_head, current_git_status_has_untracked, git_path_is_ignored, git_tracked_paths,
+};
 use crate::model::Project;
 
 const FINGERPRINT_CACHE_FORMAT: u32 = 8;
@@ -20,6 +22,14 @@ pub fn file_delta(
     _config_path: Option<&str>,
 ) -> Option<CacheFileDelta> {
     let cached = read_valid_cached_fingerprints(root, cache_dir, version)?;
+    Some(file_delta_from_cached(root, &cached, current_files))
+}
+
+fn file_delta_from_cached(
+    root: &Path,
+    cached: &CachedFingerprints,
+    current_files: &[String],
+) -> CacheFileDelta {
     let cached_by_path = cached
         .files
         .iter()
@@ -47,10 +57,31 @@ pub fn file_delta(
         .filter(|path| !current_paths.contains(**path))
         .map(|path| (*path).to_string())
         .collect();
-    Some(cache_file_delta(
-        &cached,
-        (unchanged, changed_or_added, removed),
-    ))
+    cache_file_delta(cached, (unchanged, changed_or_added, removed))
+}
+
+// Diff the current working tree against a saved agent snapshot (keyed by token),
+// reusing the same per-file delta core. Returns None (fail-open) if the snapshot
+// is missing, malformed, or from a different version/root (cleared cache or other
+// machine).
+pub fn snapshot_delta(
+    root: &Path,
+    cache_dir: &Path,
+    version: &str,
+    token: &str,
+    current_files: &[String],
+) -> Option<CacheFileDelta> {
+    let text = fs::read_to_string(super::snapshots::snapshot_path(cache_dir, token)).ok()?;
+    let cached: CachedFingerprints = serde_json::from_str(&text).ok()?;
+    if cached.format_version != FINGERPRINT_CACHE_FORMAT {
+        return None;
+    }
+    if cached.version != version || cached.root != root.to_string_lossy() {
+        return None;
+    }
+    let delta = file_delta_from_cached(root, &cached, current_files);
+    super::snapshots::touch(cache_dir, token);
+    Some(delta)
 }
 pub fn file_delta_for_known_changes(
     root: &Path,
@@ -316,10 +347,12 @@ pub(super) fn write_fingerprints(
             .collect(),
     };
     let body = serde_json::to_string_pretty(&fingerprints)?;
-    fs::write(
-        project.cache_dir.join("fingerprints.json"),
-        format!("{body}\n"),
-    )?;
+    let body = format!("{body}\n");
+    fs::write(project.cache_dir.join("fingerprints.json"), &body)?;
+    // Persist a token-keyed snapshot so `--since <token>` can diff against the exact
+    // state the agent saw. The dirty edit loop always writes fingerprints, so every
+    // emitted snapshot token is backed by a snapshot file.
+    super::snapshots::save(&project.cache_dir, &fingerprints.fingerprint, &body);
     Ok(())
 }
 
@@ -396,67 +429,6 @@ fn cached_file_matches(root: &Path, rel: &str, cached: &CachedFileFingerprint) -
         .content_hash
         .as_deref()
         .is_some_and(|hash| current_content_hash(root.join(rel)).as_deref() == Some(hash))
-}
-
-fn current_git_head(root: &Path) -> Option<String> {
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(["rev-parse", "--verify", "HEAD"])
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let head = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    (!head.is_empty()).then_some(head)
-}
-
-fn current_git_status_has_untracked(root: &Path) -> bool {
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(["status", "--porcelain", "-uall", "--", "."])
-        .output();
-    let Ok(output) = output else {
-        return true;
-    };
-    if !output.status.success() {
-        return true;
-    }
-    String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .any(|line| line.starts_with("?? "))
-}
-
-fn git_tracked_paths(root: &Path) -> Option<BTreeSet<String>> {
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(["ls-files", "-c"])
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    Some(
-        String::from_utf8_lossy(&output.stdout)
-            .lines()
-            .filter_map(|line| {
-                let rel = line.trim();
-                (!rel.is_empty()).then(|| rel.replace('\\', "/"))
-            })
-            .collect(),
-    )
-}
-
-fn git_path_is_ignored(root: &Path, rel: &str) -> bool {
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(["check-ignore", "-q", "--", rel])
-        .output();
-    output.is_ok_and(|output| output.status.success())
 }
 
 fn file_modified_parts(project: &Project, file: &crate::model::FileInfo) -> Option<(u64, u32)> {

@@ -27,7 +27,7 @@ pub fn teach(report: &TeachReport) {
     );
     if !report.role_patterns.is_empty() {
         println!("\n## Surface Hints\n");
-        println!("Derived from deterministic configured patterns. Not intent, correctness, or ownership truth.\n");
+        disclaimer("Derived from deterministic configured patterns. Not intent, correctness, or ownership truth.");
         for role in &report.role_patterns {
             println!(
                 "- `{}` -> `{}` [{}; matched: `{}`]",

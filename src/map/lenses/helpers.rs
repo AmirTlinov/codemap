@@ -298,7 +298,7 @@ fn placement_conventions(scope: &str, kind: &str, surfaces: &[Surface]) -> Vec<S
     if let Some(surface) = surfaces.first() {
         if surface.evidence == "proof_sensor_for_scope" {
             out.push(format!(
-                "{kind} proof sensors already reference `{scope}` with {} example(s)",
+                "{kind} verification sensors already reference `{scope}` with {} example(s)",
                 surface.count.unwrap_or(surface.examples.len())
             ));
         } else {

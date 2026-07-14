@@ -62,7 +62,7 @@ fn unsafe_shell_syntax_reason(command: &str) -> Option<&'static str> {
             return Some("shell command separator");
         };
         if !safe_cd_prefix(prefix) {
-            return Some("only scoped cd prefix may compose proof commands");
+            return Some("only scoped cd prefix may compose verification commands");
         }
     }
     None

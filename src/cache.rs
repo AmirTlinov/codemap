@@ -19,12 +19,14 @@ use crate::model::{
 pub(crate) mod cached_project;
 pub(crate) mod fingerprint_delta;
 pub(crate) mod fingerprints;
+pub(crate) mod git_probe;
 pub(crate) mod lens_artifacts;
+pub(crate) mod snapshots;
 
 pub use cached_project::read_cached_project;
 pub use fingerprints::{
     cached_git_head, cached_git_head_matches, file_delta, file_delta_by_rechecking_cached_files,
-    file_delta_for_head_change, file_delta_for_known_changes,
+    file_delta_for_head_change, file_delta_for_known_changes, snapshot_delta,
 };
 pub use lens_artifacts::{
     ConeLensKey, LsLensKey, PlaceLensKey, SiblingsLensKey, read_changed_report, read_cone_report,
@@ -32,6 +34,7 @@ pub use lens_artifacts::{
     read_siblings_report, write_changed_report, write_cone_report, write_ls_report,
     write_place_report, write_proof_changed_report, write_proof_map_report, write_siblings_report,
 };
+pub use snapshots::looks_like_snapshot_token;
 
 const CACHE_ARTIFACTS: &[&str] = &[
     "status.json",

@@ -241,7 +241,7 @@ pub fn proof_report(
             Some(target),
             None,
             "no direct test import, symbol reference, support import, or e2e route visit was found for this proof anchor",
-            "proof surfaces may still include scripts, CI, contract checks, or soft evidence, but no deterministic direct test sensor was found",
+            "verification surfaces may still include scripts, CI, contract checks, or soft matches, but no direct linked test surface was found",
             Some(format!("codemap proof-map {} --raw-sensors", shell_quote(target))),
         ));
     }
@@ -256,7 +256,7 @@ pub fn proof_report(
             Some(target),
             None,
             "no direct test import, symbol reference, support import, or e2e route visit was found for this symbol proof anchor",
-            "mediated symbol-consumer proof may still be visible, but it does not prove a direct test sensor for the selected symbol",
+            "mediated symbol-consumer surfaces may still be visible, but they do not create a direct linked test surface for the selected symbol",
             Some(format!("codemap proof-map {} --raw-sensors", shell_quote(target))),
         ));
     }
@@ -287,7 +287,7 @@ pub fn proof_report(
     let proof_count = proofs.len();
     if proof_count > limit {
         hidden.push(HiddenGroup {
-            reason: "proof surfaces hidden by limit".to_string(),
+            reason: "verification surfaces hidden by limit".to_string(),
             count: proof_count - limit,
             expand: format!(
                 "codemap proof {} --depth {depth} --limit {}",
@@ -300,12 +300,12 @@ pub fn proof_report(
         &mut wiring,
         limit.saturating_mul(2).max(6),
         &mut hidden,
-        "proof wiring facts hidden by limit",
+        "verification wiring facts hidden by limit",
         &format!("codemap proof {} --section links", selector),
     );
     if wiring_clipped {
         hidden.push(HiddenGroup {
-            reason: "proof wiring facts hidden by discovery limit".to_string(),
+            reason: "verification wiring facts hidden by discovery limit".to_string(),
             count: 1,
             expand: format!(
                 "codemap proof {} --section links --limit {}",
@@ -338,7 +338,7 @@ pub fn proof_report(
         unknowns,
         hidden,
         expand,
-        run_hint: "codemap proof prints only by default; use --run to execute proof commands"
+        run_hint: "codemap proof prints a verification surface plan by default; use --run to execute rendered commands"
             .to_string(),
     }
 }
@@ -420,7 +420,7 @@ pub fn clean_proof_report(selector: String) -> ProofReport {
         unknowns: Vec::new(),
         hidden: Vec::new(),
         expand: Vec::new(),
-        run_hint: "codemap proof prints only by default; use --run to execute proof commands"
+        run_hint: "codemap proof prints a verification surface plan by default; use --run to execute rendered commands"
             .to_string(),
     }
 }

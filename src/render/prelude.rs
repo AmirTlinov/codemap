@@ -19,6 +19,11 @@ fn map_prelude_line_or_snapshot_line() {
 
 fn map_prelude_block_or_snapshot_line() {
     if let Some(prelude) = MAP_PRELUDE.get() {
+        if brief() {
+            println!("{}", compact_prelude_line(prelude));
+            map_snapshot_line();
+            return;
+        }
         println!("Repo:");
         println!("  root: `{}`", prelude.root);
         println!("  cwd: `{}`", prelude.cwd_rel.as_deref().unwrap_or(&prelude.cwd));

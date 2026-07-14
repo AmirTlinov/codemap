@@ -115,7 +115,7 @@ fn place_groups_duplicate_paired_proof_sensors() {
             .expect("hidden")
             .iter()
             .all(|group| group["reason"]
-                != "duplicate paired proof sensors grouped by structural key"),
+                != "duplicate paired verification sensors grouped by structural key"),
         "distinct paired proof sensor targets should not be hidden as duplicate place proof sensors: {place:#}"
     );
 }
@@ -195,7 +195,7 @@ fn place_kind_test_uses_external_proof_sensors_for_scope() {
             .expect("local conventions")
             .iter()
             .filter_map(|value| value.as_str())
-            .any(|line| line.contains("proof sensors already reference")),
+            .any(|line| line.contains("verification sensors already reference")),
         "place --kind test should not claim external tests live under the implementation scope: {place:#}"
     );
     assert!(

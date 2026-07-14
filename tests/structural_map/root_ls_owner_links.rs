@@ -145,7 +145,7 @@ jobs:
                     .unwrap_or_default()
                     .contains("playwright install"))
         }),
-        "CI setup/install steps must not become validation proof links: {root:#}"
+        "CI setup/install steps must not become validation command links: {root:#}"
     );
 
     let scoped = run_json(

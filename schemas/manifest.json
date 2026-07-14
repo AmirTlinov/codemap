@@ -123,6 +123,13 @@
       "json_kind": "place_report"
     },
     {
+      "kind": "where",
+      "file": "schemas/where.schema.json",
+      "contract": "structural_output",
+      "schema_version": "1",
+      "json_kind": "where_report"
+    },
+    {
       "kind": "graph",
       "file": "schemas/graph.schema.json",
       "contract": "structural_output",

@@ -129,7 +129,7 @@ pub fn proof_command_is_readonly_migration_status(command: &str) -> bool {
         && readonly_prisma_prefix_is_safe(&tokens[..prisma_index])
 }
 
-fn proof_evidence_is_soft_match(evidence: &str) -> bool {
+pub fn proof_evidence_is_soft_match(evidence: &str) -> bool {
     if proof_evidence_is_mediated(evidence) {
         return true;
     }

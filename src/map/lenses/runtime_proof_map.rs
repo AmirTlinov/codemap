@@ -21,7 +21,7 @@ pub fn runtime_report(
     } else {
         Vec::new()
     };
-    for file in scope_files {
+    for &file in &scope_files {
         if runtime_entrypoint_kind(file).is_some() {
             entrypoints.push(surface_from_path(
                 runtime_entrypoint_kind(file).unwrap_or("entrypoint"),
@@ -50,15 +50,14 @@ pub fn runtime_report(
         }
         let file_routes = runtime_facts.routes_for_file(&file.rel);
         for route in &file_routes {
-            proof.extend(route_reference_edges_with_index(
-                project,
-                route,
-                &runtime_facts,
-            ));
+            proof.extend(route_reference_edges_with_index(project, route, &runtime_facts));
         }
         routes.extend(file_routes);
         env.extend(env_surfaces_for_file(project, file));
         unknowns.extend(unknowns_for_file(project, file));
+    }
+    if scope == "." && !include_hidden && hidden_scope_count > 0 {
+        extend_root_nested_routes(project, &scope_files, &mut routes, &mut proof);
     }
     entrypoints.extend(root_containers.clone());
     entrypoints = dedupe_runtime_entrypoints(entrypoints);
@@ -154,7 +153,7 @@ pub fn runtime_report(
         &mut hidden,
         include_hidden,
         limit,
-        "runtime proof edges hidden by limit",
+        "runtime verification edges hidden by limit",
         &include_hidden_expand,
     );
     let expand = runtime_expand_commands(&scope, &root_containers, &entrypoints);
@@ -338,37 +337,37 @@ pub fn proof_map_report(
         group_duplicate_proof_surfaces(
             &mut hard,
             &mut hidden,
-            "duplicate hard proof sensors grouped by structural key",
+            "duplicate runnable verification sensors grouped by structural key",
             &expand_raw_sensors,
         );
         group_duplicate_proof_surfaces(
             &mut direct_evidence,
             &mut hidden,
-            "duplicate direct evidence sensors grouped by structural key",
+            "duplicate direct linked sensors grouped by structural key",
             &expand_raw_sensors,
         );
         group_duplicate_proof_surfaces(
             &mut mediated_evidence,
             &mut hidden,
-            "duplicate mediated evidence sensors grouped by structural key",
+            "duplicate mediated linked sensors grouped by structural key",
             &expand_raw_sensors,
         );
         group_duplicate_proof_surfaces(
             &mut soft_evidence,
             &mut hidden,
-            "duplicate soft evidence sensors grouped by structural key",
+            "duplicate soft surface match sensors grouped by structural key",
             &expand_raw_sensors,
         );
         group_duplicate_proof_surfaces(
             &mut setup_support,
             &mut hidden,
-            "duplicate setup/support proof sensors grouped by structural key",
+            "duplicate setup/support verification sensors grouped by structural key",
             &expand_raw_sensors,
         );
         group_duplicate_missing_surfaces(
             &mut missing_direct,
             &mut hidden,
-            "duplicate missing direct proof surfaces grouped by path",
+            "duplicate missing direct linked surfaces grouped by path",
             &expand_raw_sensors,
         );
         group_duplicate_unknowns(
@@ -382,42 +381,42 @@ pub fn proof_map_report(
         &mut hard,
         limit,
         &mut hidden,
-        "hard proof surfaces hidden by limit",
+        "runnable verification surfaces hidden by limit",
         &expand_larger_limit,
     );
     truncate_with_hidden(
         &mut direct_evidence,
         limit,
         &mut hidden,
-        "direct evidence surfaces hidden by limit",
+        "direct linked surfaces hidden by limit",
         &expand_larger_limit,
     );
     truncate_with_hidden(
         &mut mediated_evidence,
         limit,
         &mut hidden,
-        "mediated evidence surfaces hidden by limit",
+        "mediated linked surfaces hidden by limit",
         &expand_larger_limit,
     );
     truncate_with_hidden(
         &mut soft_evidence,
         limit,
         &mut hidden,
-        "soft evidence surfaces hidden by limit",
+        "soft surface matches hidden by limit",
         &expand_larger_limit,
     );
     truncate_with_hidden(
         &mut setup_support,
         limit,
         &mut hidden,
-        "setup/support proof surfaces hidden by limit",
+        "setup/support verification surfaces hidden by limit",
         &expand_larger_limit,
     );
     truncate_with_hidden(
         &mut missing_direct,
         limit,
         &mut hidden,
-        "missing direct proof surfaces hidden by limit",
+        "missing direct linked surfaces hidden by limit",
         &expand_larger_limit,
     );
     truncate_with_hidden(
@@ -456,7 +455,7 @@ pub fn proof_map_report(
     sort_proof_wiring_facts(&mut wiring);
     if wiring_clipped {
         hidden.push(HiddenGroup {
-            reason: "proof wiring facts hidden by discovery limit".to_string(),
+            reason: "verification wiring facts hidden by discovery limit".to_string(),
             count: 1,
             expand: expand_with_concrete_limit(
                 &expand_larger_limit,
@@ -471,7 +470,7 @@ pub fn proof_map_report(
         &mut wiring,
         limit.saturating_mul(2).max(6),
         &mut hidden,
-        "proof wiring facts hidden by limit",
+        "verification wiring facts hidden by limit",
         &expand_larger_limit,
     );
     let proof_expand = proof_map_proof_expand(&proof_selector);

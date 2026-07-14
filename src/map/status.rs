@@ -102,7 +102,7 @@ fn map_quality_warnings(project: &Project) -> Vec<MapQualityWarning> {
         "manifest_role_missing",
         "manifest",
         "file name is a package/workspace manifest but scanner did not assign manifest role",
-        "manifest cones and package proof surfaces may be incomplete",
+        "manifest cones and package verification surfaces may be incomplete",
         |file| {
             let name = status_file_name(&file.rel);
             repo::is_package_manifest_name(&name)

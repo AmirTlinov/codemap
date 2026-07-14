@@ -123,7 +123,7 @@ pub fn cone_report(
         &mut hidden,
         include_hidden,
         limit,
-        "proof edges hidden by limit",
+        "verification edges hidden by limit",
         &format!(
             "codemap cone {} --depth {depth} --all",
             shell_quote(&rel)

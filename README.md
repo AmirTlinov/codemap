@@ -11,9 +11,9 @@ imports, configs, schemas, scripts, and tests.
 | Question | Command | What the agent sees |
 | --- | --- | --- |
 | Where am I? | `codemap ls .` | repo root, branch, dirty state, packages, scripts, configs, tests |
-| What is around this file? | `codemap cone <file> --depth 1` | imports, exports, consumers, state/effects, nearby helpers, proof, unknowns |
-| What did I change? | `codemap changed` | staged/unstaged/untracked files, changed surface types, links, risks, proof gaps |
-| How can this be checked? | `codemap proof changed` | tests, build/check commands, evidence-only surfaces, broad fallbacks, missing proof |
+| What is around this file? | `codemap cone <file> --depth 1` | imports, exports, consumers, state/effects, nearby helpers, verification surfaces, unknowns |
+| What did I change? | `codemap changed` | staged/unstaged/untracked files, changed surface types, links, risks, verification gaps |
+| How can this be checked? | `codemap proof changed` | tests, build/check commands, linked surfaces, broad fallbacks, missing direct links |
 
 The win: the agent spends less time wandering and is less likely to reimplement
 code that already exists nearby.
@@ -31,7 +31,18 @@ It compares visible repo text tokens with the daily `codemap` map
 path/expand/unknown/proof signals, and captured readable outputs.
 
 This proves context compression and navigation-signal density. It does not
-claim that the model became smarter; that needs a separate A/B task benchmark.
+claim that the model became smarter. Run the paired behavioral benchmark for that:
+
+```bash
+scripts/benchmark-codemap-ab.py tasks.jsonl \
+  --model gpt-5.6-sol --reasoning-effort xhigh --repetitions 3
+```
+
+It gives identical tasks and weighted external completeness criteria to isolated
+Codex worktrees with and without codemap. The winner is determined by required
+outcomes and verified coverage; time and tokens are reported only as resource cost.
+See [`docs/BENCHMARK_AB.md`](docs/BENCHMARK_AB.md) for the task format, validity
+rules, artifacts, and claim boundary.
 
 ## Copy-Paste Workflow
 
@@ -63,9 +74,9 @@ needed.
 | --- | --- |
 | `Repo` / `Worktree` | Current local git truth. No network is used. |
 | `Surface Hints` | File types and nearby surfaces: source, tests, docs, config, generated, receipts. |
-| `Coupling` | Deterministic relationships: imports, consumers, proof links. |
+| `Coupling` | Deterministic relationships: imports, consumers, verification links. |
 | `Risks` | Mechanical facts: conflicts, lockfile drift, generated files, large binaries. Not a safety verdict. |
-| `Proof` | What can verify this file or change set. |
+| `Proof` | Historical section/command name for verification surfaces around this file or change set. |
 | `Unknown` | What `codemap` could not prove statically. |
 | `Expand` | Exact next command for deeper detail. |
 
@@ -93,7 +104,11 @@ Windows: %LOCALAPPDATA%/codemap/
 prove correctness, use embeddings, use an LLM in the hard path, fetch from the
 network, or run project commands unless you explicitly use `proof --run`.
 
-It reports: found, linked, missing, soft, proof surface, unknown.
+It reports: found, linked, missing, soft match, verification surface, unknown.
+
+`proof` and `proof-map` are compatibility command names. Their readable output
+is a verification surface map, not a correctness verdict or a claim that a test
+set is sufficient.
 
 ## Deeper Detail
 

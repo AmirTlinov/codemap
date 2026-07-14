@@ -74,7 +74,7 @@ fn impact_cluster(
         &mut hidden,
         rel,
         depth,
-        "proof edges hidden by limit",
+        "verification edges hidden by limit",
     );
     (
         ImpactCluster {

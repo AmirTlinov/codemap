@@ -66,9 +66,9 @@ proof:
         "default changed should show a bounded proof command sample: {markdown}"
     );
     assert!(
-        markdown.contains("- hidden proof command groups: `3`")
-            && markdown.contains("proof command groups hidden by compact changed view"),
-        "default changed should expose hidden proof command groups with expand: {markdown}"
+        markdown.contains("- hidden runnable command surface groups: `3`")
+            && markdown.contains("runnable command surface groups hidden by compact changed view"),
+        "default changed should expose hidden runnable command surface groups with expand: {markdown}"
     );
 
     let proof_section = codemap()
@@ -126,5 +126,58 @@ fn changed_default_markdown_compacts_small_sets_with_many_unknowns() {
     assert!(
         !markdown.contains("reason: no direct test import"),
         "default changed should leave verbose Unknown detail to --section unknown: {markdown}"
+    );
+}
+
+#[test]
+fn changed_large_link_summary_keeps_soft_matches_out_of_verification_mass() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{"name":"large-soft-fixture","private":true,"scripts":{"test":"vitest run"}}"#,
+    );
+    for index in 0..21 {
+        write(
+            &repo.path().join(format!("src/feature-{index}.ts")),
+            &format!("export function feature{index}Route() {{ return {index}; }}\n"),
+        );
+        write(
+            &repo.path().join(format!("tests/feature-{index}.test.ts")),
+            &format!(
+                "test('feature {index} route smoke', () => {{ expect('feature {index} route').toBeTruthy(); }});\n"
+            ),
+        );
+    }
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "large soft fixture"]);
+    for index in 0..21 {
+        write(
+            &repo.path().join(format!("src/feature-{index}.ts")),
+            &format!("export function feature{index}Route() {{ return {index} + 1; }}\n"),
+        );
+    }
+
+    let output = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .arg("changed")
+        .output()
+        .expect("changed should run");
+    assert!(
+        output.status.success(),
+        "changed failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let markdown = String::from_utf8(output.stdout).expect("changed markdown utf8");
+    assert!(
+        markdown.contains("- clusters: `21`")
+            && markdown.contains("verification=0; soft=")
+            && !markdown.contains("clusters: `; soft=")
+            && !markdown.contains("verification=021"),
+        "large changed link summary should keep cluster count and soft evidence separate: {markdown}"
     );
 }

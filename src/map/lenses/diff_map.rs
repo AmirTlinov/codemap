@@ -252,14 +252,14 @@ pub fn diff_map_report(
         &mut added_proof_surfaces,
         limit,
         &mut hidden,
-        "added proof surfaces hidden by limit",
+        "added verification surfaces hidden by limit",
         &diff_expand,
     );
     truncate_with_hidden(
         &mut removed_proof_surfaces,
         limit,
         &mut hidden,
-        "removed proof surfaces hidden by limit",
+        "removed verification surfaces hidden by limit",
         &diff_expand,
     );
     truncate_with_hidden(

@@ -1,3 +1,11 @@
+// Repeated provenance/boundary disclaimers. Agents internalize these once, so in
+// `--brief` mode they are suppressed to save tokens; the default keeps them.
+fn disclaimer(text: &str) {
+    if !brief() {
+        println!("{text}\n");
+    }
+}
+
 fn section(title: &str, values: &[String]) {
     if values.is_empty() {
         return;
@@ -281,10 +289,21 @@ fn public_evidence_label(evidence: &str) -> String {
     if evidence == "role_script_target" {
         return "script_surface_match".to_string();
     }
+    if evidence == "no_structural_proof_surface" {
+        return "no_structural_verification_surface".to_string();
+    }
     evidence
         .strip_prefix("role:")
         .map(|rest| format!("surface_hint:{rest}"))
         .unwrap_or_else(|| evidence.to_string())
+}
+
+fn public_surface_kind_label(kind: &str) -> String {
+    match kind {
+        "missing_direct_proof" => "missing_direct_linked_surface".to_string(),
+        "no_structural_proof_surface" => "no_structural_verification_surface".to_string(),
+        other => other.to_string(),
+    }
 }
 
 fn mermaid_id(value: &str) -> String {

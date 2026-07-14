@@ -22,7 +22,7 @@ fn proof_limit_reports_hidden_surfaces_with_exact_target_expand() {
             .as_array()
             .expect("hidden")
             .iter()
-            .any(|group| group["reason"] == "proof surfaces hidden by limit"
+            .any(|group| group["reason"] == "verification surfaces hidden by limit"
                 && group["expand"].as_str().is_some_and(|expand| {
                     expand.starts_with(
                         "codemap proof packages/replay/src --depth 1 --limit ",
@@ -67,7 +67,7 @@ fn proof_exact_file_target_counts_hidden_direct_tests_before_limit() {
             .as_array()
             .expect("hidden")
             .iter()
-            .any(|group| group["reason"] == "proof surfaces hidden by limit"
+            .any(|group| group["reason"] == "verification surfaces hidden by limit"
                 && group["count"] == 2
                 && group["expand"]
                     == "codemap proof packages/replay/src/multi-proof.ts --depth 1 --limit 3"),
@@ -163,7 +163,7 @@ fn workspace_manifest_proof_budget_keeps_script_and_ci_evidence_visible() {
     );
     assert!(
         proof["hidden"].as_array().expect("hidden").iter().any(|group| {
-            group["reason"] == "proof surfaces hidden by limit"
+            group["reason"] == "verification surfaces hidden by limit"
                 && group["count"].as_u64().unwrap_or_default() > 0
                 && group["expand"]
                     .as_str()

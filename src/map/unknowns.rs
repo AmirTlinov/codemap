@@ -83,8 +83,8 @@ fn unknown_missing_deterministic_proof(path: &str, expand: String) -> Unknown {
         "missing_deterministic_proof",
         Some(path),
         None,
-        "no runnable or direct deterministic proof sensor was found for this proof scope",
-        "evidence-only, setup/support, and soft surfaces remain visible, but they do not close direct proof discovery",
+        "no runnable command surface or direct linked verification surface was found for this proof scope",
+        "linked, setup/support, and soft-match surfaces remain visible, but they do not create a direct linked surface",
         Some(expand),
     )
 }
@@ -94,8 +94,8 @@ fn unknown_ci_validation_step_not_found(path: &str) -> Unknown {
         "ci_validation_step_not_found",
         Some(path),
         None,
-        "no deterministic validation run step was found in this CI surface",
-        "CI proof can show fallback commands, but no workflow validation step was proven from a CI run line",
+        "no statically linked validation run step was found in this CI surface",
+        "CI surfaces can show fallback commands, but no workflow validation step was linked from a CI run line",
         Some(format!(
             "codemap cone {} --section links",
             shell_quote(path)

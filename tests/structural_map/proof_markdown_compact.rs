@@ -104,12 +104,12 @@ fn proof_changed_section_filter_works_on_clean_fast_path() {
     );
     let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
     assert!(
-        markdown.contains("# Proof Plan") && markdown.contains("## Unknown"),
+        markdown.contains("# Verification Surface Plan") && markdown.contains("## Unknown"),
         "proof changed --section unknown should render a stable Unknown layer: {markdown}"
     );
     assert!(
-        !markdown.contains("unexpected argument") && !markdown.contains("## Proof"),
-        "proof changed --section unknown should not fall through to CLI errors or proof sections: {markdown}"
+        !markdown.contains("unexpected argument") && !markdown.contains("## Verification Surfaces"),
+        "proof changed --section unknown should not fall through to CLI errors or verification sections: {markdown}"
     );
 
     let output = codemap()
@@ -126,8 +126,8 @@ fn proof_changed_section_filter_works_on_clean_fast_path() {
     let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
     assert!(
         markdown.contains("No changed anchors selected.")
-            && !markdown.contains("No proof surface found."),
-        "clean proof changed should explain the empty selector, not imply missing proof: {markdown}"
+            && !markdown.contains("No verification surface found."),
+        "clean proof changed should explain the empty selector, not imply a missing verification surface: {markdown}"
     );
 }
 
@@ -159,18 +159,18 @@ fn proof_markdown_separates_evidence_only_surfaces_from_commands() {
     );
     let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
     assert!(
-        markdown.contains("## Evidence Surfaces")
+        markdown.contains("## Linked Surfaces")
             && markdown.contains("env_consumer_reference")
             && !markdown.contains("### `no command`"),
-        "env consumer references should render as evidence surfaces, not no-command proof: {markdown}"
+        "env consumer references should render as linked surfaces, not no-command runnable surfaces: {markdown}"
     );
     assert!(
-        !markdown.contains("only soft proof evidence"),
-        "evidence-only env surfaces must not be described as soft-only proof: {markdown}"
+        !markdown.contains("only soft surface matches"),
+        "linked env surfaces must not be described as soft-match only: {markdown}"
     );
     assert!(
-        !markdown.contains("## Proof\n\n### `env_consumer_reference`"),
-        "evidence-only env surfaces must not be grouped as runnable proof commands: {markdown}"
+        !markdown.contains("## Runnable Command Surfaces\n\n### `env_consumer_reference`"),
+        "linked env surfaces must not be grouped as runnable command surfaces: {markdown}"
     );
 }
 
@@ -202,15 +202,15 @@ fn changed_proof_section_shows_evidence_only_surfaces() {
     );
     let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
     assert!(
-        markdown.contains("## Evidence Surfaces")
+        markdown.contains("## Linked Surfaces")
             && markdown.contains("env_consumer_reference")
             && markdown.contains("src/config.ts"),
-        "changed proof should render command-less env consumer evidence, not only sensor counts: {markdown}"
+        "changed proof should render command-less env consumer links, not only sensor counts: {markdown}"
     );
     assert!(
         !markdown.contains("### `no command`")
-            && !markdown.contains("## Soft Evidence\n\n### `env_consumer_reference`"),
-        "changed proof must not misclassify evidence-only env references as no-command proof or soft evidence: {markdown}"
+            && !markdown.contains("## Soft Surface Matches\n\n### `env_consumer_reference`"),
+        "changed proof must not misclassify linked env references as no-command runnable or soft matches: {markdown}"
     );
 }
 
@@ -250,8 +250,8 @@ fn proof_markdown_separates_setup_surfaces_from_runnable_proof() {
     );
     let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
     assert!(
-        markdown.contains("## Proof") && markdown.contains("pnpm test"),
-        "workspace proof should still show runnable validation commands: {markdown}"
+        markdown.contains("## Runnable Command Surfaces") && markdown.contains("pnpm test"),
+        "workspace proof should still show runnable command surfaces: {markdown}"
     );
     assert!(
         markdown.contains("## Setup / Support Surfaces")
@@ -264,7 +264,7 @@ fn proof_markdown_separates_setup_surfaces_from_runnable_proof() {
         .unwrap_or(&markdown);
     assert!(
         !before_support.contains("pnpm install --frozen-lockfile"),
-        "install steps must not be rendered under runnable Proof: {markdown}"
+        "install steps must not be rendered under runnable command surfaces: {markdown}"
     );
 }
 
@@ -304,11 +304,11 @@ fn schema_db_mutation_scripts_are_setup_support_not_runnable_proof() {
         .unwrap_or(&markdown);
     assert!(
         before_support.contains("db:migrate:status"),
-        "schema status checks should remain runnable proof: {markdown}"
+        "schema status checks should remain runnable command surfaces: {markdown}"
     );
     assert!(
         !before_support.contains("db:push") && !before_support.contains("db:normalize-rarity"),
-        "schema mutation scripts must not render as runnable Proof: {markdown}"
+        "schema mutation scripts must not render as runnable command surfaces: {markdown}"
     );
     let support = markdown
         .split("## Setup / Support Surfaces")
@@ -358,7 +358,7 @@ fn package_watch_scripts_are_setup_support_without_hiding_verify_dev_scripts() {
         before_support.contains("npm test")
             && before_support.contains("verify:dev-fixtures")
             && !before_support.contains("test:watch"),
-        "watch mode must not be runnable proof, while verify:dev-fixtures remains validation proof: {markdown}"
+        "watch mode must not be runnable, while verify:dev-fixtures remains a verification command surface: {markdown}"
     );
     let support = markdown
         .split("## Setup / Support Surfaces")
@@ -402,7 +402,7 @@ fn validation_scripts_with_setup_in_name_remain_runnable_proof() {
         .unwrap_or(&markdown);
     assert!(
         before_support.contains("smoke:e2e:setup-templates"),
-        "a Playwright test script should stay runnable proof even when its name contains setup: {markdown}"
+        "a Playwright test script should stay a runnable command surface even when its name contains setup: {markdown}"
     );
     let support = markdown
         .split("## Setup / Support Surfaces")
@@ -410,7 +410,7 @@ fn validation_scripts_with_setup_in_name_remain_runnable_proof() {
         .unwrap_or("");
     assert!(
         support.contains("e2e:install") && !support.contains("smoke:e2e:setup-templates"),
-        "install stays support while setup-named test stays proof: {markdown}"
+        "install stays support while setup-named test stays runnable: {markdown}"
     );
 }
 
@@ -452,7 +452,7 @@ fn proof_changed_unknown_stays_fail_open_for_changed_source_without_direct_test(
         markdown.contains("direct_test_import_not_found")
             && markdown.contains("src/runtime.ts")
             && !markdown.contains("No Unknown entries were emitted"),
-        "proof changed must not hide missing direct proof just because script proof exists: {markdown}"
+        "proof changed must not hide a missing direct link just because a script surface exists: {markdown}"
     );
 }
 

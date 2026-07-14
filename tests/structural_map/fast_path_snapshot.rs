@@ -15,8 +15,8 @@ fn clean_changed_fast_path_has_snapshot_fingerprint() {
     let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
     assert!(
         markdown.contains("Map Snapshot: root=`")
-            && markdown.contains("fingerprint=`")
-            && !markdown.contains("fingerprint=`unknown`"),
-        "clean changed fast path should still expose a bounded snapshot fingerprint: {markdown}"
+            && markdown.contains("snapshot=`")
+            && !markdown.contains("snapshot=`unknown`"),
+        "clean changed fast path should still expose a bounded snapshot token: {markdown}"
     );
 }

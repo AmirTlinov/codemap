@@ -48,6 +48,42 @@ pub struct XrayCard {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct WhereReport {
+    pub kind: &'static str,
+    pub schema_version: &'static str,
+    pub query: String,
+    pub kind_filter: Option<String>,
+    pub total_matches: usize,
+    pub definitions: Vec<WhereDefinition>,
+    pub soft_suggestions: Vec<WhereSuggestion>,
+    pub unknowns: Vec<Unknown>,
+    pub hidden: Vec<HiddenGroup>,
+    pub expand: Vec<String>,
+    // Rich single-definition cone map, rendered only (kept out of JSON to keep the
+    // where contract flat). When there is exactly one match, `where` is structurally
+    // identical to `cone file#symbol`.
+    #[serde(skip)]
+    pub detail: Option<Box<ConeReport>>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WhereDefinition {
+    pub anchor: FileSummary,
+    pub consumers: Vec<StructuralEdge>,
+    pub consumers_total: usize,
+    pub hidden: Vec<HiddenGroup>,
+    pub expand: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WhereSuggestion {
+    pub name: String,
+    pub defined_in: String,
+    pub definition_count: usize,
+    pub expand: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct ImpactReport {
     pub kind: &'static str,
     pub schema_version: &'static str,

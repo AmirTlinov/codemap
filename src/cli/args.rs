@@ -36,6 +36,9 @@ Machine output:
 pub struct Cli {
     #[arg(long, global = true)]
     root: Option<PathBuf>,
+    /// Compact agent output: collapse the repo prelude and drop repeated disclaimers.
+    #[arg(long, global = true)]
+    brief: bool,
     #[command(subcommand)]
     command: CommandKind,
 }
@@ -46,9 +49,11 @@ enum CommandKind {
     Ls(LsArgs),
     #[command(about = "Show a bounded structural edge cone around an exact anchor")]
     Cone(ConeArgs),
-    #[command(about = "Show one compact after-edit structural map: observed facts, links, surface hints, proof, unknown gaps")]
+    #[command(about = "Show one compact after-edit structural map: observed facts, links, surface hints, verification surfaces, unknown gaps")]
     Changed(ChangedArgs),
-    #[command(about = "Print structural proof surfaces, or run them only with --run")]
+    #[command(
+        about = "Print a verification plan (smallest justified command surface) for a target or changed set; runs commands only with --run"
+    )]
     Proof(ProofArgs),
     #[command(hide = true)]
     #[command(about = "Check environment, repo detection, cache path, and safety defaults")]
@@ -66,7 +71,9 @@ enum CommandKind {
     #[command(about = "Show runtime entrypoints, routes, scripts, and env surfaces for a scope")]
     Runtime(RuntimeArgs),
     #[command(hide = true)]
-    #[command(about = "Show proof surfaces around a scope or diff")]
+    #[command(
+        about = "Show a verification sensor inventory (all observed surfaces, bucketed) for a scope or diff; not a runnable plan"
+    )]
     ProofMap(ProofMapArgs),
     #[command(hide = true)]
     #[command(about = "Show structural blockers and cleanup map before deleting an anchor")]
@@ -77,6 +84,9 @@ enum CommandKind {
     #[command(hide = true)]
     #[command(about = "Show a bounded structural flow from an exact anchor")]
     Flow(FlowArgs),
+    #[command(hide = true)]
+    #[command(about = "Locate every exact definition of a symbol name across the indexed map")]
+    Where(WhereArgs),
     #[command(hide = true)]
     #[command(about = "Show same-scope structural siblings and local conventions")]
     Siblings(SiblingsArgs),
@@ -315,7 +325,7 @@ struct ProofMapArgs {
     since: Option<String>,
     #[arg(long)]
     files: Option<String>,
-    #[arg(long, help = "Show ungrouped per-seed proof sensors")]
+    #[arg(long, help = "Show ungrouped per-seed verification sensors")]
     raw_sensors: bool,
     #[arg(long, default_value_t = 20, hide = true)]
     limit: usize,
@@ -453,6 +463,7 @@ enum SchemaKind {
     Flow,
     Siblings,
     Place,
+    Where,
     Anchors,
     AnchorValidation,
     Graph,

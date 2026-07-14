@@ -154,11 +154,11 @@ fn proof_runner_cone_shows_soft_neighbor_rails_without_calling_them_proof() {
     );
     let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
     assert!(
-        markdown.contains("## Soft Evidence")
+        markdown.contains("## Soft Surface Matches")
             && markdown.contains("experiments/receipts/growth.json")
             && markdown.contains("command:make validate-growth")
-            && !markdown.contains("\n## Proof\n"),
-        "proof runner neighbor rails should render as soft evidence, not direct proof: {markdown}"
+            && !markdown.contains("\n## Verification Surfaces\n"),
+        "proof runner neighbor rails should render as soft surface matches, not direct runnable surfaces: {markdown}"
     );
 }
 

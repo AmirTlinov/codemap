@@ -24,28 +24,28 @@ fn proof_plan_surface_sections(report: &ProofReport, force: bool) {
         && (!evidence_only.is_empty() || !setup_or_support.is_empty() || !soft.is_empty())
     {
         proof_empty_section(
-            "Proof",
-            "No runnable deterministic proof commands were emitted; evidence, setup/support, and soft surfaces are shown separately.",
+            "Verification Surfaces",
+            "No runnable command surfaces were emitted; linked, setup/support, and soft-match surfaces are shown separately.",
         );
     } else if !runnable.is_empty() {
-        proof_plan_surface_section("Proof", report, &runnable);
+        proof_plan_surface_section("Runnable Command Surfaces", report, &runnable);
     }
     if !evidence_only.is_empty() {
-        proof_plan_evidence_surface_section("Evidence Surfaces", report, &evidence_only);
+        proof_plan_evidence_surface_section("Linked Surfaces", report, &evidence_only);
         println!(
-            "\nEvidence surfaces are source-backed links without a runnable command. They do not replace runnable proof commands or remove Unknown entries."
+            "\nLinked surfaces are source-backed relations without a runnable command. They do not replace runnable command surfaces or remove Unknown entries."
         );
     }
     if !setup_or_support.is_empty() {
         proof_plan_surface_section("Setup / Support Surfaces", report, &setup_or_support);
         println!(
-            "\nSetup/support surfaces are connected rails such as install, codegen, migration, seed, deploy, release, watch, or dev-server steps. They are not treated as validation proof and are not run by `--run`."
+            "\nSetup/support surfaces are connected rails such as install, codegen, migration, seed, deploy, release, watch, or dev-server steps. They are not treated as verification command surfaces and are not run by `--run`."
         );
     }
     if !soft.is_empty() {
-        proof_plan_surface_section("Soft Evidence", report, &soft);
+        proof_plan_surface_section("Soft Surface Matches", report, &soft);
         println!(
-            "\nSoft evidence is token/name/path surface overlap. It does not replace deterministic proof or remove Unknown entries."
+            "\nSoft surface matches are token/name/path overlap. They do not create a direct linked verification surface or remove Unknown entries."
         );
     }
 }
@@ -117,6 +117,35 @@ fn proof_plan_surface_samples(report: &ProofReport, proofs: &[&ProofSurface]) {
         if let Some(expand) = proof_detail_expand(report, proofs.len()) {
             println!("  expand: `{}`", root_aware_expand(&expand));
         }
+    }
+}
+
+// Commands whose sensors have a direct structural link to the target/changed
+// files (importing/e2e tests, not soft/mediated matches). A fact, not a
+// recommendation or sufficiency verdict.
+fn proof_most_direct_section(report: &ProofReport) {
+    let mut commands = std::collections::BTreeSet::new();
+    for proof in &report.proofs {
+        if crate::proof_classification::proof_surface_is_runnable_validation(proof)
+            && crate::proof_classification::proof_evidence_is_direct_validation(&proof.evidence)
+        {
+            commands.insert(proof_display_command(proof));
+        }
+    }
+    if commands.is_empty() {
+        return;
+    }
+    const LIMIT: usize = 12;
+    println!("\n## Most-Direct Commands\n");
+    disclaimer(
+        "Commands with a direct structural link to the target/changed files. Not a sufficiency verdict, not a recommendation.",
+    );
+    for command in commands.iter().take(LIMIT) {
+        println!("- `{command}`");
+    }
+    let hidden = commands.len().saturating_sub(LIMIT);
+    if hidden > 0 {
+        println!("- hidden most-direct commands: `{hidden}`");
     }
 }
 

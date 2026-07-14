@@ -204,7 +204,7 @@ pub fn place_report(
     group_duplicate_proof_surfaces(
         &mut paired_proof_pattern,
         &mut hidden,
-        "duplicate paired proof sensors grouped by structural key",
+        "duplicate paired verification sensors grouped by structural key",
         &proof_map_raw_expand,
     );
     if !include_hidden {

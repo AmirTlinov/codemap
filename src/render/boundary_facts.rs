@@ -8,7 +8,7 @@ fn boundary_facts_section(facts: &crate::model::BoundaryFacts, force: bool, comp
     }
     println!("\n## Boundary Facts\n");
     if !compact {
-        println!("Path facts only. Not permissions or next actions.\n");
+        disclaimer("Path facts only. Not permissions or next actions.");
     }
     boundary_fact_group(
         "instruction files",

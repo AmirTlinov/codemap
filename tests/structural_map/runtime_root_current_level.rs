@@ -18,6 +18,12 @@ fn runtime_root_scope_is_current_level_until_include_hidden() {
         &repo.path().join("fixtures/go-workspace/apps/api/main.go"),
         "package main\n\nfunc main() {}\n",
     );
+    // A nested HTTP route: routes are the high-signal, low-volume runtime category
+    // surfaced from nested files even at root scope.
+    write(
+        &repo.path().join("services/api/routes.go"),
+        "package api\n\ntype Router interface {\n\tHandleFunc(path string, handler func()) Route\n}\n\ntype Route interface {\n\tMethods(methods ...string) Route\n}\n\nfunc RegisterRoutes(router Router) {\n\trouter.HandleFunc(\"/health\", health).Methods(\"GET\")\n}\n\nfunc health() {}\n",
+    );
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["commit", "-qm", "runtime root fixture"]);
 
@@ -82,6 +88,15 @@ fn runtime_root_scope_is_current_level_until_include_hidden() {
             .any(|group| group["reason"] == "recursive runtime files hidden at root scope"
                 && group["expand"] == "codemap runtime . --all"),
         "root runtime should expose the explicit expansion command for recursive runtime files: {runtime:#}"
+    );
+    assert!(
+        runtime["routes"]
+            .as_array()
+            .expect("routes")
+            .iter()
+            .any(|route| route["path"] == "/health"
+                && route["file"] == "services/api/routes.go"),
+        "root runtime should surface nested routes as a high-signal category instead of hiding them: {runtime:#}"
     );
 
     let expanded = run_json(

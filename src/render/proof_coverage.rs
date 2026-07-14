@@ -1,24 +1,27 @@
 fn proof_coverage_section(coverage: &crate::model::ProofCoverageSummary) {
-    println!("\n## Coverage\n");
+    println!("\n## Changed Surface Coverage\n");
     println!("- changed files: `{}`", coverage.changed_count);
     println!(
-        "- runnable deterministic: `{}`",
+        "- runnable command surface: `{}`",
         coverage.runnable_deterministic.len()
     );
-    println!("- evidence only: `{}`", coverage.evidence_only.len());
+    println!("- linked surface only: `{}`", coverage.evidence_only.len());
     println!(
         "- setup/support only: `{}`",
         coverage.setup_support_only.len()
     );
     println!(
-        "- non-closing soft evidence: `{}`",
+        "- soft surface match only: `{}`",
         coverage.soft_only.len()
     );
-    println!("- missing direct proof: `{}`", coverage.missing.len());
-    proof_coverage_path_group("Runnable Deterministic", &coverage.runnable_deterministic);
-    proof_coverage_path_group("Evidence Only", &coverage.evidence_only);
+    println!(
+        "- no direct linked verification surface: `{}`",
+        coverage.missing.len()
+    );
+    proof_coverage_path_group("Runnable Command Surface", &coverage.runnable_deterministic);
+    proof_coverage_path_group("Linked Surface Only", &coverage.evidence_only);
     proof_coverage_path_group("Setup / Support Only", &coverage.setup_support_only);
-    proof_coverage_path_group("Non-Closing Soft Evidence", &coverage.soft_only);
+    proof_coverage_path_group("Soft Surface Match Only", &coverage.soft_only);
     proof_coverage_gaps(&coverage.missing);
 }
 

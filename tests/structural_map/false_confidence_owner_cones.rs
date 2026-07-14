@@ -80,7 +80,7 @@ fn owner_surface_cones_expose_manifest_schema_env_and_ci_neighborhoods() {
         manifest_roles_markdown.contains("## Surface Hints")
             && manifest_roles_markdown.contains("`manifest`")
             && !manifest_roles_markdown.contains("## Links")
-            && !manifest_roles_markdown.contains("## Proof"),
+            && !manifest_roles_markdown.contains("## Verification Surfaces"),
         "cone --section roles should show only the roles layer: {manifest_roles_markdown}"
     );
 

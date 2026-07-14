@@ -39,7 +39,7 @@ fn cone_shows_proof_edges_through_direct_consumers() {
             .any(|proof| proof["path"] == "packages/replay/tests/public-api.test.ts"
                 && proof["evidence"] == "test_import_via_direct_consumer"
                 && proof["strength"] == "medium"),
-        "proof should expose via-consumer evidence as mediated/medium, not direct proof: {public_proof:#}"
+        "proof should expose via-consumer evidence as mediated/medium, not a direct verification surface: {public_proof:#}"
     );
     assert!(
         public_proof["unknowns"]
@@ -47,7 +47,7 @@ fn cone_shows_proof_edges_through_direct_consumers() {
             .expect("unknowns")
             .iter()
             .any(|unknown| unknown["kind"] == "direct_test_import_not_found"),
-        "via-consumer proof must not hide missing direct proof for the anchor: {public_proof:#}"
+        "via-consumer surface must not hide the missing direct verification surface for the anchor: {public_proof:#}"
     );
 
     let cone = run_json(
@@ -94,10 +94,10 @@ fn cone_shows_proof_edges_through_direct_consumers() {
     );
     let cone_markdown = String::from_utf8(cone_markdown.stdout).expect("markdown utf8");
     assert!(
-        cone_markdown.contains("## Soft Evidence")
+        cone_markdown.contains("## Soft Surface Matches")
             && cone_markdown.contains("test_import_via_direct_consumer")
-            && !cone_markdown.contains("## Proof\n\nproof:"),
-        "cone markdown must not render mediated proof under generic Proof: {cone_markdown}"
+            && !cone_markdown.contains("## Verification Surfaces\n\nproof:"),
+        "cone markdown must not render mediated verification links under generic runnable surfaces: {cone_markdown}"
     );
 
     let session_cone = run_json(

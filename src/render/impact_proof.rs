@@ -27,13 +27,25 @@ fn impact_summary_section(clusters: &[ImpactCluster]) {
 
 fn render_impact_summary_lines(clusters: &[ImpactCluster]) {
     for cluster in clusters {
+        let verification_count = cluster
+            .proof
+            .iter()
+            .filter(|edge| !crate::proof_classification::proof_evidence_is_soft_match(&edge.evidence))
+            .count();
+        let soft_count = cluster.proof.len().saturating_sub(verification_count);
+        let soft_suffix = if soft_count > 0 {
+            format!("; soft={soft_count}")
+        } else {
+            String::new()
+        };
         println!(
-            "- `{}` [direct={}; cross={}; contract={}; proof={}]",
+            "- `{}` [direct={}; cross={}; contract={}; verification={}{}]",
             cluster.id,
             cluster.direct_consumers.len(),
             cluster.cross_boundary_consumers.len(),
             cluster.contract_links.len(),
-            cluster.proof.len()
+            verification_count,
+            soft_suffix
         );
         if !cluster.reasons.is_empty() {
             println!("  reasons: {}", cluster.reasons.join("; "));
@@ -54,11 +66,11 @@ fn render_impact_cluster(cluster: &ImpactCluster) {
     grouped_edge_list("direct consumers", &cluster.direct_consumers, 12);
     grouped_edge_list("cross-boundary consumers", &cluster.cross_boundary_consumers, 12);
     grouped_edge_list("contract links", &cluster.contract_links, 12);
-    grouped_edge_list("proof", &cluster.proof, 12);
+    grouped_edge_list("verification surfaces", &cluster.proof, 12);
 }
 
 pub fn proof(report: &ProofReport, section_filter: Option<&str>) {
-    println!("# Proof Plan\n");
+    println!("# Verification Surface Plan\n");
     map_prelude_line_or_snapshot_line();
     if let Some(section) = section_filter {
         render_proof_filtered_section(report, section);
@@ -91,10 +103,10 @@ pub fn proof(report: &ProofReport, section_filter: Option<&str>) {
     {
         if proof_anchor_count(report) == 0 {
             println!(
-                "\nNo changed anchors selected. `codemap proof changed` has no proof scope in a clean repo."
+                "\nNo changed anchors selected. `codemap proof changed` has no verification surface scope in a clean repo."
             );
         } else {
-            println!("\nNo proof surface found. Use `codemap cone <path>` to inspect edges first.");
+            println!("\nNo verification surface found. Use `codemap cone <path>` to inspect edges first.");
         }
         println!("\n{}", report.run_hint);
         return;
@@ -102,6 +114,7 @@ pub fn proof(report: &ProofReport, section_filter: Option<&str>) {
     if let Some(coverage) = &report.coverage {
         proof_coverage_section(coverage);
     }
+    proof_most_direct_section(report);
     if proof_large_changed_compact(report) {
         proof_large_changed_summary(report);
     } else if !report.proofs.is_empty() {
@@ -135,9 +148,9 @@ fn proof_large_changed_compact(report: &ProofReport) -> bool {
         && (report.changed.len() > 5
             || (report.changed.len() > 3
                 && report
-                    .hidden
-                    .iter()
-                    .any(|group| group.reason.contains("proof wiring") && group.count > 50))
+                .hidden
+                .iter()
+                .any(|group| group.reason.contains("verification wiring") && group.count > 50))
             || report
                 .unknowns
                 .iter()
@@ -191,11 +204,11 @@ fn proof_large_changed_summary(report: &ProofReport) {
         .iter()
         .filter(|proof| crate::proof_classification::proof_surface_is_soft_evidence(proof))
         .count();
-    println!("\n## Proof\n");
-    println!("- runnable deterministic sensors: `{runnable}`");
-    println!("- evidence-only sensors: `{evidence_only}`");
+    println!("\n## Verification Surfaces\n");
+    println!("- runnable command sensors: `{runnable}`");
+    println!("- linked-only sensors: `{evidence_only}`");
     println!("- setup/support sensors: `{setup}`");
-    println!("- soft evidence sensors: `{soft}`");
+    println!("- soft-match sensors: `{soft}`");
     if let Some(expand) = proof_detail_expand(report, report.proofs.len()) {
         println!("- expand: `{}`", root_aware_expand(&expand));
     }
@@ -213,11 +226,11 @@ fn proof_observed_section(report: &ProofReport) {
     if report.target.is_none() && report.changed.is_empty() {
         println!("- selected anchors: `0`");
     }
-    println!("- proof surfaces: `{}`", report.proofs.len());
+    println!("- verification surfaces: `{}`", report.proofs.len());
     if let Some(coverage) = &report.coverage {
         println!("- coverage changed files: `{}`", coverage.changed_count);
         println!(
-            "- coverage missing direct proof: `{}`",
+            "- coverage without direct linked surface: `{}`",
             coverage.missing.len()
         );
     }
@@ -230,7 +243,7 @@ fn proof_links_section(report: &ProofReport) {
     if report.proofs.is_empty() && report.wiring.is_empty() {
         proof_empty_section(
             "Links",
-            "No proof surface links were emitted by proof detectors for this report.",
+            "No verification surface links were emitted by detectors for this report.",
         );
         return;
     }
@@ -256,7 +269,7 @@ fn proof_links_section(report: &ProofReport) {
     }
     let hidden = report.proofs.len().saturating_sub(20);
     if hidden > 0 {
-        println!("- hidden proof links: `{hidden}`");
+        println!("- hidden verification links: `{hidden}`");
         if let Some(expand) = proof_detail_expand(report, report.proofs.len()) {
             println!("  expand: `{}`", root_aware_expand(&expand));
         }
@@ -265,7 +278,7 @@ fn proof_links_section(report: &ProofReport) {
 
 fn proof_roles_section(report: &ProofReport) {
     println!("## Surface Hints\n");
-    println!("Derived from deterministic path/name/extension/manifest patterns. Not intent, correctness, or ownership truth.\n");
+    disclaimer("Derived from deterministic path/name/extension/manifest patterns. Not intent, correctness, or ownership truth.");
     let runnable = report
         .proofs
         .iter()
@@ -322,8 +335,8 @@ fn proof_plan_section(report: &ProofReport, force: bool) {
     }
     if force && report.proofs.is_empty() && report.fallback.is_empty() {
         proof_empty_section(
-            "Proof",
-            "No proof surfaces or fallback commands were emitted by proof detectors for this report.",
+            "Verification Surfaces",
+            "No verification surfaces or fallback commands were emitted by detectors for this report.",
         );
     }
 }
@@ -331,9 +344,9 @@ fn proof_plan_section(report: &ProofReport, force: bool) {
 fn proof_unknown_section(report: &ProofReport) {
     if report.unknowns.is_empty() {
         let detail = if proof_anchor_count(report) == 0 {
-            "No proof anchors selected; proof Unknown checks did not run."
+            "No proof anchors selected; verification Unknown checks did not run."
         } else {
-            "No Unknown entries were emitted by proof detectors for this report."
+            "No Unknown entries were emitted by verification surface detectors for this report."
         };
         proof_empty_section("Unknown", detail);
         return;

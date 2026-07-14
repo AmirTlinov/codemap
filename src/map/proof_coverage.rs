@@ -53,7 +53,7 @@ fn proof_coverage_summary(
         summary.missing.push(ProofGap {
             path: path.clone(),
             kind: "direct_deterministic_proof_not_found".to_string(),
-            effect: "no direct runnable, evidence-only, setup/support, or soft proof sensor was found for this changed path".to_string(),
+            effect: "no runnable command, linked, setup/support, or soft-match verification surface was found for this changed path".to_string(),
             expand: format!("codemap proof-map --files {} --raw-sensors", shell_quote(path)),
         });
     }

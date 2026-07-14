@@ -179,7 +179,7 @@ fn proof_links_next_route_files_to_e2e_route_visits() {
                 && proof["locations"][0]["path"] == "tests/e2e/studio.spec.ts"
                 && proof["locations"][0]["line_start"] == 4
                 && proof["locations"][0]["kind"] == "route_visit"),
-        "route e2e proof should be available to the shell as mediated evidence through its direct route consumer: {shell_proof:#}"
+        "route e2e surface should be available to the shell as mediated evidence through its direct route consumer: {shell_proof:#}"
     );
     assert!(
         shell_proof["unknowns"]
@@ -187,7 +187,7 @@ fn proof_links_next_route_files_to_e2e_route_visits() {
             .expect("shell proof unknowns")
             .iter()
             .any(|unknown| unknown["kind"] == "direct_test_import_not_found"),
-        "mediated e2e proof must not hide the missing direct proof sensor for the shell: {shell_proof:#}"
+        "mediated e2e surface must not hide the missing direct verification surface sensor for the shell: {shell_proof:#}"
     );
 
     let dynamic_proof = run_json(

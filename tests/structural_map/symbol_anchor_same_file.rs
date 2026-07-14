@@ -173,7 +173,7 @@ fn symbol_anchor_cone_links_same_file_symbol_body_uses() {
             .iter()
             .any(|unknown| unknown["kind"] == "direct_test_import_not_found"
                 && unknown["path"] == "src/local-flow.tsx#chooseFocus"),
-        "mediated symbol-consumer proof must not hide missing direct proof for the selected symbol: {choose_proof:#}"
+        "mediated symbol-consumer surface must not hide the missing direct verification surface for the selected symbol: {choose_proof:#}"
     );
 
     let argument_cone = run_json(

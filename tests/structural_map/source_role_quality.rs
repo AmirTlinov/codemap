@@ -294,7 +294,7 @@ fn role_surface_match_is_soft_evidence_without_closing_direct_unknown() {
                 && surface["strength"] == "medium"
                 && surface["target_anchor"] == "src/repo/roles_source.rs"
                 && surface["command"] == "cargo test"),
-        "shared role should create a soft proof sensor with the package test command and explicit target anchor: {proof:#}"
+        "shared role should create a soft verification surface with the package test command and explicit target anchor: {proof:#}"
     );
     assert!(
         proof["unknowns"]
@@ -302,7 +302,7 @@ fn role_surface_match_is_soft_evidence_without_closing_direct_unknown() {
             .expect("unknowns")
             .iter()
             .any(|unknown| unknown["kind"] == "direct_test_import_not_found"),
-        "soft role evidence must not close the direct proof unknown: {proof:#}"
+        "soft role evidence must not close the direct verification unknown: {proof:#}"
     );
 
     let markdown = codemap()
@@ -318,7 +318,7 @@ fn role_surface_match_is_soft_evidence_without_closing_direct_unknown() {
     );
     let markdown = String::from_utf8(markdown.stdout).expect("markdown utf8");
     assert!(
-        markdown.contains("## Soft Evidence")
+        markdown.contains("## Soft Surface Matches")
             && markdown.contains("test_role_surface_match")
             && markdown.contains("-> `src/repo/roles_source.rs`")
             && markdown.contains("direct_test_import_not_found"),

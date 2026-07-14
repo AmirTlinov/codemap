@@ -143,7 +143,7 @@ fn changed_risks(
         "unknown_direct_proof",
         "medium",
         changed_missing_direct_paths(proof_map).into_iter().collect(),
-        "changed paths still have missing direct deterministic proof in proof-map",
+        "changed paths still lack a direct linked verification surface in proof-map",
         "proof_map_unknown",
         Some(format!("codemap proof-map {selector} --raw-sensors")),
     );
@@ -263,7 +263,7 @@ fn changed_coupling(
             } else {
                 missing
             },
-            "changed source paths compared with deterministic proof-map direct/missing surfaces",
+            "changed source paths compared with proof-map direct linked/missing surfaces",
             "proof_map",
             Some(format!("codemap proof-map {selector} --raw-sensors")),
         );

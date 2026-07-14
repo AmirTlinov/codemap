@@ -31,10 +31,7 @@ fn assert_map_snapshot_has_provenance(text: &str) {
     assert!(
         snapshot.contains("branch=`")
             && snapshot.contains("dirty=`")
-            && snapshot.contains("fingerprint=`")
-            && snapshot.contains("cache=`")
-            && snapshot.contains("external_cache=`")
-            && snapshot.contains("location=`")
+            && snapshot.contains("snapshot=`")
             && snapshot.contains("schema=`")
             && snapshot.contains("repo_footprint=`zero`"),
         "snapshot should carry provenance fields: {snapshot}"

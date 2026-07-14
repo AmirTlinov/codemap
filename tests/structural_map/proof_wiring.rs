@@ -246,7 +246,7 @@ fn changed_proof_renders_wiring_without_recommendations() {
     );
     let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
     assert!(
-        markdown.contains("## Proof Wiring")
+        markdown.contains("## Verification Wiring")
             && markdown.contains("[missing]")
             && markdown.contains("make missing-proof")
             && markdown.contains("expand: `codemap"),

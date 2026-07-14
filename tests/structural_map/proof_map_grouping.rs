@@ -43,7 +43,7 @@ fn proof_map_groups_duplicate_direct_sensors_in_directory_scope() {
             .expect("hidden")
             .iter()
             .all(|hidden| hidden["reason"].as_str().is_none_or(|reason| reason
-                != "duplicate hard proof sensors grouped by structural key")),
+                != "duplicate runnable verification sensors grouped by structural key")),
         "distinct target anchors are not duplicate proof sensors and should not be hidden as grouped duplicates: {proof_map:#}"
     );
 }

@@ -16,7 +16,7 @@ fn nearest_proof_scope_unknown(scope: &str, nearest: &str, expand: String) -> Un
         "nearest_proof_scope",
         Some(scope),
         None,
-        "no deterministic proof sensors found at this exact scope",
+        "no direct linked verification sensors found at this exact scope",
         format!("nearest parent proof scope is `{nearest}`; expand there to inspect broader sensors"),
         Some(expand),
     )

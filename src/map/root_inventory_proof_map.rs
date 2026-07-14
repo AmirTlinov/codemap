@@ -43,21 +43,21 @@ pub(crate) fn root_inventory_proof_map_report(
         &mut hard,
         limit,
         &mut hidden,
-        "hard proof surfaces hidden by limit",
+        "runnable verification surfaces hidden by limit",
         expand_larger,
     );
     truncate_with_hidden(
         &mut direct_evidence,
         limit,
         &mut hidden,
-        "direct evidence surfaces hidden by limit",
+        "direct linked surfaces hidden by limit",
         expand_larger,
     );
     truncate_with_hidden(
         &mut setup_support,
         limit,
         &mut hidden,
-        "setup/support proof surfaces hidden by limit",
+        "setup/support verification surfaces hidden by limit",
         expand_larger,
     );
 
@@ -65,8 +65,8 @@ pub(crate) fn root_inventory_proof_map_report(
         kind: "bounded_root_inventory".to_string(),
         path: Some(".".to_string()),
         line_start: None,
-        reason: "cold root proof-map used path, manifest, script, and CI inventory only; recursive file-level proof sensors were not expanded".to_string(),
-        effect: "file-level direct imports, route ownership, and semantic proof wiring remain hidden until raw-sensors expansion".to_string(),
+        reason: "cold root proof-map used path, manifest, script, and CI inventory only; recursive file-level verification sensors were not expanded".to_string(),
+        effect: "file-level direct imports, route ownership, and semantic verification wiring remain hidden until raw-sensors expansion".to_string(),
         expand: Some(expand_raw.to_string()),
     }];
 

@@ -413,11 +413,11 @@ fn ci_owner_proof_treats_readonly_migration_status_as_validation() {
                 && surface["strength"] == "hard"
                 && surface["command"] == "prisma migrate status --schema prisma/schema.prisma"
         }),
-        "read-only migration status steps should be CI validation proof: {proof:#}"
+        "read-only migration status steps should be CI validation command surfaces: {proof:#}"
     );
     assert!(
         !proofs.iter().any(|surface| surface["command"] == "pnpm run db:migrate:deploy"),
-        "mutating/deploy migration scripts must not become CI validation proof: {proof:#}"
+        "mutating/deploy migration scripts must not become CI validation command surfaces: {proof:#}"
     );
     assert!(
         !proof["unknowns"]
@@ -460,7 +460,7 @@ fn ci_owner_proof_fails_open_when_workflow_has_no_validation_run_step() {
     );
     assert!(
         !proof["fallback"].as_array().expect("fallback").is_empty(),
-        "missing CI validation proof should keep conservative fallback commands visible: {proof:#}"
+        "missing CI validation surface should keep conservative fallback commands visible: {proof:#}"
     );
     assert!(
         proof["unknowns"]
@@ -468,7 +468,7 @@ fn ci_owner_proof_fails_open_when_workflow_has_no_validation_run_step() {
             .expect("unknowns")
             .iter()
             .any(|unknown| unknown["kind"] == "ci_validation_step_not_found"),
-        "missing CI validation proof should be explicit Unknown, not soft-proof silence: {proof:#}"
+        "missing CI validation surface should be explicit Unknown, not soft-surface silence: {proof:#}"
     );
 
     write(
@@ -491,6 +491,6 @@ fn ci_owner_proof_fails_open_when_workflow_has_no_validation_run_step() {
             .expect("unknowns")
             .iter()
             .any(|unknown| unknown["kind"] == "ci_validation_step_not_found"),
-        "proof changed should keep missing CI validation proof visible for dirty workflows: {changed:#}"
+        "proof changed should keep the missing CI validation surface visible for dirty workflows: {changed:#}"
     );
 }

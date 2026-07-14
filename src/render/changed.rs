@@ -16,6 +16,11 @@ pub fn changed(report: &ChangedReport, section_filter: Option<&str>) {
             changed_worktree_section(report, false);
         }
         println!("\nNo changed anchors detected.");
+        // Surface fail-open notices (e.g. snapshot_not_found) even when the changed
+        // set is empty, so a missing `--since` snapshot is never silent.
+        if matches!(section_filter, None | Some("unknown")) {
+            changed_unknown_section(report, true, false);
+        }
         if section_filter == Some("hidden") {
             changed_hidden_section(report, &changed_render_hidden(report, false), true, false);
             return;
@@ -102,7 +107,7 @@ fn changed_render_hidden(report: &ChangedReport, compact: bool) -> Vec<crate::mo
         let proof_group_count = changed_proof_command_groups(report).len();
         if proof_group_count > COMPACT_CHANGED_PROOF_COMMAND_LIMIT {
             hidden.push(crate::model::HiddenGroup {
-                reason: "proof command groups hidden by compact changed view".to_string(),
+                reason: "runnable command surface groups hidden by compact changed view".to_string(),
                 count: proof_group_count - COMPACT_CHANGED_PROOF_COMMAND_LIMIT,
                 expand: format!(
                     "codemap changed{} --section proof",
@@ -137,7 +142,7 @@ fn changed_should_compact(report: &ChangedReport) -> bool {
             || report
                 .hidden
                 .iter()
-                .any(|group| group.reason.contains("proof wiring") && group.count > 50)
+                .any(|group| group.reason.contains("verification wiring") && group.count > 50)
             || report.unknowns.len() > report.display_limit)
 }
 
@@ -162,7 +167,7 @@ fn changed_risks_section(report: &ChangedReport, force: bool, compact: bool) {
         return;
     }
     println!("\n## Risks\n");
-    println!("Mechanical facts only. Not an edit verdict.\n");
+    disclaimer("Mechanical facts only. Not an edit verdict.");
     if let Some(prelude) = current_map_prelude() {
         if has_live_untracked {
             println!(
@@ -458,8 +463,8 @@ fn changed_delta_section(report: &ChangedReport, compact: bool) {
         ("removed runtime routes", delta.removed_runtime_routes),
         ("added env", delta.added_env),
         ("removed env", delta.removed_env),
-        ("added proof sensors", delta.added_proof_surfaces),
-        ("removed proof sensors", delta.removed_proof_surfaces),
+        ("added verification sensors", delta.added_proof_surfaces),
+        ("removed verification sensors", delta.removed_proof_surfaces),
         ("new unknowns", delta.new_unknowns),
     ];
     let mut printed = 0;

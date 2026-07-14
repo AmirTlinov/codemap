@@ -265,10 +265,18 @@ fn xray_role_surfaces(anchor: &FileSummary) -> Vec<Surface> {
 fn xray_output_surfaces(anchor: &FileSummary) -> Vec<Surface> {
     let mut surfaces = Vec::new();
     for export in &anchor.exports {
+        // A symbol anchor (`file#sym`) is already the final export path; only file
+        // anchors need the `#export` suffix. Without this guard, `cone file#run`
+        // produced `file#run#run`.
+        let export_path = if anchor.path.contains('#') {
+            anchor.path.clone()
+        } else {
+            format!("{}#{export}", anchor.path)
+        };
         surfaces.push(Surface {
-            id: format!("surface:xray_output:{}#{export}", anchor.path),
+            id: format!("surface:xray_output:{export_path}"),
             kind: "public_export".to_string(),
-            path: Some(format!("{}#{export}", anchor.path)),
+            path: Some(export_path),
             role: Some("output".to_string()),
             evidence: "exported_symbol".to_string(),
             strength: EvidenceStrength::High,

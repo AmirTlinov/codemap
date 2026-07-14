@@ -18,6 +18,21 @@ pub fn changed_files(root: &Path, staged: bool, since: Option<&str>) -> Vec<Stri
     files.into_iter().collect()
 }
 
+pub fn git_ref_exists(root: &Path, reference: &str) -> bool {
+    Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args([
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            &format!("{reference}^{{commit}}"),
+        ])
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+}
+
 pub fn git_changes(root: &Path, staged_only: bool, since: Option<&str>) -> Vec<GitChange> {
     if let Some(since) = since {
         return git_name_status(root, &["diff", "--name-status", "--relative", since]);

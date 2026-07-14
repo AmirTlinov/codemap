@@ -3,14 +3,19 @@ fn proof(project: &crate::model::Project, args: ProofArgs) -> Result<()> {
     if args.run && args.section.is_some() {
         bail!("--section is display-only and cannot be combined with --run");
     }
-    let (target, changed, selector) = proof_inputs(project, &args)?;
+    let (target, changed, selector, since_notice) = proof_inputs(project, &args)?;
     let limit = if args.include_hidden {
         usize::MAX / 2
     } else {
         args.limit
     };
-    let report = map::proof_report(project, target, changed, selector, args.depth, limit);
+    let mut report = map::proof_report(project, target, changed, selector, args.depth, limit);
     maybe_write_proof_changed_lens_cache(project, &args, &report);
+    // Inject the fail-open snapshot notice after cache writes so it never pollutes
+    // the cached report.
+    if let Some(notice) = since_notice {
+        report.unknowns.push(notice);
+    }
     let prelude = repo::map_prelude(&project.root);
     if args.run {
         render::set_map_prelude(prelude);
@@ -147,13 +152,13 @@ fn planned_run_commands(
         for (command, reason) in &rejected {
             match reason {
                 ProofCommandRejection::Placeholder => {
-                    eprintln!("codemap: cannot run placeholder proof command: {command}");
+                    eprintln!("codemap: cannot run placeholder verification command: {command}");
                 }
                 ProofCommandRejection::Unsafe(reason) => {
-                    eprintln!("codemap: refusing unsafe proof command: {command} ({reason})");
+                    eprintln!("codemap: refusing unsafe verification command: {command} ({reason})");
                 }
                 ProofCommandRejection::Unknown => {
-                    eprintln!("codemap: refusing unknown proof command: {command}");
+                    eprintln!("codemap: refusing unknown verification command: {command}");
                 }
             }
         }
@@ -165,7 +170,7 @@ fn planned_run_commands(
                 "verification plan contains non-runnable placeholder commands for the selected scope"
             );
         }
-        bail!("verification plan contains proof commands that codemap will not run by default");
+        bail!("verification plan contains rendered commands that codemap will not run by default");
     }
     Ok(unique_preserve_order(commands))
 }

@@ -12,7 +12,7 @@ fn artifact_chain_facts_for_command(
             command.to_string(),
             proof.path.clone(),
             "artifact write path was not statically found",
-            "proof command may run, but codemap cannot connect it to a produced receipt/report artifact",
+            "verification command may run, but codemap cannot connect it to a produced receipt/report artifact",
             proof.locations.clone(),
             proof_wiring_expand_for_proof(selector, proof),
         ));
@@ -142,7 +142,7 @@ fn receipt_declared_command_wiring_facts(
         target_anchor: Some(rel.to_string()),
         evidence: "artifact_declared_command".to_string(),
         strength: EvidenceStrength::High,
-        reason: "artifact/receipt declares a proof command".to_string(),
+        reason: "artifact/receipt declares a verification command".to_string(),
         locations: field_line_locations(&text, rel, &["proof_command", "command", "validation_command"]),
     };
     proof_surface_wiring_facts(project, &proof, selector)

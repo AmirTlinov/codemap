@@ -49,15 +49,19 @@ Keep new implementation under the existing owner folders. Do not create a second
 - root/directory `ls` surfaces with bounded domain/package/script/test map;
 - file `ls` with symbols, exports, imports, incoming count, adjacent tests, and next command;
 - `ls .` and `changed` Boundary Facts for instruction files, repo-local guard files, and protected-looking paths;
-- `cone` with X-Ray Card role, inputs, outputs, state, side effects, consumers, structural flow, nearby surfaces, proof buckets, unknowns, plus outgoing/incoming/proof/contract/boundary links;
+- `cone` with X-Ray Card role, inputs, outputs, state, side effects, consumers, structural flow, nearby surfaces, verification buckets, unknowns, plus outgoing/incoming/verification/contract/boundary links;
 - first-class edge evidence locations and typed unknowns;
-- structural `impact` by changed anchors, direct consumers, cross-boundary consumers, contract links, and proof edges;
+- structural `impact` by changed anchors, direct consumers, cross-boundary consumers, contract links, and verification edges;
 - `diff-map` for map-level changed structural lines, exported symbol surfaces, and new unknowns;
-- `contract` for exported/schema/package/public surfaces and their consumers/proof;
-- `runtime` for deterministic entrypoints, Next file-convention routes, static JS/Python/Go route registrations, scripts, env references, workers/jobs, CI, typed runtime unknowns, and proof;
-- structural `proof` from adjacent/importing tests and package-local commands;
-- `proof changed` coverage summary for runnable, evidence-only, setup/support, soft-only, and missing direct proof buckets;
-- `proof-map` for direct/indirect/e2e/contract proof surfaces and typed blind spots around a scope or diff;
+- `contract` for exported/schema/package/public surfaces and their consumers/verification links;
+- `runtime` for deterministic entrypoints, Next file-convention routes, static JS/Python/Go route registrations, scripts, env references, workers/jobs, CI, typed runtime unknowns, and verification surfaces;
+- structural `proof` as a historical command name for adjacent/importing tests and package-local command surfaces;
+- `proof changed` coverage summary for runnable command, linked-only, setup/support, soft-match, and missing direct-link buckets;
+- `proof` `Most-Direct Commands` section (commands whose sensors have a direct validation link to the changed files) as a fact, not a recommendation;
+- `proof-map` for direct/indirect/e2e/contract verification surfaces and typed blind spots around a scope or diff;
+- `where <symbol>` deterministic symbol-name locator over the indexed symbol map, reusing the cone engine for single definitions;
+- global `--brief`/`CODEMAP_BRIEF` compact output and cache telemetry removed from the default agent-facing snapshot line;
+- `changed`/`proof changed` `--since <token>` agent-snapshot delta over an external token-keyed fingerprint store, fail-open on unknown tokens;
 - `delete` for deletion blockers, dynamic-reference blind spots, and cleanup hints without safety claims;
 - `boundary-map` as read-only package/domain crossing map separate from boundary checks;
 - `flow` as bounded structural steps, side-effect surfaces, and unknown stops;
@@ -99,7 +103,7 @@ Typed unknowns are facts too. Dynamic imports, dynamic env lookups, composed rou
 
 - `ls` and `cone` default limit: 20 structural items per section;
 - `impact` default limit: 30 structural items;
-- `proof` default limit: 12 proof surfaces;
+- `proof` default limit: 12 verification surfaces;
 - graph lens default limit: 12 nodes;
 - root `ls .` must remain a top-level map;
 - hidden counts must be explicit when output is capped.
@@ -119,11 +123,11 @@ Typed unknowns are facts too. Dynamic imports, dynamic env lookups, composed rou
 
 - help exposes only map-first commands;
 - root `ls .` is a bounded domain/package map;
-- file `ls` and `cone` expose symbols, edges, proof, and boundaries;
+- file `ls` and `cone` expose symbols, edges, verification surfaces, and boundaries;
 - `impact` and `proof` are structural without extra flags;
-- e2e proof links can use shared exact selector/test-id surfaces and static/dynamic Next route visits in root or nested monorepo app layouts, not only test path names;
-- e2e proof can follow spec -> test support/page object -> source anchor import chains;
-- Python test files can receive file-level `pytest <path>` proof commands even without a package manifest;
+- e2e verification links can use shared exact selector/test-id surfaces and static/dynamic Next route visits in root or nested monorepo app layouts, not only test path names;
+- e2e verification can follow spec -> test support/page object -> source anchor import chains;
+- Python test files can receive file-level `pytest <path>` verification commands even without a package manifest;
 - schema manifest has no removed task-router contracts;
 - schema printing is side-effect free.
 

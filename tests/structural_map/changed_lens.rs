@@ -78,7 +78,7 @@ fn changed_section_filters_use_stable_rfc_names() {
         ("observed", "## Observed"),
         ("links", "## Links"),
         ("roles", "## Surface Hints"),
-        ("proof", "## Proof"),
+        ("proof", "## Verification Surfaces"),
         ("unknown", "## Unknown"),
         ("hidden", "## Hidden"),
     ] {
@@ -206,7 +206,7 @@ fn changed_risks_and_coupling_are_mechanical_not_recommendations() {
             .iter()
             .any(|fact| fact["kind"] == "source_has_direct_or_declared_proof_surface"
                 && fact["status"] == "no"),
-        "changed coupling should keep missing direct proof as a relationship fact: {changed:#}"
+        "changed coupling should keep the missing direct verification surface as a relationship fact: {changed:#}"
     );
 
     let output = codemap()
