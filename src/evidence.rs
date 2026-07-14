@@ -64,10 +64,76 @@ pub(crate) fn import_statement_locations(
         ));
     }
     if locations.is_empty() {
+        locations.extend(spec_text_import_locations(info, from, to, &text));
+    }
+    if locations.is_empty() {
         vec![EvidenceLocation::path(from, "import_source_file")]
     } else {
         locations
     }
+}
+
+// Cheap last-resort line search: find the raw import spec text (quoted, or on
+// a `use`/`from` line) for specs that plausibly resolve to `to`.
+fn spec_text_import_locations(
+    info: &crate::model::FileInfo,
+    from: &str,
+    to: &str,
+    text: &str,
+) -> Vec<EvidenceLocation> {
+    let specs = info
+        .imports
+        .iter()
+        .filter(|spec| spec_refers_to_target(spec, to))
+        .collect::<Vec<_>>();
+    if specs.is_empty() {
+        return Vec::new();
+    }
+    text.lines()
+        .enumerate()
+        .filter(|(_, line)| {
+            specs
+                .iter()
+                .any(|spec| line_mentions_import_spec(line, spec))
+        })
+        .map(|(index, _)| EvidenceLocation::line(from, index + 1, "import_statement"))
+        .take(3)
+        .collect()
+}
+
+fn spec_refers_to_target(spec: &str, to: &str) -> bool {
+    let last = spec
+        .trim_end_matches('/')
+        .rsplit(['/', ':'])
+        .next()
+        .unwrap_or(spec);
+    if last.is_empty() || last == "." || last == ".." || last == "*" {
+        return false;
+    }
+    let last_stem = Path::new(last)
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .unwrap_or(last);
+    let target = Path::new(to);
+    let target_name = target.file_name().and_then(|name| name.to_str());
+    let target_stem = target.file_stem().and_then(|stem| stem.to_str());
+    if Some(last) == target_name || Some(last_stem) == target_stem {
+        return true;
+    }
+    matches!(target_stem, Some("index" | "mod" | "__init__"))
+        && target
+            .parent()
+            .and_then(|parent| parent.file_name())
+            .and_then(|name| name.to_str())
+            == Some(last_stem)
+}
+
+fn line_mentions_import_spec(line: &str, spec: &str) -> bool {
+    if line.contains(&format!("\"{spec}\"")) || line.contains(&format!("'{spec}'")) {
+        return true;
+    }
+    let trimmed = line.trim_start();
+    (trimmed.starts_with("use ") || trimmed.starts_with("from ")) && line.contains(spec)
 }
 
 fn rust_wildcard_crate_import_locations(

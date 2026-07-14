@@ -111,7 +111,11 @@ pub(crate) fn ls_directory_report(
             let examples = files.into_iter().take(5).collect::<Vec<_>>();
             DirectorySurface {
                 id: directory_surface_id(rel, &kind, &examples),
-                path: directory_surface_path(&examples),
+                path: if kind == "script" {
+                    script_surface_path(project)
+                } else {
+                    directory_surface_path(&examples)
+                },
                 role: directory_surface_role(&kind),
                 evidence: directory_surface_evidence(&kind),
                 strength: directory_surface_strength(&kind),

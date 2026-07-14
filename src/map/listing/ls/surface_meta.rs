@@ -27,6 +27,21 @@ pub(crate) fn directory_surface_path(examples: &[String]) -> Option<String> {
     (examples.len() == 1).then(|| examples[0].clone())
 }
 
+// Script surface examples are `name: command` labels, not paths. The surface
+// path must stay a real path: the single manifest/rail file that defines the
+// scripts, or None when they span several files.
+pub(crate) fn script_surface_path(project: &crate::model::Project) -> Option<String> {
+    let mut defining_paths = project
+        .scripts
+        .iter()
+        .map(|script| script.path.clone())
+        .collect::<std::collections::BTreeSet<_>>();
+    if defining_paths.len() != 1 {
+        return None;
+    }
+    defining_paths.pop_first().flatten()
+}
+
 pub(crate) fn directory_surface_role(kind: &str) -> Option<String> {
     if kind == "domain" {
         Some("domain".to_string())

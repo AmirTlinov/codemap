@@ -72,6 +72,16 @@ pub(crate) fn root_inventory_ls_report(root: &Path, files: &[String], limit: usi
 
     let mut hidden = Vec::new();
     let mut surfaces = inventory_surfaces(".", grouped);
+    let script_rails = edges
+        .iter()
+        .filter(|edge| edge.edge_type == "declares_script")
+        .map(|edge| edge.from.clone())
+        .collect::<BTreeSet<_>>();
+    if let Some(surface) = surfaces.iter_mut().find(|surface| surface.kind == "script")
+        && script_rails.len() == 1
+    {
+        surface.path = script_rails.into_iter().next();
+    }
     let surface_count = surfaces.len();
     surfaces.truncate(limit);
     if surface_count > surfaces.len() {

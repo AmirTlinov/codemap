@@ -142,36 +142,45 @@ pub(crate) fn classify_roles(root: &Path, info: &mut FileInfo) {
         info.roles.insert("schema_contract".to_string());
         info.roles.insert("schema".to_string());
     }
-    add_role_if(
-        &mut info.roles,
-        &rel,
-        &["adapter", "gateway", "client", "provider", "port", "driver"],
-        "adapter",
-    );
-    add_role_if(
-        &mut info.roles,
-        &rel,
-        &["parser", "parse", "loader", "reader", "decoder"],
-        "parser",
-    );
+    if !is_docs_ext(&info.ext) {
+        add_role_if(
+            &mut info.roles,
+            &rel,
+            &["adapter", "gateway", "client", "provider", "port", "driver"],
+            "adapter",
+        );
+        add_role_if(
+            &mut info.roles,
+            &rel,
+            &["parser", "parse", "loader", "reader", "decoder"],
+            "parser",
+        );
+        add_role_if(
+            &mut info.roles,
+            &rel,
+            &[
+                "save",
+                "load",
+                "reopen",
+                "persist",
+                "persistence",
+                "storage",
+            ],
+            "persistence",
+        );
+        add_role_if(
+            &mut info.roles,
+            &rel,
+            &["root", "inventory", "files", "discover", "discovery"],
+            "repo_discovery",
+        );
+        add_role_if(&mut info.roles, &rel, &["cache", "fingerprint"], "cache");
+        add_role_if(&mut info.roles, &rel, &["cli", "command"], "cli_surface");
+    }
     add_renderer_ui_role_if(&mut info.roles, &rel, &info.ext, &info.tokens);
-    add_role_if(
-        &mut info.roles,
-        &rel,
-        &["save", "load", "reopen", "persist", "storage"],
-        "persistence",
-    );
-    add_role_if(
-        &mut info.roles,
-        &rel,
-        &["root", "inventory", "files", "discover"],
-        "repo_discovery",
-    );
     if matches!(name.as_str(), "repo.rs" | "repo.ts" | "repo.js") {
         info.roles.insert("repo_discovery".to_string());
     }
-    add_role_if(&mut info.roles, &rel, &["cache", "fingerprint"], "cache");
-    add_role_if(&mut info.roles, &rel, &["cli", "command"], "cli_surface");
     if is_build_ci_surface(&rel, &name, &info.ext, &info.tokens) {
         info.roles.insert("build_ci".to_string());
     }
@@ -233,10 +242,32 @@ pub(crate) fn base_roles_for_cache(root: &Path, info: &FileInfo) -> BTreeSet<Str
     base.roles
 }
 
-fn add_role_if(roles: &mut BTreeSet<String>, haystack: &str, needles: &[&str], role: &str) {
-    if needles.iter().any(|needle| haystack.contains(needle)) {
+fn add_role_if(roles: &mut BTreeSet<String>, rel: &str, needles: &[&str], role: &str) {
+    if needles
+        .iter()
+        .any(|needle| path_has_role_token(rel, needle))
+    {
         roles.insert(role.to_string());
     }
+}
+
+// A needle only counts when it matches a whole path token (directory segment
+// or `.`/`_`/`-`-separated file-name part), never a substring inside a word:
+// `cone_reports.rs` must not match `port`.
+fn path_has_role_token(rel: &str, needle: &str) -> bool {
+    rel.split('/')
+        .flat_map(|segment| segment.split(['.', '_', '-']))
+        .filter(|token| !token.is_empty())
+        .any(|token| {
+            token == needle
+                || (token.len() == needle.len() + 1
+                    && token.ends_with('s')
+                    && token.starts_with(needle))
+        })
+}
+
+fn is_docs_ext(ext: &str) -> bool {
+    matches!(ext, "md" | "mdx" | "rst" | "txt")
 }
 
 fn add_renderer_ui_role_if(

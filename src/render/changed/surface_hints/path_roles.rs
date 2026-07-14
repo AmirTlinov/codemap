@@ -67,20 +67,23 @@ pub(crate) fn changed_roles_for_path(path: &str) -> Vec<String> {
     if changed_path_has_segment(&lower, "receipts") || lower.contains("receipt") {
         roles.insert("receipt".to_string());
     }
-    if lower.contains("proof")
+    let proof_named = lower.contains("proof")
         || lower.contains("doctor")
         || lower.contains("validate")
-        || lower.contains("check")
-    {
+        || lower.contains("check");
+    let executable_code = changed_path_looks_like_source(&lower) || roles.contains("script");
+    if proof_named && executable_code {
+        // Executable checker code. Mutually exclusive with `proof_rail`:
+        // one file carries one of the two meanings, runner wins.
         roles.insert("proof_runner".to_string());
-    }
-    if lower.starts_with("makefile")
+    } else if lower.starts_with("makefile")
         || lower.ends_with("justfile")
         || lower.starts_with(".github/workflows/")
         || roles.contains("script")
         || roles.contains("ci")
-        || roles.contains("proof_runner")
     {
+        // Declarative rails only (make/just/CI/script catalogs), never
+        // auto-added on top of `proof_runner`.
         roles.insert("proof_rail".to_string());
     }
     if lower.starts_with("dist/")
@@ -203,4 +206,47 @@ fn changed_path_looks_like_source(path: &str) -> bool {
             | "h"
             | "hpp"
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::changed_roles_for_path;
+
+    fn has(path: &str, role: &str) -> bool {
+        changed_roles_for_path(path)
+            .iter()
+            .any(|found| found == role)
+    }
+
+    #[test]
+    fn proof_runner_is_executable_checker_code_only() {
+        assert!(has("scripts/check.sh", "proof_runner"));
+        assert!(has("tools/validate.py", "proof_runner"));
+        assert!(has("src/proof/runner.rs", "proof_runner"));
+        assert!(!has("Makefile", "proof_runner"));
+        assert!(!has(".github/workflows/checks.yml", "proof_runner"));
+        assert!(!has("docs/validate.md", "proof_runner"));
+    }
+
+    #[test]
+    fn proof_rail_is_declarative_and_never_stacked_on_runner() {
+        assert!(has("Makefile", "proof_rail"));
+        assert!(has("justfile", "proof_rail"));
+        assert!(has(".github/workflows/ci.yml", "proof_rail"));
+        assert!(has("scripts/build.sh", "proof_rail"));
+        assert!(!has("docs/validate.md", "proof_rail"));
+        for path in [
+            "scripts/check.sh",
+            "tools/validate.py",
+            "src/proof/runner.rs",
+            "Makefile",
+            ".github/workflows/ci.yml",
+            "scripts/build.sh",
+        ] {
+            let roles = changed_roles_for_path(path);
+            let both = roles.iter().any(|role| role == "proof_runner")
+                && roles.iter().any(|role| role == "proof_rail");
+            assert!(!both, "`{path}` must carry only one proof role: {roles:?}");
+        }
+    }
 }

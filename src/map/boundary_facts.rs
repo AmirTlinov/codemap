@@ -80,6 +80,9 @@ fn boundary_fact_is_instruction_file(path: &str) -> bool {
 
 fn boundary_fact_is_repo_local_guard_file(path: &str) -> bool {
     let lower = path.to_ascii_lowercase();
+    if lower.starts_with("fixtures/") || lower.contains("/fixtures/") {
+        return false;
+    }
     let name = changed_map_path_file_name(&lower);
     matches!(
         name,

@@ -90,6 +90,15 @@ fn cold_large_root_ls_uses_bounded_inventory_map() {
         }),
         "cold root inventory should keep source-backed root script edges: {json:#}"
     );
+    for surface in json["directory"].as_array().expect("directory") {
+        let Some(path) = surface["path"].as_str() else {
+            continue;
+        };
+        assert!(
+            repo.path().join(path).exists(),
+            "inventory surface `path` must be a real repo path or null, got `{path}`: {json:#}"
+        );
+    }
     assert!(
         json["edges"].as_array().expect("edges").iter().any(|edge| {
             edge["type"] == "runs_command"

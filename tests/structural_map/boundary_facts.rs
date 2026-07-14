@@ -6,6 +6,15 @@ fn ls_root_and_changed_render_boundary_facts_without_policy_verdicts() {
     write(&repo.path().join(".agents/rules.md"), "# agent rules\n");
     write(&repo.path().join("Makefile"), "doctor:\n\ttrue\n");
     write(&repo.path().join("tools/doctor.py"), "print('ok')\n");
+    write(&repo.path().join("fixtures/Makefile"), "doctor:\n\ttrue\n");
+    write(
+        &repo.path().join("fixtures/tools/doctor.py"),
+        "print('fixture')\n",
+    );
+    write(
+        &repo.path().join("src/fixtures/Makefile"),
+        "check:\n\ttrue\n",
+    );
     write(
         &repo.path().join(".github/workflows/ci.yml"),
         "name: ci\non: [push]\n",
@@ -30,6 +39,17 @@ fn ls_root_and_changed_render_boundary_facts_without_policy_verdicts() {
             .iter()
             .any(|fact| fact["path"] == "tools/doctor.py"),
         "ls root should expose repo-local guard files as facts: {ls:#}"
+    );
+    assert!(
+        ls["boundary_facts"]["repo_local_guard_files"]
+            .as_array()
+            .expect("guard files")
+            .iter()
+            .all(|fact| {
+                let path = fact["path"].as_str().unwrap_or_default();
+                !path.starts_with("fixtures/") && !path.contains("/fixtures/")
+            }),
+        "fixture material must not count as a repo-local guard file: {ls:#}"
     );
     assert!(
         ls["boundary_facts"]["protected_looking_paths"]

@@ -53,7 +53,13 @@ pub(crate) fn inventory_surfaces(
             let examples = files.into_iter().take(5).collect::<Vec<_>>();
             DirectorySurface {
                 id: directory_surface_id(scope, &kind, &examples),
-                path: directory_surface_path(&examples),
+                // Script examples are `name: command` labels, not paths; the
+                // owner report fills the defining rail path afterwards.
+                path: if kind == "script" {
+                    None
+                } else {
+                    directory_surface_path(&examples)
+                },
                 role: directory_surface_role(&kind),
                 evidence: directory_surface_evidence(&kind),
                 strength: directory_surface_strength(&kind),

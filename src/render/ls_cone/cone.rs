@@ -119,7 +119,9 @@ pub(crate) fn edge_location_summary(edge: &StructuralEdge) -> String {
     } else if let Some(line) = first.line_start {
         format!("{}:{line}", first.path)
     } else {
-        first.path.clone()
+        // A path without a line is a weaker fact; say so instead of
+        // rendering it in the same shape as a located edge.
+        return format!("{} (line unknown){}", code(&first.path), suffix);
     };
     format!("{}{}", code(&base), suffix)
 }
