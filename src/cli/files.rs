@@ -1,4 +1,9 @@
-fn output<T: serde::Serialize>(
+// Responsibility: cli-files
+use crate::cli::{OutputFormat, project_relative_arg};
+use crate::render;
+use anyhow::Result;
+
+pub(crate) fn output<T: serde::Serialize>(
     format: OutputFormat,
     value: &T,
     markdown: impl FnOnce(),
@@ -12,7 +17,7 @@ fn output<T: serde::Serialize>(
     }
 }
 
-fn output_with_prelude<T: serde::Serialize>(
+pub(crate) fn output_with_prelude<T: serde::Serialize>(
     format: OutputFormat,
     value: &T,
     prelude: &crate::model::MapPrelude,
@@ -29,7 +34,7 @@ fn output_with_prelude<T: serde::Serialize>(
 }
 
 #[derive(serde::Serialize)]
-struct FilesReport {
+pub(crate) struct FilesReport {
     kind: &'static str,
     schema_version: &'static str,
     path: String,
@@ -37,7 +42,7 @@ struct FilesReport {
     count: usize,
 }
 
-fn files_report(
+pub(crate) fn files_report(
     project: &crate::model::Project,
     path: Option<&str>,
     limit: usize,
@@ -81,7 +86,7 @@ fn files_report(
     })
 }
 
-fn files_markdown(report: &FilesReport) {
+pub(crate) fn files_markdown(report: &FilesReport) {
     println!("# Files\n");
     println!("Path: `{}`", report.path);
     println!("Shown: `{}` of `{}`\n", report.files.len(), report.count);

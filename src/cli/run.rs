@@ -1,3 +1,26 @@
+// Responsibility: cli-run
+use crate::cli::{
+    AnchorAction, Cli, CommandKind, DEFAULT_PROOF_LIMIT, GraphOutputFormat, anchors_markdown,
+    changed_inputs, changed_section_name, command_root_hint, cone_section_name, diff_map_inputs,
+    ensure_graph_lens, ensure_valid_config, files_markdown, files_report, flow_anchor_arg,
+    impact_inputs, init, ls_section_name, maybe_write_changed_lens_cache,
+    maybe_write_cone_lens_cache, maybe_write_ls_lens_cache, maybe_write_place_lens_cache,
+    maybe_write_proof_changed_lens_cache_from_changed, maybe_write_proof_map_lens_cache,
+    maybe_write_proof_map_lens_cache_from_changed, maybe_write_siblings_lens_cache, output,
+    output_format_with_json_alias, output_with_prelude, project_relative_arg, proof,
+    proof_map_inputs, schema_text, try_cached_changed_fast_path, try_cached_cone_fast_path,
+    try_cached_ls_fast_path, try_cached_place_fast_path, try_cached_proof_changed_fast_path,
+    try_cached_proof_map_fast_path, try_cached_siblings_fast_path, try_clean_changed_fast_path,
+    try_clean_proof_changed_fast_path, try_cold_root_graph_fast_path, try_cold_root_ls_fast_path,
+    try_cold_root_proof_map_fast_path, try_runtime_root_fast_path, validate_anchors,
+};
+use crate::{map, render, repo};
+use anyhow::Result;
+use anyhow::bail;
+use clap::Parser;
+use std::collections::BTreeSet;
+use std::env;
+
 pub fn run() -> Result<()> {
     let cli = Cli::parse();
     if let CommandKind::Bootstrap(args) = &cli.command {
@@ -192,12 +215,9 @@ pub fn run() -> Result<()> {
                 report.unknowns.push(notice);
             }
             let prelude = repo::map_prelude(&project.root);
-            output_with_prelude(
-                format,
-                &report,
-                &prelude,
-                || render::changed(&report, section),
-            )
+            output_with_prelude(format, &report, &prelude, || {
+                render::changed(&report, section)
+            })
         }
         CommandKind::DiffMap(args) => {
             ensure_valid_config(&project)?;
@@ -364,7 +384,7 @@ fn codemap_brief_env() -> bool {
     env::var("CODEMAP_BRIEF").is_ok_and(|value| !value.is_empty() && value != "0")
 }
 
-fn accept_depth_compat(depth: usize, command: &str) -> Result<()> {
+pub(crate) fn accept_depth_compat(depth: usize, command: &str) -> Result<()> {
     if depth <= 1 {
         return Ok(());
     }

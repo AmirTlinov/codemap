@@ -1,7 +1,11 @@
+// Responsibility: cli-since-args
+use crate::cli::{ProofInputs, shell_quote_arg};
+use crate::repo;
+
 // `--since <token>` resolution. A 16-hex token is tried as an agent snapshot
 // first; otherwise (or on snapshot miss that is a real git object) it is a git
 // ref. A 16-hex token that is neither a snapshot nor a git object fails open.
-enum SinceKind {
+pub(crate) enum SinceKind {
     Snapshot {
         changed: Vec<String>,
         git_state: Vec<crate::model::GitChange>,
@@ -10,7 +14,7 @@ enum SinceKind {
     FailOpen,
 }
 
-fn classify_since(project: &crate::model::Project, since: &str) -> SinceKind {
+pub(crate) fn classify_since(project: &crate::model::Project, since: &str) -> SinceKind {
     if !crate::cache::looks_like_snapshot_token(since) {
         return SinceKind::GitRef;
     }
@@ -36,7 +40,9 @@ fn classify_since(project: &crate::model::Project, since: &str) -> SinceKind {
     }
 }
 
-fn snapshot_git_state(delta: &crate::cache::fingerprints::CacheFileDelta) -> Vec<crate::model::GitChange> {
+fn snapshot_git_state(
+    delta: &crate::cache::fingerprints::CacheFileDelta,
+) -> Vec<crate::model::GitChange> {
     let mut git_state = Vec::new();
     for path in &delta.changed_or_added {
         let status = if delta.cached_content_hashes.contains_key(path) {
@@ -67,14 +73,14 @@ fn snapshot_git_state(delta: &crate::cache::fingerprints::CacheFileDelta) -> Vec
 
 // For lenses without a fail-open notice slot (impact/diff-map/proof-map): a snapshot
 // token resolves to its delta set; anything else stays a git ref.
-fn since_delta_or_git_ref(project: &crate::model::Project, since: &str) -> Vec<String> {
+pub(crate) fn since_delta_or_git_ref(project: &crate::model::Project, since: &str) -> Vec<String> {
     match classify_since(project, since) {
         SinceKind::Snapshot { changed, .. } => changed,
         _ => repo::changed_files(&project.root, false, Some(since)),
     }
 }
 
-fn proof_since_inputs(project: &crate::model::Project, since: &str) -> ProofInputs {
+pub(crate) fn proof_since_inputs(project: &crate::model::Project, since: &str) -> ProofInputs {
     match classify_since(project, since) {
         SinceKind::Snapshot { changed, .. } => (
             None,
@@ -97,7 +103,7 @@ fn proof_since_inputs(project: &crate::model::Project, since: &str) -> ProofInpu
     }
 }
 
-fn snapshot_not_found_unknown(token: &str) -> crate::model::Unknown {
+pub(crate) fn snapshot_not_found_unknown(token: &str) -> crate::model::Unknown {
     crate::model::Unknown {
         kind: "snapshot_not_found".to_string(),
         path: None,

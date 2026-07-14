@@ -1,6 +1,16 @@
+// Responsibility: cli-fast-paths-root-proof-map
+use crate::cli::{
+    CommandKind, ensure_single_proof_map_selector, output, proof_map_has_explicit_files,
+    root_relative_arg, set_inventory_map_snapshot_with_fingerprint,
+};
+use crate::{map, render, repo};
+use anyhow::Result;
+use std::env;
+use std::path::Path;
+
 const COLD_ROOT_PROOF_MAP_FILE_THRESHOLD: usize = 800;
 
-fn try_cold_root_proof_map_fast_path(
+pub(crate) fn try_cold_root_proof_map_fast_path(
     command: &CommandKind,
     root_selection: &repo::RootSelection,
 ) -> Result<Option<()>> {

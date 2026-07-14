@@ -1,4 +1,13 @@
-fn try_cached_siblings_fast_path(
+// Responsibility: cli-fast-paths-siblings-place
+use crate::cli::{
+    CommandKind, PlaceArgs, SiblingsArgs, lens_cache_matches_current, output, root_relative_arg,
+    set_cached_map_snapshot,
+};
+use crate::{render, repo};
+use anyhow::Result;
+use std::env;
+
+pub(crate) fn try_cached_siblings_fast_path(
     command: &CommandKind,
     root_selection: &repo::RootSelection,
 ) -> Result<Option<()>> {
@@ -29,7 +38,7 @@ fn try_cached_siblings_fast_path(
     Ok(Some(()))
 }
 
-fn try_cached_place_fast_path(
+pub(crate) fn try_cached_place_fast_path(
     command: &CommandKind,
     root_selection: &repo::RootSelection,
 ) -> Result<Option<()>> {
@@ -61,7 +70,7 @@ fn try_cached_place_fast_path(
     Ok(Some(()))
 }
 
-fn maybe_write_siblings_lens_cache(
+pub(crate) fn maybe_write_siblings_lens_cache(
     project: &crate::model::Project,
     scope: &str,
     args: &SiblingsArgs,
@@ -80,7 +89,7 @@ fn maybe_write_siblings_lens_cache(
     );
 }
 
-fn maybe_write_place_lens_cache(
+pub(crate) fn maybe_write_place_lens_cache(
     project: &crate::model::Project,
     scope: &str,
     args: &PlaceArgs,

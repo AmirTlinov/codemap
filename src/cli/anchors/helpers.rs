@@ -1,4 +1,9 @@
-fn validate_anchor_domain_path(
+// Responsibility: cli-anchors-helpers
+use crate::{map, repo};
+use globset::GlobBuilder;
+use std::collections::BTreeSet;
+
+pub(crate) fn validate_anchor_domain_path(
     project: &crate::model::Project,
     id: &str,
     path: &str,
@@ -10,11 +15,11 @@ fn validate_anchor_domain_path(
     }
 }
 
-fn is_glob_like(value: &str) -> bool {
+pub(crate) fn is_glob_like(value: &str) -> bool {
     value.contains('*') || value.contains('?') || value.contains('[') || value.contains('{')
 }
 
-fn glob_static_prefix(pattern: &str) -> Option<String> {
+pub(crate) fn glob_static_prefix(pattern: &str) -> Option<String> {
     let wildcard = pattern.find(['*', '?', '[', '{']).unwrap_or(pattern.len());
     let prefix = &pattern[..wildcard];
     let prefix = prefix
@@ -29,11 +34,11 @@ fn glob_static_prefix(pattern: &str) -> Option<String> {
     }
 }
 
-fn anchor_pattern_matches_project(project: &crate::model::Project, raw: &str) -> bool {
+pub(crate) fn anchor_pattern_matches_project(project: &crate::model::Project, raw: &str) -> bool {
     anchor_pattern_match_count(project, raw) > 0
 }
 
-fn anchor_pattern_match_count(project: &crate::model::Project, raw: &str) -> usize {
+pub(crate) fn anchor_pattern_match_count(project: &crate::model::Project, raw: &str) -> usize {
     let pattern = map::resolve_anchor_path(project, raw);
     if !is_glob_like(&pattern) {
         let mut targets = BTreeSet::new();
@@ -84,7 +89,7 @@ fn anchor_pattern_match_count(project: &crate::model::Project, raw: &str) -> usi
     targets.len()
 }
 
-fn dedupe_strings(values: Vec<String>) -> Vec<String> {
+pub(crate) fn dedupe_strings(values: Vec<String>) -> Vec<String> {
     let mut seen = BTreeSet::new();
     let mut out = Vec::new();
     for value in values {
@@ -95,7 +100,7 @@ fn dedupe_strings(values: Vec<String>) -> Vec<String> {
     out
 }
 
-fn shell_quote_arg(value: &str) -> String {
+pub(crate) fn shell_quote_arg(value: &str) -> String {
     if value
         .chars()
         .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '/' | '.' | '-' | '_'))
@@ -105,4 +110,3 @@ fn shell_quote_arg(value: &str) -> String {
         format!("'{}'", value.replace('\'', "'\\''"))
     }
 }
-

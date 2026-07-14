@@ -1,4 +1,8 @@
-fn anchors_markdown(report: &AnchorValidation) {
+// Responsibility: cli-anchors-render
+use crate::cli::AnchorValidation;
+use crate::render;
+
+pub(crate) fn anchors_markdown(report: &AnchorValidation) {
     println!("# Anchor Validation\n");
     println!(
         "{}",
@@ -77,7 +81,7 @@ mod tests {
         EvidenceLocation, EvidenceStrength, ProofReport, ProofSurface, VerificationPlan,
     };
 
-    use super::{planned_run_commands, proof_plan_commands_for_run, resolve_run_command};
+    use crate::cli::{planned_run_commands, proof_plan_commands_for_run, resolve_run_command};
 
     #[test]
     fn run_plan_dedupes_minimal_and_supplemental_commands() {
@@ -207,11 +211,7 @@ mod tests {
 
         let error = planned_run_commands(&plan, true).expect_err("deploy should fail closed");
 
-        assert!(
-            error
-                .to_string()
-                .contains("will not run by default")
-        );
+        assert!(error.to_string().contains("will not run by default"));
     }
 
     #[test]
@@ -222,13 +222,10 @@ mod tests {
             full_only_if_triggered: Vec::new(),
         };
 
-        let error = planned_run_commands(&plan, true).expect_err("unknown shell should fail closed");
+        let error =
+            planned_run_commands(&plan, true).expect_err("unknown shell should fail closed");
 
-        assert!(
-            error
-                .to_string()
-                .contains("will not run by default")
-        );
+        assert!(error.to_string().contains("will not run by default"));
     }
 
     #[test]
@@ -243,13 +240,10 @@ mod tests {
             full_only_if_triggered: Vec::new(),
         };
 
-        let error = planned_run_commands(&plan, false).expect_err("shell control should fail closed");
+        let error =
+            planned_run_commands(&plan, false).expect_err("shell control should fail closed");
 
-        assert!(
-            error
-                .to_string()
-                .contains("will not run by default")
-        );
+        assert!(error.to_string().contains("will not run by default"));
     }
 
     #[test]
@@ -272,11 +266,7 @@ mod tests {
         let error =
             planned_run_commands(&plan, false).expect_err("unsafe scripts should fail closed");
 
-        assert!(
-            error
-                .to_string()
-                .contains("will not run by default")
-        );
+        assert!(error.to_string().contains("will not run by default"));
     }
 
     #[test]
@@ -294,13 +284,11 @@ mod tests {
                 full_only_if_triggered: Vec::new(),
             };
 
-            let error = planned_run_commands(&plan, false)
-                .expect_err("cd scope escape should fail closed");
+            let error =
+                planned_run_commands(&plan, false).expect_err("cd scope escape should fail closed");
 
             assert!(
-                error
-                    .to_string()
-                    .contains("will not run by default"),
+                error.to_string().contains("will not run by default"),
                 "{command} should be rejected before execution"
             );
         }

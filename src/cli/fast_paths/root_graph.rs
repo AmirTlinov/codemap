@@ -1,6 +1,12 @@
+// Responsibility: cli-fast-paths-root-graph
+use crate::cli::{CommandKind, GraphOutputFormat, ensure_graph_lens, root_relative_arg};
+use crate::{map, render, repo};
+use anyhow::Result;
+use std::env;
+
 const COLD_ROOT_GRAPH_FILE_THRESHOLD: usize = 800;
 
-fn try_cold_root_graph_fast_path(
+pub(crate) fn try_cold_root_graph_fast_path(
     command: &CommandKind,
     root_selection: &repo::RootSelection,
 ) -> Result<Option<()>> {

@@ -1,5 +1,9 @@
+// Responsibility: cli-section-args
+use crate::cli::{OutputFormat, default_output_format};
+use clap::{Args, ValueEnum};
+
 #[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
-enum ChangedSection {
+pub(crate) enum ChangedSection {
     #[value(alias = "overview", alias = "diff")]
     Observed,
     #[value(alias = "impact")]
@@ -12,7 +16,7 @@ enum ChangedSection {
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
-enum LsSection {
+pub(crate) enum LsSection {
     Observed,
     Links,
     Roles,
@@ -23,7 +27,7 @@ enum LsSection {
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
-enum ConeSection {
+pub(crate) enum ConeSection {
     Observed,
     Links,
     Roles,
@@ -34,7 +38,7 @@ enum ConeSection {
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
-enum ProofSection {
+pub(crate) enum ProofSection {
     Observed,
     Links,
     Roles,
@@ -45,18 +49,18 @@ enum ProofSection {
 }
 
 #[derive(Debug, Args)]
-struct WhereArgs {
+pub(crate) struct WhereArgs {
     /// Exact symbol name to locate across the indexed map.
-    query: String,
+    pub(crate) query: String,
     /// Optional symbol-kind filter (function, class, struct, ...).
     #[arg(long)]
-    kind: Option<String>,
+    pub(crate) kind: Option<String>,
     #[arg(long = "all", alias = "include-hidden")]
-    include_hidden: bool,
+    pub(crate) include_hidden: bool,
     #[arg(long, default_value_t = 20, hide = true)]
-    limit: usize,
+    pub(crate) limit: usize,
     #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
-    format: OutputFormat,
+    pub(crate) format: OutputFormat,
     #[arg(long, hide = true)]
-    json: bool,
+    pub(crate) json: bool,
 }

@@ -1,11 +1,37 @@
+// Responsibility: warm-cache-fast-paths
+mod helpers;
+mod proof_map;
+mod root_graph;
+mod root_ls;
+mod root_proof_map;
+mod siblings_place;
+
+pub(crate) use helpers::*;
+pub(crate) use proof_map::*;
+pub(crate) use root_graph::*;
+pub(crate) use root_ls::*;
+pub(crate) use root_proof_map::*;
+pub(crate) use siblings_place::*;
+
 // A snapshot-token `--since` must skip the git-status fast paths: they would treat
 // the token as an empty git diff and report "clean". Fall through to the full path
 // so snapshot_delta runs.
+use crate::cli::{
+    ChangedArgs, CommandKind, ConeArgs, DEFAULT_PROOF_LIMIT, LsArgs, accept_depth_compat,
+    changed_section_name, cone_section_name, ensure_single_diff_selector,
+    ensure_single_proof_selector, ls_section_name, output, output_format_with_json_alias,
+    output_with_prelude, proof_section_name,
+};
+use crate::{map, render, repo};
+use anyhow::Result;
+use std::env;
+use std::path::Path;
+
 fn since_is_snapshot_token(since: Option<&str>) -> bool {
     since.is_some_and(crate::cache::looks_like_snapshot_token)
 }
 
-fn try_cached_ls_fast_path(
+pub(crate) fn try_cached_ls_fast_path(
     command: &CommandKind,
     root_selection: &repo::RootSelection,
 ) -> Result<Option<()>> {
@@ -34,13 +60,16 @@ fn try_cached_ls_fast_path(
         return Ok(None);
     };
     let prelude = repo::map_prelude(&root);
-    output_with_prelude(output_format_with_json_alias(args.format, args.json), &report, &prelude, || {
-        render::ls(&report, ls_section_name(args.section))
-    })?;
+    output_with_prelude(
+        output_format_with_json_alias(args.format, args.json),
+        &report,
+        &prelude,
+        || render::ls(&report, ls_section_name(args.section)),
+    )?;
     Ok(Some(()))
 }
 
-fn try_cached_cone_fast_path(
+pub(crate) fn try_cached_cone_fast_path(
     command: &CommandKind,
     root_selection: &repo::RootSelection,
 ) -> Result<Option<()>> {
@@ -69,13 +98,16 @@ fn try_cached_cone_fast_path(
         return Ok(None);
     };
     let prelude = repo::map_prelude(&root);
-    output_with_prelude(output_format_with_json_alias(args.format, args.json), &report, &prelude, || {
-        render::cone(&report, cone_section_name(args.section))
-    })?;
+    output_with_prelude(
+        output_format_with_json_alias(args.format, args.json),
+        &report,
+        &prelude,
+        || render::cone(&report, cone_section_name(args.section)),
+    )?;
     Ok(Some(()))
 }
 
-fn try_clean_changed_fast_path(
+pub(crate) fn try_clean_changed_fast_path(
     command: &CommandKind,
     root_selection: &repo::RootSelection,
 ) -> Result<Option<()>> {
@@ -106,13 +138,16 @@ fn try_clean_changed_fast_path(
     let report = map::clean_changed_report(selector, limit);
     set_inventory_map_snapshot(&root);
     let prelude = repo::map_prelude(&root);
-    output_with_prelude(output_format_with_json_alias(args.format, args.json), &report, &prelude, || {
-        render::changed(&report, changed_section_name(args.section))
-    })?;
+    output_with_prelude(
+        output_format_with_json_alias(args.format, args.json),
+        &report,
+        &prelude,
+        || render::changed(&report, changed_section_name(args.section)),
+    )?;
     Ok(Some(()))
 }
 
-fn try_cached_changed_fast_path(
+pub(crate) fn try_cached_changed_fast_path(
     command: &CommandKind,
     root_selection: &repo::RootSelection,
 ) -> Result<Option<()>> {
@@ -155,13 +190,16 @@ fn try_cached_changed_fast_path(
         return Ok(None);
     };
     let prelude = repo::map_prelude(&root);
-    output_with_prelude(output_format_with_json_alias(args.format, args.json), &report, &prelude, || {
-        render::changed(&report, changed_section_name(args.section))
-    })?;
+    output_with_prelude(
+        output_format_with_json_alias(args.format, args.json),
+        &report,
+        &prelude,
+        || render::changed(&report, changed_section_name(args.section)),
+    )?;
     Ok(Some(()))
 }
 
-fn try_clean_proof_changed_fast_path(
+pub(crate) fn try_clean_proof_changed_fast_path(
     command: &CommandKind,
     root_selection: &repo::RootSelection,
 ) -> Result<Option<()>> {
@@ -187,13 +225,16 @@ fn try_clean_proof_changed_fast_path(
     let report = map::clean_proof_report(selector);
     set_inventory_map_snapshot(&root);
     let prelude = repo::map_prelude(&root);
-    output_with_prelude(output_format_with_json_alias(args.format, args.json), &report, &prelude, || {
-        render::proof(&report, proof_section_name(args.section))
-    })?;
+    output_with_prelude(
+        output_format_with_json_alias(args.format, args.json),
+        &report,
+        &prelude,
+        || render::proof(&report, proof_section_name(args.section)),
+    )?;
     Ok(Some(()))
 }
 
-fn try_cached_proof_changed_fast_path(
+pub(crate) fn try_cached_proof_changed_fast_path(
     command: &CommandKind,
     root_selection: &repo::RootSelection,
 ) -> Result<Option<()>> {
@@ -233,13 +274,16 @@ fn try_cached_proof_changed_fast_path(
         return Ok(None);
     };
     let prelude = repo::map_prelude(&root);
-    output_with_prelude(output_format_with_json_alias(args.format, args.json), &report, &prelude, || {
-        render::proof(&report, proof_section_name(args.section))
-    })?;
+    output_with_prelude(
+        output_format_with_json_alias(args.format, args.json),
+        &report,
+        &prelude,
+        || render::proof(&report, proof_section_name(args.section)),
+    )?;
     Ok(Some(()))
 }
 
-fn try_runtime_root_fast_path(
+pub(crate) fn try_runtime_root_fast_path(
     command: &CommandKind,
     root_selection: &repo::RootSelection,
 ) -> Result<Option<()>> {
@@ -266,7 +310,7 @@ fn try_runtime_root_fast_path(
     Ok(Some(()))
 }
 
-fn maybe_write_changed_lens_cache(
+pub(crate) fn maybe_write_changed_lens_cache(
     project: &crate::model::Project,
     args: &ChangedArgs,
     limit: usize,
@@ -286,7 +330,7 @@ fn maybe_write_changed_lens_cache(
     );
 }
 
-fn maybe_write_proof_changed_lens_cache_from_changed(
+pub(crate) fn maybe_write_proof_changed_lens_cache_from_changed(
     project: &crate::model::Project,
     args: &ChangedArgs,
     report: &crate::model::ChangedReport,
@@ -314,7 +358,7 @@ fn maybe_write_proof_changed_lens_cache_from_changed(
     );
 }
 
-fn maybe_write_proof_map_lens_cache_from_changed(
+pub(crate) fn maybe_write_proof_map_lens_cache_from_changed(
     project: &crate::model::Project,
     args: &ChangedArgs,
     limit: usize,
@@ -338,7 +382,7 @@ fn maybe_write_proof_map_lens_cache_from_changed(
     );
 }
 
-fn maybe_write_ls_lens_cache(
+pub(crate) fn maybe_write_ls_lens_cache(
     project: &crate::model::Project,
     path: &str,
     args: &LsArgs,
@@ -357,7 +401,7 @@ fn maybe_write_ls_lens_cache(
     );
 }
 
-fn maybe_write_cone_lens_cache(
+pub(crate) fn maybe_write_cone_lens_cache(
     project: &crate::model::Project,
     path: &str,
     args: &ConeArgs,
@@ -377,7 +421,7 @@ fn maybe_write_cone_lens_cache(
     );
 }
 
-fn lens_cache_matches_current(
+pub(crate) fn lens_cache_matches_current(
     root: &Path,
     cache_dir: &Path,
     git_state: &[crate::model::GitChange],

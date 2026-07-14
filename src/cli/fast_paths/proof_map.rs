@@ -1,4 +1,16 @@
-fn try_cached_proof_map_fast_path(
+// Responsibility: cli-fast-paths-proof-map
+use crate::cli::{
+    CommandKind, ProofMapArgs, lens_cache_matches_current, output, root_relative_arg,
+    set_cached_map_snapshot, shell_quote_arg,
+};
+use crate::{render, repo};
+use anyhow::Result;
+use anyhow::bail;
+use std::collections::BTreeSet;
+use std::env;
+use std::path::Path;
+
+pub(crate) fn try_cached_proof_map_fast_path(
     command: &CommandKind,
     root_selection: &repo::RootSelection,
 ) -> Result<Option<()>> {
@@ -36,7 +48,7 @@ fn try_cached_proof_map_fast_path(
     Ok(Some(()))
 }
 
-fn maybe_write_proof_map_lens_cache(
+pub(crate) fn maybe_write_proof_map_lens_cache(
     project: &crate::model::Project,
     scope: Option<&str>,
     selector: &str,
@@ -106,7 +118,7 @@ fn proof_map_selector_state(args: &ProofMapArgs, root: &Path) -> Result<ProofMap
     })
 }
 
-fn ensure_single_proof_map_selector(args: &ProofMapArgs) -> Result<()> {
+pub(crate) fn ensure_single_proof_map_selector(args: &ProofMapArgs) -> Result<()> {
     let count = [
         args.target.is_some(),
         args.changed,
@@ -118,12 +130,14 @@ fn ensure_single_proof_map_selector(args: &ProofMapArgs) -> Result<()> {
     .filter(|enabled| *enabled)
     .count();
     if count > 1 {
-        bail!("choose only one proof-map selector: target, --changed, --staged, --since, or --files");
+        bail!(
+            "choose only one proof-map selector: target, --changed, --staged, --since, or --files"
+        );
     }
     Ok(())
 }
 
-fn proof_map_has_explicit_files(args: &ProofMapArgs) -> bool {
+pub(crate) fn proof_map_has_explicit_files(args: &ProofMapArgs) -> bool {
     args.files
         .as_deref()
         .is_some_and(|files| !files.trim().is_empty())

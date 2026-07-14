@@ -1,16 +1,9 @@
-use std::collections::BTreeSet;
-use std::env;
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::Command;
-
-use anyhow::{Result, bail};
+// Responsibility: cli-args
+use crate::cli::{ChangedSection, ConeSection, LsSection, ProofSection, WhereArgs};
 use clap::{Args, Parser, Subcommand, ValueEnum};
-use globset::GlobBuilder;
+use std::path::PathBuf;
 
-use crate::{map, render, repo};
-
-const DEFAULT_PROOF_LIMIT: usize = 12;
+pub(crate) const DEFAULT_PROOF_LIMIT: usize = 12;
 
 #[derive(Debug, Parser)]
 #[command(name = "codemap")]
@@ -35,21 +28,23 @@ Machine output:
 #[command(version)]
 pub struct Cli {
     #[arg(long, global = true)]
-    root: Option<PathBuf>,
+    pub(crate) root: Option<PathBuf>,
     /// Compact agent output: collapse the repo prelude and drop repeated disclaimers.
     #[arg(long, global = true)]
-    brief: bool,
+    pub(crate) brief: bool,
     #[command(subcommand)]
-    command: CommandKind,
+    pub(crate) command: CommandKind,
 }
 
 #[derive(Debug, Subcommand)]
-enum CommandKind {
+pub(crate) enum CommandKind {
     #[command(about = "Show structural surfaces for an exact file or directory anchor")]
     Ls(LsArgs),
     #[command(about = "Show a bounded structural edge cone around an exact anchor")]
     Cone(ConeArgs),
-    #[command(about = "Show one compact after-edit structural map: observed facts, links, surface hints, verification surfaces, unknown gaps")]
+    #[command(
+        about = "Show one compact after-edit structural map: observed facts, links, surface hints, verification surfaces, unknown gaps"
+    )]
     Changed(ChangedArgs),
     #[command(
         about = "Print a verification plan (smallest justified command surface) for a target or changed set; runs commands only with --run"
@@ -104,7 +99,9 @@ enum CommandKind {
     #[command(about = "Show repo, cache, language, domain, and verification status")]
     Status(FormatArgs),
     #[command(hide = true)]
-    #[command(about = "Print a read-only .codemap.yml dialect draft from deterministic repo patterns")]
+    #[command(
+        about = "Print a read-only .codemap.yml dialect draft from deterministic repo patterns"
+    )]
     Teach(FormatArgs),
     #[command(hide = true)]
     #[command(about = "List indexed project files without writing to the project")]
@@ -124,327 +121,327 @@ enum CommandKind {
 }
 
 #[derive(Debug, Args)]
-struct FormatArgs {
+pub(crate) struct FormatArgs {
     #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
-    format: OutputFormat,
+    pub(crate) format: OutputFormat,
 }
 
 #[derive(Debug, Args)]
-struct FilesArgs {
+pub(crate) struct FilesArgs {
     #[arg(long)]
-    path: Option<String>,
+    pub(crate) path: Option<String>,
     #[arg(long, default_value_t = 200, hide = true)]
-    limit: usize,
+    pub(crate) limit: usize,
     #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
-    format: OutputFormat,
+    pub(crate) format: OutputFormat,
 }
 
 #[derive(Debug, Args)]
-struct LsArgs {
+pub(crate) struct LsArgs {
     #[arg(default_value = ".")]
-    path: String,
+    pub(crate) path: String,
     #[arg(long, default_value_t = 1, hide = true)]
-    depth: usize,
+    pub(crate) depth: usize,
     #[arg(long, value_enum)]
-    section: Option<LsSection>,
+    pub(crate) section: Option<LsSection>,
     #[arg(long = "all", alias = "include-hidden")]
-    include_hidden: bool,
+    pub(crate) include_hidden: bool,
     #[arg(long, default_value_t = 20, hide = true)]
-    limit: usize,
+    pub(crate) limit: usize,
     #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
-    format: OutputFormat,
+    pub(crate) format: OutputFormat,
     #[arg(long, hide = true)]
-    json: bool,
+    pub(crate) json: bool,
 }
 
 #[derive(Debug, Args)]
-struct ConeArgs {
-    path: String,
+pub(crate) struct ConeArgs {
+    pub(crate) path: String,
     #[arg(long, default_value_t = 1)]
-    depth: usize,
+    pub(crate) depth: usize,
     #[arg(long, value_enum)]
-    section: Option<ConeSection>,
+    pub(crate) section: Option<ConeSection>,
     #[arg(long = "all", alias = "include-hidden")]
-    include_hidden: bool,
+    pub(crate) include_hidden: bool,
     #[arg(long, default_value_t = 20, hide = true)]
-    limit: usize,
+    pub(crate) limit: usize,
     #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
-    format: OutputFormat,
+    pub(crate) format: OutputFormat,
     #[arg(long, hide = true)]
-    json: bool,
+    pub(crate) json: bool,
 }
 
 #[derive(Debug, Args)]
-struct InitArgs {
+pub(crate) struct InitArgs {
     #[arg(long)]
-    agents: bool,
+    pub(crate) agents: bool,
     #[arg(long)]
-    print: bool,
+    pub(crate) print: bool,
     #[arg(long, alias = "write")]
-    write_minimal: bool,
+    pub(crate) write_minimal: bool,
     #[arg(long)]
-    path: Option<String>,
+    pub(crate) path: Option<String>,
     #[arg(long)]
-    force: bool,
+    pub(crate) force: bool,
 }
 
 #[derive(Debug, Args)]
-struct BootstrapArgs {
+pub(crate) struct BootstrapArgs {
     #[arg(long)]
-    global_instruction: bool,
+    pub(crate) global_instruction: bool,
 }
 
 #[derive(Debug, Args)]
-struct SchemaArgs {
+pub(crate) struct SchemaArgs {
     #[arg(value_enum)]
-    kind: SchemaKind,
+    pub(crate) kind: SchemaKind,
 }
 
 #[derive(Debug, Args)]
-struct ImpactArgs {
+pub(crate) struct ImpactArgs {
     #[arg(long, hide = true)]
-    changed: bool,
+    pub(crate) changed: bool,
     #[arg(long, hide = true)]
-    staged: bool,
+    pub(crate) staged: bool,
     #[arg(long, hide = true)]
-    since: Option<String>,
+    pub(crate) since: Option<String>,
     #[arg(long, hide = true)]
-    files: Option<String>,
+    pub(crate) files: Option<String>,
     #[arg(hide = true)]
-    positional_files: Vec<String>,
+    pub(crate) positional_files: Vec<String>,
     #[arg(long, default_value_t = 1)]
-    depth: usize,
+    pub(crate) depth: usize,
     #[arg(long, default_value_t = 30, hide = true)]
-    limit: usize,
+    pub(crate) limit: usize,
     #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
-    format: OutputFormat,
+    pub(crate) format: OutputFormat,
 }
 
 #[derive(Debug, Args)]
-struct DiffMapArgs {
+pub(crate) struct DiffMapArgs {
     #[arg(long, hide = true)]
-    changed: bool,
+    pub(crate) changed: bool,
     #[arg(long, hide = true)]
-    staged: bool,
+    pub(crate) staged: bool,
     #[arg(long, hide = true)]
-    since: Option<String>,
+    pub(crate) since: Option<String>,
     #[arg(long, hide = true)]
-    files: Option<String>,
+    pub(crate) files: Option<String>,
     #[arg(hide = true)]
-    positional_files: Vec<String>,
+    pub(crate) positional_files: Vec<String>,
     #[arg(long, default_value_t = 30, hide = true)]
-    limit: usize,
+    pub(crate) limit: usize,
     #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
-    format: OutputFormat,
+    pub(crate) format: OutputFormat,
 }
 
 #[derive(Debug, Args)]
-struct ChangedArgs {
+pub(crate) struct ChangedArgs {
     #[arg(long, hide = true)]
-    changed: bool,
+    pub(crate) changed: bool,
     #[arg(long, hide = true)]
-    staged: bool,
+    pub(crate) staged: bool,
     #[arg(long, hide = true)]
-    since: Option<String>,
+    pub(crate) since: Option<String>,
     #[arg(long, hide = true)]
-    files: Option<String>,
+    pub(crate) files: Option<String>,
     #[arg(hide = true)]
-    positional_files: Vec<String>,
+    pub(crate) positional_files: Vec<String>,
     #[arg(long, default_value_t = 1, hide = true)]
-    depth: usize,
+    pub(crate) depth: usize,
     #[arg(long, value_enum)]
-    section: Option<ChangedSection>,
+    pub(crate) section: Option<ChangedSection>,
     #[arg(long = "all", alias = "include-hidden")]
-    include_hidden: bool,
+    pub(crate) include_hidden: bool,
     #[arg(long, default_value_t = 30, hide = true)]
-    limit: usize,
+    pub(crate) limit: usize,
     #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
-    format: OutputFormat,
+    pub(crate) format: OutputFormat,
     #[arg(long, hide = true)]
-    json: bool,
+    pub(crate) json: bool,
 }
 
 #[derive(Debug, Args)]
-struct ContractArgs {
-    path: String,
+pub(crate) struct ContractArgs {
+    pub(crate) path: String,
     #[arg(long = "all", alias = "include-hidden")]
-    include_hidden: bool,
+    pub(crate) include_hidden: bool,
     #[arg(long, default_value_t = 20, hide = true)]
-    limit: usize,
+    pub(crate) limit: usize,
     #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
-    format: OutputFormat,
+    pub(crate) format: OutputFormat,
 }
 
 #[derive(Debug, Args)]
-struct RuntimeArgs {
+pub(crate) struct RuntimeArgs {
     #[arg(default_value = ".")]
-    scope: String,
+    pub(crate) scope: String,
     #[arg(long = "all", alias = "include-hidden")]
-    include_hidden: bool,
+    pub(crate) include_hidden: bool,
     #[arg(long, default_value_t = 20, hide = true)]
-    limit: usize,
+    pub(crate) limit: usize,
     #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
-    format: OutputFormat,
+    pub(crate) format: OutputFormat,
 }
 
 #[derive(Debug, Args)]
-struct ProofArgs {
-    target: Option<String>,
+pub(crate) struct ProofArgs {
+    pub(crate) target: Option<String>,
     #[arg(long, hide = true)]
-    changed: bool,
+    pub(crate) changed: bool,
     #[arg(long, hide = true)]
-    staged: bool,
+    pub(crate) staged: bool,
     #[arg(long, hide = true)]
-    since: Option<String>,
+    pub(crate) since: Option<String>,
     #[arg(long, hide = true)]
-    files: Option<String>,
+    pub(crate) files: Option<String>,
     #[arg(long, default_value_t = 1)]
-    depth: usize,
+    pub(crate) depth: usize,
     #[arg(long, value_enum)]
-    section: Option<ProofSection>,
+    pub(crate) section: Option<ProofSection>,
     #[arg(long = "all", alias = "include-hidden")]
-    include_hidden: bool,
+    pub(crate) include_hidden: bool,
     #[arg(long, default_value_t = DEFAULT_PROOF_LIMIT, hide = true)]
-    limit: usize,
+    pub(crate) limit: usize,
     #[arg(long)]
-    run: bool,
+    pub(crate) run: bool,
     #[arg(long, value_enum, default_value_t = default_output_format(), help = "Output format; markdown is the agent default, json is an integration escape hatch")]
-    format: OutputFormat,
+    pub(crate) format: OutputFormat,
     #[arg(long, hide = true)]
-    json: bool,
+    pub(crate) json: bool,
 }
 
 #[derive(Debug, Args)]
-struct ProofMapArgs {
-    target: Option<String>,
+pub(crate) struct ProofMapArgs {
+    pub(crate) target: Option<String>,
     #[arg(long)]
-    changed: bool,
+    pub(crate) changed: bool,
     #[arg(long)]
-    staged: bool,
+    pub(crate) staged: bool,
     #[arg(long)]
-    since: Option<String>,
+    pub(crate) since: Option<String>,
     #[arg(long)]
-    files: Option<String>,
+    pub(crate) files: Option<String>,
     #[arg(long, help = "Show ungrouped per-seed verification sensors")]
-    raw_sensors: bool,
+    pub(crate) raw_sensors: bool,
     #[arg(long, default_value_t = 20, hide = true)]
-    limit: usize,
+    pub(crate) limit: usize,
     #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
-    format: OutputFormat,
+    pub(crate) format: OutputFormat,
 }
 
 #[derive(Debug, Args)]
-struct DeleteArgs {
-    path: String,
+pub(crate) struct DeleteArgs {
+    pub(crate) path: String,
     #[arg(long = "all", alias = "include-hidden")]
-    include_hidden: bool,
+    pub(crate) include_hidden: bool,
     #[arg(long, default_value_t = 20, hide = true)]
-    limit: usize,
+    pub(crate) limit: usize,
     #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
-    format: OutputFormat,
+    pub(crate) format: OutputFormat,
 }
 
 #[derive(Debug, Args)]
-struct BoundaryMapArgs {
+pub(crate) struct BoundaryMapArgs {
     #[arg(default_value = ".")]
-    scope: String,
+    pub(crate) scope: String,
     #[arg(long)]
-    changed: bool,
+    pub(crate) changed: bool,
     #[arg(long = "all", alias = "include-hidden")]
-    include_hidden: bool,
+    pub(crate) include_hidden: bool,
     #[arg(long, default_value_t = 20, hide = true)]
-    limit: usize,
+    pub(crate) limit: usize,
     #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
-    format: OutputFormat,
+    pub(crate) format: OutputFormat,
 }
 
 #[derive(Debug, Args)]
-struct FlowArgs {
-    path: String,
+pub(crate) struct FlowArgs {
+    pub(crate) path: String,
     #[arg(long = "all", alias = "include-hidden")]
-    include_hidden: bool,
+    pub(crate) include_hidden: bool,
     #[arg(long, default_value_t = 20, hide = true)]
-    limit: usize,
+    pub(crate) limit: usize,
     #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
-    format: OutputFormat,
+    pub(crate) format: OutputFormat,
 }
 
 #[derive(Debug, Args)]
-struct SiblingsArgs {
+pub(crate) struct SiblingsArgs {
     #[arg(default_value = ".")]
-    scope: String,
+    pub(crate) scope: String,
     #[arg(long = "all", alias = "include-hidden")]
-    include_hidden: bool,
+    pub(crate) include_hidden: bool,
     #[arg(long, default_value_t = 20, hide = true)]
-    limit: usize,
+    pub(crate) limit: usize,
     #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
-    format: OutputFormat,
+    pub(crate) format: OutputFormat,
 }
 
 #[derive(Debug, Args)]
-struct PlaceArgs {
+pub(crate) struct PlaceArgs {
     #[arg(default_value = ".")]
-    scope: String,
+    pub(crate) scope: String,
     #[arg(long, default_value = "source")]
-    kind: String,
+    pub(crate) kind: String,
     #[arg(long = "all", alias = "include-hidden")]
-    include_hidden: bool,
+    pub(crate) include_hidden: bool,
     #[arg(long, default_value_t = 20, hide = true)]
-    limit: usize,
+    pub(crate) limit: usize,
     #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
-    format: OutputFormat,
+    pub(crate) format: OutputFormat,
 }
 
 #[derive(Debug, Args)]
-struct GraphArgs {
+pub(crate) struct GraphArgs {
     #[arg(long)]
-    path: Option<String>,
+    pub(crate) path: Option<String>,
     #[arg(long, default_value = "causal")]
-    lens: String,
+    pub(crate) lens: String,
     #[arg(long)]
-    changed: bool,
+    pub(crate) changed: bool,
     #[arg(long, default_value_t = 12, hide = true)]
-    limit: usize,
+    pub(crate) limit: usize,
     #[arg(long, value_enum, default_value_t = default_graph_output_format(), hide = true)]
-    format: GraphOutputFormat,
+    pub(crate) format: GraphOutputFormat,
 }
 
 #[derive(Debug, Args)]
-struct BoundariesArgs {
+pub(crate) struct BoundariesArgs {
     #[arg(long)]
-    changed: bool,
+    pub(crate) changed: bool,
     #[arg(long)]
-    strict_warnings: bool,
+    pub(crate) strict_warnings: bool,
     #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
-    format: OutputFormat,
+    pub(crate) format: OutputFormat,
 }
 
 #[derive(Debug, Args)]
-struct AnchorsArgs {
+pub(crate) struct AnchorsArgs {
     #[command(subcommand)]
-    action: AnchorAction,
+    pub(crate) action: AnchorAction,
 }
 
 #[derive(Debug, Subcommand)]
-enum AnchorAction {
+pub(crate) enum AnchorAction {
     Validate(FormatArgs),
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
-enum OutputFormat {
+pub(crate) enum OutputFormat {
     Markdown,
     Json,
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
-enum GraphOutputFormat {
+pub(crate) enum GraphOutputFormat {
     Markdown,
     Json,
     Mermaid,
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
-enum SchemaKind {
+pub(crate) enum SchemaKind {
     Manifest,
     Doctor,
     Status,
@@ -471,7 +468,7 @@ enum SchemaKind {
     Teach,
 }
 
-fn default_output_format() -> OutputFormat {
+pub(crate) fn default_output_format() -> OutputFormat {
     match std::env::var("CODEMAP_FORMAT")
         .unwrap_or_default()
         .trim()
@@ -483,7 +480,7 @@ fn default_output_format() -> OutputFormat {
     }
 }
 
-fn output_format_with_json_alias(format: OutputFormat, json: bool) -> OutputFormat {
+pub(crate) fn output_format_with_json_alias(format: OutputFormat, json: bool) -> OutputFormat {
     if json { OutputFormat::Json } else { format }
 }
 

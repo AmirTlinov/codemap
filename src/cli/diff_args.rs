@@ -1,4 +1,16 @@
-fn ensure_valid_config(project: &crate::model::Project) -> Result<()> {
+// Responsibility: cli-diff-args
+use crate::cli::{
+    ChangedArgs, ChangedSection, ConeSection, DiffMapArgs, ImpactArgs, LsSection, ProofArgs,
+    ProofMapArgs, ProofSection, SinceKind, classify_since, proof_since_inputs,
+    semantic_anchor_problems, shell_quote_arg, since_delta_or_git_ref, snapshot_not_found_unknown,
+};
+use crate::{map, repo};
+use anyhow::Result;
+use anyhow::bail;
+use std::path::Path;
+use std::path::PathBuf;
+
+pub(crate) fn ensure_valid_config(project: &crate::model::Project) -> Result<()> {
     let semantic_problems = semantic_anchor_problems(project);
     if project.config_errors.is_empty() && semantic_problems.is_empty() {
         return Ok(());
@@ -15,7 +27,7 @@ fn ensure_valid_config(project: &crate::model::Project) -> Result<()> {
     bail!("invalid .codemap semantic anchors; run `codemap anchors validate`")
 }
 
-fn impact_inputs(
+pub(crate) fn impact_inputs(
     project: &crate::model::Project,
     args: &ImpactArgs,
 ) -> Result<(Vec<String>, String)> {
@@ -27,10 +39,16 @@ fn impact_inputs(
         &args.positional_files,
     )?;
     if args.changed {
-        return Ok((repo::changed_files(&project.root, false, None), "--changed".to_string()));
+        return Ok((
+            repo::changed_files(&project.root, false, None),
+            "--changed".to_string(),
+        ));
     }
     if args.staged {
-        return Ok((repo::changed_files(&project.root, true, None), "--staged".to_string()));
+        return Ok((
+            repo::changed_files(&project.root, true, None),
+            "--staged".to_string(),
+        ));
     }
     if let Some(since) = &args.since {
         return Ok((
@@ -42,7 +60,7 @@ fn impact_inputs(
     Ok((files.clone(), files_selector(&files)))
 }
 
-fn diff_map_inputs(
+pub(crate) fn diff_map_inputs(
     project: &crate::model::Project,
     args: &DiffMapArgs,
 ) -> Result<(Vec<String>, String, map::DiffMapMode)> {
@@ -78,7 +96,11 @@ fn diff_map_inputs(
         return Ok((changed, format!("--since {}", shell_quote_arg(since)), mode));
     }
     let files = parse_files(project, args.files.as_deref(), &args.positional_files)?;
-    Ok((files.clone(), files_selector(&files), map::DiffMapMode::WorkingTree))
+    Ok((
+        files.clone(),
+        files_selector(&files),
+        map::DiffMapMode::WorkingTree,
+    ))
 }
 
 type ChangedInputs = (
@@ -89,7 +111,10 @@ type ChangedInputs = (
     Option<crate::model::Unknown>,
 );
 
-fn changed_inputs(project: &crate::model::Project, args: &ChangedArgs) -> Result<ChangedInputs> {
+pub(crate) fn changed_inputs(
+    project: &crate::model::Project,
+    args: &ChangedArgs,
+) -> Result<ChangedInputs> {
     ensure_single_diff_selector(
         args.changed,
         args.staged,
@@ -169,7 +194,7 @@ fn changed_inputs(project: &crate::model::Project, args: &ChangedArgs) -> Result
     ))
 }
 
-fn changed_section_name(section: Option<ChangedSection>) -> Option<&'static str> {
+pub(crate) fn changed_section_name(section: Option<ChangedSection>) -> Option<&'static str> {
     match section {
         Some(ChangedSection::Observed) => Some("observed"),
         Some(ChangedSection::Links) => Some("links"),
@@ -181,7 +206,7 @@ fn changed_section_name(section: Option<ChangedSection>) -> Option<&'static str>
     }
 }
 
-fn ls_section_name(section: Option<LsSection>) -> Option<&'static str> {
+pub(crate) fn ls_section_name(section: Option<LsSection>) -> Option<&'static str> {
     match section {
         Some(LsSection::Observed) => Some("observed"),
         Some(LsSection::Links) => Some("links"),
@@ -193,7 +218,7 @@ fn ls_section_name(section: Option<LsSection>) -> Option<&'static str> {
     }
 }
 
-fn cone_section_name(section: Option<ConeSection>) -> Option<&'static str> {
+pub(crate) fn cone_section_name(section: Option<ConeSection>) -> Option<&'static str> {
     match section {
         Some(ConeSection::Observed) => Some("observed"),
         Some(ConeSection::Links) => Some("links"),
@@ -205,7 +230,7 @@ fn cone_section_name(section: Option<ConeSection>) -> Option<&'static str> {
     }
 }
 
-fn proof_section_name(section: Option<ProofSection>) -> Option<&'static str> {
+pub(crate) fn proof_section_name(section: Option<ProofSection>) -> Option<&'static str> {
     match section {
         Some(ProofSection::Observed) => Some("observed"),
         Some(ProofSection::Links) => Some("links"),
@@ -217,7 +242,7 @@ fn proof_section_name(section: Option<ProofSection>) -> Option<&'static str> {
     }
 }
 
-fn proof_map_inputs(
+pub(crate) fn proof_map_inputs(
     project: &crate::model::Project,
     args: &ProofMapArgs,
 ) -> Result<(Option<String>, Vec<String>, String)> {
@@ -237,7 +262,9 @@ fn proof_map_inputs(
     .filter(|enabled| *enabled)
     .count();
     if count > 1 {
-        bail!("choose only one proof-map selector: target, --changed, --staged, --since, or --files");
+        bail!(
+            "choose only one proof-map selector: target, --changed, --staged, --since, or --files"
+        );
     }
     if let Some(target) = args.target.as_deref() {
         let target = project_relative_arg(project, target)?;
@@ -281,14 +308,17 @@ fn proof_map_inputs(
     Ok((None, files, format!("--files {files_arg}")))
 }
 
-type ProofInputs = (
+pub(crate) type ProofInputs = (
     Option<String>,
     Vec<String>,
     String,
     Option<crate::model::Unknown>,
 );
 
-fn proof_inputs(project: &crate::model::Project, args: &ProofArgs) -> Result<ProofInputs> {
+pub(crate) fn proof_inputs(
+    project: &crate::model::Project,
+    args: &ProofArgs,
+) -> Result<ProofInputs> {
     ensure_single_proof_selector(args)?;
     if let Some(target) = args.target.as_deref() {
         if target == "changed" {
@@ -329,7 +359,7 @@ fn proof_inputs(project: &crate::model::Project, args: &ProofArgs) -> Result<Pro
     bail!("codemap proof needs an exact target, changed, --staged, --since, or --files");
 }
 
-fn ensure_single_proof_selector(args: &ProofArgs) -> Result<()> {
+pub(crate) fn ensure_single_proof_selector(args: &ProofArgs) -> Result<()> {
     if args.changed {
         bail!("`codemap proof --changed` was replaced by `codemap proof changed`");
     }
@@ -339,8 +369,7 @@ fn ensure_single_proof_selector(args: &ProofArgs) -> Result<()> {
         .map(|value| !value.trim().is_empty())
         .unwrap_or(false);
     // `proof changed --since <token>` is one selector: proof over the since-delta.
-    let target_is_changed_since =
-        args.target.as_deref() == Some("changed") && args.since.is_some();
+    let target_is_changed_since = args.target.as_deref() == Some("changed") && args.since.is_some();
     let count = [
         args.target.is_some() && !target_is_changed_since,
         args.staged,
@@ -356,7 +385,7 @@ fn ensure_single_proof_selector(args: &ProofArgs) -> Result<()> {
     Ok(())
 }
 
-fn ensure_single_diff_selector(
+pub(crate) fn ensure_single_diff_selector(
     changed: bool,
     staged: bool,
     since: Option<&str>,
@@ -404,7 +433,7 @@ fn files_selector(files: &[String]) -> String {
     format!("--files {files_arg}")
 }
 
-fn project_relative_arg(project: &crate::model::Project, value: &str) -> Result<String> {
+pub(crate) fn project_relative_arg(project: &crate::model::Project, value: &str) -> Result<String> {
     let path = Path::new(value);
     let root = normalize_absolute_arg(&project.root);
     let absolute = if path.is_absolute() {
@@ -418,7 +447,7 @@ fn project_relative_arg(project: &crate::model::Project, value: &str) -> Result<
         .map_err(|_| anyhow::anyhow!("path is outside project root: {value}"))
 }
 
-fn flow_anchor_arg(project: &crate::model::Project, value: &str) -> Result<String> {
+pub(crate) fn flow_anchor_arg(project: &crate::model::Project, value: &str) -> Result<String> {
     let trimmed = value.trim();
     if cli_route_anchor(project, trimmed) {
         return Ok(trimmed.to_string());
@@ -442,7 +471,7 @@ fn cli_route_anchor(project: &crate::model::Project, value: &str) -> bool {
         )
 }
 
-fn normalize_absolute_arg(path: &Path) -> PathBuf {
+pub(crate) fn normalize_absolute_arg(path: &Path) -> PathBuf {
     if let Ok(canonical) = path.canonicalize() {
         return canonical;
     }
@@ -488,7 +517,7 @@ fn lexical_normalize_absolute(path: &Path) -> PathBuf {
     out
 }
 
-fn scoped_project_path(project: &crate::model::Project, value: &str) -> Result<PathBuf> {
+pub(crate) fn scoped_project_path(project: &crate::model::Project, value: &str) -> Result<PathBuf> {
     project_relative_arg(project, value)
         .map(|rel| project.root.join(rel))
         .map_err(|_| anyhow::anyhow!("refusing to write outside project root: {value}"))

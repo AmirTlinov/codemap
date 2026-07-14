@@ -1,4 +1,21 @@
-fn proof(project: &crate::model::Project, args: ProofArgs) -> Result<()> {
+// Responsibility: proof-command-execution
+mod safety;
+
+pub(crate) use safety::*;
+
+use crate::cli::{
+    ProofArgs, ensure_valid_config, output_format_with_json_alias, output_with_prelude,
+    proof_inputs, proof_section_name, shell_quote_arg,
+};
+use crate::{map, render, repo};
+use anyhow::Result;
+use anyhow::bail;
+use std::collections::BTreeSet;
+use std::env;
+use std::path::Path;
+use std::process::Command;
+
+pub(crate) fn proof(project: &crate::model::Project, args: ProofArgs) -> Result<()> {
     ensure_valid_config(project)?;
     if args.run && args.section.is_some() {
         bail!("--section is display-only and cannot be combined with --run");
@@ -84,7 +101,7 @@ fn run_proof_plan(
     run_plan(project, &plan, false)
 }
 
-fn proof_plan_commands_for_run(report: &crate::model::ProofReport) -> Vec<String> {
+pub(crate) fn proof_plan_commands_for_run(report: &crate::model::ProofReport) -> Vec<String> {
     let proof_commands = proof_run_commands(report);
     if proof_commands.is_empty() {
         report.fallback.clone()
@@ -126,7 +143,7 @@ fn run_plan(
     Ok(())
 }
 
-fn planned_run_commands(
+pub(crate) fn planned_run_commands(
     plan: &crate::model::VerificationPlan,
     include_supplemental: bool,
 ) -> Result<Vec<String>> {
@@ -155,7 +172,9 @@ fn planned_run_commands(
                     eprintln!("codemap: cannot run placeholder verification command: {command}");
                 }
                 ProofCommandRejection::Unsafe(reason) => {
-                    eprintln!("codemap: refusing unsafe verification command: {command} ({reason})");
+                    eprintln!(
+                        "codemap: refusing unsafe verification command: {command} ({reason})"
+                    );
                 }
                 ProofCommandRejection::Unknown => {
                     eprintln!("codemap: refusing unknown verification command: {command}");
@@ -175,7 +194,7 @@ fn planned_run_commands(
     Ok(unique_preserve_order(commands))
 }
 
-fn resolve_run_command(command: &str) -> Result<String> {
+pub(crate) fn resolve_run_command(command: &str) -> Result<String> {
     let trimmed = command.trim();
     if trimmed == "codemap" || trimmed.starts_with("codemap ") {
         let exe = env::current_exe()?;

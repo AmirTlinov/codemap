@@ -1,4 +1,11 @@
-fn semantic_anchor_details(
+// Responsibility: cli-anchors-details
+use crate::cli::{
+    AnchorValidationDetail, anchor_pattern_match_count, anchor_pattern_matches_project,
+    dedupe_strings, glob_static_prefix, is_glob_like, shell_quote_arg,
+};
+use crate::{map, repo};
+
+pub(crate) fn semantic_anchor_details(
     project: &crate::model::Project,
     can_run_map_commands: bool,
 ) -> Vec<AnchorValidationDetail> {

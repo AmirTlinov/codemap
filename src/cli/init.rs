@@ -1,4 +1,11 @@
-fn init(project: &crate::model::Project, args: InitArgs) -> Result<()> {
+// Responsibility: cli-init
+use crate::cli::{InitArgs, project_relative_arg, scoped_project_path};
+use crate::render;
+use anyhow::Result;
+use anyhow::bail;
+use std::fs;
+
+pub(crate) fn init(project: &crate::model::Project, args: InitArgs) -> Result<()> {
     let action_count = [args.agents, args.print, args.write_minimal]
         .into_iter()
         .filter(|enabled| *enabled)
@@ -57,4 +64,3 @@ fn init(project: &crate::model::Project, args: InitArgs) -> Result<()> {
     println!("  codemap init --write-minimal [--path <scope>]");
     Ok(())
 }
-

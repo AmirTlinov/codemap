@@ -1,4 +1,11 @@
-fn ensure_graph_lens(lens: &str) -> Result<()> {
+// Responsibility: cli-schema-and-roots
+use crate::cli::{CommandKind, ProofArgs, ProofMapArgs, SchemaKind};
+use anyhow::Result;
+use anyhow::bail;
+use std::path::Path;
+use std::path::PathBuf;
+
+pub(crate) fn ensure_graph_lens(lens: &str) -> Result<()> {
     match lens.to_ascii_lowercase().as_str() {
         "causal" | "impact" | "proof" | "boundary" | "boundaries" => Ok(()),
         _ => {
@@ -7,7 +14,7 @@ fn ensure_graph_lens(lens: &str) -> Result<()> {
     }
 }
 
-fn schema_text(kind: SchemaKind) -> &'static str {
+pub(crate) fn schema_text(kind: SchemaKind) -> &'static str {
     match kind {
         SchemaKind::Manifest => include_str!("../../schemas/manifest.json"),
         SchemaKind::Doctor => include_str!("../../schemas/status.schema.json"),
@@ -36,7 +43,10 @@ fn schema_text(kind: SchemaKind) -> &'static str {
     }
 }
 
-fn command_root_hint(command: &CommandKind, ambient_root: Option<&Path>) -> Option<PathBuf> {
+pub(crate) fn command_root_hint(
+    command: &CommandKind,
+    ambient_root: Option<&Path>,
+) -> Option<PathBuf> {
     match command {
         CommandKind::Ls(args) => absolute_path_hint(Some(&args.path)),
         CommandKind::Cone(args) => absolute_path_hint(Some(&args.path)),

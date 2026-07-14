@@ -1,4 +1,7 @@
-fn unsafe_proof_command_reason(command: &str) -> Option<&'static str> {
+// Responsibility: cli-proof-run-safety
+use std::path::Path;
+
+pub(crate) fn unsafe_proof_command_reason(command: &str) -> Option<&'static str> {
     let lower = command
         .to_ascii_lowercase()
         .replace(['\'', '"', '`'], " ")
@@ -40,7 +43,7 @@ fn unsafe_proof_command_reason(command: &str) -> Option<&'static str> {
         .find_map(|(needle, reason)| lower.contains(needle).then_some(*reason))
 }
 
-fn unsafe_shell_syntax_reason(command: &str) -> Option<&'static str> {
+pub(crate) fn unsafe_shell_syntax_reason(command: &str) -> Option<&'static str> {
     let mut chars = command.chars().peekable();
     while let Some(ch) = chars.next() {
         match ch {
@@ -68,7 +71,7 @@ fn unsafe_shell_syntax_reason(command: &str) -> Option<&'static str> {
     None
 }
 
-fn safe_proof_command(command: &str) -> bool {
+pub(crate) fn safe_proof_command(command: &str) -> bool {
     let command = command.trim();
     if let Some((prefix, tail)) = command.split_once("&&") {
         return safe_cd_prefix(prefix) && safe_proof_command(tail);
@@ -242,7 +245,10 @@ fn package_selector_command_after_selector<'a>(parts: &'a [&str]) -> Option<&'a 
 }
 
 fn selector_flag_takes_value(token: &str) -> bool {
-    matches!(token, "--filter" | "-f" | "-F" | "--workspace" | "--package" | "-p")
+    matches!(
+        token,
+        "--filter" | "-f" | "-F" | "--workspace" | "--package" | "-p"
+    )
 }
 
 fn selector_flag_is_inline(token: &str) -> bool {
@@ -333,8 +339,8 @@ fn safe_script_name(script: &str) -> bool {
         "remove",
         "prune",
     ]
-        .iter()
-        .any(|marker| lower.contains(marker))
+    .iter()
+    .any(|marker| lower.contains(marker))
         || unsafe_lifecycle_script_name(&lower)
     {
         return false;

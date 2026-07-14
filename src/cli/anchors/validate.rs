@@ -1,4 +1,11 @@
-fn validate_anchors(project: &crate::model::Project) -> AnchorValidation {
+// Responsibility: cli-anchors-validate
+use crate::cli::{
+    AnchorValidation, AnchorValidationSummary, anchor_pattern_matches_project, is_glob_like,
+    semantic_anchor_details, validate_anchor_domain_path,
+};
+use crate::map;
+
+pub(crate) fn validate_anchors(project: &crate::model::Project) -> AnchorValidation {
     let mut problems = project
         .config_errors
         .iter()
@@ -27,7 +34,7 @@ fn validate_anchors(project: &crate::model::Project) -> AnchorValidation {
     }
 }
 
-fn semantic_anchor_problems(project: &crate::model::Project) -> Vec<String> {
+pub(crate) fn semantic_anchor_problems(project: &crate::model::Project) -> Vec<String> {
     let mut problems = Vec::new();
     if project.config_path.is_some() {
         match project.anchors.version {
@@ -121,8 +128,9 @@ fn semantic_anchor_problems(project: &crate::model::Project) -> Vec<String> {
 fn semantic_anchor_warnings(project: &crate::model::Project) -> Vec<String> {
     let mut warnings = Vec::new();
     if project.config_path.is_none() && project.config_errors.is_empty() {
-        warnings
-            .push("no .codemap.yml found; codemap will use zero-config structural maps".to_string());
+        warnings.push(
+            "no .codemap.yml found; codemap will use zero-config structural maps".to_string(),
+        );
         return warnings;
     }
     for (idx, edge) in project.anchors.boundaries.forbidden.iter().enumerate() {
