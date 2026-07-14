@@ -1,22 +1,26 @@
-include!("cli/args.rs");
-include!("cli/section_args.rs");
-include!("cli/run.rs");
-include!("cli/fast_paths.rs");
-include!("cli/fast_path_helpers.rs");
-include!("cli/fast_paths_root_ls.rs");
-include!("cli/fast_paths_root_graph.rs");
-include!("cli/fast_paths_root_proof_map.rs");
-include!("cli/fast_paths_proof_map.rs");
-include!("cli/fast_paths_siblings_place.rs");
-include!("cli/schema_and_roots.rs");
-include!("cli/init.rs");
-include!("cli/proof_run.rs");
-include!("cli/proof_run_safety.rs");
-include!("cli/diff_args.rs");
-include!("cli/since_args.rs");
-include!("cli/files.rs");
-include!("cli/anchors_models.rs");
-include!("cli/anchors_validate.rs");
-include!("cli/anchors_details.rs");
-include!("cli/anchors_helpers.rs");
-include!("cli/anchors_render.rs");
+// Responsibility: cli-module-root
+
+mod anchors;
+mod args;
+mod diff_args;
+mod fast_paths;
+mod files;
+mod init;
+mod proof_run;
+mod run;
+mod schema_and_roots;
+mod section_args;
+mod since_args;
+
+pub(crate) use anchors::*;
+pub(crate) use args::*;
+pub(crate) use diff_args::*;
+pub(crate) use fast_paths::*;
+pub(crate) use files::*;
+pub(crate) use init::*;
+pub(crate) use proof_run::*;
+pub use run::run;
+pub(crate) use run::*;
+pub(crate) use schema_and_roots::*;
+pub(crate) use section_args::*;
+pub(crate) use since_args::*;
