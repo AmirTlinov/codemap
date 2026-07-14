@@ -201,7 +201,7 @@ impl CachedProofMapReport {
     fn into_report(self) -> ProofMapReport {
         ProofMapReport {
             kind: "proof_map_report",
-            schema_version: "4",
+            schema_version: "5",
             selector: if self.selector.is_empty() {
                 self.scope
                     .clone()

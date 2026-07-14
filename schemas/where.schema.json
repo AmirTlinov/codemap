@@ -18,7 +18,7 @@
   ],
   "properties": {
     "kind": { "const": "where_report" },
-    "schema_version": { "const": "1" },
+    "schema_version": { "const": "2" },
     "query": { "type": "string" },
     "kind_filter": {
       "anyOf": [{ "type": "string" }, { "type": "null" }]
@@ -56,7 +56,16 @@
           "type": "array",
           "items": { "$ref": "#/$defs/structural_edge" }
         },
-        "consumers_total": { "type": "integer", "minimum": 0 },
+        "consumers_total": {
+          "type": "object",
+          "required": ["status"],
+          "additionalProperties": false,
+          "properties": {
+            "status": { "enum": ["counted", "proven_zero", "unknown"] },
+            "value": { "type": "integer", "minimum": 0 },
+            "reason": { "type": "string" }
+          }
+        },
         "hidden": {
           "type": "array",
           "items": { "$ref": "#/$defs/hidden_group" }
@@ -122,7 +131,7 @@
         "symbols",
         "exports",
         "imports",
-        "imported_by_count"
+        "imported_by"
       ],
       "properties": {
         "path": { "type": "string" },
@@ -148,7 +157,16 @@
           "type": "array",
           "items": { "type": "string" }
         },
-        "imported_by_count": { "type": "integer", "minimum": 0 }
+        "imported_by": {
+          "type": "object",
+          "required": ["status"],
+          "additionalProperties": false,
+          "properties": {
+            "status": { "enum": ["counted", "proven_zero", "unknown"] },
+            "value": { "type": "integer", "minimum": 0 },
+            "reason": { "type": "string" }
+          }
+        }
       }
     },
     "structural_edge": {

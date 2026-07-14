@@ -104,7 +104,7 @@ pub(crate) fn render_anchor_summary(title: &str, anchor: &crate::model::FileSumm
         println!("- surface hints: {}", anchor.roles.join(", "));
     }
     println!("- symbols: `{}`", anchor.symbols.len());
-    println!("- imported by: `{}`", anchor.imported_by_count);
+    println!("- imported by: `{}`", anchor.imported_by.display());
 }
 
 fn render_ls_directory(report: &LsReport, section_filter: Option<&str>) {

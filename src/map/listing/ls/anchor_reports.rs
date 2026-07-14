@@ -18,7 +18,7 @@ pub(crate) fn ls_symbol_report(
     let Some(anchor) = symbol_file_summary(project, info, symbol_name) else {
         return LsReport {
             kind: "ls_report",
-            schema_version: "5",
+            schema_version: "6",
             path: anchor_path.clone(),
             mode: "missing".to_string(),
             anchor: None,
@@ -49,7 +49,7 @@ pub(crate) fn ls_symbol_report(
     }
     LsReport {
         kind: "ls_report",
-        schema_version: "5",
+        schema_version: "6",
         path: anchor_path.clone(),
         mode: "file".to_string(),
         anchor: Some(anchor),
@@ -130,7 +130,7 @@ pub(crate) fn ls_file_report(
     );
     LsReport {
         kind: "ls_report",
-        schema_version: "5",
+        schema_version: "6",
         path: info.rel.clone(),
         mode: "file".to_string(),
         anchor: Some(anchor),

@@ -180,7 +180,7 @@ pub(crate) fn ls_directory_report(
     }
     LsReport {
         kind: "ls_report",
-        schema_version: "5",
+        schema_version: "6",
         path: rel.to_string(),
         mode: "directory".to_string(),
         anchor: None,

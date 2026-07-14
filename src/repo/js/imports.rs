@@ -243,3 +243,27 @@ fn js_statement_slice(text: &str, start: usize) -> &str {
     }
     &text[start..]
 }
+
+/// Detects dynamic `import(...)` call sites. Any occurrence is an import-graph
+/// blind spot: dynamic imports are not resolved into structural edges, so a
+/// zero consumer count in their package scope is not proven.
+pub(crate) fn js_has_dynamic_import(cleaned_text: &str) -> bool {
+    let bytes = cleaned_text.as_bytes();
+    let mut from = 0;
+    while let Some(pos) = cleaned_text[from..].find("import") {
+        let start = from + pos;
+        let before = start.checked_sub(1).map(|i| bytes[i] as char);
+        let after = cleaned_text[start + "import".len()..]
+            .chars()
+            .find(|c| !c.is_whitespace());
+        let standalone = !matches!(
+            before,
+            Some(c) if c.is_ascii_alphanumeric() || c == '_' || c == '$' || c == '.'
+        );
+        if standalone && after == Some('(') {
+            return true;
+        }
+        from = start + "import".len();
+    }
+    false
+}

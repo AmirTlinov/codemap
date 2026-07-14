@@ -23,7 +23,7 @@
   ],
   "properties": {
     "kind": { "const": "cone_report" },
-    "schema_version": { "const": "7" },
+    "schema_version": { "const": "8" },
     "prelude": { "$ref": "#/$defs/map_prelude" },
     "anchor": { "$ref": "#/$defs/file_summary" },
     "depth": { "type": "integer", "minimum": 0 },
@@ -207,7 +207,7 @@
         "symbols",
         "exports",
         "imports",
-        "imported_by_count"
+        "imported_by"
       ],
       "properties": {
         "path": { "type": "string" },
@@ -233,7 +233,16 @@
           "type": "array",
           "items": { "type": "string" }
         },
-        "imported_by_count": { "type": "integer", "minimum": 0 }
+        "imported_by": {
+          "type": "object",
+          "required": ["status"],
+          "additionalProperties": false,
+          "properties": {
+            "status": { "enum": ["counted", "proven_zero", "unknown"] },
+            "value": { "type": "integer", "minimum": 0 },
+            "reason": { "type": "string" }
+          }
+        }
       }
     },
     "structural_edge": {

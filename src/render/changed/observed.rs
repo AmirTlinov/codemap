@@ -91,7 +91,7 @@ fn changed_anchor_section(report: &ChangedReport, compact: bool) {
                 file.symbols.len(),
                 file.exports.len(),
                 file.imports.len(),
-                file.imported_by_count
+                file.imported_by.display()
             );
         }
         if !compact && !file.roles.is_empty() {

@@ -7,7 +7,7 @@ use crate::model::{
 pub fn clean_changed_report(selector: String, limit: usize) -> ChangedReport {
     ChangedReport {
         kind: "changed_report",
-        schema_version: "8",
+        schema_version: "9",
         selector: selector.clone(),
         display_limit: limit.max(1),
         proof_plan_cache: None,
@@ -59,7 +59,7 @@ pub(crate) fn changed_report_shell(
 ) -> ChangedReport {
     ChangedReport {
         kind: "changed_report",
-        schema_version: "8",
+        schema_version: "9",
         selector: selector.to_string(),
         display_limit: limit,
         proof_plan_cache: None,
@@ -110,7 +110,7 @@ fn empty_changed_proof_summary() -> ChangedProofSummary {
 pub(crate) fn empty_proof_map_report(selector: String, changed: Vec<String>) -> ProofMapReport {
     ProofMapReport {
         kind: "proof_map_report",
-        schema_version: "4",
+        schema_version: "5",
         selector: selector.clone(),
         scope: None,
         changed,

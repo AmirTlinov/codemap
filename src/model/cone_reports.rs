@@ -3,7 +3,9 @@ use serde::{Deserialize, Serialize};
 
 use super::FlowStep;
 
-use super::{EnvDeclaration, EvidenceStrength, FileSummary, HiddenGroup, StructuralEdge, Unknown};
+use super::{
+    CountFact, EnvDeclaration, EvidenceStrength, FileSummary, HiddenGroup, StructuralEdge, Unknown,
+};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Surface {
@@ -77,7 +79,7 @@ pub struct WhereReport {
 pub struct WhereDefinition {
     pub anchor: FileSummary,
     pub consumers: Vec<StructuralEdge>,
-    pub consumers_total: usize,
+    pub consumers_total: CountFact,
     pub hidden: Vec<HiddenGroup>,
     pub expand: Vec<String>,
 }

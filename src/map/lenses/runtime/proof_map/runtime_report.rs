@@ -175,7 +175,7 @@ pub fn runtime_report(
     let expand = runtime_expand_commands(&scope, &root_containers, &entrypoints);
     RuntimeReport {
         kind: "runtime_report",
-        schema_version: "1",
+        schema_version: "2",
         scope: scope.clone(),
         entrypoints,
         routes,

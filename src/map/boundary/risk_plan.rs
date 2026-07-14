@@ -2,6 +2,7 @@
 use crate::map::{
     find_script, impacted_domains, infer_minimal_commands, package_name_for_file, unique,
 };
+use crate::model::CountFact;
 use crate::model::{FileSummary, Project, Risk, VerificationPlan};
 
 pub(crate) fn missing_file_summary(project: &Project, rel: &str) -> FileSummary {
@@ -16,7 +17,7 @@ pub(crate) fn missing_file_summary(project: &Project, rel: &str) -> FileSummary 
         symbols: Vec::new(),
         exports: Vec::new(),
         imports: Vec::new(),
-        imported_by_count: 0,
+        imported_by: CountFact::unknown("file is not indexed"),
     }
 }
 

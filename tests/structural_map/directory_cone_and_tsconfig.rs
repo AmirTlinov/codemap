@@ -235,7 +235,8 @@ fn tsconfig_jsonc_path_aliases_create_reverse_edges() {
         ],
     );
     assert_schema("schemas/cone.schema.json", &cone);
-    assert_eq!(cone["anchor"]["imported_by_count"], 1);
+    assert_eq!(cone["anchor"]["imported_by"]["status"], "counted");
+    assert_eq!(cone["anchor"]["imported_by"]["value"], 1);
     assert!(
         cone["incoming"]
             .as_array()
@@ -301,7 +302,8 @@ fn malformed_tsconfig_jsonc_does_not_create_alias_edges() {
         ],
     );
     assert_schema("schemas/cone.schema.json", &cone);
-    assert_eq!(cone["anchor"]["imported_by_count"], 0);
+    assert_eq!(cone["anchor"]["imported_by"]["status"], "proven_zero");
+    assert_eq!(cone["anchor"]["imported_by"]["value"], 0);
     assert!(
         cone["incoming"].as_array().expect("incoming").is_empty(),
         "malformed tsconfig JSONC must fail closed instead of creating alias edges: {cone:#}"

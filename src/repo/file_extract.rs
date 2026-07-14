@@ -1,9 +1,11 @@
 // Responsibility: repo-file-extract
 mod css_imports;
 mod rust_includes;
+mod rust_reexports;
 
 pub(crate) use css_imports::*;
 pub(crate) use rust_includes::*;
+pub(crate) use rust_reexports::*;
 
 use crate::model::FileInfo;
 use crate::repo::{
@@ -11,8 +13,8 @@ use crate::repo::{
     extract_identifier_references_from_cleaned, extract_js_import_bindings,
     extract_js_import_specs, extract_js_symbols_from_cleaned, extract_jsx_tags,
     extract_jsx_tags_from_cleaned, extract_local_bindings, extract_local_bindings_from_cleaned,
-    extract_surfaces, extract_symbols, is_asset_ext, is_source_ext, js_export_re, py_import_re,
-    rust_mod_re, rust_use_re, swift_import_re,
+    extract_surfaces, extract_symbols, is_asset_ext, is_source_ext, js_export_re,
+    js_has_dynamic_import, py_import_re, rust_mod_re, rust_use_re, swift_import_re,
 };
 use std::fs;
 use std::path::Path;
@@ -59,6 +61,7 @@ pub(crate) fn extract_imports_exports(root: &Path, info: &mut FileInfo) {
         "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte" => {
             info.imports.extend(extract_js_import_specs(&text));
             info.import_bindings = extract_js_import_bindings(&text);
+            info.has_dynamic_import = js_has_dynamic_import(cleaned_text);
             let export_re = js_export_re();
             for cap in export_re.captures_iter(cleaned_text) {
                 if let Some(m) = cap.get(1) {
@@ -88,6 +91,12 @@ pub(crate) fn extract_imports_exports(root: &Path, info: &mut FileInfo) {
                 }
             }
             info.imports.extend(extract_rust_include_specs(&text));
+            for (spec, bindings) in extract_rust_reexport_bindings(&text) {
+                info.import_bindings
+                    .entry(spec)
+                    .or_default()
+                    .extend(bindings);
+            }
         }
         "go" => {
             info.imports.extend(extract_go_imports(&text));

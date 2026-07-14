@@ -19,7 +19,7 @@
   ],
   "properties": {
     "kind": { "const": "ls_report" },
-    "schema_version": { "const": "5" },
+    "schema_version": { "const": "6" },
     "prelude": { "$ref": "#/$defs/map_prelude" },
     "path": { "type": "string" },
     "mode": { "type": "string", "enum": ["file", "directory", "missing"] },
@@ -176,7 +176,7 @@
         "symbols",
         "exports",
         "imports",
-        "imported_by_count"
+        "imported_by"
       ],
       "properties": {
         "path": { "type": "string" },
@@ -202,7 +202,16 @@
           "type": "array",
           "items": { "type": "string" }
         },
-        "imported_by_count": { "type": "integer", "minimum": 0 }
+        "imported_by": {
+          "type": "object",
+          "required": ["status"],
+          "additionalProperties": false,
+          "properties": {
+            "status": { "enum": ["counted", "proven_zero", "unknown"] },
+            "value": { "type": "integer", "minimum": 0 },
+            "reason": { "type": "string" }
+          }
+        }
       }
     },
     "directory_surface": {

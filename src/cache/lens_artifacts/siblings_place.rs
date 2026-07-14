@@ -185,7 +185,7 @@ impl CachedSiblingsReport {
     fn into_report(self) -> SiblingsReport {
         SiblingsReport {
             kind: "siblings_report",
-            schema_version: "2",
+            schema_version: "3",
             scope: self.scope,
             same_kind: self.same_kind,
             route_service_test_triplets: self.route_service_test_triplets,
@@ -234,7 +234,7 @@ impl CachedPlaceReport {
     fn into_report(self) -> PlaceReport {
         PlaceReport {
             kind: "place_report",
-            schema_version: "2",
+            schema_version: "3",
             scope: self.scope,
             requested_kind: self.requested_kind,
             existing_surfaces: self.existing_surfaces,

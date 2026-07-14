@@ -16,7 +16,7 @@
   ],
   "properties": {
     "kind": { "const": "impact_report" },
-    "schema_version": { "const": "4" },
+    "schema_version": { "const": "5" },
     "selector": { "type": "string" },
     "changed": {
       "type": "array",
@@ -84,7 +84,7 @@
         "symbols",
         "exports",
         "imports",
-        "imported_by_count"
+        "imported_by"
       ],
       "properties": {
         "path": { "type": "string" },
@@ -110,7 +110,16 @@
           "type": "array",
           "items": { "type": "string" }
         },
-        "imported_by_count": { "type": "integer", "minimum": 0 }
+        "imported_by": {
+          "type": "object",
+          "required": ["status"],
+          "additionalProperties": false,
+          "properties": {
+            "status": { "enum": ["counted", "proven_zero", "unknown"] },
+            "value": { "type": "integer", "minimum": 0 },
+            "reason": { "type": "string" }
+          }
+        }
       }
     },
     "structural_edge": {

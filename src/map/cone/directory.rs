@@ -7,6 +7,7 @@ use crate::map::{
     limit_edge_section, next_app_route_pattern, package_name_for_file, shell_quote, sort_edges,
     unknown_directory_aggregate,
 };
+use crate::model::CountFact;
 use crate::model::{ConeReport, EvidenceStrength, FileSummary, Project, StructuralEdge};
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
@@ -94,7 +95,7 @@ pub(crate) fn cone_directory_report(
     });
     ConeReport {
         kind: "cone_report",
-        schema_version: "7",
+        schema_version: "8",
         anchor,
         depth,
         xray,
@@ -124,7 +125,9 @@ fn directory_file_summary(project: &Project, rel: &str) -> FileSummary {
         symbols: Vec::new(),
         exports: Vec::new(),
         imports: Vec::new(),
-        imported_by_count: 0,
+        imported_by: CountFact::unknown(
+            "directory anchor aggregates files; use file anchors for consumer counts",
+        ),
     }
 }
 

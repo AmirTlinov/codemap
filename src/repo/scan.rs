@@ -130,6 +130,7 @@ fn scan_file(root: &Path, rel: &str, stats: &mut ScanStatsBuilder) -> Option<Fil
         size: meta.len(),
         content_hash: None,
         line_count: 0,
+        has_dynamic_import: false,
         language,
         roles: BTreeSet::new(),
         imports: BTreeSet::new(),

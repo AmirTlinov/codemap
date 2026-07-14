@@ -25,7 +25,7 @@
   ],
   "properties": {
     "kind": { "const": "changed_report" },
-    "schema_version": { "const": "8" },
+    "schema_version": { "const": "9" },
     "prelude": { "$ref": "#/$defs/map_prelude" },
     "selector": { "type": "string" },
     "total_changed_count": { "type": "integer", "minimum": 0 },
@@ -201,7 +201,7 @@
         "symbols",
         "exports",
         "imports",
-        "imported_by_count"
+        "imported_by"
       ],
       "properties": {
         "path": { "type": "string" },
@@ -213,7 +213,16 @@
         "symbols": { "type": "array", "items": { "$ref": "#/$defs/symbol" } },
         "exports": { "type": "array", "items": { "type": "string" } },
         "imports": { "type": "array", "items": { "type": "string" } },
-        "imported_by_count": { "type": "integer", "minimum": 0 }
+        "imported_by": {
+          "type": "object",
+          "required": ["status"],
+          "additionalProperties": false,
+          "properties": {
+            "status": { "enum": ["counted", "proven_zero", "unknown"] },
+            "value": { "type": "integer", "minimum": 0 },
+            "reason": { "type": "string" }
+          }
+        }
       }
     },
     "git_change": {

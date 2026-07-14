@@ -68,6 +68,7 @@ include!("structural_map/cache_head_delta_subdir.rs");
 include!("structural_map/fast_path_snapshot.rs");
 include!("structural_map/brief_output.rs");
 include!("structural_map/where_locator.rs");
+include!("structural_map/honest_zero.rs");
 include!("structural_map/snapshot_delta.rs");
 include!("structural_map/prelude_overlay.rs");
 include!("structural_map/boundary_facts.rs");

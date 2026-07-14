@@ -22,7 +22,7 @@ pub fn delete_report(
     if !project.files.contains_key(&file_rel) {
         return DeleteReport {
             kind: "delete_report",
-            schema_version: "1",
+            schema_version: "2",
             anchor: missing_file_summary(project, &rel),
             direct_users: Vec::new(),
             symbol_users: Vec::new(),
@@ -45,7 +45,7 @@ pub fn delete_report(
     {
         return DeleteReport {
             kind: "delete_report",
-            schema_version: "1",
+            schema_version: "2",
             anchor: missing_file_summary(project, &rel),
             direct_users: Vec::new(),
             symbol_users: Vec::new(),
@@ -140,7 +140,7 @@ pub fn delete_report(
     );
     DeleteReport {
         kind: "delete_report",
-        schema_version: "1",
+        schema_version: "2",
         anchor,
         direct_users,
         symbol_users,

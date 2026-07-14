@@ -1,4 +1,5 @@
 // Responsibility: map-symbols-where-locator
+use crate::map::consumer_count_fact;
 use crate::map::{
     cone_symbol_report, shell_quote, sort_edges, symbol_anchor_path, symbol_file_summary,
     symbol_reference_edges, unknown,
@@ -58,7 +59,8 @@ pub fn where_report(
         let anchor_path = symbol_anchor_path(file_rel, query);
         let mut consumers = symbol_reference_edges(project, file_rel, query, false);
         sort_edges(&mut consumers);
-        let consumers_total = consumers.len();
+        let consumers_raw = consumers.len();
+        let consumers_total = consumer_count_fact(project, file_rel, Some(query), consumers_raw);
         let mut def_hidden = Vec::new();
         if !include_hidden && consumers.len() > limit {
             let hidden_count = consumers.len() - limit;
@@ -109,7 +111,7 @@ pub fn where_report(
 
     WhereReport {
         kind: "where_report",
-        schema_version: "1",
+        schema_version: "2",
         query: query.to_string(),
         kind_filter: kind_filter.map(|kind| kind.to_string()),
         total_matches,

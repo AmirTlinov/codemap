@@ -8,6 +8,7 @@ use crate::map::{
     symbol_proof_edges_with_owning_file, symbol_reference_edges, unique, unknown,
     unknown_missing_symbol_anchor, unknown_symbol_outgoing, unresolved_import_unknowns,
 };
+use crate::model::CountFact;
 use crate::model::{
     ConeReport, EvidenceStrength, FileInfo, FileSummary, HiddenGroup, Project, StructuralEdge,
     Unknown,
@@ -81,7 +82,7 @@ pub(crate) fn cone_symbol_report(
     });
     Some(ConeReport {
         kind: "cone_report",
-        schema_version: "7",
+        schema_version: "8",
         anchor,
         depth,
         xray,
@@ -122,12 +123,12 @@ pub(crate) fn cone_missing_symbol_report(
         symbols: Vec::new(),
         exports: Vec::new(),
         imports: Vec::new(),
-        imported_by_count: 0,
+        imported_by: CountFact::unknown("anchor summary is aggregated at this level"),
     };
     let xray = empty_xray_card(&anchor, &unknowns);
     ConeReport {
         kind: "cone_report",
-        schema_version: "7",
+        schema_version: "8",
         anchor,
         depth,
         xray,
@@ -197,7 +198,9 @@ pub(crate) fn cone_anchor(
                 symbols: Vec::new(),
                 exports: Vec::new(),
                 imports: Vec::new(),
-                imported_by_count: 0,
+                imported_by: CountFact::unknown(
+                    "directory anchor aggregates files; use file anchors for consumer counts",
+                ),
             },
             files,
             vec![unknown(
@@ -222,7 +225,7 @@ pub(crate) fn cone_anchor(
             symbols: Vec::new(),
             exports: Vec::new(),
             imports: Vec::new(),
-            imported_by_count: 0,
+            imported_by: CountFact::unknown("anchor is not indexed"),
         },
         Vec::new(),
         Vec::new(),

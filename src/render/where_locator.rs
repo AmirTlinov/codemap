@@ -101,7 +101,7 @@ fn print_where_definition_facts(def: &WhereDefinition, prefix: &str) {
         anchor.package.as_deref().unwrap_or("none")
     );
     println!("{prefix}lines: `{}`", anchor.lines);
-    println!("{prefix}consumers: `{}`", def.consumers_total);
+    println!("{prefix}consumers: `{}`", def.consumers_total.display());
 }
 
 fn render_where_consumer_preview(def: &WhereDefinition) {
@@ -118,7 +118,7 @@ fn render_where_consumer_preview(def: &WhereDefinition) {
         );
     }
     let shown = def.consumers.len().min(PREVIEW);
-    let more = def.consumers_total.saturating_sub(shown);
+    let more = def.consumers_total.value.unwrap_or(0).saturating_sub(shown);
     if more > 0 {
         println!(
             "  - {more} more consumers — `codemap cone {} --all`",

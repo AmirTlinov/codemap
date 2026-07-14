@@ -70,6 +70,8 @@ pub struct FileInfo {
     pub language: String,
     pub roles: BTreeSet<String>,
     pub imports: BTreeSet<String>,
+    #[serde(default)]
+    pub has_dynamic_import: bool,
     pub import_bindings: ImportBindingsBySpec,
     pub resolved_imports: BTreeSet<String>,
     pub unresolved_imports: BTreeSet<String>,
@@ -125,6 +127,59 @@ pub struct SymbolInfo {
     pub exported: bool,
     pub line_start: usize,
     pub line_end: usize,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CountStatus {
+    Counted,
+    ProvenZero,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct CountFact {
+    pub status: CountStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
+impl CountFact {
+    pub fn counted(value: usize) -> Self {
+        Self {
+            status: CountStatus::Counted,
+            value: Some(value),
+            reason: None,
+        }
+    }
+
+    pub fn proven_zero() -> Self {
+        Self {
+            status: CountStatus::ProvenZero,
+            value: Some(0),
+            reason: None,
+        }
+    }
+
+    pub fn unknown(reason: impl Into<String>) -> Self {
+        Self {
+            status: CountStatus::Unknown,
+            value: None,
+            reason: Some(reason.into()),
+        }
+    }
+
+    pub fn display(&self) -> String {
+        match self.status {
+            CountStatus::Unknown => format!(
+                "unknown ({})",
+                self.reason.as_deref().unwrap_or("unclassified flow")
+            ),
+            _ => self.value.unwrap_or(0).to_string(),
+        }
+    }
 }
 
 #[allow(dead_code)]
@@ -223,7 +278,7 @@ pub struct FileSummary {
     pub symbols: Vec<SymbolInfo>,
     pub exports: Vec<String>,
     pub imports: Vec<String>,
-    pub imported_by_count: usize,
+    pub imported_by: CountFact,
 }
 
 #[derive(Debug, Clone, Serialize)]

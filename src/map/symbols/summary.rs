@@ -1,4 +1,5 @@
 // Responsibility: map-symbols-summary
+use crate::map::consumer_count_fact;
 use crate::map::{
     file_kind_for_ls, package_name_for_file, structural_roles_for_ls, symbol_is_exported,
     symbol_reference_edges,
@@ -23,11 +24,16 @@ pub(crate) fn file_summary(
         symbols,
         exports: info.exports.iter().cloned().collect(),
         imports: info.imports.iter().cloned().collect(),
-        imported_by_count: project
-            .reverse_imports
-            .get(&info.rel)
-            .map(|importers| importers.len())
-            .unwrap_or(0),
+        imported_by: consumer_count_fact(
+            project,
+            &info.rel,
+            None,
+            project
+                .reverse_imports
+                .get(&info.rel)
+                .map(|importers| importers.len())
+                .unwrap_or(0),
+        ),
     }
 }
 
@@ -164,7 +170,12 @@ pub(crate) fn symbol_file_summary(
             .into_iter()
             .collect(),
         imports: Vec::new(),
-        imported_by_count: symbol_reference_edges(project, &info.rel, symbol_name, true).len(),
+        imported_by: consumer_count_fact(
+            project,
+            &info.rel,
+            Some(symbol_name),
+            symbol_reference_edges(project, &info.rel, symbol_name, true).len(),
+        ),
     })
 }
 
