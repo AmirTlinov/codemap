@@ -1,6 +1,8 @@
-# Feature TODO: Structural Map Completion Ledger
+# Feature TODO: Historical Structural Map Closure Record
 
-This is the execution ledger for `docs/plans/feature/PLAN.md`.
+This records the execution history of `docs/plans/feature/PLAN.md`. It does not
+own current flagship status. The single active slice and S00-S17 ordering live
+in [`контракт-спецификация.md`](../../../контракт-спецификация.md#операционный-статус-flagship-волны).
 
 It is deliberately not a five-checkbox-per-slice ritual. A slice is tracked by
 its real boundary:
@@ -60,7 +62,7 @@ git state, scanner visibility, and final adoption. It is not required for
 docs-only changes, schema parity tests, or controlled fixture fixes where live
 repos would add noise instead of proof.
 
-## Current Boundary
+## Historical Closed Boundaries
 
 Cold root causal graph 2026-05-04 is closed:
 
