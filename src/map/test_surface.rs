@@ -1,4 +1,18 @@
-fn test_imports_support_consuming_anchor(project: &Project, rel: &str, test: &FileInfo) -> bool {
+// Responsibility: map-test-surface
+use crate::map::{
+    domain_by_rel, package_for_rel, same_symbol_reference_scope, scoped_domain_path_for_rel,
+    swift_source_scope, swift_test_package_root,
+};
+use crate::model::{FileInfo, Project};
+use crate::repo;
+use std::collections::BTreeSet;
+use std::path::Path;
+
+pub(crate) fn test_imports_support_consuming_anchor(
+    project: &Project,
+    rel: &str,
+    test: &FileInfo,
+) -> bool {
     let mut seen = BTreeSet::new();
     let mut frontier = test
         .resolved_imports
@@ -36,7 +50,7 @@ fn test_imports_support_consuming_anchor(project: &Project, rel: &str, test: &Fi
     false
 }
 
-fn swift_test_can_prove_anchor(project: &Project, rel: &str, test: &FileInfo) -> bool {
+pub(crate) fn swift_test_can_prove_anchor(project: &Project, rel: &str, test: &FileInfo) -> bool {
     let Some(anchor) = project.files.get(rel) else {
         return true;
     };
@@ -52,7 +66,7 @@ fn swift_test_can_prove_anchor(project: &Project, rel: &str, test: &FileInfo) ->
         && test.imports.contains(&target)
 }
 
-fn test_references_anchor_symbol(project: &Project, rel: &str, test: &FileInfo) -> bool {
+pub(crate) fn test_references_anchor_symbol(project: &Project, rel: &str, test: &FileInfo) -> bool {
     let Some(anchor) = project.files.get(rel) else {
         return false;
     };
@@ -77,7 +91,7 @@ fn test_references_anchor_symbol(project: &Project, rel: &str, test: &FileInfo) 
         .any(|name| test.references.contains(name))
 }
 
-fn anchor_symbol_reference_names(anchor: &FileInfo) -> BTreeSet<String> {
+pub(crate) fn anchor_symbol_reference_names(anchor: &FileInfo) -> BTreeSet<String> {
     anchor
         .symbols
         .iter()
@@ -96,7 +110,11 @@ fn meaningful_symbol_reference_name(name: &str) -> bool {
     !terms.is_empty()
 }
 
-fn shared_surface_phrases(project: &Project, rel: &str, test: &FileInfo) -> BTreeSet<String> {
+pub(crate) fn shared_surface_phrases(
+    project: &Project,
+    rel: &str,
+    test: &FileInfo,
+) -> BTreeSet<String> {
     project
         .files
         .get(rel)
@@ -154,7 +172,7 @@ fn phrase_boundary_char(ch: char) -> bool {
     ch == '-'
 }
 
-fn source_stem(rel: &str) -> String {
+pub(crate) fn source_stem(rel: &str) -> String {
     Path::new(rel)
         .file_stem()
         .and_then(|s| s.to_str())
@@ -164,7 +182,7 @@ fn source_stem(rel: &str) -> String {
         .to_ascii_lowercase()
 }
 
-fn test_name_matches_source_stem(test_rel: &str, source_stem: &str) -> bool {
+pub(crate) fn test_name_matches_source_stem(test_rel: &str, source_stem: &str) -> bool {
     test_stem(test_rel) == source_stem
 }
 
@@ -182,11 +200,11 @@ fn test_stem(test_rel: &str) -> String {
     stem
 }
 
-fn meaningful_stem(stem: &str) -> bool {
+pub(crate) fn meaningful_stem(stem: &str) -> bool {
     !stem.is_empty() && !matches!(stem, "index" | "mod" | "main" | "lib" | "types")
 }
 
-fn anchor_terms(project: &Project, rel: &str) -> BTreeSet<String> {
+pub(crate) fn anchor_terms(project: &Project, rel: &str) -> BTreeSet<String> {
     let mut terms = semantic_path_terms(rel);
     if let Some(file) = project.files.get(rel) {
         for symbol in &file.symbols {
@@ -202,7 +220,7 @@ fn anchor_terms(project: &Project, rel: &str) -> BTreeSet<String> {
     terms
 }
 
-fn anchor_core_terms(project: &Project, rel: &str) -> BTreeSet<String> {
+pub(crate) fn anchor_core_terms(project: &Project, rel: &str) -> BTreeSet<String> {
     let mut terms = semantic_name_terms(&source_stem(rel));
     if let Some(file) = project.files.get(rel) {
         for symbol in &file.symbols {
@@ -232,13 +250,13 @@ fn structural_anchor_symbol_kind(kind: &str) -> bool {
     )
 }
 
-fn test_surface_terms(file: &FileInfo) -> BTreeSet<String> {
+pub(crate) fn test_surface_terms(file: &FileInfo) -> BTreeSet<String> {
     let mut terms = semantic_path_terms(&file.rel);
     terms.extend(file.surface_tokens.iter().cloned());
     terms
 }
 
-fn semantic_path_terms(path: &str) -> BTreeSet<String> {
+pub(crate) fn semantic_path_terms(path: &str) -> BTreeSet<String> {
     let normalized = repo::normalize_rel_path(path);
     let without_ext = Path::new(&normalized)
         .file_stem()
@@ -251,7 +269,7 @@ fn semantic_path_terms(path: &str) -> BTreeSet<String> {
         .collect()
 }
 
-fn semantic_name_terms(name: &str) -> BTreeSet<String> {
+pub(crate) fn semantic_name_terms(name: &str) -> BTreeSet<String> {
     let mut expanded = String::new();
     let mut previous_lower_or_digit = false;
     for ch in name.chars() {
@@ -272,7 +290,7 @@ fn semantic_name_terms(name: &str) -> BTreeSet<String> {
         .collect()
 }
 
-fn meaningful_surface_term(term: &str) -> bool {
+pub(crate) fn meaningful_surface_term(term: &str) -> bool {
     term.len() >= 3
         && !matches!(
             term,
@@ -316,7 +334,7 @@ fn meaningful_surface_term(term: &str) -> bool {
         )
 }
 
-fn meaningful_surface_phrase(phrase: &str) -> bool {
+pub(crate) fn meaningful_surface_phrase(phrase: &str) -> bool {
     let terms = surface_phrase_terms(phrase);
     terms.len() >= 2
         && terms
@@ -324,7 +342,7 @@ fn meaningful_surface_phrase(phrase: &str) -> bool {
             .any(|term| !matches!(term.as_str(), "frame" | "title" | "canvas" | "node"))
 }
 
-fn surface_phrase_terms(phrase: &str) -> BTreeSet<String> {
+pub(crate) fn surface_phrase_terms(phrase: &str) -> BTreeSet<String> {
     surface_terms(&phrase.replace(['.', '#', '/', '-', '_', ':'], " "))
         .into_iter()
         .filter(|term| term.len() >= 3)
@@ -355,7 +373,7 @@ fn surface_phrase_terms(phrase: &str) -> BTreeSet<String> {
         .collect()
 }
 
-fn surface_terms(value: &str) -> BTreeSet<String> {
+pub(crate) fn surface_terms(value: &str) -> BTreeSet<String> {
     value
         .split(|ch: char| !(ch.is_alphanumeric() || ch == '_'))
         .map(str::to_lowercase)
@@ -363,7 +381,7 @@ fn surface_terms(value: &str) -> BTreeSet<String> {
         .collect()
 }
 
-fn same_parent_or_test_scope(source: &str, test: &str) -> bool {
+pub(crate) fn same_parent_or_test_scope(source: &str, test: &str) -> bool {
     let source_parent = Path::new(source)
         .parent()
         .map(|path| repo::normalize_rel_path(&path.to_string_lossy()))
@@ -375,7 +393,7 @@ fn same_parent_or_test_scope(source: &str, test: &str) -> bool {
     meaningful_stem(&source_stem) && test.to_ascii_lowercase().contains(&source_stem)
 }
 
-fn surface_priority(kind: &str) -> usize {
+pub(crate) fn surface_priority(kind: &str) -> usize {
     if kind == "domain" {
         return 0;
     }
@@ -403,4 +421,3 @@ fn surface_priority(kind: &str) -> usize {
         _ => 9,
     }
 }
-

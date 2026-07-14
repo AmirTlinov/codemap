@@ -1,4 +1,14 @@
-fn impacted_domains<'a>(project: &'a Project, files: &[String]) -> Vec<&'a Domain> {
+// Responsibility: map-command-inference
+use crate::map::{
+    domain_by_rel, glob_match, manifest_file_name, manifest_script_command_body_is_run_safe,
+    package_for_rel, role_aware_minimal_commands, shell_quote,
+};
+use crate::model::{Domain, Project};
+use crate::repo;
+use std::collections::BTreeSet;
+use std::path::Path;
+
+pub(crate) fn impacted_domains<'a>(project: &'a Project, files: &[String]) -> Vec<&'a Domain> {
     let mut seen = BTreeSet::new();
     let mut out = Vec::new();
     for file in files {
@@ -11,7 +21,7 @@ fn impacted_domains<'a>(project: &'a Project, files: &[String]) -> Vec<&'a Domai
     out
 }
 
-fn infer_minimal_commands(
+pub(crate) fn infer_minimal_commands(
     project: &Project,
     domains: &[&Domain],
     files: &[String],
@@ -137,7 +147,7 @@ fn single_package_for_files<'a>(
     selected
 }
 
-fn package_minimal_command(
+pub(crate) fn package_minimal_command(
     project: &Project,
     package: &crate::model::PackageInfo,
     domains: &[&Domain],
@@ -197,7 +207,7 @@ fn cargo_workspace_pattern_matches(pattern: &str, package_path: &str) -> bool {
     !pattern.is_empty() && (pattern == package_path || glob_match(&pattern, package_path))
 }
 
-fn toml_string_array(value: &toml::Value) -> Option<Vec<String>> {
+pub(crate) fn toml_string_array(value: &toml::Value) -> Option<Vec<String>> {
     Some(
         value
             .as_array()?
@@ -235,7 +245,7 @@ fn javascript_package_test_command(
     })
 }
 
-fn javascript_package_has_script(
+pub(crate) fn javascript_package_has_script(
     project: &Project,
     package: &crate::model::PackageInfo,
     script: &str,
@@ -254,7 +264,10 @@ fn javascript_package_has_script(
         .unwrap_or(false)
 }
 
-fn javascript_runner_for_package(project: &Project, package: &crate::model::PackageInfo) -> String {
+pub(crate) fn javascript_runner_for_package(
+    project: &Project,
+    package: &crate::model::PackageInfo,
+) -> String {
     for rel in ancestor_paths(&package.path) {
         let dir = if rel == "." {
             project.root.clone()
@@ -281,7 +294,7 @@ fn javascript_runner_for_package(project: &Project, package: &crate::model::Pack
     }
 }
 
-fn ancestor_paths(rel: &str) -> Vec<String> {
+pub(crate) fn ancestor_paths(rel: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut current = repo::normalize_rel_path(rel);
     loop {
@@ -312,7 +325,7 @@ fn is_javascript_package_manager(value: &str) -> bool {
     matches!(value, "npm" | "pnpm" | "yarn" | "bun")
 }
 
-fn javascript_test_command(runner: &str) -> String {
+pub(crate) fn javascript_test_command(runner: &str) -> String {
     match runner {
         "yarn" => "yarn test".to_string(),
         "bun" => "bun test".to_string(),
@@ -321,7 +334,7 @@ fn javascript_test_command(runner: &str) -> String {
     }
 }
 
-fn find_script(project: &Project, names: &[&str]) -> Option<String> {
+pub(crate) fn find_script(project: &Project, names: &[&str]) -> Option<String> {
     project
         .scripts
         .iter()

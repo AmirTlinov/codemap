@@ -1,4 +1,10 @@
-fn unknown(
+// Responsibility: map-unknowns
+use crate::evidence::line_looks_like_import_or_reexport;
+use crate::map::{parent_anchor_for_missing, shell_quote};
+use crate::model::{FileInfo, Project, Unknown};
+use crate::repo;
+
+pub(crate) fn unknown(
     kind: impl Into<String>,
     path: Option<impl Into<String>>,
     line_start: Option<usize>,
@@ -16,7 +22,7 @@ fn unknown(
     }
 }
 
-fn unknown_unindexed_anchor(path: &str) -> Unknown {
+pub(crate) fn unknown_unindexed_anchor(path: &str) -> Unknown {
     unknown(
         "unindexed_anchor",
         Some(path),
@@ -30,7 +36,7 @@ fn unknown_unindexed_anchor(path: &str) -> Unknown {
     )
 }
 
-fn unknown_symbol_outgoing(path: &str) -> Unknown {
+pub(crate) fn unknown_symbol_outgoing(path: &str) -> Unknown {
     unknown(
         "unsupported_symbol_flow",
         Some(path),
@@ -41,7 +47,7 @@ fn unknown_symbol_outgoing(path: &str) -> Unknown {
     )
 }
 
-fn unknown_missing_symbol_anchor(file: &str, symbol: &str) -> Unknown {
+pub(crate) fn unknown_missing_symbol_anchor(file: &str, symbol: &str) -> Unknown {
     unknown(
         "missing_symbol_anchor",
         Some(file),
@@ -52,7 +58,7 @@ fn unknown_missing_symbol_anchor(file: &str, symbol: &str) -> Unknown {
     )
 }
 
-fn unknown_directory_aggregate(path: &str, depth: usize) -> Unknown {
+pub(crate) fn unknown_directory_aggregate(path: &str, depth: usize) -> Unknown {
     unknown(
         "directory_aggregate",
         Some(path),
@@ -78,7 +84,7 @@ fn unknown_unresolved_import(path: &str, spec: &str, line_start: Option<usize>) 
     )
 }
 
-fn unknown_missing_deterministic_proof(path: &str, expand: String) -> Unknown {
+pub(crate) fn unknown_missing_deterministic_proof(path: &str, expand: String) -> Unknown {
     unknown(
         "missing_deterministic_proof",
         Some(path),
@@ -89,7 +95,7 @@ fn unknown_missing_deterministic_proof(path: &str, expand: String) -> Unknown {
     )
 }
 
-fn unknown_ci_validation_step_not_found(path: &str) -> Unknown {
+pub(crate) fn unknown_ci_validation_step_not_found(path: &str) -> Unknown {
     unknown(
         "ci_validation_step_not_found",
         Some(path),
@@ -103,16 +109,12 @@ fn unknown_ci_validation_step_not_found(path: &str) -> Unknown {
     )
 }
 
-fn unresolved_import_unknowns(project: &Project, file: &FileInfo) -> Vec<Unknown> {
+pub(crate) fn unresolved_import_unknowns(project: &Project, file: &FileInfo) -> Vec<Unknown> {
     let mut unknowns = file
         .unresolved_imports
         .iter()
         .map(|spec| {
-            unknown_unresolved_import(
-                &file.rel,
-                spec,
-                unresolved_import_line(project, file, spec),
-            )
+            unknown_unresolved_import(&file.rel, spec, unresolved_import_line(project, file, spec))
         })
         .collect::<Vec<_>>();
     unknowns.extend(rust_include_blind_spot_unknowns(project, file));

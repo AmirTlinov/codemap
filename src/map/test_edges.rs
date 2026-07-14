@@ -1,4 +1,16 @@
-fn strict_test_edges_for_file(
+// Responsibility: map-test-edges
+use crate::map::{
+    anchor_core_terms, anchor_terms, direct_consumer_edges, domain_by_rel, meaningful_stem,
+    package_for_rel, route_proof_scope_matches, same_parent_or_test_scope,
+    scoped_domain_path_for_rel, semantic_path_terms, shared_surface_phrases, source_stem,
+    swift_test_can_prove_anchor, test_imports_support_consuming_anchor,
+    test_name_matches_source_stem, test_references_anchor_symbol, test_surface_terms,
+};
+use crate::model::{EvidenceStrength, FileInfo, Project};
+use crate::repo;
+use std::collections::BTreeSet;
+
+pub(crate) fn strict_test_edges_for_file(
     project: &Project,
     rel: &str,
     limit: usize,
@@ -18,7 +30,9 @@ fn strict_test_edges_for_file(
         .unwrap_or(false);
     let mut scored = Vec::new();
     for file in project.files.values() {
-        if !file.has_role("test") || file.has_role("test_support") || !repo::is_source_ext(&file.ext)
+        if !file.has_role("test")
+            || file.has_role("test_support")
+            || !repo::is_source_ext(&file.ext)
         {
             continue;
         }
@@ -110,7 +124,7 @@ fn strict_test_edges_for_file(
         .collect()
 }
 
-fn structural_test_surface_match(
+pub(crate) fn structural_test_surface_match(
     project: &Project,
     rel: &str,
     anchor_terms: &BTreeSet<String>,
@@ -130,7 +144,8 @@ fn structural_test_surface_match(
     let core_shared_count = anchor_core_terms.intersection(&test_terms).count();
     let source_package = package_for_rel(project, rel).map(|package| package.path.as_str());
     let test_package = package_for_rel(project, &test.rel).map(|package| package.path.as_str());
-    let same_package = source_package.is_none() || test_package.is_none() || source_package == test_package;
+    let same_package =
+        source_package.is_none() || test_package.is_none() || source_package == test_package;
     let same_parent_signal = same_parent_or_test_scope(rel, &test.rel);
     let test_path_terms = semantic_path_terms(&test.rel);
     let core_path_shared_count = anchor_core_terms.intersection(&test_path_terms).count();
@@ -241,7 +256,7 @@ fn e2e_path_surface_match(
     core_path_shared_count >= 3 && core_shared_count >= 2 && shared_count >= 2
 }
 
-fn e2e_test_visits_unique_route(project: &Project, rel: &str, test: &FileInfo) -> bool {
+pub(crate) fn e2e_test_visits_unique_route(project: &Project, rel: &str, test: &FileInfo) -> bool {
     if !test.has_role("e2e_test") {
         return false;
     }
@@ -258,25 +273,25 @@ fn e2e_test_visits_unique_route(project: &Project, rel: &str, test: &FileInfo) -
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum RoutePatternSegment {
+pub(crate) enum RoutePatternSegment {
     Static(String),
     Dynamic,
     CatchAll { optional: bool },
 }
 
-fn next_app_route_pattern(rel: &str) -> Option<Vec<RoutePatternSegment>> {
+pub(crate) fn next_app_route_pattern(rel: &str) -> Option<Vec<RoutePatternSegment>> {
     let rest = next_app_route_rest(rel)?;
     let route_dir = [
         "page.tsx", "page.ts", "page.jsx", "page.js", "route.ts", "route.js",
     ]
-        .iter()
-        .find_map(|suffix| {
-            if rest == *suffix {
-                Some("")
-            } else {
-                rest.strip_suffix(&format!("/{suffix}"))
-            }
-        })?;
+    .iter()
+    .find_map(|suffix| {
+        if rest == *suffix {
+            Some("")
+        } else {
+            rest.strip_suffix(&format!("/{suffix}"))
+        }
+    })?;
     let mut segments = Vec::new();
     let route_segments = route_dir
         .split('/')
@@ -306,12 +321,12 @@ fn next_app_route_pattern(rel: &str) -> Option<Vec<RoutePatternSegment>> {
     Some(segments)
 }
 
-fn next_app_route_rest(rel: &str) -> Option<&str> {
+pub(crate) fn next_app_route_rest(rel: &str) -> Option<&str> {
     rel.strip_prefix("app/")
         .or_else(|| rel.rsplit_once("/app/").map(|(_, rest)| rest))
 }
 
-fn next_pages_route_rest(rel: &str) -> Option<&str> {
+pub(crate) fn next_pages_route_rest(rel: &str) -> Option<&str> {
     rel.strip_prefix("pages/")
         .or_else(|| rel.rsplit_once("/pages/").map(|(_, rest)| rest))
 }
@@ -368,7 +383,7 @@ fn valid_dynamic_segment_name(name: &str) -> bool {
             .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
 }
 
-fn route_pattern_matches(pattern: &[RoutePatternSegment], visited_route: &str) -> bool {
+pub(crate) fn route_pattern_matches(pattern: &[RoutePatternSegment], visited_route: &str) -> bool {
     let visited = visited_route
         .trim_matches('/')
         .split('/')

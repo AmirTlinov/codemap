@@ -1,3 +1,18 @@
+// Responsibility: map-entry
+use crate::map::{
+    ConeXrayInput, cone_anchor, cone_boundary_edges, cone_contract_edges, cone_declared_env,
+    cone_depths, cone_directory_report, cone_incoming_edges, cone_missing_symbol_report,
+    cone_outgoing_edges, cone_owner_env_proof_edges_from_facts, cone_owner_incoming_edges,
+    cone_owner_outgoing_edges, cone_owner_proof_edges, cone_owner_unknowns,
+    cone_proof_edges_with_direct_consumers, cone_symbol_report, cone_xray_card,
+    directory_has_files, file_is_env_config, limit_edge_section, ls_directory_report,
+    ls_file_report, ls_symbol_report, owner_env_edges_from_facts, owner_env_facts,
+    owner_env_unknowns_from_facts, parent_anchor_for_missing, shell_quote, sort_edges,
+    split_symbol_anchor, unknown_unindexed_anchor,
+};
+use crate::model::{BoundaryFacts, ConeReport, LsReport, Project};
+use crate::repo;
+
 pub fn ls_report(project: &Project, path: &str, include_hidden: bool, limit: usize) -> LsReport {
     let rel = repo::normalize_rel_path(path);
     if let Some((file_rel, symbol_name)) = split_symbol_anchor(&rel)
@@ -78,9 +93,7 @@ pub fn cone_report(
             let env_facts = owner_env_facts(project, seed);
             let owner_outgoing = owner_env_edges_from_facts(seed, &env_facts);
             proof.extend(cone_owner_env_proof_edges_from_facts(
-                project,
-                seed,
-                &env_facts,
+                project, seed, &env_facts,
             ));
             unknowns.extend(owner_env_unknowns_from_facts(seed, &env_facts));
             outgoing.extend(owner_outgoing);
@@ -102,10 +115,7 @@ pub fn cone_report(
         include_hidden,
         limit,
         "outgoing edges hidden by limit",
-        &format!(
-            "codemap cone {} --depth {depth} --all",
-            shell_quote(&rel)
-        ),
+        &format!("codemap cone {} --depth {depth} --all", shell_quote(&rel)),
     );
     limit_edge_section(
         &mut incoming,
@@ -113,10 +123,7 @@ pub fn cone_report(
         include_hidden,
         limit,
         "incoming edges hidden by limit",
-        &format!(
-            "codemap cone {} --depth {depth} --all",
-            shell_quote(&rel)
-        ),
+        &format!("codemap cone {} --depth {depth} --all", shell_quote(&rel)),
     );
     limit_edge_section(
         &mut proof,
@@ -124,10 +131,7 @@ pub fn cone_report(
         include_hidden,
         limit,
         "verification edges hidden by limit",
-        &format!(
-            "codemap cone {} --depth {depth} --all",
-            shell_quote(&rel)
-        ),
+        &format!("codemap cone {} --depth {depth} --all", shell_quote(&rel)),
     );
     limit_edge_section(
         &mut contracts,
@@ -135,10 +139,7 @@ pub fn cone_report(
         include_hidden,
         limit,
         "contract edges hidden by limit",
-        &format!(
-            "codemap cone {} --depth {depth} --all",
-            shell_quote(&rel)
-        ),
+        &format!("codemap cone {} --depth {depth} --all", shell_quote(&rel)),
     );
     limit_edge_section(
         &mut boundary,
@@ -146,10 +147,7 @@ pub fn cone_report(
         include_hidden,
         limit,
         "boundary edges hidden by limit",
-        &format!(
-            "codemap cone {} --depth {depth} --all",
-            shell_quote(&rel)
-        ),
+        &format!("codemap cone {} --depth {depth} --all", shell_quote(&rel)),
     );
     let declared_env = cone_declared_env(project, &rel);
     if seed_files.is_empty() {

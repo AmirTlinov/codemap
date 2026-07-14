@@ -1,4 +1,10 @@
-fn nearest_proof_scope(project: &Project, scope: &str) -> Option<String> {
+// Responsibility: map-scope-repair
+use crate::map::{files_under_directory, proof_surfaces_for_directory, unknown};
+use crate::model::{Project, Unknown};
+use crate::repo;
+use std::path::Path;
+
+pub(crate) fn nearest_proof_scope(project: &Project, scope: &str) -> Option<String> {
     let normalized = repo::normalize_rel_path(scope);
     let start = if project.files.contains_key(&normalized) {
         parent_scope(&normalized)
@@ -11,13 +17,15 @@ fn nearest_proof_scope(project: &Project, scope: &str) -> Option<String> {
         .find(|candidate| proof_scope_has_sensors(project, candidate))
 }
 
-fn nearest_proof_scope_unknown(scope: &str, nearest: &str, expand: String) -> Unknown {
+pub(crate) fn nearest_proof_scope_unknown(scope: &str, nearest: &str, expand: String) -> Unknown {
     unknown(
         "nearest_proof_scope",
         Some(scope),
         None,
         "no direct linked verification sensors found at this exact scope",
-        format!("nearest parent proof scope is `{nearest}`; expand there to inspect broader sensors"),
+        format!(
+            "nearest parent proof scope is `{nearest}`; expand there to inspect broader sensors"
+        ),
         Some(expand),
     )
 }
@@ -52,5 +60,9 @@ fn parent_scope(scope: &str) -> Option<String> {
     let path = Path::new(scope);
     let parent = path.parent()?;
     let value = repo::normalize_rel_path(&parent.to_string_lossy());
-    Some(if value.is_empty() { ".".to_string() } else { value })
+    Some(if value.is_empty() {
+        ".".to_string()
+    } else {
+        value
+    })
 }

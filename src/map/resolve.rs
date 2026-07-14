@@ -1,9 +1,15 @@
+// Responsibility: map-resolve
+use crate::map::root_domain;
+use crate::model::{Domain, Project};
+use crate::repo;
+use std::collections::BTreeSet;
+
 pub fn resolve_anchor_path(project: &Project, pattern: &str) -> String {
     let domain = root_domain(project);
     resolve_domain_pattern(&domain, pattern)
 }
 
-fn resolve_domain_pattern(domain: &Domain, pattern: &str) -> String {
+pub(crate) fn resolve_domain_pattern(domain: &Domain, pattern: &str) -> String {
     let p = pattern.trim().trim_start_matches("./");
     if p.starts_with('/') {
         return repo::normalize_rel_path(p);
@@ -31,7 +37,7 @@ fn resolve_domain_pattern(domain: &Domain, pattern: &str) -> String {
     }
 }
 
-fn glob_match(pattern: &str, value: &str) -> bool {
+pub(crate) fn glob_match(pattern: &str, value: &str) -> bool {
     glob_match_parts(
         &pattern.split('/').collect::<Vec<_>>(),
         &value.split('/').collect::<Vec<_>>(),
@@ -81,7 +87,7 @@ fn segment_match(pattern: &str, value: &str) -> bool {
             .unwrap_or(true)
 }
 
-fn unique(items: Vec<String>) -> Vec<String> {
+pub(crate) fn unique(items: Vec<String>) -> Vec<String> {
     let mut seen = BTreeSet::new();
     let mut out = Vec::new();
     for item in items {
@@ -92,7 +98,7 @@ fn unique(items: Vec<String>) -> Vec<String> {
     out
 }
 
-fn shell_quote(value: &str) -> String {
+pub(crate) fn shell_quote(value: &str) -> String {
     if value
         .chars()
         .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '.' | '-' | '_'))

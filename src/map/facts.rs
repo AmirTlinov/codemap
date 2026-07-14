@@ -1,16 +1,20 @@
-struct SurfaceFact {
-    id: String,
-    kind: String,
-    path: Option<String>,
-    role: Option<String>,
-    evidence: String,
-    strength: EvidenceStrength,
-    count: Option<usize>,
-    examples: Vec<String>,
-    hidden_count: usize,
+// Responsibility: map-facts
+use crate::map::{directory_surface_role, symbol_anchor_path};
+use crate::model::{EvidenceLocation, EvidenceStrength, ProofSurface, Surface};
+
+pub(crate) struct SurfaceFact {
+    pub(crate) id: String,
+    pub(crate) kind: String,
+    pub(crate) path: Option<String>,
+    pub(crate) role: Option<String>,
+    pub(crate) evidence: String,
+    pub(crate) strength: EvidenceStrength,
+    pub(crate) count: Option<usize>,
+    pub(crate) examples: Vec<String>,
+    pub(crate) hidden_count: usize,
 }
 
-fn surface(fact: SurfaceFact) -> Surface {
+pub(crate) fn surface(fact: SurfaceFact) -> Surface {
     Surface {
         id: fact.id,
         kind: fact.kind,
@@ -24,7 +28,7 @@ fn surface(fact: SurfaceFact) -> Surface {
     }
 }
 
-fn surface_from_path(
+pub(crate) fn surface_from_path(
     kind: &str,
     path: &str,
     evidence: &str,
@@ -43,7 +47,7 @@ fn surface_from_path(
     })
 }
 
-fn exported_symbol_surface(file_rel: &str, export: &str) -> Surface {
+pub(crate) fn exported_symbol_surface(file_rel: &str, export: &str) -> Surface {
     let anchor = symbol_anchor_path(file_rel, export);
     surface(SurfaceFact {
         id: format!("surface:export:{file_rel}#{export}"),
@@ -58,7 +62,7 @@ fn exported_symbol_surface(file_rel: &str, export: &str) -> Surface {
     })
 }
 
-fn proof_surface(
+pub(crate) fn proof_surface(
     command: Option<String>,
     path: Option<String>,
     evidence: &str,

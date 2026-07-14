@@ -1,4 +1,10 @@
-fn package_consumer_manifests(
+// Responsibility: map-package-consumers
+use crate::model::Project;
+use std::collections::BTreeSet;
+use std::collections::VecDeque;
+use std::path::Path;
+
+pub(crate) fn package_consumer_manifests(
     project: &Project,
     changed: &[String],
     depth: usize,
@@ -143,7 +149,10 @@ fn requires_package_consumer_expansion(project: &Project, rel: &str) -> bool {
         )
 }
 
-fn package_for_rel<'a>(project: &'a Project, rel: &str) -> Option<&'a crate::model::PackageInfo> {
+pub(crate) fn package_for_rel<'a>(
+    project: &'a Project,
+    rel: &str,
+) -> Option<&'a crate::model::PackageInfo> {
     let mut best = None;
     let mut best_len = 0usize;
     for package in &project.packages {
@@ -162,4 +171,3 @@ fn package_for_rel<'a>(project: &'a Project, rel: &str) -> Option<&'a crate::mod
     }
     best
 }
-

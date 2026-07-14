@@ -1,3 +1,17 @@
+// Responsibility: map-status
+use crate::map::{
+    boundary_findings, ci_owner_proof_surfaces, env_ci_reference_proof_surfaces,
+    env_consumer_proof_surfaces, env_declared_keys, is_support_artifact_path,
+    line_may_contain_static_env_reference, manifest_ci_reference_proof_surfaces,
+    manifest_script_proof_surfaces, prisma_env_names, schema_ci_reference_proof_surfaces,
+    schema_owner_path, schema_script_proof_surfaces, shell_quote, static_env_names,
+};
+use crate::model::{FileInfo, Project};
+use crate::{cache, repo};
+use serde::Serialize;
+use std::collections::BTreeSet;
+use std::path::Path;
+
 #[derive(Debug, Serialize)]
 pub struct StatusReport {
     pub kind: &'static str,
@@ -133,7 +147,11 @@ fn map_quality_warnings(project: &Project) -> Vec<MapQualityWarning> {
                 && !file.has_role("test")
                 && !file.has_role("e2e_test")
                 && !repo::is_package_manifest_name(&name)
-                && repo::is_schema_contract_surface(&file.rel.to_ascii_lowercase(), &name, &file.ext)
+                && repo::is_schema_contract_surface(
+                    &file.rel.to_ascii_lowercase(),
+                    &name,
+                    &file.ext,
+                )
                 && !file.has_role("migration")
         },
     );
@@ -255,8 +273,12 @@ fn push_env_quality_warning(project: &Project, warnings: &mut Vec<MapQualityWarn
                 .iter()
                 .filter(|(key, _)| !env_reader_keys.contains(key.as_str()))
                 .count();
-            (missing_consumers > 0)
-                .then(|| format!("{} ({missing_consumers} keys without static readers)", file.rel))
+            (missing_consumers > 0).then(|| {
+                format!(
+                    "{} ({missing_consumers} keys without static readers)",
+                    file.rel
+                )
+            })
         })
         .collect::<Vec<_>>();
     let expand = examples.first().map(|example| {
@@ -332,7 +354,7 @@ fn push_map_quality_warning(
     });
 }
 
-fn status_file_name(rel: &str) -> String {
+pub(crate) fn status_file_name(rel: &str) -> String {
     Path::new(rel)
         .file_name()
         .and_then(|name| name.to_str())

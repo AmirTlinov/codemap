@@ -7,9 +7,7 @@ use crate::model::{
 };
 
 use super::{
-    boundary_findings, direct_files_under_directory, directory_edges_at_depth, directory_has_files,
-    immediate_child_dirs, impact_report, impacted_domains, is_generic_noise,
-    is_support_artifact_path, path_under_scope, proof_report, shell_quote, unique,
+    boundary_findings, impact_report, impacted_domains, proof_report, shell_quote, unique,
 };
 
 pub fn graph_lens(
@@ -93,7 +91,8 @@ fn file_seed_for_path(project: &Project, path: &str) -> Option<String> {
     project.files.contains_key(&rel).then_some(rel)
 }
 
-include!("graph_lens/causal.rs");
+mod causal;
+pub(crate) use causal::*;
 
 fn impact_graph(
     project: &Project,

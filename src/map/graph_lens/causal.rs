@@ -1,4 +1,16 @@
-fn causal_graph(
+// Responsibility: map-graph-lens-causal
+use super::{
+    file_seed_for_path, graph_surface_location, limit_graph_nodes, push_graph_edge,
+    push_graph_edge_from_structural, push_unique_nodes, structural_edges_for_nodes,
+};
+use crate::map::{
+    direct_files_under_directory, directory_edges_at_depth, directory_has_files,
+    immediate_child_dirs, is_generic_noise, is_support_artifact_path, path_under_scope,
+};
+use crate::model::{EvidenceStrength, GraphEdge, HiddenGroup, Project};
+use std::collections::BTreeSet;
+
+pub(crate) fn causal_graph(
     project: &Project,
     path: Option<&str>,
     limit: usize,

@@ -1,4 +1,12 @@
-fn boundary_facts(project: &Project, changed_paths: Option<&[String]>) -> BoundaryFacts {
+// Responsibility: map-boundary-facts
+use crate::map::{
+    changed_map_path_file_name, changed_path_is_instruction_file, changed_path_is_protected_looking,
+};
+use crate::model::{BoundaryFact, BoundaryFacts, Project};
+use crate::repo;
+use std::collections::BTreeSet;
+
+pub(crate) fn boundary_facts(project: &Project, changed_paths: Option<&[String]>) -> BoundaryFacts {
     let paths = if let Some(changed_paths) = changed_paths {
         changed_paths
             .iter()
@@ -10,7 +18,7 @@ fn boundary_facts(project: &Project, changed_paths: Option<&[String]>) -> Bounda
     boundary_facts_from_paths(paths)
 }
 
-fn boundary_facts_from_paths(paths: BTreeSet<String>) -> BoundaryFacts {
+pub(crate) fn boundary_facts_from_paths(paths: BTreeSet<String>) -> BoundaryFacts {
     let mut instruction_files = Vec::new();
     let mut protected_looking_paths = Vec::new();
     let mut repo_local_guard_files = Vec::new();
@@ -49,7 +57,7 @@ fn boundary_facts_from_paths(paths: BTreeSet<String>) -> BoundaryFacts {
     }
 }
 
-fn boundary_facts_for_ls(project: &Project, rel: &str) -> BoundaryFacts {
+pub(crate) fn boundary_facts_for_ls(project: &Project, rel: &str) -> BoundaryFacts {
     if rel == "." {
         let mut paths = project.files.keys().cloned().collect::<BTreeSet<_>>();
         paths.extend(boundary_fact_walk_paths(project));
@@ -59,7 +67,10 @@ fn boundary_facts_for_ls(project: &Project, rel: &str) -> BoundaryFacts {
     }
 }
 
-fn boundary_facts_for_changed(project: &Project, changed_paths: &[String]) -> BoundaryFacts {
+pub(crate) fn boundary_facts_for_changed(
+    project: &Project,
+    changed_paths: &[String],
+) -> BoundaryFacts {
     boundary_facts(project, Some(changed_paths))
 }
 
@@ -96,7 +107,11 @@ fn boundary_fact_walk_paths(project: &Project) -> BTreeSet<String> {
         if paths.len() >= 2048 {
             break;
         }
-        if !entry.file_type().map(|kind| kind.is_file()).unwrap_or(false) {
+        if !entry
+            .file_type()
+            .map(|kind| kind.is_file())
+            .unwrap_or(false)
+        {
             continue;
         }
         let Some(rel) = entry

@@ -1,4 +1,8 @@
-fn structural_edge_with_locations(
+// Responsibility: map-edges
+use crate::evidence::import_statement_locations;
+use crate::model::{EvidenceLocation, EvidenceStrength, Project, StructuralEdge};
+
+pub(crate) fn structural_edge_with_locations(
     from: impl Into<String>,
     to: impl Into<String>,
     edge_type: impl Into<String>,
@@ -16,7 +20,7 @@ fn structural_edge_with_locations(
     }
 }
 
-fn edge_with_path_location(
+pub(crate) fn edge_with_path_location(
     from: impl Into<String>,
     to: impl Into<String>,
     edge_type: impl Into<String>,
@@ -35,7 +39,7 @@ fn edge_with_path_location(
     )
 }
 
-fn edge_with_aggregate_location(
+pub(crate) fn edge_with_aggregate_location(
     from: impl Into<String>,
     to: impl Into<String>,
     edge_type: impl Into<String>,
@@ -53,7 +57,7 @@ fn edge_with_aggregate_location(
     )
 }
 
-fn import_edge(
+pub(crate) fn import_edge(
     project: &Project,
     from: impl Into<String>,
     to: impl Into<String>,
@@ -67,7 +71,7 @@ fn import_edge(
     structural_edge_with_locations(from, to, edge_type, evidence, strength, locations)
 }
 
-fn symbol_definition_location(
+pub(crate) fn symbol_definition_location(
     project: &Project,
     file_rel: &str,
     symbol_name: &str,
@@ -92,7 +96,7 @@ fn symbol_definition_location(
         .unwrap_or_else(|| vec![EvidenceLocation::path(file_rel, kind)])
 }
 
-fn first_identifier_reference_location(
+pub(crate) fn first_identifier_reference_location(
     project: &Project,
     file_rel: &str,
     name: &str,

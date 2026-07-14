@@ -1,3 +1,8 @@
+// Responsibility: map-teach
+use crate::model::{FileInfo, Project, TeachProofCommand, TeachReport, TeachRolePattern};
+use std::collections::BTreeMap;
+use std::path::Path;
+
 pub fn teach_report(project: &Project) -> TeachReport {
     let role_patterns = teach_role_patterns(project);
     let proof_changed = teach_proof_commands(project);
@@ -113,9 +118,11 @@ fn teach_command_is_validation(command: &str) -> bool {
     {
         return false;
     }
-    ["test", "check", "lint", "validate", "verify", "doctor", "proof"]
-        .iter()
-        .any(|needle| lower.contains(needle))
+    [
+        "test", "check", "lint", "validate", "verify", "doctor", "proof",
+    ]
+    .iter()
+    .any(|needle| lower.contains(needle))
 }
 
 fn teach_codemap_yml(roles: &[TeachRolePattern], proof: &[TeachProofCommand]) -> Vec<String> {
