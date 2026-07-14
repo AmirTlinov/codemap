@@ -4,6 +4,11 @@
 
 It does not maximize context. It minimizes blind navigation.
 
+This document owns the stable released product shape and public CLI contract. The
+[flagship contract](../контракт-спецификация.md) owns the active S00–S17 delivery ledger, target
+behavior, and closure receipts. A target behavior becomes part of this stable
+product contract only after its owning slice closes.
+
 ```txt
 codemap = ls + xref + cone + impact + proof for code
 ```
