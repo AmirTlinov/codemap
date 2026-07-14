@@ -1,31 +1,30 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::{Command, Output};
 
-const MAX_RUST_LINES: usize = 500;
 const MAX_AGENTS_LINES: usize = 60;
 
 #[test]
-fn rust_source_and_test_files_stay_ai_sized() {
+fn code_files_follow_400_line_ratchet() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let mut oversize = Vec::new();
-    for scope in ["src", "tests"] {
-        visit_files(&root.join(scope), &mut |path| {
-            if path.extension().and_then(|ext| ext.to_str()) != Some("rs") {
-                return;
-            }
-            let lines = line_count(path);
-            if lines > MAX_RUST_LINES {
-                oversize.push(format!(
-                    "{} has {lines} lines; max is {MAX_RUST_LINES}",
-                    rel(&root, path)
-                ));
-            }
-        });
-    }
+    let output = run_python(&root, "check-all");
     assert!(
-        oversize.is_empty(),
-        "AI-friendly Rust file budget exceeded:\n{}",
-        oversize.join("\n")
+        output.status.success(),
+        "400-line code policy ratchet failed:\n{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn code_policy_self_test_passes() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let output = run_python(&root, "self-test");
+    assert!(
+        output.status.success(),
+        "code-policy self-test failed:\n{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
     );
 }
 
@@ -84,4 +83,21 @@ fn rel(root: &Path, path: &Path) -> String {
         .unwrap_or(path)
         .to_string_lossy()
         .replace('\\', "/")
+}
+
+fn run_python(root: &Path, action: &str) -> Output {
+    let script = root.join(".codex/hooks/code_policy.py");
+    for executable in ["python3", "python"] {
+        match Command::new(executable)
+            .arg(&script)
+            .arg(action)
+            .current_dir(root)
+            .output()
+        {
+            Ok(output) => return output,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => panic!("failed to run {executable}: {error}"),
+        }
+    }
+    panic!("python3 or python is required for the repository code-policy hook")
 }

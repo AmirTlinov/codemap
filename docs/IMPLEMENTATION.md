@@ -12,17 +12,19 @@ There is no task router. Commands either inspect an exact anchor, a directory le
 
 ```txt
 src/main.rs
-src/cli.rs
-src/cli/*
-src/model.rs
-src/repo.rs
-src/repo/*
-src/map.rs
-src/map/*
-src/render.rs
-src/render/*
-src/cache.rs
+src/cli.rs      + cli/{args, run, fast_paths/, anchors/, proof_run/, ...}
+src/model.rs    + model/{config, cone/changed/lens/proof/structure reports, ...}
+src/repo.rs     + repo/{scan, roles/, js/, packages/, resolution/, surfaces/, ...}
+src/map.rs      + map/{listing/, cone/, symbols/, proof/, lenses/, boundary/, ...}
+src/render.rs   + render/{status, prelude, ls_cone, changed/, proof/, ...}
+src/cache.rs    + cache/{fingerprints, snapshots, lens_artifacts/, ...}
 ```
+
+Every source file is a real module with explicit imports (no `include!`),
+declares one `// Responsibility: kebab-case-id`, and stays at or below 400
+lines. Parent modules re-export their children with `pub(crate) use x::*;`,
+so flat `crate::map::*` / `crate::repo::*` paths stay stable. Layer direction
+is a compile-time fact: `repo` imports no `map`/`render`/`cli` names.
 
 Keep new implementation under the existing owner folders. Do not create a second router/search layer beside the structural map engine.
 

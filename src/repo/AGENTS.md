@@ -5,15 +5,20 @@ This directory builds deterministic repo truth.
 Flow:
 
 1. `root.rs`, `config.rs`, `scan.rs` resolve scope and files.
-2. `roles.rs`, `file_extract.rs`, `symbol_ranges.rs` classify files and symbols.
-3. language-specific chunks extract imports, exports, surfaces, tests, packages.
-4. `import_resolution.rs`, `path_resolution.rs`, `ts_aliases.rs` resolve edges.
-5. `project.rs`, `project_metadata.rs`, `changed.rs` assemble project state.
+2. `roles/`, `file_extract.rs`, `symbol_ranges.rs` classify files and symbols.
+3. language groups extract imports, exports, surfaces, tests, packages.
+4. `resolution/` (imports, paths, ts_aliases, languages) resolves edges.
+5. `project.rs`, `packages/metadata.rs`, `changed.rs` assemble project state.
 
-Important split points:
+Group owners:
 
-- JS/TS import and symbol handling live in `js_*`, `symbols_*`, `component_*`.
-- UI/e2e surface extraction lives in `playwright_*`, `jsx_*`, `surface_literals.rs`.
-- package dependency graph lives in `package_edges_*`.
+- `js/` owns JS/TS scanning: scanner, imports, params, call parse, JSX refs and accessibility, code strip.
+- `roles/` owns file role classification: source, build/CI, custom, structural surfaces.
+- `packages/` owns package detection, dependency edges, scripts, workspace members.
+- `resolution/` owns import/path/language resolution.
+- `surfaces/` owns UI/test surface phrase and token extraction.
+- `components/` owns component contract analysis; `playwright/` owns e2e test surfaces.
+- `tests/` owns the repo unit tests.
 
 Facts here must come from files, manifests, git, or explicit anchors.
+This layer imports no `map`, `render`, or `cli` names — keep it that way.

@@ -1,6 +1,6 @@
 # Source Map
 
-This directory is the codemap runtime.
+This directory is the codemap runtime, organized as a real module tree.
 
 Main areas:
 
@@ -8,8 +8,8 @@ Main areas:
 - `repo/` builds project truth from files, manifests, imports, symbols, anchors, git.
 - `map/` turns repo truth into structural reports: `ls`, `cone`, `impact`, `proof`, `boundaries`.
 - `render/` prints Markdown, JSON-facing text, Mermaid, bootloader snippets.
-- `model.rs` owns serializable report/schema structs and shared enums.
-- `cache.rs` owns external cache paths and status artifacts.
+- `model.rs` + `model/` own serializable report/schema structs and shared enums.
+- `cache.rs` + `cache/` own external cache paths, fingerprints, snapshots, artifacts.
 
 Read path:
 
@@ -18,4 +18,11 @@ Read path:
 3. report construction in `map/`;
 4. output shape in `render/` and `schemas/`.
 
-Keep files small and named by the code surface they own.
+Module rules:
+
+- every file is a real `mod` with explicit imports; no `include!` in `src/`;
+- every file declares one `// Responsibility: kebab-case-id` and stays ≤400 lines;
+- layer direction is compile-time: `repo` imports no `map`/`render`/`cli`;
+- parent modules re-export children (`pub(crate) use x::*;`) to keep flat
+  `crate::map::*` / `crate::repo::*` paths stable; never shadow your own glob
+  re-export with an explicit `use` of the same name.
