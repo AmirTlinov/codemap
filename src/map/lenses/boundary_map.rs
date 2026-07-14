@@ -1,3 +1,16 @@
+// Responsibility: boundary-map-lens
+use crate::map::{
+    boundary_findings, domain_by_rel, file_summary, files_under_directory, import_edge,
+    is_support_artifact_path, limit_edge_section, package_for_rel, path_under_scope, shell_quote,
+    truncate_with_hidden,
+};
+use crate::model::{
+    BoundaryFinding, BoundaryMapReport, DomainRef, EvidenceStrength, HiddenGroup,
+    PackageDependency, Project,
+};
+use crate::repo;
+use std::collections::BTreeSet;
+
 pub fn boundary_map_report(
     project: &Project,
     scope: &str,
@@ -178,7 +191,11 @@ fn changed_touches_any(changed: Option<&BTreeSet<String>>, paths: &[&str]) -> bo
     changed.is_none_or(|changed| paths.iter().any(|path| changed.contains(*path)))
 }
 
-fn support_fact_hidden(hide_support: bool, changed: Option<&BTreeSet<String>>, paths: &[&str]) -> bool {
+fn support_fact_hidden(
+    hide_support: bool,
+    changed: Option<&BTreeSet<String>>,
+    paths: &[&str],
+) -> bool {
     if !hide_support || !paths.iter().any(|path| is_support_artifact_path(path)) {
         return false;
     }

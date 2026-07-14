@@ -1,0 +1,34 @@
+// Responsibility: runtime-lens-assembly
+mod clap_commands;
+mod cli_entrypoints;
+mod code_shape;
+mod extractors;
+mod facts;
+mod proof_helpers;
+mod proof_map;
+mod proof_map_limits;
+mod proof_map_selection;
+mod root_containers;
+mod route_forms;
+mod route_handlers;
+mod route_rust;
+mod scope;
+mod unsupported_routes;
+mod worker_jobs;
+
+pub(crate) use clap_commands::*;
+pub(crate) use cli_entrypoints::*;
+pub(crate) use code_shape::*;
+pub(crate) use extractors::*;
+pub(crate) use facts::*;
+pub(crate) use proof_helpers::*;
+pub(crate) use proof_map::*;
+pub(crate) use proof_map_limits::*;
+pub(crate) use proof_map_selection::*;
+pub(crate) use root_containers::*;
+pub(crate) use route_forms::*;
+pub(crate) use route_handlers::*;
+pub(crate) use route_rust::*;
+pub(crate) use scope::*;
+pub(crate) use unsupported_routes::*;
+pub(crate) use worker_jobs::*;

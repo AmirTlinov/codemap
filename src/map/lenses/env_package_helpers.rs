@@ -1,4 +1,11 @@
-fn static_env_names(line: &str) -> Vec<String> {
+// Responsibility: env-package-helpers-lens
+use crate::map::{code_shape_without_literal_content, quoted_literal_at};
+use crate::model::Project;
+use crate::repo;
+use std::collections::BTreeSet;
+use std::path::Path;
+
+pub(crate) fn static_env_names(line: &str) -> Vec<String> {
     let code = code_shape_without_literal_content(line);
     let mut names = BTreeSet::new();
     for prefix in ["process.env.", "import.meta.env."] {
@@ -13,12 +20,7 @@ fn static_env_names(line: &str) -> Vec<String> {
             }
         }
     }
-    for call in [
-        "Deno.env.get(",
-        "std::env::var(",
-        "env::var(",
-        "os.getenv(",
-    ] {
+    for call in ["Deno.env.get(", "std::env::var(", "env::var(", "os.getenv("] {
         for start in find_all(&code, call) {
             if let Some(name) = quoted_literal_at(&line[start + call.len()..]) {
                 names.insert(name);
@@ -33,7 +35,7 @@ fn static_env_names(line: &str) -> Vec<String> {
     names.into_iter().collect()
 }
 
-fn line_may_contain_static_env_reference(line: &str) -> bool {
+pub(crate) fn line_may_contain_static_env_reference(line: &str) -> bool {
     [
         "process.env.",
         "import.meta.env.",
@@ -48,7 +50,7 @@ fn line_may_contain_static_env_reference(line: &str) -> bool {
     .any(|needle| line.contains(needle))
 }
 
-fn find_all(value: &str, needle: &str) -> Vec<usize> {
+pub(crate) fn find_all(value: &str, needle: &str) -> Vec<usize> {
     let mut out = Vec::new();
     let mut offset = 0;
     while let Some(start) = value[offset..].find(needle) {
@@ -59,7 +61,7 @@ fn find_all(value: &str, needle: &str) -> Vec<usize> {
     out
 }
 
-fn env_declaration(project: &Project, rel: &str) -> Option<String> {
+pub(crate) fn env_declaration(project: &Project, rel: &str) -> Option<String> {
     let mut dirs = Vec::new();
     let mut current = Path::new(rel).parent().unwrap_or_else(|| Path::new("."));
     loop {
@@ -74,19 +76,24 @@ fn env_declaration(project: &Project, rel: &str) -> Option<String> {
     }
     dirs.into_iter()
         .flat_map(|dir| {
-            [".env.example", ".env.sample"].into_iter().map(move |name| {
-                let candidate = if dir.as_os_str().is_empty() || dir == Path::new(".") {
-                    name.to_string()
-                } else {
-                    dir.join(name).to_string_lossy().to_string()
-                };
-                repo::normalize_rel_path(&candidate)
-            })
+            [".env.example", ".env.sample"]
+                .into_iter()
+                .map(move |name| {
+                    let candidate = if dir.as_os_str().is_empty() || dir == Path::new(".") {
+                        name.to_string()
+                    } else {
+                        dir.join(name).to_string_lossy().to_string()
+                    };
+                    repo::normalize_rel_path(&candidate)
+                })
         })
         .find(|candidate| project.files.contains_key(candidate))
 }
 
-fn package_public_targets(project: &Project, package: &crate::model::PackageInfo) -> Vec<String> {
+pub(crate) fn package_public_targets(
+    project: &Project,
+    package: &crate::model::PackageInfo,
+) -> Vec<String> {
     if package.ecosystem != "javascript" {
         return Vec::new();
     }

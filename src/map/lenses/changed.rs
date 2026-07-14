@@ -1,3 +1,32 @@
+// Responsibility: changed-lens-report-assembly
+mod fail_open_unknowns;
+mod path_helpers;
+mod receipt_events;
+mod report_sections;
+mod structural_events;
+mod truth;
+mod truth_paths;
+
+pub(crate) use fail_open_unknowns::*;
+pub(crate) use path_helpers::*;
+pub(crate) use receipt_events::*;
+pub(crate) use report_sections::*;
+pub(crate) use structural_events::*;
+pub(crate) use truth::*;
+pub(crate) use truth_paths::*;
+
+use crate::map::{
+    DiffMapMode, boundary_facts_for_changed, diff_map_report, impact_report, proof_map_report,
+    proof_report, truncate_with_hidden,
+};
+use crate::model::{
+    ChangedMapDelta, ChangedProofCommand, ChangedProofSummary, ChangedReport, GitChange,
+    HiddenGroup, Project, ProofMapReport, ProofSurface, Unknown,
+};
+use crate::repo;
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
+
 pub fn changed_report(
     project: &Project,
     changed: Vec<String>,
@@ -20,7 +49,11 @@ pub fn changed_report(
         .filter(|file| file != ".")
         .collect::<Vec<_>>();
     let mut structural_events = changed_structural_events(&git_state, &selector);
-    structural_events.extend(changed_diff_structural_events(project, &changed_paths, &mode));
+    structural_events.extend(changed_diff_structural_events(
+        project,
+        &changed_paths,
+        &mode,
+    ));
     sort_changed_structural_events(&mut structural_events);
     if total_changed_count == 0 && git_state.is_empty() {
         return ChangedReport {
@@ -92,7 +125,13 @@ pub fn changed_report(
         &proof_map,
         &selector,
     );
-    let coupling = changed_coupling(project, &changed_paths, &changed_paths, &proof_map, &selector);
+    let coupling = changed_coupling(
+        project,
+        &changed_paths,
+        &changed_paths,
+        &proof_map,
+        &selector,
+    );
     let mut hidden = Vec::new();
     hidden.extend(prefix_hidden("observed", &diff.hidden, &selector, limit));
     hidden.extend(prefix_hidden("links", &impact.hidden, &selector, limit));
@@ -202,7 +241,7 @@ pub fn changed_report(
     }
 }
 
-fn changed_proof_selector(selector: &str) -> String {
+pub(crate) fn changed_proof_selector(selector: &str) -> String {
     if selector == "--changed" {
         "changed".to_string()
     } else {
@@ -210,7 +249,7 @@ fn changed_proof_selector(selector: &str) -> String {
     }
 }
 
-fn count_with_hidden(visible: usize, hidden: &[HiddenGroup], reason: &str) -> usize {
+pub(crate) fn count_with_hidden(visible: usize, hidden: &[HiddenGroup], reason: &str) -> usize {
     visible
         + hidden
             .iter()
@@ -219,7 +258,7 @@ fn count_with_hidden(visible: usize, hidden: &[HiddenGroup], reason: &str) -> us
             .sum::<usize>()
 }
 
-fn changed_proof_summary(report: ProofMapReport, limit: usize) -> ChangedProofSummary {
+pub(crate) fn changed_proof_summary(report: ProofMapReport, limit: usize) -> ChangedProofSummary {
     let command_sensor_limit = limit.min(8);
     let mut by_command: BTreeMap<String, Vec<ProofSurface>> = BTreeMap::new();
     for proof in report.hard.iter() {
@@ -264,7 +303,7 @@ fn changed_proof_summary(report: ProofMapReport, limit: usize) -> ChangedProofSu
     }
 }
 
-fn changed_expand(selector: &str) -> Vec<String> {
+pub(crate) fn changed_expand(selector: &str) -> Vec<String> {
     let changed_suffix = changed_self_selector_suffix(selector);
     let proof_selector = if selector == "--changed" {
         "changed"
@@ -284,7 +323,7 @@ fn changed_expand(selector: &str) -> Vec<String> {
     ]
 }
 
-fn changed_self_selector_suffix(selector: &str) -> String {
+pub(crate) fn changed_self_selector_suffix(selector: &str) -> String {
     if selector == "--changed" {
         String::new()
     } else {
@@ -292,7 +331,7 @@ fn changed_self_selector_suffix(selector: &str) -> String {
     }
 }
 
-fn prefix_hidden(
+pub(crate) fn prefix_hidden(
     prefix: &str,
     hidden: &[HiddenGroup],
     selector: &str,
@@ -316,7 +355,7 @@ fn prefix_hidden(
         .collect()
 }
 
-fn dedupe_unknowns(unknowns: &mut Vec<Unknown>) {
+pub(crate) fn dedupe_unknowns(unknowns: &mut Vec<Unknown>) {
     let mut seen = BTreeSet::new();
     unknowns.retain(|unknown| {
         seen.insert((

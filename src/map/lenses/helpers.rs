@@ -1,4 +1,17 @@
-fn structural_line_target(line: &str) -> Option<String> {
+// Responsibility: helpers-lens
+use crate::map::{
+    edge_with_path_location, env_declaration, file_kind_for_ls, next_app_route_rest,
+    next_pages_route_rest, package_public_targets, route_reference_edges_with_index,
+    runtime_code_lines, runtime_fact_index, static_env_names,
+};
+use crate::model::{
+    EnvSurface, EvidenceLocation, EvidenceStrength, FileInfo, HiddenGroup, Project, RuntimeRoute,
+    StructuralEdge, Surface,
+};
+use crate::repo;
+use std::path::Path;
+
+pub(crate) fn structural_line_target(line: &str) -> Option<String> {
     let trimmed = line.trim();
     for quote in ['"', '\''] {
         if let Some(start) = trimmed.find(quote)
@@ -45,7 +58,7 @@ fn structural_line_target(line: &str) -> Option<String> {
     None
 }
 
-fn truncate_with_hidden<T>(
+pub(crate) fn truncate_with_hidden<T>(
     values: &mut Vec<T>,
     limit: usize,
     hidden: &mut Vec<HiddenGroup>,
@@ -63,7 +76,7 @@ fn truncate_with_hidden<T>(
     values.truncate(limit);
 }
 
-fn expand_with_concrete_limit(expand: &str, next_limit: usize) -> String {
+pub(crate) fn expand_with_concrete_limit(expand: &str, next_limit: usize) -> String {
     let next_limit = next_limit.max(1);
     if expand.contains("<larger-number>") {
         return expand.replace("<larger-number>", &next_limit.to_string());
@@ -74,8 +87,10 @@ fn expand_with_concrete_limit(expand: &str, next_limit: usize) -> String {
     format!("{expand} --limit {next_limit}")
 }
 
-fn runtime_entrypoint_kind(file: &FileInfo) -> Option<&'static str> {
-    let name = Path::new(&file.rel).file_name().and_then(|name| name.to_str())?;
+pub(crate) fn runtime_entrypoint_kind(file: &FileInfo) -> Option<&'static str> {
+    let name = Path::new(&file.rel)
+        .file_name()
+        .and_then(|name| name.to_str())?;
     if matches!(name, "main.rs" | "main.go" | "__main__.py")
         || file.rel.ends_with("/main.py")
         || file.rel.ends_with("/app.py")
@@ -86,7 +101,7 @@ fn runtime_entrypoint_kind(file: &FileInfo) -> Option<&'static str> {
     }
 }
 
-fn routes_from_file_convention(project: &Project, file: &FileInfo) -> Vec<RuntimeRoute> {
+pub(crate) fn routes_from_file_convention(project: &Project, file: &FileInfo) -> Vec<RuntimeRoute> {
     let rel = file.rel.as_str();
     let Some(route) = (if let Some(rest) = next_app_route_rest(rel) {
         next_app_route(rest)
@@ -155,7 +170,7 @@ fn next_route_method_symbol(name: &str) -> bool {
     )
 }
 
-fn next_app_route(rest: &str) -> Option<String> {
+pub(crate) fn next_app_route(rest: &str) -> Option<String> {
     let route = rest
         .strip_suffix("/page.tsx")
         .or_else(|| rest.strip_suffix("/page.jsx"))
@@ -165,7 +180,7 @@ fn next_app_route(rest: &str) -> Option<String> {
     Some(route_path(route))
 }
 
-fn next_pages_route(rest: &str) -> Option<String> {
+pub(crate) fn next_pages_route(rest: &str) -> Option<String> {
     let route = rest
         .strip_suffix(".tsx")
         .or_else(|| rest.strip_suffix(".jsx"))
@@ -179,11 +194,17 @@ fn route_path(value: &str) -> String {
     if value.is_empty() {
         "/".to_string()
     } else {
-        format!("/{}", value.replace("[...", ":").replace('[', ":").replace(']', ""))
+        format!(
+            "/{}",
+            value
+                .replace("[...", ":")
+                .replace('[', ":")
+                .replace(']', "")
+        )
     }
 }
 
-fn env_surfaces_for_file(project: &Project, file: &FileInfo) -> Vec<EnvSurface> {
+pub(crate) fn env_surfaces_for_file(project: &Project, file: &FileInfo) -> Vec<EnvSurface> {
     let Ok(text) = std::fs::read_to_string(project.root.join(&file.rel)) else {
         return Vec::new();
     };
@@ -207,7 +228,7 @@ fn env_surfaces_for_file(project: &Project, file: &FileInfo) -> Vec<EnvSurface> 
     out
 }
 
-fn proof_missing_should_surface(project: &Project, seed: &str) -> bool {
+pub(crate) fn proof_missing_should_surface(project: &Project, seed: &str) -> bool {
     project
         .files
         .get(seed)
@@ -220,7 +241,7 @@ fn proof_missing_should_surface(project: &Project, seed: &str) -> bool {
         .unwrap_or(false)
 }
 
-fn package_export_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {
+pub(crate) fn package_export_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {
     project
         .packages
         .iter()
@@ -245,7 +266,7 @@ fn package_export_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {
         .collect()
 }
 
-fn runtime_reference_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {
+pub(crate) fn runtime_reference_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {
     let runtime_facts = runtime_fact_index(project);
     runtime_facts
         .routes_for_file(rel)
@@ -254,19 +275,21 @@ fn runtime_reference_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> 
         .collect()
 }
 
-fn file_matches_place_kind(file: &FileInfo, kind: &str) -> bool {
+pub(crate) fn file_matches_place_kind(file: &FileInfo, kind: &str) -> bool {
     match kind {
         "route" => route_from_path(&file.rel),
         "service" => file.rel.contains("service") || file.rel.contains("services/"),
         "component" => file.symbols.iter().any(|symbol| symbol.kind == "component"),
         "test" => file.has_role("test") && !file.has_role("test_support"),
         "contract" => file.has_role("schema_contract") || file.has_role("public_boundary"),
-        "lens" => repo::is_source_ext(&file.ext) && file.rel.split('/').any(|part| part == "lenses"),
+        "lens" => {
+            repo::is_source_ext(&file.ext) && file.rel.split('/').any(|part| part == "lenses")
+        }
         other => file_kind_for_ls(file) == other,
     }
 }
 
-fn route_from_path(rel: &str) -> bool {
+pub(crate) fn route_from_path(rel: &str) -> bool {
     rel.contains("/routes/")
         || rel.ends_with("/route.ts")
         || rel.ends_with("/route.js")
@@ -293,7 +316,7 @@ fn pages_route_path(rel: &str) -> bool {
     })
 }
 
-fn placement_conventions(scope: &str, kind: &str, surfaces: &[Surface]) -> Vec<String> {
+pub(crate) fn placement_conventions(scope: &str, kind: &str, surfaces: &[Surface]) -> Vec<String> {
     let mut out = Vec::new();
     if let Some(surface) = surfaces.first() {
         if surface.evidence == "proof_sensor_for_scope" {

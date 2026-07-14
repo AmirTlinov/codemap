@@ -12,7 +12,7 @@ fn shared_surface_constructors_are_used_by_first_boundary_lenses() {
 
     for rel in [
         "src/map/lenses/contract.rs",
-        "src/map/lenses/runtime_root_containers.rs",
+        "src/map/lenses/runtime/root_containers.rs",
     ] {
         let source = fs::read_to_string(root.join(rel)).expect("lens source");
         assert!(
@@ -21,7 +21,7 @@ fn shared_surface_constructors_are_used_by_first_boundary_lenses() {
         );
     }
 
-    let proof_map = fs::read_to_string(root.join("src/map/lenses/proof_map_current_level.rs"))
+    let proof_map = fs::read_to_string(root.join("src/map/lenses/proof_map/current_level.rs"))
         .expect("proof-map source");
     assert!(
         !proof_map.contains("ProofSurface {\n        command"),

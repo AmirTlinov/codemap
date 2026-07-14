@@ -1,3 +1,13 @@
+// Responsibility: contract-lens
+use crate::map::{
+    cone_proof_edges_with_direct_consumers, contract_evidence, direct_consumer_edges,
+    direct_dependency_edges, exported_symbol_surface, file_summary, limit_edge_section,
+    missing_file_summary, package_export_edges, package_for_rel, shell_quote, truncate_with_hidden,
+    unknowns_for_file,
+};
+use crate::model::{ContractReport, Project};
+use crate::repo;
+
 pub fn contract_report(
     project: &Project,
     anchor_path: &str,
