@@ -1,3 +1,13 @@
+// Responsibility: repo-config
+use crate::model::{AnchorDomain, CodemapConfig, ConfigLoadError, FileInfo};
+use crate::repo::{list_visible_candidate_files, normalize_rel_path};
+use anyhow::Result;
+use globset::GlobBuilder;
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
+use std::fs;
+use std::path::Path;
+
 fn load_codemap_config(path: &Path) -> Result<CodemapConfig> {
     let text = fs::read_to_string(path)?;
     if path.extension().and_then(|x| x.to_str()) == Some("json") {
@@ -7,7 +17,9 @@ fn load_codemap_config(path: &Path) -> Result<CodemapConfig> {
     }
 }
 
-fn load_codemap_configs(root: &Path) -> (CodemapConfig, Option<String>, Vec<ConfigLoadError>) {
+pub(crate) fn load_codemap_configs(
+    root: &Path,
+) -> (CodemapConfig, Option<String>, Vec<ConfigLoadError>) {
     let paths = find_config_paths(root);
     let mut merged = CodemapConfig::default();
     let mut loaded = Vec::new();
@@ -60,7 +72,10 @@ fn find_config_paths(root: &Path) -> Vec<String> {
     let rels = list_visible_candidate_files(root);
     for rel in rels {
         let name = Path::new(&rel).file_name().and_then(|s| s.to_str());
-        if matches!(name, Some(".codemap.yml" | ".codemap.yaml" | ".codemap.json")) {
+        if matches!(
+            name,
+            Some(".codemap.yml" | ".codemap.yaml" | ".codemap.json")
+        ) {
             paths.insert(normalize_rel_path(&rel));
         }
     }
@@ -194,7 +209,10 @@ fn merge_codemap_config(merged: &mut CodemapConfig, mut config: CodemapConfig, b
     merged.proof.changed.extend(config.proof.changed);
 }
 
-fn apply_codemap_config_roles(files: &mut BTreeMap<String, FileInfo>, config: &CodemapConfig) {
+pub(crate) fn apply_codemap_config_roles(
+    files: &mut BTreeMap<String, FileInfo>,
+    config: &CodemapConfig,
+) {
     if config.roles.is_empty() {
         return;
     }

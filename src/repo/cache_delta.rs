@@ -1,4 +1,14 @@
-fn git_status_cache_delta(
+// Responsibility: repo-cache-delta
+use crate::cache;
+use crate::repo::{
+    git_status_root_prefix, git_status_snapshot, is_cache_candidate_file, normalize_rel_path,
+    should_ignore_rel,
+};
+use std::collections::BTreeSet;
+use std::path::Path;
+use std::process::Command;
+
+pub(crate) fn git_status_cache_delta(
     root: &Path,
     cache_dir: &Path,
     version: &str,
@@ -10,7 +20,7 @@ fn git_status_cache_delta(
     cache::file_delta_for_known_changes(root, cache_dir, version, &changed_or_added, &removed)
 }
 
-fn git_head_cache_delta(
+pub(crate) fn git_head_cache_delta(
     root: &Path,
     cache_dir: &Path,
     version: &str,
@@ -29,7 +39,7 @@ fn git_head_cache_delta(
     cache::file_delta_for_head_change(root, cache_dir, version, &changed_or_added, &removed)
 }
 
-fn cached_index_cache_delta(
+pub(crate) fn cached_index_cache_delta(
     root: &Path,
     cache_dir: &Path,
     version: &str,
@@ -105,7 +115,10 @@ fn git_head_cache_change_sets(
     }
     let mut changed_or_added = BTreeSet::new();
     let mut removed = BTreeSet::new();
-    let mut entries = output.stdout.split(|byte| *byte == 0).filter(|entry| !entry.is_empty());
+    let mut entries = output
+        .stdout
+        .split(|byte| *byte == 0)
+        .filter(|entry| !entry.is_empty());
     while let Some(status_entry) = entries.next() {
         let status = String::from_utf8_lossy(status_entry);
         let Some(status_kind) = status.chars().next() else {
@@ -113,32 +126,41 @@ fn git_head_cache_change_sets(
         };
         match status_kind {
             'D' => {
-                if let Some(path) = entries.next().and_then(|entry| diff_path(entry, root_prefix.as_deref())) {
+                if let Some(path) = entries
+                    .next()
+                    .and_then(|entry| diff_path(entry, root_prefix.as_deref()))
+                {
                     record_removed_candidate(&mut removed, path);
                 }
             }
             'R' => {
-                if let Some(old_path) =
-                    entries.next().and_then(|entry| diff_path(entry, root_prefix.as_deref()))
+                if let Some(old_path) = entries
+                    .next()
+                    .and_then(|entry| diff_path(entry, root_prefix.as_deref()))
                 {
                     record_removed_candidate(&mut removed, old_path);
                 }
-                if let Some(new_path) =
-                    entries.next().and_then(|entry| diff_path(entry, root_prefix.as_deref()))
+                if let Some(new_path) = entries
+                    .next()
+                    .and_then(|entry| diff_path(entry, root_prefix.as_deref()))
                 {
                     record_changed_candidate(root, &mut changed_or_added, &mut removed, new_path);
                 }
             }
             'C' => {
                 let _ = entries.next();
-                if let Some(new_path) =
-                    entries.next().and_then(|entry| diff_path(entry, root_prefix.as_deref()))
+                if let Some(new_path) = entries
+                    .next()
+                    .and_then(|entry| diff_path(entry, root_prefix.as_deref()))
                 {
                     record_changed_candidate(root, &mut changed_or_added, &mut removed, new_path);
                 }
             }
             _ => {
-                if let Some(path) = entries.next().and_then(|entry| diff_path(entry, root_prefix.as_deref())) {
+                if let Some(path) = entries
+                    .next()
+                    .and_then(|entry| diff_path(entry, root_prefix.as_deref()))
+                {
                     record_changed_candidate(root, &mut changed_or_added, &mut removed, path);
                 }
             }
@@ -179,7 +201,7 @@ fn record_changed_candidate(
     }
 }
 
-fn current_git_head(root: &Path) -> Option<String> {
+pub(crate) fn current_git_head(root: &Path) -> Option<String> {
     let output = Command::new("git")
         .arg("-C")
         .arg(root)

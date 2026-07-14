@@ -1,3 +1,10 @@
+// Responsibility: repo-changed
+use crate::model::GitChange;
+use crate::repo::{git_status_snapshot, normalize_rel_path, should_ignore_rel};
+use std::collections::BTreeSet;
+use std::path::Path;
+use std::process::Command;
+
 pub fn changed_files(root: &Path, staged: bool, since: Option<&str>) -> Vec<String> {
     if let Some(since) = since {
         return changed_paths(git_name_status(
@@ -50,11 +57,7 @@ fn git_status_changes(root: &Path) -> Vec<GitChange> {
 }
 
 fn git_name_status(root: &Path, args: &[&str]) -> Vec<GitChange> {
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(args)
-        .output();
+    let output = Command::new("git").arg("-C").arg(root).args(args).output();
     let Ok(output) = output else {
         return Vec::new();
     };
@@ -75,7 +78,7 @@ fn git_name_status(root: &Path, args: &[&str]) -> Vec<GitChange> {
     changes
 }
 
-fn changed_paths(changes: Vec<GitChange>) -> Vec<String> {
+pub(crate) fn changed_paths(changes: Vec<GitChange>) -> Vec<String> {
     changes
         .into_iter()
         .map(|change| change.path)

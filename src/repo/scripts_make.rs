@@ -1,4 +1,9 @@
-fn makefile_scripts(root: &Path) -> Vec<ScriptInfo> {
+// Responsibility: repo-scripts-make
+use crate::model::ScriptInfo;
+use std::fs;
+use std::path::Path;
+
+pub(crate) fn makefile_scripts(root: &Path) -> Vec<ScriptInfo> {
     ["Makefile", "makefile"]
         .iter()
         .find_map(|name| {
@@ -14,7 +19,7 @@ fn makefile_scripts(root: &Path) -> Vec<ScriptInfo> {
         .unwrap_or_default()
 }
 
-fn justfile_scripts(root: &Path) -> Vec<ScriptInfo> {
+pub(crate) fn justfile_scripts(root: &Path) -> Vec<ScriptInfo> {
     ["justfile", "Justfile"]
         .iter()
         .find_map(|name| {

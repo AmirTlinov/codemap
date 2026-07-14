@@ -1,3 +1,9 @@
+// Responsibility: repo-git-status
+use crate::model::GitChange;
+use crate::repo::{git_root, normalize_rel_path, should_ignore_rel};
+use std::path::Path;
+use std::process::Command;
+
 #[derive(Debug, Clone)]
 pub(crate) struct GitStatusSnapshot {
     pub head: crate::model::HeadPrelude,
@@ -10,7 +16,15 @@ pub(crate) fn git_status_snapshot(root: &Path) -> Option<GitStatusSnapshot> {
     let output = Command::new("git")
         .arg("-C")
         .arg(root)
-        .args(["status", "--porcelain=v2", "--branch", "-z", "-uall", "--", "."])
+        .args([
+            "status",
+            "--porcelain=v2",
+            "--branch",
+            "-z",
+            "-uall",
+            "--",
+            ".",
+        ])
         .output()
         .ok()?;
     if !output.status.success() {
@@ -197,7 +211,10 @@ fn porcelain_status_pair(xy: &str) -> &'static str {
 }
 
 fn porcelain_status(index_status: char, worktree_status: char) -> &'static str {
-    if matches!((index_status, worktree_status), ('U', _) | (_, 'U') | ('A', 'A') | ('D', 'D')) {
+    if matches!(
+        (index_status, worktree_status),
+        ('U', _) | (_, 'U') | ('A', 'A') | ('D', 'D')
+    ) {
         "conflicted"
     } else if index_status == '?' {
         "untracked"
@@ -220,7 +237,7 @@ fn normalize_status_path(path: &str, root_prefix: Option<&str>) -> Option<String
     (!rel.is_empty()).then_some(rel)
 }
 
-fn git_status_root_prefix(root: &Path) -> Option<String> {
+pub(crate) fn git_status_root_prefix(root: &Path) -> Option<String> {
     let git_root = git_root(root)?;
     let root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
     let git_root = git_root

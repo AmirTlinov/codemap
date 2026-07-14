@@ -1,6 +1,7 @@
+// Responsibility: repo-constants
 pub const VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), "+surface-cache-v9");
 
-const ROOT_MARKERS: &[&str] = &[
+pub(crate) const ROOT_MARKERS: &[&str] = &[
     ".codemap.yml",
     ".codemap.yaml",
     ".codemap.json",
@@ -18,7 +19,7 @@ const ROOT_MARKERS: &[&str] = &[
     "justfile",
 ];
 
-const COMMON_IGNORE_DIRS: &[&str] = &[
+pub(crate) const COMMON_IGNORE_DIRS: &[&str] = &[
     ".git",
     ".hg",
     ".svn",
@@ -56,31 +57,30 @@ const COMMON_IGNORE_DIRS: &[&str] = &[
     "logs",
 ];
 
-const BINARY_EXTS: &[&str] = &[
+pub(crate) const BINARY_EXTS: &[&str] = &[
     "png", "jpg", "jpeg", "gif", "webp", "ico", "pdf", "zip", "gz", "tgz", "rar", "7z", "exe",
     "dll", "so", "dylib", "wasm", "woff", "woff2", "ttf", "otf", "mp3", "mp4", "mov", "avi", "mkv",
     "bin", "class", "jar",
 ];
 
-const ASSET_EXTS: &[&str] = &[
-    "png", "jpg", "jpeg", "gif", "webp", "ico", "svg", "woff", "woff2", "ttf", "otf", "mp3",
-    "mp4", "mov", "webm", "wav",
+pub(crate) const ASSET_EXTS: &[&str] = &[
+    "png", "jpg", "jpeg", "gif", "webp", "ico", "svg", "woff", "woff2", "ttf", "otf", "mp3", "mp4",
+    "mov", "webm", "wav",
 ];
 
-const SOURCE_EXTS: &[&str] = &[
+pub(crate) const SOURCE_EXTS: &[&str] = &[
     "ts", "tsx", "js", "jsx", "mjs", "cjs", "py", "rs", "go", "java", "kt", "kts", "swift", "c",
     "cc", "cpp", "h", "hpp", "cs", "rb", "php", "vue", "svelte",
 ];
 
-const SCRIPT_EXTS: &[&str] = &["sh", "bash", "zsh"];
+pub(crate) const SCRIPT_EXTS: &[&str] = &["sh", "bash", "zsh"];
 
-const TEXT_EXTS: &[&str] = &[
-    "json", "toml", "yaml", "yml", "md", "txt", "sql", "prisma", "graphql", "gql", "proto",
-    "avsc", "lock", "css", "scss", "sass", "less", "svg", "snap", "snapshot", "sh", "bash",
-    "zsh",
+pub(crate) const TEXT_EXTS: &[&str] = &[
+    "json", "toml", "yaml", "yml", "md", "txt", "sql", "prisma", "graphql", "gql", "proto", "avsc",
+    "lock", "css", "scss", "sass", "less", "svg", "snap", "snapshot", "sh", "bash", "zsh",
 ];
 
-const DOMAIN_HINT_DIRS: &[&str] = &[
+pub(crate) const DOMAIN_HINT_DIRS: &[&str] = &[
     "domains",
     "packages",
     "apps",

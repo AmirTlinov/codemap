@@ -1,3 +1,10 @@
+// Responsibility: repo-root
+use crate::repo::{ROOT_MARKERS, RootSelection, normalize_rel_path};
+use anyhow::Result;
+use std::path::Path;
+use std::path::PathBuf;
+use std::process::Command;
+
 pub fn resolve_root(root_selection: &RootSelection, cwd: &Path) -> Result<PathBuf> {
     match root_selection {
         RootSelection::Exact(path) => {
@@ -23,7 +30,7 @@ pub fn ambient_root(start: &Path) -> Option<PathBuf> {
     git_root(start).or_else(|| marker_root(start))
 }
 
-fn git_root(start: &Path) -> Option<PathBuf> {
+pub(crate) fn git_root(start: &Path) -> Option<PathBuf> {
     let output = Command::new("git")
         .arg("-C")
         .arg(start)
@@ -59,7 +66,7 @@ pub fn git_remote(root: &Path) -> Option<String> {
     }
 }
 
-fn is_git_repo(root: &Path) -> bool {
+pub(crate) fn is_git_repo(root: &Path) -> bool {
     root.join(".git").exists() || git_root(root).is_some()
 }
 
@@ -74,7 +81,7 @@ fn marker_root(start: &Path) -> Option<PathBuf> {
     None
 }
 
-fn nearest_agents(cwd: &Path, root: &Path) -> Option<String> {
+pub(crate) fn nearest_agents(cwd: &Path, root: &Path) -> Option<String> {
     let mut current = Some(cwd);
     while let Some(path) = current {
         let candidate = path.join("AGENTS.md");

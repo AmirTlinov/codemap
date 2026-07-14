@@ -1,4 +1,3 @@
-# Existing code files above 400 lines. Recorded debt ceilings; never add new debt.
 scripts/benchmark-codemap-ab.py	1280
 scripts/benchmark-codemap-value.py	577
 scripts/dogfood-codemap.sh	455
@@ -19,15 +18,6 @@ src/render/impact_proof.rs	421
 src/render/lenses.rs	426
 src/render/ls_cone.rs	463
 src/render/status.rs	471
-src/repo/file_extract.rs	442
-src/repo/jsx_accessibility.rs	487
-src/repo/package_edges_js_cargo.rs	458
-src/repo/package_edges_other.rs	499
-src/repo/roles.rs	464
-src/repo/scan.rs	484
-src/repo/surface_literals.rs	484
-src/repo/symbol_ranges.rs	442
-src/repo/tests_cargo_js.rs	404
 tests/structural_map/boundaries_graph_schema.rs	496
 tests/structural_map/cache_diagnostics.rs	462
 tests/structural_map/cache_lens_artifacts.rs	495

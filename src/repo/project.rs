@@ -1,3 +1,24 @@
+// Responsibility: repo-project
+use crate::cache;
+use crate::model::{
+    CodemapConfig, ConfigLoadError, FileInfo, Project, ProjectTimings, ScanGroup, ScanStats,
+};
+use crate::repo::{
+    VERSION, apply_codemap_config_roles, build_reverse_imports, cache_candidate_files,
+    cached_index_cache_delta, detect_languages, detect_package_edges, detect_package_manager,
+    detect_packages, detect_scripts, detect_ts_path_aliases, discover_domains,
+    enrich_accessible_surfaces_from_component_contracts, git_head_cache_delta, git_remote,
+    git_status_cache_change_sets, git_status_cache_delta, is_git_repo, load_codemap_configs,
+    nearest_agents, resolve_imports, resolve_root, scan_files, scan_selected_files,
+};
+use anyhow::Context;
+use anyhow::Result;
+use std::collections::BTreeMap;
+use std::env;
+use std::path::Path;
+use std::path::PathBuf;
+use std::time::Instant;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CacheWriteMode {
     Enabled,
@@ -40,7 +61,8 @@ pub fn load_project_with_cache(
 
     if cache::cache_enabled() {
         let cache_artifact_started = Instant::now();
-        if let Some(delta) = incremental_file_delta(&root, &cache_dir, VERSION, config_path.as_deref())
+        if let Some(delta) =
+            incremental_file_delta(&root, &cache_dir, VERSION, config_path.as_deref())
             && let Some(mut cached) =
                 cache::read_cached_project(&cache_dir, VERSION, &delta.cached_fingerprint)
         {

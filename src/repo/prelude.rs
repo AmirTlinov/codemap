@@ -1,3 +1,10 @@
+// Responsibility: repo-prelude
+use crate::repo::{git_remote, git_root, git_status_snapshot, normalize_rel_path};
+use std::env;
+use std::fs;
+use std::path::Path;
+use std::process::Command;
+
 pub fn map_prelude(root: &Path) -> crate::model::MapPrelude {
     let root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
     let cwd = env::current_dir().unwrap_or_else(|_| root.clone());
@@ -5,7 +12,13 @@ pub fn map_prelude(root: &Path) -> crate::model::MapPrelude {
         .strip_prefix(&root)
         .ok()
         .map(|path| normalize_rel_path(&path.to_string_lossy()))
-        .map(|path| if path.is_empty() { ".".to_string() } else { path });
+        .map(|path| {
+            if path.is_empty() {
+                ".".to_string()
+            } else {
+                path
+            }
+        });
     let git_root = git_root(&root);
     let Some(git_root_path) = git_root else {
         return crate::model::MapPrelude {
