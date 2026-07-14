@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct BoundaryFacts {
     pub instruction_files: Vec<BoundaryFact>,

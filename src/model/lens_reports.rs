@@ -1,3 +1,11 @@
+use serde::{Deserialize, Serialize};
+
+use super::{
+    BoundaryFacts, BoundaryFinding, DomainRef, EnvDeclaration, EvidenceLocation, EvidenceStrength,
+    FileSummary, HiddenGroup, PackageDependency, ProofReport, ProofSurface, ProofWiringFact,
+    StructuralEdge, Unknown,
+};
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Surface {
     pub id: String,

@@ -6,7 +6,21 @@ use serde::{Deserialize, Serialize};
 pub type ImportBindingMap = BTreeMap<String, String>;
 pub type ImportBindingsBySpec = BTreeMap<String, ImportBindingMap>;
 
-include!("model/boundary_facts.rs");
+mod boundary_facts;
+mod config;
+mod lens_reports;
+mod prelude;
+mod proof_coverage;
+mod proof_wiring;
+mod teach_reports;
+
+pub use boundary_facts::*;
+pub use config::*;
+pub use lens_reports::*;
+pub use prelude::*;
+pub use proof_coverage::*;
+pub use proof_wiring::*;
+pub use teach_reports::*;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Project {
@@ -234,12 +248,6 @@ pub struct DirectorySurface {
     pub hidden_count: usize,
 }
 
-include!("model/prelude.rs");
-include!("model/lens_reports.rs");
-include!("model/proof_coverage.rs");
-include!("model/proof_wiring.rs");
-include!("model/teach_reports.rs");
-
 #[derive(Debug, Clone, Serialize)]
 pub struct ProofReport {
     pub kind: &'static str,
@@ -308,99 +316,6 @@ pub struct PackageDependency {
     pub dependency: String,
     pub dependency_kind: String,
     pub source: String,
-}
-
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct CodemapConfig {
-    #[serde(default)]
-    pub version: Option<u32>,
-    #[serde(default)]
-    pub domain: Option<AnchorDomain>,
-    #[serde(default)]
-    pub domains: BTreeMap<String, AnchorDomain>,
-    #[serde(default)]
-    pub owns: Vec<String>,
-    #[serde(default)]
-    pub does_not_own: Vec<String>,
-    #[serde(default)]
-    pub concepts: BTreeMap<String, AnchorConcept>,
-    #[serde(default)]
-    pub roles: BTreeMap<String, String>,
-    #[serde(default)]
-    pub boundaries: AnchorBoundaries,
-    #[serde(default)]
-    pub verification: AnchorVerification,
-    #[serde(default)]
-    pub proof: AnchorProof,
-}
-
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct AnchorDomain {
-    #[serde(default)]
-    pub id: Option<String>,
-    #[serde(default)]
-    pub path: Option<String>,
-    #[serde(default)]
-    pub purpose: Option<String>,
-}
-
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct AnchorConcept {
-    #[serde(default)]
-    pub role: Option<String>,
-    #[serde(default)]
-    pub kind: Option<String>,
-    #[serde(default)]
-    pub files: Vec<String>,
-    #[serde(default)]
-    pub invariants: Vec<String>,
-    #[serde(default)]
-    pub derives_from: Vec<String>,
-    #[serde(default)]
-    pub reads: Vec<String>,
-    #[serde(default)]
-    pub writes: Vec<String>,
-    #[serde(default)]
-    pub consumed_by: Vec<String>,
-}
-
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct AnchorBoundaries {
-    #[serde(default)]
-    pub forbidden: Vec<BoundaryRule>,
-}
-
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct BoundaryRule {
-    #[serde(default)]
-    pub from: String,
-    #[serde(default)]
-    pub to: String,
-    #[serde(default)]
-    pub reason: String,
-    #[serde(default)]
-    pub recovery: Vec<String>,
-    #[serde(default)]
-    pub status: Option<String>,
-}
-
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct AnchorVerification {
-    #[serde(default)]
-    pub default: Vec<String>,
-}
-
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct AnchorProof {
-    #[serde(default)]
-    pub changed: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq, PartialOrd, Ord)]

@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ProofCoverageSummary {
     pub changed_count: usize,

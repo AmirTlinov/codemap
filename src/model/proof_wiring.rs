@@ -1,3 +1,7 @@
+use serde::{Deserialize, Serialize};
+
+use super::EvidenceLocation;
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ProofWiringFact {
     pub stage: String,
