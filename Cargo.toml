@@ -1,6 +1,6 @@
 [package]
 name = "codemap"
-version = "0.2.75"
+version = "0.2.76"
 edition = "2024"
 description = "Structural code map CLI for coding agents"
 license = "MIT"
@@ -12,13 +12,13 @@ include = [
   "/build.rs",
   "/Cargo.toml",
   "/Cargo.lock",
+  "/CHANGELOG.md",
   "/LICENSE",
   "/README.md",
+  "/SECURITY.md",
   "/docs/**",
   "/schemas/**",
   "/src/**",
-  "/fixtures/**",
-  "/tests/**",
 ]
 
 [dependencies]

@@ -1,0 +1,231 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing signed vX.Y.Z tag to release
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+      - name: Install stable Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup component add rustfmt clippy
+      - name: Verify tag and source package
+        run: |
+          python3 scripts/package-release.py verify-source --tag "$TAG"
+          python3 .codex/hooks/code_policy.py check-all
+          cargo fmt --check
+          cargo test --locked
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo package --locked
+      - name: Stage source package
+        run: |
+          mkdir -p dist
+          cp target/package/codemap-*.crate dist/
+      - uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: dist/*.crate
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-package
+          path: dist/*
+          if-no-files-found: error
+
+  build:
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: aarch64-apple-darwin
+            exe: ""
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            exe: ""
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            exe: ""
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            exe: .exe
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+      - name: Resolve checked-out source commit
+        shell: bash
+        run: echo "CODEMAP_SOURCE_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Install stable Rust target
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add "${{ matrix.target }}"
+      - name: Build clean attributable binary
+        shell: bash
+        env:
+          CODEMAP_DIRTY_BUILD: "false"
+        run: cargo build --release --locked --target "${{ matrix.target }}"
+      - name: Package and verify archive
+        shell: bash
+        run: |
+          VERSION="${TAG#v}"
+          BINARY="target/${{ matrix.target }}/release/codemap${{ matrix.exe }}"
+          python3 scripts/package-release.py build \
+            --binary "$BINARY" --target "${{ matrix.target }}" \
+            --version "$VERSION" --out-dir dist
+          ARCHIVE="dist/codemap-v${VERSION}-${{ matrix.target }}.tar.gz"
+          python3 scripts/package-release.py verify-archive \
+            --archive "$ARCHIVE" --checksum "${ARCHIVE}.sha256" --version "$VERSION"
+      - uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: dist/*.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codemap-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+
+  compatibility:
+    needs: build
+    runs-on: macos-15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+      - uses: actions/download-artifact@v5
+        with:
+          name: codemap-aarch64-apple-darwin
+          path: current
+      - name: Exercise upgrade and downgrade through one cache
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download v0.2.33 \
+            --pattern 'codemap-v0.2.33-aarch64-apple-darwin.tar.gz' --dir previous
+          tar -xzf previous/*.tar.gz -C previous
+          tar -xzf current/*.tar.gz -C current
+          python3 scripts/release-upgrade-smoke.py \
+            --previous previous/codemap \
+            --current "current/codemap-${TAG}-aarch64-apple-darwin/codemap" \
+            --output upgrade-smoke.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: upgrade-downgrade-receipt
+          path: upgrade-smoke.json
+
+  publish:
+    needs: [build, compatibility]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: "*"
+          path: dist
+          merge-multiple: true
+      - name: Build immutable checksum index
+        run: python3 scripts/package-release.py index --dir dist
+      - uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: |
+            dist/SHA256SUMS
+            dist/*.receipt.json
+      - name: Publish GitHub Release registry entry
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* --verify-tag --title "$TAG" \
+              --generate-notes \
+              --notes "Checksummed and attested codemap binaries for macOS, Linux, and Windows. See docs/DISTRIBUTION.md for the support and compatibility contract."
+          fi
+
+  downloaded-smoke:
+    needs: publish
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: aarch64-apple-darwin
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+      - name: Download, checksum, extract, and execute published binary
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${TAG#v}"
+          ARCHIVE="codemap-v${VERSION}-${{ matrix.target }}.tar.gz"
+          gh release download "$TAG" --pattern "$ARCHIVE" --pattern "${ARCHIVE}.sha256" --dir download
+          python3 scripts/package-release.py verify-archive \
+            --archive "download/$ARCHIVE" --checksum "download/${ARCHIVE}.sha256" \
+            --version "$VERSION"

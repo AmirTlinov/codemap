@@ -101,6 +101,9 @@ needed.
 
 ## Install
 
+Published releases, checksums, supported targets, Homebrew, and compatibility policy are in
+[`docs/DISTRIBUTION.md`](docs/DISTRIBUTION.md).
+
 ```bash
 cargo install --path . --locked --force
 codemap --version
@@ -121,6 +124,8 @@ Cache contents, privacy, retention, corruption fallback, and explicit
 
 Versioned ecosystem tiers, support cells, and typed unsupported boundaries are
 documented in [`docs/ECOSYSTEM_SUPPORT.md`](docs/ECOSYSTEM_SUPPORT.md).
+Security reports use the private process in [`SECURITY.md`](SECURITY.md); release changes are
+recorded in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Agent Integration
 

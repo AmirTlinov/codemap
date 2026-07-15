@@ -183,6 +183,7 @@ include!("structural_map/benchmark_value.rs");
 include!("structural_map/benchmark_ab.rs");
 include!("structural_map/benchmark_protocol.rs");
 include!("structural_map/flagship_gate.rs");
+include!("structural_map/release_distribution.rs");
 include!("structural_map/version_bump_guard.rs");
 include!("structural_map/root_aware_expand.rs");
 include!("structural_map/symbol_local_calls.rs");
