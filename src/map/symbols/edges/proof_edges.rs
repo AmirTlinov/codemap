@@ -2,10 +2,12 @@
 use super::{ImportedSymbolReferenceKind, symbol_local_incoming_edges};
 use crate::evidence::import_statement_locations;
 use crate::map::{
-    file_imported_symbol_reference_kind, first_identifier_reference_location, matching_symbols,
-    same_scope_file_references_symbol, semantic_name_terms, semantic_path_terms, sort_edges,
-    split_symbol_anchor, strict_test_edges_for_file, structural_edge_with_locations,
-    surface_phrase_terms, symbol_anchor_path, test_surface_terms,
+    BarrelResolutionCache, file_imported_symbol_reference_kind,
+    file_imported_symbol_reference_with_cache, first_identifier_reference_location,
+    matching_symbols, same_scope_file_references_symbol, semantic_name_terms, semantic_path_terms,
+    sort_edges, split_symbol_anchor, static_expression_reference_location,
+    strict_test_edges_for_file, structural_edge_with_locations, surface_phrase_terms,
+    symbol_anchor_path, test_surface_terms,
 };
 use crate::model::{EvidenceStrength, Project, StructuralEdge};
 use std::collections::BTreeSet;
@@ -23,15 +25,22 @@ pub(crate) fn symbol_proof_edges(
     }
     let anchor_path = symbol_anchor_path(file_rel, symbol_name);
     let mut edges = Vec::new();
+    let mut barrel_cache = BarrelResolutionCache::default();
     for file in project.files.values() {
         if !file.has_role("test") || file.has_role("test_support") {
             continue;
         }
-        let evidence = if let Some(kind) =
-            file_imported_symbol_reference_kind(project, file, file_rel, symbol_name)
-        {
-            Some(match kind {
+        let imported_reference = file_imported_symbol_reference_with_cache(
+            project,
+            file,
+            file_rel,
+            symbol_name,
+            &mut barrel_cache,
+        );
+        let evidence = if let Some(reference) = imported_reference.as_ref() {
+            Some(match reference.kind {
                 ImportedSymbolReferenceKind::Direct => "test_imported_symbol_reference",
+                ImportedSymbolReferenceKind::Included => "test_included_symbol_reference",
                 ImportedSymbolReferenceKind::Reexported => "test_reexported_symbol_reference",
             })
         } else if same_scope_file_references_symbol(anchor, file, symbol_name) {
@@ -40,18 +49,31 @@ pub(crate) fn symbol_proof_edges(
             None
         };
         if let Some(evidence) = evidence {
+            let locations = imported_reference
+                .as_ref()
+                .map(|reference| {
+                    static_expression_reference_location(
+                        project,
+                        file,
+                        &reference.expression,
+                        "test_symbol_reference",
+                    )
+                })
+                .unwrap_or_else(|| {
+                    first_identifier_reference_location(
+                        project,
+                        &file.rel,
+                        symbol_name,
+                        "test_symbol_reference",
+                    )
+                });
             edges.push(structural_edge_with_locations(
                 file.rel.clone(),
                 anchor_path.clone(),
                 "tests",
                 evidence,
                 EvidenceStrength::High,
-                first_identifier_reference_location(
-                    project,
-                    &file.rel,
-                    symbol_name,
-                    "test_symbol_reference",
-                ),
+                locations,
             ));
         }
     }

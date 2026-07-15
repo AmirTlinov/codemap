@@ -251,16 +251,6 @@ pub(crate) fn swift_property_symbol_re() -> &'static Regex {
     })
 }
 
-pub(crate) fn rust_use_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(
-            r#"(?m)^\s*(?:pub(?:\((?:crate|super|self|in [^)]*)\))?\s+)?use\s+([A-Za-z0-9_:]+)"#,
-        )
-        .expect("valid rust use regex")
-    })
-}
-
 pub(crate) fn rust_mod_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {

@@ -1,7 +1,8 @@
 // Responsibility: map-symbols-edges
 use crate::map::{
-    file_imported_symbol_reference_kind, first_identifier_reference_location, matching_symbols,
-    same_scope_file_references_symbol, sort_edges, structural_edge_with_locations,
+    BarrelResolutionCache, file_imported_symbol_reference_with_cache,
+    first_identifier_reference_location, matching_symbols, same_scope_file_references_symbol,
+    sort_edges, static_expression_reference_location, structural_edge_with_locations,
     symbol_anchor_path,
 };
 use crate::model::{EvidenceStrength, Project, StructuralEdge};
@@ -14,18 +15,14 @@ pub(crate) use symbol_uses::*;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ImportedSymbolReferenceKind {
     Direct,
+    Included,
     Reexported,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum BarrelPublicNameResolution {
-    Explicit {
-        target_rel: String,
-        imported_name: String,
-    },
-    Star {
-        target_rel: String,
-    },
+pub(crate) struct ImportedSymbolReference {
+    pub(crate) kind: ImportedSymbolReferenceKind,
+    pub(crate) expression: String,
 }
 
 pub(crate) fn symbol_reference_edges(
@@ -42,6 +39,7 @@ pub(crate) fn symbol_reference_edges(
     }
     let anchor_path = symbol_anchor_path(file_rel, symbol_name);
     let mut edges = Vec::new();
+    let mut barrel_cache = BarrelResolutionCache::default();
     for file in project.files.values() {
         if file.rel == file_rel {
             continue;
@@ -49,22 +47,27 @@ pub(crate) fn symbol_reference_edges(
         if !include_tests && (file.has_role("test") || file.has_role("test_support")) {
             continue;
         }
-        if let Some(kind) =
-            file_imported_symbol_reference_kind(project, file, file_rel, symbol_name)
-        {
+        if let Some(reference) = file_imported_symbol_reference_with_cache(
+            project,
+            file,
+            file_rel,
+            symbol_name,
+            &mut barrel_cache,
+        ) {
             edges.push(structural_edge_with_locations(
                 file.rel.clone(),
                 anchor_path.clone(),
                 "symbol_reference",
-                match kind {
+                match reference.kind {
                     ImportedSymbolReferenceKind::Direct => "imported_symbol_reference",
+                    ImportedSymbolReferenceKind::Included => "included_symbol_reference",
                     ImportedSymbolReferenceKind::Reexported => "reexported_symbol_reference",
                 },
                 EvidenceStrength::High,
-                first_identifier_reference_location(
+                static_expression_reference_location(
                     project,
-                    &file.rel,
-                    symbol_name,
+                    file,
+                    &reference.expression,
                     "symbol_reference",
                 ),
             ));

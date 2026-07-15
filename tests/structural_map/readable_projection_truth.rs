@@ -309,7 +309,10 @@ fn long_symbol_paths_compact_readable_facts_without_touching_json_or_budgets() {
         );
         assert!(markdown.contains("aliases: @anchor"), "{name}: {markdown}");
         assert!(markdown.contains("`@anchor`"), "{name}: {markdown}");
-        assert!(markdown.contains("`@from:1`"), "{name}: {markdown}");
+        assert!(
+            markdown.contains("`@from:2`"),
+            "symbol evidence must point at the use, not its import: {name}: {markdown}"
+        );
     }
     let fact_anchor_mentions = cone
         .lines()

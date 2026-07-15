@@ -238,23 +238,6 @@ pub(crate) fn symbol_exported_under_public_name(
             .unwrap_or(false)
 }
 
-pub(crate) fn file_has_named_public_export(
-    project: &Project,
-    file_rel: &str,
-    public_name: &str,
-) -> bool {
-    file_has_inline_named_export(project, file_rel, public_name)
-        || local_named_export_bindings(project, file_rel)
-            .get(public_name)
-            .map(|locals| {
-                locals.len() == 1
-                    && locals
-                        .iter()
-                        .any(|local| !matching_symbols_for_rel(project, file_rel, local).is_empty())
-            })
-            .unwrap_or(false)
-}
-
 pub(crate) fn file_has_inline_named_export(
     project: &Project,
     file_rel: &str,
@@ -273,18 +256,6 @@ pub(crate) fn file_has_inline_named_export(
             .map(|line| !line.trim_start().starts_with("export default"))
             .unwrap_or(true)
     })
-}
-
-fn matching_symbols_for_rel(
-    project: &Project,
-    file_rel: &str,
-    symbol_name: &str,
-) -> Vec<crate::model::SymbolInfo> {
-    project
-        .files
-        .get(file_rel)
-        .map(|info| matching_symbols(info, symbol_name))
-        .unwrap_or_default()
 }
 
 pub(crate) fn imported_symbol_binding_matches(

@@ -36,7 +36,7 @@ fn unsupported_javascript_binding_forms_keep_consumer_coverage_open() {
     assert_schema("schemas/where.schema.json", &json);
     let definition = &json["definitions"][0];
     let count = &definition["consumers_total"];
-    assert_eq!(count["observed"], 0, "S04 resolution must not be forged: {json:#}");
+    assert_eq!(count["observed"], 1, "namespace syntax is now exact: {json:#}");
     assert_eq!(count["closure"], "open", "blind bindings cannot prove zero: {json:#}");
     assert!(
         count["reasons"]
@@ -55,7 +55,6 @@ fn unsupported_javascript_binding_forms_keep_consumer_coverage_open() {
         .filter_map(|item| item["construct"].as_str())
         .collect::<std::collections::BTreeSet<_>>();
     for expected in [
-        "namespace_import_member_binding",
         "unscoped_static_import_reference",
         "commonjs_or_unbound_static_import",
     ] {
@@ -64,6 +63,10 @@ fn unsupported_javascript_binding_forms_keep_consumer_coverage_open() {
             "missing `{expected}` in certificate: {json:#}"
         );
     }
+    assert!(
+        !constructs.contains("namespace_import_member_binding"),
+        "an observed namespace member must leave the unsupported ledger: {json:#}"
+    );
     assert_horizon_certificate_resolves(&definition["observations"], horizon(&definition["observations"], "consumers"));
 }
 
@@ -99,8 +102,8 @@ fn an_observed_consumer_stays_a_lower_bound_when_another_binding_is_unresolved()
         &["where", "target", "--format", "json"],
     );
     let count = &json["definitions"][0]["consumers_total"];
-    assert_eq!(count["observed"], 1, "direct fact must survive: {json:#}");
-    assert_eq!(count["closure"], "open", "namespace path stays unresolved: {json:#}");
+    assert_eq!(count["observed"], 2, "direct and namespace facts must survive: {json:#}");
+    assert_eq!(count["closure"], "closed", "both static forms are resolved: {json:#}");
 }
 
 #[test]

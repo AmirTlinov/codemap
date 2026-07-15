@@ -26,7 +26,7 @@ fn exact_symbol_ls_readable_and_json_share_two_certified_horizons() {
     );
     assert_schema("schemas/ls.schema.json", &json);
     assert_eq!(json["schema_version"], "13", "{json:#}");
-    assert_eq!(json["edges"].as_array().expect("symbol edges").len(), 2);
+    assert_eq!(json["edges"].as_array().expect("symbol edges").len(), 3);
     assert!(
         json["hidden"].as_array().expect("hidden").is_empty(),
         "full JSON must not repeat detached symbol-edge accounting: {json:#}"
@@ -34,11 +34,17 @@ fn exact_symbol_ls_readable_and_json_share_two_certified_horizons() {
 
     let ledger = &json["observations"];
     assert_eq!(ledger["horizons"].as_array().expect("horizons").len(), 2);
-    for (group, closure) in [("consumers", "open"), ("verification", "open")] {
+    for (group, observed, closure) in [
+        ("consumers", 2, "closed"),
+        ("verification", 1, "open"),
+    ] {
         let item = horizon(ledger, group);
-        assert_eq!(item["count"]["observed"], 1, "{group}: {json:#}");
+        assert_eq!(
+            item["count"]["observed"], observed,
+            "{group}: {json:#}"
+        );
         assert_eq!(item["count"]["closure"], closure, "{group}: {json:#}");
-        assert_eq!(item["shown"], 1, "{group}: {json:#}");
+        assert_eq!(item["shown"], observed, "{group}: {json:#}");
         assert_eq!(item["hidden"], 0, "{group}: {json:#}");
         assert_horizon_certificate_resolves(ledger, item);
 
@@ -61,9 +67,16 @@ fn exact_symbol_ls_readable_and_json_share_two_certified_horizons() {
         .collect::<Vec<_>>();
     assert_eq!(readable_visibility.len(), 2, "{readable}");
     assert!(
-        readable_visibility.iter().any(|line| line.contains("hidden=1"))
-            && readable_visibility.iter().any(|line| line.contains("hidden=0")),
-        "the limit-one readable projection must split one shown and one hidden fact: {readable}"
+        readable_visibility
+            .iter()
+            .all(|line| line.contains("hidden=1"))
+            && readable_visibility
+                .iter()
+                .any(|line| line.contains("shown=1"))
+            && readable_visibility
+                .iter()
+                .any(|line| line.contains("shown=0")),
+        "the limit-one readable projection must account for all three facts: {readable}"
     );
     assert!(
         !readable.contains("symbol edges hidden by limit"),

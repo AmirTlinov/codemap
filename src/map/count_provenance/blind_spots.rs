@@ -55,7 +55,13 @@ pub(super) fn consumer_blind_spots(
             }
             collect_reexport_gap(rel, symbol, importer_info, &mut blind_spots);
             collect_rust_include_gap(rel, importer_info, &mut blind_spots);
-            collect_js_static_binding_gaps(rel, symbol, importer_info, &mut blind_spots);
+            collect_js_static_binding_gaps(
+                rel,
+                symbol,
+                importer_info,
+                &observed_sources,
+                &mut blind_spots,
+            );
         }
     }
     for source in dynamic_import_neighbors(project, rel) {
@@ -185,6 +191,7 @@ fn collect_js_static_binding_gaps(
     rel: &str,
     symbol: Option<&str>,
     importer: &FileInfo,
+    observed_sources: &BTreeSet<String>,
     out: &mut Vec<ConsumerBlindSpot>,
 ) {
     if !JS_EXTENSIONS.contains(&importer.ext.as_str()) || !importer.resolved_imports.contains(rel) {
@@ -201,7 +208,9 @@ fn collect_js_static_binding_gaps(
         return;
     }
     let bindings = bindings.expect("non-empty bindings checked above");
-    if bindings.values().any(|imported| imported == "*") {
+    if bindings.values().any(|imported| imported == "*")
+        && !observed_sources.contains(&importer.rel)
+    {
         push_unsupported_binding_gap(
             importer,
             "namespace_import_member_binding",

@@ -33,7 +33,7 @@ fn rust_barrel_reexport_makes_symbol_consumer_count_unknown() {
     assert_eq!(json["total_matches"], 1);
     let definition = &json["definitions"][0];
     assert_eq!(definition["anchor"]["path"], "src/inner.rs#Thing");
-    assert_open_count(definition, 0, "reexport_flow", &json);
+    assert_open_count(definition, 1, "reexport_flow", &json);
 }
 
 #[test]
@@ -67,7 +67,7 @@ fn rust_include_flow_makes_symbol_consumer_count_unknown() {
     assert_eq!(json["total_matches"], 1);
     let definition = &json["definitions"][0];
     assert_eq!(definition["anchor"]["path"], "src/part.rs#helper");
-    assert_open_count(definition, 0, "rust_include_flow", &json);
+    assert_open_count(definition, 1, "rust_include_flow", &json);
 }
 
 #[test]
@@ -198,9 +198,9 @@ fn fully_supported_ts_repo_keeps_proven_zero_and_counted() {
 }
 
 #[test]
-fn self_map_where_cone_report_is_unknown_via_reexport_flow() {
+fn self_map_where_cone_report_keeps_observed_consumers_and_open_reexport_horizon() {
     // Dogfood: this repository re-exports report types through `pub use` barrels
-    // in src/model.rs, so symbol consumer counts there must be honest unknowns.
+    // in src/model.rs. Exact consumers are a lower bound, never a false zero.
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let cache = TempDir::new().expect("cache tempdir");
     let json = run_json(root, cache.path(), &["where", "ConeReport", "--format", "json"]);
@@ -214,7 +214,11 @@ fn self_map_where_cone_report_is_unknown_via_reexport_flow() {
         definition["anchor"]["path"],
         "src/model/cone_reports.rs#ConeReport"
     );
-    assert_open_count(definition, 0, "reexport_flow", &json);
+    let observed = definition["consumers_total"]["observed"]
+        .as_u64()
+        .expect("observed consumer lower bound");
+    assert!(observed >= 8, "ConeReport has many exact source consumers: {json:#}");
+    assert_open_count(definition, observed, "reexport_flow", &json);
 }
 
 fn assert_open_count(definition: &Value, observed: u64, reason: &str, report: &Value) {

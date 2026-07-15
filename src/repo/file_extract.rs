@@ -1,9 +1,11 @@
 // Responsibility: repo-file-extract
 mod css_imports;
+mod language_import_bindings;
 mod rust_includes;
 mod rust_reexports;
 
 pub(crate) use css_imports::*;
+pub(crate) use language_import_bindings::*;
 pub(crate) use rust_includes::*;
 pub(crate) use rust_reexports::*;
 
@@ -14,7 +16,7 @@ use crate::repo::{
     extract_js_import_specs, extract_js_symbols_from_cleaned, extract_jsx_tags,
     extract_jsx_tags_from_cleaned, extract_local_bindings, extract_local_bindings_from_cleaned,
     extract_surfaces, extract_symbols, is_asset_ext, is_source_ext, js_export_re,
-    js_has_dynamic_import, py_import_re, rust_mod_re, rust_use_re, swift_import_re,
+    js_has_dynamic_import, py_import_re, rust_mod_re, swift_import_re,
 };
 use std::fs;
 use std::path::Path;
@@ -76,14 +78,18 @@ pub(crate) fn extract_imports_exports(root: &Path, info: &mut FileInfo) {
                     info.imports.insert(m.as_str().trim().to_string());
                 }
             }
+            merge_import_bindings(
+                &mut info.import_bindings,
+                extract_python_import_bindings(&text),
+            );
         }
         "rs" => {
-            let use_re = rust_use_re();
-            for cap in use_re.captures_iter(&text) {
-                if let Some(m) = cap.get(1) {
-                    info.imports.insert(m.as_str().trim().to_string());
-                }
-            }
+            let use_facts = extract_rust_use_facts(&text);
+            info.imports.extend(use_facts.imports);
+            merge_import_bindings(&mut info.import_bindings, use_facts.bindings);
+            let qualified_facts = extract_rust_qualified_path_facts(&text);
+            info.imports.extend(qualified_facts.imports);
+            merge_import_bindings(&mut info.import_bindings, qualified_facts.bindings);
             let mod_re = rust_mod_re();
             for cap in mod_re.captures_iter(&text) {
                 if let Some(m) = cap.get(1) {
@@ -91,15 +97,10 @@ pub(crate) fn extract_imports_exports(root: &Path, info: &mut FileInfo) {
                 }
             }
             info.imports.extend(extract_rust_include_specs(&text));
-            for (spec, bindings) in extract_rust_reexport_bindings(&text) {
-                info.import_bindings
-                    .entry(spec)
-                    .or_default()
-                    .extend(bindings);
-            }
         }
         "go" => {
             info.imports.extend(extract_go_imports(&text));
+            merge_import_bindings(&mut info.import_bindings, extract_go_import_bindings(&text));
         }
         "swift" => {
             let import_re = swift_import_re();
@@ -116,6 +117,15 @@ pub(crate) fn extract_imports_exports(root: &Path, info: &mut FileInfo) {
         if symbol.exported {
             info.exports.insert(symbol.name.clone());
         }
+    }
+}
+
+fn merge_import_bindings(
+    target: &mut crate::model::ImportBindingsBySpec,
+    source: crate::model::ImportBindingsBySpec,
+) {
+    for (spec, bindings) in source {
+        target.entry(spec).or_default().extend(bindings);
     }
 }
 

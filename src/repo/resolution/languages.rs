@@ -85,7 +85,8 @@ pub(crate) fn resolve_rust(
             .split("::")
             .filter(|segment| !segment.is_empty())
             .collect::<Vec<_>>();
-        return resolve_rust_module_segments(&crate_root, &rest_segments, paths);
+        return resolve_rust_module_segments(&crate_root, &rest_segments, paths)
+            .or_else(|| rust_package_root_file(&crate_root, paths));
     }
     if let Some(rest) = spec.strip_prefix("super::") {
         let base = rust_super_base_dir(from);

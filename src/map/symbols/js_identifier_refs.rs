@@ -24,19 +24,19 @@ pub(crate) fn default_export_symbol_name(project: &Project, file_rel: &str) -> O
     None
 }
 
-pub(crate) fn file_references_identifier_after_imports(
+pub(crate) fn first_js_identifier_reference_line_after_imports(
     project: &Project,
     file: &FileInfo,
     name: &str,
-) -> bool {
+) -> Option<usize> {
     let Some(text) = project.read_indexed_text(&file.rel) else {
-        return file.references.contains(name);
+        return file.references.contains(name).then_some(0);
     };
     let mut skipping_import = false;
     let mut type_brace_depth: Option<usize> = None;
     let mut in_block_comment = false;
     let mut quote = None;
-    for line in text.lines() {
+    for (line_index, line) in text.lines().enumerate() {
         let trimmed = line.trim_start();
         if skipping_import {
             if trimmed.contains(';') || trimmed.contains(" from ") {
@@ -67,10 +67,10 @@ pub(crate) fn file_references_identifier_after_imports(
             continue;
         }
         if line_has_value_identifier_reference(&code, name) {
-            return true;
+            return Some(line_index + 1);
         }
     }
-    false
+    None
 }
 
 fn js_import_or_export_from_line_starts(trimmed: &str) -> bool {
