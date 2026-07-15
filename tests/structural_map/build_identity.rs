@@ -140,23 +140,27 @@ fn doctor_canonicalizes_path_symlink_to_running_binary() {
 fn doctor_bounds_a_hanging_path_version_probe() {
     let (repo, cache) = fixture();
     let bin = TempDir::new().expect("hanging identity bin");
-    make_fake_codemap(bin.path(), "#!/bin/sh\nexec /bin/sleep 10\n");
+    let completion_marker = bin.path().join("probe-completed");
+    make_fake_codemap(
+        bin.path(),
+        "#!/bin/sh\n/bin/sleep 10\n/bin/touch \"$CODEMAP_FAKE_PROBE_COMPLETED\"\nprintf 'codemap 99.0.0\\n'\n",
+    );
     let path = std::env::join_paths(
         std::iter::once(bin.path().to_path_buf()).chain(std::env::split_paths(
             &std::env::var_os("PATH").unwrap_or_default(),
         )),
     )
     .expect("fixture PATH");
-    let started = std::time::Instant::now();
     let output = codemap()
         .current_dir(repo.path())
         .env("PATH", path)
         .env("CODEMAP_CACHE_DIR", cache.path())
+        .env("CODEMAP_FAKE_PROBE_COMPLETED", &completion_marker)
         .args(["doctor", "--format", "json"])
         .output()
         .expect("doctor timeout fixture");
     assert!(output.status.success());
-    assert!(started.elapsed() < std::time::Duration::from_secs(8));
+    assert!(!completion_marker.exists());
     let doctor: Value = serde_json::from_slice(&output.stdout).expect("doctor json");
     assert_eq!(doctor["path_identity"]["version_probe"], "unavailable");
     assert_eq!(doctor["path_identity"]["semver"], Value::Null);
