@@ -22,7 +22,7 @@ fn nested_directory_relations_are_bounded_in_readable_and_complete_in_json() {
         ],
     );
     assert_schema("schemas/ls.schema.json", &json);
-    assert_eq!(json["schema_version"], "14", "{json:#}");
+    assert_eq!(json["schema_version"], "15", "{json:#}");
     assert_eq!(json["edges"].as_array().expect("directory edges").len(), 5);
     let relations = horizon(&json["observations"], "relations");
     assert_eq!(relations["count"]["observed"], 5, "{json:#}");

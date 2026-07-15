@@ -18,7 +18,7 @@ pub(crate) fn root_inventory_graph_lens(
     let (nodes, edges, hidden) = root_inventory_graph_projection(report, limit, lens);
     GraphLens {
         kind: "graph_lens",
-        schema_version: "5",
+        schema_version: "6",
         domain: (&Domain {
             id: "repo".to_string(),
             path: ".".to_string(),

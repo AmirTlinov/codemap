@@ -15,7 +15,7 @@ fn proof_limit_reports_hidden_surfaces_with_exact_target_expand() {
         ],
     );
     assert_schema("schemas/proof.schema.json", &proof);
-    assert_eq!(proof["schema_version"], "11");
+    assert_eq!(proof["schema_version"], "12");
     assert_eq!(proof["proofs"].as_array().expect("proofs").len(), 1);
     assert!(
         proof["hidden"]

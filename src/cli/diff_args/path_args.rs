@@ -35,7 +35,12 @@ pub(crate) fn files_selector(files: &[String]) -> String {
 }
 
 pub(crate) fn project_relative_arg(project: &crate::model::Project, value: &str) -> Result<String> {
-    let path = Path::new(value);
+    let portable_value = if cfg!(windows) || !value.contains('\\') {
+        value.to_string()
+    } else {
+        value.replace('\\', "/")
+    };
+    let path = Path::new(&portable_value);
     let root = normalize_absolute_arg(&project.root);
     let absolute = if path.is_absolute() {
         normalize_absolute_arg(path)
@@ -45,7 +50,7 @@ pub(crate) fn project_relative_arg(project: &crate::model::Project, value: &str)
     absolute
         .strip_prefix(root)
         .map(|rel| repo::normalize_rel_path(&rel.to_string_lossy()))
-        .map_err(|_| anyhow::anyhow!("path is outside project root: {value}"))
+        .map_err(|_| crate::cli::invalid_input(format!("path is outside project root: {value}")))
 }
 
 pub(crate) fn flow_anchor_arg(project: &crate::model::Project, value: &str) -> Result<String> {

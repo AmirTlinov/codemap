@@ -30,7 +30,7 @@ fn graph_lens_reports_hidden_nodes_with_concrete_expand() {
         ],
     );
     assert_schema("schemas/graph.schema.json", &graph);
-    assert_eq!(graph["schema_version"], "5");
+    assert_eq!(graph["schema_version"], "6");
     assert_eq!(graph["nodes"].as_array().expect("nodes").len(), 1);
     assert!(
         graph["hidden"]

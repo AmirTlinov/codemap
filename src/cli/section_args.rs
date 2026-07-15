@@ -6,9 +6,9 @@ pub(crate) fn accept_depth_compat(depth: usize, command: &str) -> anyhow::Result
     if depth <= 1 {
         return Ok(());
     }
-    anyhow::bail!(
+    Err(crate::cli::unsupported_request(format!(
         "codemap {command} currently keeps depth fixed at 1; use `codemap cone <anchor> --depth {depth}` or `codemap proof <anchor|changed> --depth {depth}` for expanded neighborhoods"
-    );
+    )))
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]

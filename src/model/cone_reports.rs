@@ -41,7 +41,7 @@ pub struct ConeReport {
 }
 
 impl ConeReport {
-    pub const SCHEMA_VERSION: &'static str = "17";
+    pub const SCHEMA_VERSION: &'static str = "18";
     pub const RELATIONSHIP_GROUPS: [&'static str; 5] = [
         "outgoing",
         "incoming",

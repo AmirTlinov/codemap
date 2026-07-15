@@ -121,7 +121,7 @@ fn empty_changed_proof_summary() -> ChangedProofSummary {
 pub(crate) fn empty_proof_map_report(selector: String, changed: Vec<String>) -> ProofMapReport {
     ProofMapReport {
         kind: "proof_map_report",
-        schema_version: "7",
+        schema_version: "8",
         selector: selector.clone(),
         scope: None,
         changed,

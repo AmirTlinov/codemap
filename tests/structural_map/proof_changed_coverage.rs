@@ -16,7 +16,7 @@ fn proof_changed_renders_coverage_summary_and_gaps() {
 
     let proof = run_json(repo.path(), cache.path(), &["proof", "changed", "--format", "json"]);
     assert_schema("schemas/proof.schema.json", &proof);
-    assert_eq!(proof["schema_version"], "11");
+    assert_eq!(proof["schema_version"], "12");
     let coverage = &proof["coverage"];
     assert_eq!(coverage["changed_count"].as_u64(), Some(3));
     assert!(

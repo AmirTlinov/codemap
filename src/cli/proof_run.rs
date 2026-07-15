@@ -9,7 +9,6 @@ use crate::cli::{
 };
 use crate::{map, render, repo};
 use anyhow::Result;
-use anyhow::bail;
 use std::collections::BTreeSet;
 use std::env;
 use std::path::Path;
@@ -18,7 +17,9 @@ use std::process::Command;
 pub(crate) fn proof(project: &crate::model::Project, args: ProofArgs) -> Result<()> {
     ensure_valid_config(project)?;
     if args.run && args.section.is_some() {
-        bail!("--section is display-only and cannot be combined with --run");
+        return Err(crate::cli::invalid_input(
+            "--section is display-only and cannot be combined with --run",
+        ));
     }
     let (target, changed, selector, since_notice) = proof_inputs(project, &args)?;
     let limit = if args.include_hidden {
@@ -137,7 +138,9 @@ fn run_plan(
             .current_dir(&project.root)
             .status()?;
         if !status.success() {
-            bail!("verification command failed: {command}");
+            return Err(crate::cli::diagnostic_failure(format!(
+                "verification command failed: {command}"
+            )));
         }
     }
     Ok(())
@@ -157,7 +160,9 @@ pub(crate) fn planned_run_commands(
         .filter(|command| !command.is_empty())
         .collect();
     if commands.is_empty() {
-        bail!("no verification commands inferred; refusing to treat --run as successful");
+        return Err(crate::cli::unsafe_refused(
+            "no verification commands inferred; refusing to treat --run as successful",
+        ));
     }
     let rejected: Vec<(String, ProofCommandRejection)> = commands
         .iter()
@@ -185,11 +190,13 @@ pub(crate) fn planned_run_commands(
             .iter()
             .all(|(_, reason)| matches!(reason, ProofCommandRejection::Placeholder))
         {
-            bail!(
-                "verification plan contains non-runnable placeholder commands for the selected scope"
-            );
+            return Err(crate::cli::unsafe_refused(
+                "verification plan contains non-runnable placeholder commands for the selected scope",
+            ));
         }
-        bail!("verification plan contains rendered commands that codemap will not run by default");
+        return Err(crate::cli::unsafe_refused(
+            "verification plan contains rendered commands that codemap will not run by default",
+        ));
     }
     Ok(unique_preserve_order(commands))
 }

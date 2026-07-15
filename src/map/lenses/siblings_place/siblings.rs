@@ -127,7 +127,7 @@ pub fn siblings_report(
     );
     SiblingsReport {
         kind: "siblings_report",
-        schema_version: "4",
+        schema_version: "5",
         scope: scope.clone(),
         same_kind,
         route_service_test_triplets,

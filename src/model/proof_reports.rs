@@ -26,7 +26,7 @@ pub struct ProofReport {
 }
 
 impl ProofReport {
-    pub const SCHEMA_VERSION: &'static str = "11";
+    pub const SCHEMA_VERSION: &'static str = "12";
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

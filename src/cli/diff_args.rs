@@ -11,7 +11,6 @@ pub(crate) use section_names::*;
 
 use crate::cli::semantic_anchor_problems;
 use anyhow::Result;
-use anyhow::bail;
 
 pub(crate) fn ensure_valid_config(project: &crate::model::Project) -> Result<()> {
     let semantic_problems = semantic_anchor_problems(project);
@@ -27,5 +26,7 @@ pub(crate) fn ensure_valid_config(project: &crate::model::Project) -> Result<()>
     for problem in semantic_problems {
         eprintln!("codemap: invalid semantic anchor: {problem}");
     }
-    bail!("invalid .codemap semantic anchors; run `codemap anchors validate`")
+    Err(crate::cli::invalid_input(
+        "invalid .codemap semantic anchors; run `codemap anchors validate`",
+    ))
 }

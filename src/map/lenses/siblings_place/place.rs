@@ -142,7 +142,7 @@ pub fn place_report(
     }
     PlaceReport {
         kind: "place_report",
-        schema_version: "4",
+        schema_version: "5",
         scope: scope.clone(),
         requested_kind,
         existing_surfaces,

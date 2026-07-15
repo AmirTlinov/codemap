@@ -261,7 +261,7 @@ fn run_markdown(repo: &Path, cache: &Path, args: &[&str]) -> String {
         .output()
         .expect("codemap markdown should run");
     assert!(
-        output.status.success(),
+        matches!(output.status.code(), Some(0 | 10 | 20)) && !output.stdout.is_empty(),
         "codemap {:?} failed: {}",
         args,
         String::from_utf8_lossy(&output.stderr)

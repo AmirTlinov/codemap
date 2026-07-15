@@ -49,7 +49,7 @@ pub struct RuntimeReport {
 }
 
 impl RuntimeReport {
-    pub const SCHEMA_VERSION: &'static str = "6";
+    pub const SCHEMA_VERSION: &'static str = "7";
     pub(crate) const ROOT_RECURSIVE_HIDDEN_REASON: &'static str =
         "recursive runtime files hidden at root scope";
     pub(crate) const ROOT_RECURSIVE_HIDDEN_EXPAND: &'static str = "codemap runtime . --all";

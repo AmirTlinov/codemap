@@ -23,7 +23,7 @@ pub struct LsReport {
 }
 
 impl LsReport {
-    pub const SCHEMA_VERSION: &'static str = "14";
+    pub const SCHEMA_VERSION: &'static str = "15";
 
     /// Root inventory groups certified by the S03.d observation ledger.
     pub const ROOT_INVENTORY_GROUPS: [&'static str; 4] =

@@ -126,6 +126,9 @@ pub(crate) enum CommandKind {
     #[command(about = "Print a bundled stable JSON schema or schema manifest")]
     Schema(SchemaArgs),
     #[command(hide = true)]
+    #[command(about = "Generate shell completion source for codemap")]
+    Completions(CompletionsArgs),
+    #[command(hide = true)]
     #[command(about = "Print one-time global agent instruction text")]
     Bootstrap(BootstrapArgs),
     #[command(hide = true)]

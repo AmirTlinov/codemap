@@ -8,7 +8,7 @@ fn anchors_validate_reports_summary_and_actionable_warnings() {
     );
     assert_schema("schemas/anchor-validation.schema.json", &validation);
     assert_eq!(validation["kind"], "anchor_validation");
-    assert_eq!(validation["schema_version"], "5");
+    assert_eq!(validation["schema_version"], "6");
     assert_eq!(validation["ok"], true);
     assert_eq!(validation["summary"]["forbidden_boundaries"], 1);
     assert_eq!(validation["summary"]["concepts"], 0);

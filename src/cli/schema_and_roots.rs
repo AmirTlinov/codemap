@@ -1,17 +1,38 @@
 // Responsibility: cli-schema-and-roots
-use crate::cli::{CommandKind, ProofArgs, ProofMapArgs, SchemaKind};
+use crate::cli::{Cli, CommandKind, ProofArgs, ProofMapArgs, SchemaKind};
 use anyhow::Result;
-use anyhow::bail;
+use clap::CommandFactory;
 use std::path::Path;
 use std::path::PathBuf;
 
 pub(crate) fn ensure_graph_lens(lens: &str) -> Result<()> {
     match lens.to_ascii_lowercase().as_str() {
         "causal" | "impact" | "proof" | "boundary" | "boundaries" => Ok(()),
-        _ => {
-            bail!("unknown graph lens `{lens}`; expected one of: causal, impact, proof, boundaries")
-        }
+        _ => Err(crate::cli::unsupported_request(format!(
+            "unknown graph lens `{lens}`; expected one of: causal, impact, proof, boundaries"
+        ))),
     }
+}
+
+pub(crate) fn try_project_free_command(command: &CommandKind) -> Result<bool> {
+    match command {
+        CommandKind::Bootstrap(args) => {
+            if args.global_instruction {
+                print!("{}", crate::render::global_instruction());
+            } else {
+                println!("Use `codemap bootstrap --global-instruction`.");
+            }
+        }
+        CommandKind::Schema(args) => print!("{}", schema_text(args.kind)),
+        CommandKind::Completions(args) => clap_complete::generate(
+            args.shell,
+            &mut Cli::command(),
+            "codemap",
+            &mut std::io::stdout(),
+        ),
+        _ => return Ok(false),
+    }
+    Ok(true)
 }
 
 pub(crate) fn schema_text(kind: SchemaKind) -> &'static str {

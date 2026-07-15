@@ -337,7 +337,7 @@ pub fn proof_map_report(
     });
     ProofMapReport {
         kind: "proof_map_report",
-        schema_version: "7",
+        schema_version: "8",
         selector: proof_selector,
         scope,
         changed,

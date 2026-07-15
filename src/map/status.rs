@@ -49,7 +49,7 @@ pub struct StatusReport {
 }
 
 impl StatusReport {
-    pub const SCHEMA_VERSION: &'static str = "8";
+    pub const SCHEMA_VERSION: &'static str = "9";
 }
 
 #[derive(Debug, Serialize)]

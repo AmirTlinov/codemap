@@ -7,6 +7,6 @@ mod proof_classification;
 mod render;
 mod repo;
 
-fn main() -> anyhow::Result<()> {
-    cli::run()
+fn main() -> std::process::ExitCode {
+    cli::main_exit()
 }

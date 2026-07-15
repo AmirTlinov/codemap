@@ -1,6 +1,7 @@
 // Responsibility: cli-setup-args
 use crate::cli::{FormatArgs, SchemaKind};
 use clap::{Args, Subcommand};
+use clap_complete::Shell;
 
 #[derive(Debug, Args)]
 pub(crate) struct InitArgs {
@@ -26,6 +27,12 @@ pub(crate) struct BootstrapArgs {
 pub(crate) struct SchemaArgs {
     #[arg(value_enum)]
     pub(crate) kind: SchemaKind,
+}
+
+#[derive(Debug, Args)]
+pub(crate) struct CompletionsArgs {
+    #[arg(value_enum)]
+    pub(crate) shell: Shell,
 }
 
 #[derive(Debug, Args)]

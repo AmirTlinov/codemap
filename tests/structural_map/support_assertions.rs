@@ -5,13 +5,29 @@ fn run_json(repo: &Path, cache: &Path, args: &[&str]) -> Value {
         .args(args)
         .output()
         .expect("codemap should run");
-    assert!(
-        output.status.success(),
-        "codemap {:?} failed: {}",
-        args,
-        String::from_utf8_lossy(&output.stderr)
-    );
-    serde_json::from_slice(&output.stdout).expect("valid json")
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap_or_else(|error| {
+        panic!(
+            "codemap {args:?} emitted invalid JSON after exit {:?}: {error}; stderr={}",
+            output.status.code(),
+            String::from_utf8_lossy(&output.stderr)
+        )
+    });
+    let expected_result = match output.status.code() {
+        Some(0) => None,
+        Some(10) => Some("valid_empty_map"),
+        Some(20) => Some("invalid_anchor"),
+        code => panic!(
+            "codemap {args:?} failed with exit {code:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ),
+    };
+    if let Some(expected_result) = expected_result {
+        assert_eq!(
+            report["agent"]["result"], expected_result,
+            "typed non-zero map exit must agree with the stable agent envelope: {report:#}"
+        );
+    }
+    report
 }
 
 fn assert_no_export_dialog_role_name_proof(
@@ -142,4 +158,3 @@ fn assert_no_export_dialog_role_name_proof_with_e2e_source(e2e_source: &str, mes
         "without a structural proof, broad fallback must remain visible: {proof:#}"
     );
 }
-

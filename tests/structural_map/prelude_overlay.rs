@@ -229,15 +229,17 @@ fn missing_or_file_root_does_not_become_directory_anchor() {
             ])
             .output()
             .expect("codemap should run");
-        assert!(
-            output.status.success(),
-            "codemap missing/file root failed: {}",
+        assert_eq!(
+            output.status.code(),
+            Some(20),
+            "missing/file root must use the stable invalid-anchor exit: {}",
             String::from_utf8_lossy(&output.stderr)
         );
         let report: serde_json::Value =
             serde_json::from_slice(&output.stdout).expect("valid json");
         assert_schema("schemas/ls.schema.json", &report);
         assert_eq!(report["mode"], "missing");
+        assert_eq!(report["agent"]["result"], "invalid_anchor");
         assert!(
             report["directory"]
                 .as_array()

@@ -14,6 +14,35 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  agent-contract:
+    name: agent contract (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Install stable Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: Install Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+
+      - name: Stable black-box agent contract
+        run: cargo test --locked --test structural_map agent_contract_
+
   check:
     name: check (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

@@ -8,12 +8,12 @@ use crate::cli::{
     maybe_write_proof_changed_lens_cache_from_changed, maybe_write_proof_map_lens_cache,
     maybe_write_proof_map_lens_cache_from_changed, maybe_write_siblings_lens_cache, output,
     output_format_with_json_alias, output_with_prelude, project_relative_arg, proof,
-    proof_map_inputs, run_runtime, schema_text, try_cache_admin, try_cached_changed_fast_path,
+    proof_map_inputs, run_runtime, try_cache_admin, try_cached_changed_fast_path,
     try_cached_cone_fast_path, try_cached_ls_fast_path, try_cached_place_fast_path,
     try_cached_proof_changed_fast_path, try_cached_proof_map_fast_path,
     try_cached_siblings_fast_path, try_clean_changed_fast_path, try_clean_proof_changed_fast_path,
     try_cold_root_graph_fast_path, try_cold_root_ls_fast_path, try_cold_root_proof_map_fast_path,
-    try_runtime_root_fast_path, validate_anchors,
+    try_project_free_command, try_runtime_root_fast_path, validate_anchors,
 };
 use crate::{map, render, repo};
 use anyhow::{Result, bail};
@@ -21,17 +21,20 @@ use clap::Parser;
 use std::{collections::BTreeSet, env};
 
 pub fn run() -> Result<()> {
-    let cli = Cli::parse();
-    if let CommandKind::Bootstrap(args) = &cli.command {
-        if args.global_instruction {
-            print!("{}", render::global_instruction());
-        } else {
-            println!("Use `codemap bootstrap --global-instruction`.");
+    let cli = match Cli::try_parse() {
+        Ok(cli) => cli,
+        Err(error)
+            if matches!(
+                error.kind(),
+                clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion
+            ) =>
+        {
+            error.print()?;
+            return Ok(());
         }
-        return Ok(());
-    }
-    if let CommandKind::Schema(args) = &cli.command {
-        print!("{}", schema_text(args.kind));
+        Err(error) => return Err(crate::cli::clap_failure(error)),
+    };
+    if try_project_free_command(&cli.command)? {
         return Ok(());
     }
 
@@ -182,7 +185,10 @@ pub fn run() -> Result<()> {
             output(format, &report, || render::where_locator(&report))
         }
         CommandKind::Init(args) => init(&project, args),
-        CommandKind::Bootstrap(_) | CommandKind::Schema(_) | CommandKind::Cache(_) => Ok(()),
+        CommandKind::Bootstrap(_)
+        | CommandKind::Schema(_)
+        | CommandKind::Completions(_)
+        | CommandKind::Cache(_) => Ok(()),
         CommandKind::Impact(args) => {
             ensure_valid_config(&project)?;
             let (changed, selector, notice) = impact_inputs(&project, &args)?;
@@ -378,7 +384,7 @@ pub fn run() -> Result<()> {
                 render::boundaries(&report.findings)
             })?;
             if hard || (args.strict_warnings && warns) {
-                bail!("boundary findings detected");
+                return Err(crate::cli::diagnostic_failure("boundary findings detected"));
             }
             Ok(())
         }

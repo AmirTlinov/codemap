@@ -13,7 +13,7 @@ pub fn boundary_report(
 ) -> BoundaryReport {
     BoundaryReport {
         kind: "boundary_report",
-        schema_version: "3",
+        schema_version: "4",
         findings: boundary_findings(project, changed_only),
     }
 }

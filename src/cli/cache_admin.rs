@@ -1,7 +1,7 @@
 // Responsibility: cache-admin-command-dispatch
 use crate::cli::{CacheAction, CommandKind, output};
 use crate::{cache, render, repo};
-use anyhow::{Result, bail};
+use anyhow::Result;
 
 pub(crate) fn try_cache_admin(
     command: &CommandKind,
@@ -19,12 +19,18 @@ pub(crate) fn try_cache_admin(
         CacheAction::Gc(args) => (cache::CacheAdminAction::Gc, args.format),
         CacheAction::Clear(args) => {
             if !args.yes {
-                bail!("cache clear requires --yes");
+                return Err(crate::cli::invalid_input("cache clear requires --yes"));
             }
             (cache::CacheAdminAction::Clear, args.format)
         }
     };
-    let report = cache::run_cache_admin(&root, &cache_dir, action)?;
+    let report = cache::run_cache_admin(&root, &cache_dir, action).map_err(|error| {
+        if error.to_string().contains("refusing cache mutation") {
+            crate::cli::unsafe_refused(error.to_string())
+        } else {
+            crate::cli::diagnostic_failure(error.to_string())
+        }
+    })?;
     output(format, &report, || render::cache_admin(&report))?;
     Ok(Some(()))
 }

@@ -5,7 +5,6 @@ use crate::cli::{
 };
 use crate::{map, repo};
 use anyhow::Result;
-use anyhow::bail;
 
 pub(crate) fn impact_inputs(
     project: &crate::model::Project,
@@ -305,7 +304,9 @@ pub(crate) fn ensure_single_diff_selector(
         .filter(|enabled| *enabled)
         .count();
     if count > 1 {
-        bail!("choose only one diff selector: --changed, --staged, --since, or explicit files");
+        return Err(crate::cli::invalid_input(
+            "choose only one diff selector: --changed, --staged, --since, or explicit files",
+        ));
     }
     Ok(())
 }

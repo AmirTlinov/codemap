@@ -25,7 +25,7 @@ fn exact_symbol_ls_readable_and_json_share_two_certified_horizons() {
         ],
     );
     assert_schema("schemas/ls.schema.json", &json);
-    assert_eq!(json["schema_version"], "14", "{json:#}");
+    assert_eq!(json["schema_version"], "15", "{json:#}");
     assert_eq!(json["edges"].as_array().expect("symbol edges").len(), 3);
     assert!(
         json["hidden"].as_array().expect("hidden").is_empty(),

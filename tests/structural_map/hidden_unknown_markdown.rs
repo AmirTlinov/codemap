@@ -8,7 +8,7 @@ fn hidden_markdown_uses_compact_expand_blocks() {
         .args(["ls", ".", "--limit", "1"])
         .output()
         .expect("ls markdown should run");
-    assert!(output.status.success());
+    assert_eq!(output.status.code(), Some(0));
     let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
     assert!(
         markdown.contains("\n## Hidden\n") && markdown.contains("expand: `codemap ls ."),
@@ -30,7 +30,7 @@ fn unknown_markdown_groups_by_kind_without_table_spam() {
         .args(["cone", "packages/replay/src/not-real.ts"])
         .output()
         .expect("cone markdown should run");
-    assert!(output.status.success());
+    assert_eq!(output.status.code(), Some(20));
     let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
     assert!(
         markdown.contains("\n## Unknown\n") && markdown.contains("- `unindexed_anchor`"),

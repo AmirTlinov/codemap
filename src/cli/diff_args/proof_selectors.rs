@@ -5,7 +5,6 @@ use crate::cli::{
 };
 use crate::repo;
 use anyhow::Result;
-use anyhow::bail;
 
 pub(crate) type ProofMapInputs = (
     Option<String>,
@@ -34,9 +33,9 @@ pub(crate) fn proof_map_inputs(
     .filter(|enabled| *enabled)
     .count();
     if count > 1 {
-        bail!(
-            "choose only one proof-map selector: target, --changed, --staged, --since, or --files"
-        );
+        return Err(crate::cli::invalid_input(
+            "choose only one proof-map selector: target, --changed, --staged, --since, or --files",
+        ));
     }
     if let Some(target) = args.target.as_deref() {
         let target = project_relative_arg(project, target)?;
@@ -145,12 +144,16 @@ pub(crate) fn proof_inputs(
             .join(",");
         return Ok((None, files, format!("--files {files_arg}"), None));
     }
-    bail!("codemap proof needs an exact target, changed, --staged, --since, or --files");
+    Err(crate::cli::invalid_input(
+        "codemap proof needs an exact target, changed, --staged, --since, or --files",
+    ))
 }
 
 pub(crate) fn ensure_single_proof_selector(args: &ProofArgs) -> Result<()> {
     if args.changed {
-        bail!("`codemap proof --changed` was replaced by `codemap proof changed`");
+        return Err(crate::cli::unsupported_request(
+            "`codemap proof --changed` was replaced by `codemap proof changed`",
+        ));
     }
     let explicit_files = args
         .files
@@ -169,7 +172,9 @@ pub(crate) fn ensure_single_proof_selector(args: &ProofArgs) -> Result<()> {
     .filter(|enabled| *enabled)
     .count();
     if count > 1 {
-        bail!("choose only one proof selector: target, changed, --staged, --since, or --files");
+        return Err(crate::cli::invalid_input(
+            "choose only one proof selector: target, changed, --staged, --since, or --files",
+        ));
     }
     Ok(())
 }

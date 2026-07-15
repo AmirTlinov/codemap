@@ -83,7 +83,7 @@ pub struct ChangedReport {
 }
 
 impl ChangedReport {
-    pub const SCHEMA_VERSION: &'static str = "11";
+    pub const SCHEMA_VERSION: &'static str = "12";
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]

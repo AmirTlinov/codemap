@@ -119,6 +119,21 @@ Cache contents, privacy, retention, corruption fallback, and explicit
 Versioned ecosystem tiers, support cells, and typed unsupported boundaries are
 documented in [`docs/ECOSYSTEM_SUPPORT.md`](docs/ECOSYSTEM_SUPPORT.md).
 
+## Agent Integration
+
+JSON consumers use the stable agent envelope and exit taxonomy from
+[`docs/AGENT_PROTOCOL.md`](docs/AGENT_PROTOCOL.md). Discover exact schemas and
+the machine contract without loading a repository:
+
+```bash
+codemap schema manifest
+codemap schema cone
+codemap completions zsh
+```
+
+Machine expansions are argv arrays under `agent.expands`; unlike readable
+`Expand` lines, they already request schema-backed JSON.
+
 ## Boundaries
 
 `codemap` does not choose the best file, recommend fixes, judge architecture,

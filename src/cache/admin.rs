@@ -37,7 +37,7 @@ pub struct CacheAdminReport {
 }
 
 impl CacheAdminReport {
-    pub const SCHEMA_VERSION: &'static str = "1";
+    pub const SCHEMA_VERSION: &'static str = "2";
 }
 
 pub fn run(root: &Path, cache_dir: &Path, action: CacheAdminAction) -> Result<CacheAdminReport> {

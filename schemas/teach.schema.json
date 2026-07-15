@@ -5,6 +5,7 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
+    "agent",
     "kind",
     "schema_version",
     "build_identity",
@@ -15,8 +16,9 @@
     "expand"
   ],
   "properties": {
+    "agent": { "$ref": "#/$defs/agent_envelope" },
     "kind": { "const": "teach_report" },
-    "schema_version": { "const": "2" },
+    "schema_version": { "const": "3" },
     "build_identity": { "$ref": "#/$defs/build_identity" },
     "config": { "type": ["string", "null"] },
     "role_patterns": {
@@ -37,6 +39,43 @@
     }
   },
   "$defs": {
+    "agent_envelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["envelope_version", "report_kind", "report_version", "result", "scope", "snapshot", "horizon", "expands"],
+      "properties": {
+        "envelope_version": { "const": "1" },
+        "report_kind": { "type": "string", "minLength": 1 },
+        "report_version": { "type": "string", "minLength": 1 },
+        "result": { "enum": ["success", "valid_empty_map", "invalid_anchor"] },
+        "scope": { "type": "object" },
+        "snapshot": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["state", "identities"],
+          "properties": {
+            "state": { "enum": ["observed", "unavailable"] },
+            "identities": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true }
+          }
+        },
+        "horizon": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "groups", "reasons", "certificate_count"],
+          "properties": {
+            "status": { "enum": ["closed", "open", "unavailable", "not_applicable"] },
+            "groups": { "type": "integer", "minimum": 0 },
+            "reasons": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+            "certificate_count": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "expands": {
+          "type": "array",
+          "items": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+          "uniqueItems": true
+        }
+      }
+    },
     "build_identity": {
       "type": "object",
       "additionalProperties": false,

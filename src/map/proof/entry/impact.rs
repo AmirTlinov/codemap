@@ -79,7 +79,7 @@ pub fn impact_report(
     }
     ImpactReport {
         kind: "impact_report",
-        schema_version: "6",
+        schema_version: "7",
         selector: selector.clone(),
         changed: changed_summaries,
         clusters,

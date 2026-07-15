@@ -17,7 +17,7 @@ pub(crate) fn validate_anchors(project: &crate::model::Project) -> AnchorValidat
     let details = semantic_anchor_details(project, ok);
     AnchorValidation {
         kind: "anchor_validation",
-        schema_version: "5",
+        schema_version: "6",
         ok,
         config: project.config_path.clone(),
         summary: AnchorValidationSummary {

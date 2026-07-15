@@ -1,9 +1,25 @@
 # Schema Policy
 
+## Stable agent integration contract
+
+Manifest version 26 freezes `agent_protocol.version` 1. Every public JSON report,
+including cache diagnostics, carries the strict `agent` envelope alongside its
+report-specific fields. The envelope names the report kind/version, typed result,
+scope, snapshot identity, evidence horizon summary, and JSON-producing expansion
+commands as argv arrays. Report schemas advance one version for this required
+field; the cache report advances to v2.
+
+The manifest owns the stable exit taxonomy and stdout/stderr split. A consumer
+must select a schema by `kind` and `schema_version`, and may use `agent` v1 as the
+common transport layer. Adding an optional report field still advances that
+report's schema. Removing or changing an agent field, exit meaning, or stream
+meaning requires a new agent protocol version; it is never made silently within
+v1. See [`AGENT_PROTOCOL.md`](AGENT_PROTOCOL.md).
+
 ## Ecosystem support declaration
 
-Manifest version 25 owns `ecosystem_support_version` 1 and the release tier/cell
-matrix. Status schema v8 projects only ecosystems detected in the current
+Manifest version 26 retains `ecosystem_support_version` 1 and the release tier/cell
+matrix. Status schema v9 projects only ecosystems detected in the current
 repository, with file counts, generated counts, examples, cell states, promise,
 and limitations. The shared coverage vocabulary also includes
 `external_runtime_boundary`; `unsupported_language` and `unsupported_construct`

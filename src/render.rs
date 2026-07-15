@@ -1,5 +1,6 @@
 // Responsibility: readable-output-module-root
 
+mod agent_envelope;
 mod boundaries_graph_init;
 mod boundary_facts;
 mod cache_admin;
@@ -16,6 +17,7 @@ mod status;
 mod teach;
 mod where_locator;
 
+pub(crate) use agent_envelope::*;
 pub(crate) use boundaries_graph_init::*;
 pub(crate) use boundary_facts::*;
 pub(crate) use cache_admin::*;

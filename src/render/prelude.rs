@@ -175,6 +175,7 @@ pub fn print_json_with_prelude<T: Serialize>(
             serde_json::to_value(build_identity)?,
         );
     }
+    crate::render::decorate_agent_json(&mut value)?;
     println!("{}", serde_json::to_string_pretty(&value)?);
     Ok(())
 }

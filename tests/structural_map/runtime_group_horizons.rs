@@ -27,7 +27,7 @@ fn runtime_flagship_groups_share_one_basis_across_bounded_and_full_projections()
         &["runtime", "fixtures", "--limit", "3", "--format", "json"],
     );
     assert_schema("schemas/runtime.schema.json", &json);
-    assert_eq!(json["schema_version"], "6", "{json:#}");
+    assert_eq!(json["schema_version"], "7", "{json:#}");
 
     let observations = &json["observations"];
     let horizons = observations["horizons"]
