@@ -38,6 +38,50 @@ pub(crate) struct SymbolConeObservationInput<'a> {
     pub verification_expand: Option<String>,
 }
 
+pub(crate) struct SymbolLsObservationInput<'a> {
+    pub file_rel: &'a str,
+    pub symbol_name: &'a str,
+    pub consumers_observed: usize,
+    pub consumers_shown: usize,
+    pub consumers_expand: Option<String>,
+    pub verification_observed: usize,
+    pub verification_shown: usize,
+    pub verification_expand: Option<String>,
+}
+
+pub(crate) fn symbol_ls_observations(
+    project: &Project,
+    input: SymbolLsObservationInput<'_>,
+) -> ObservationLedger {
+    let scope = format!("{}#{}", input.file_rel, input.symbol_name);
+    let mut ledger = ObservationLedger::default();
+    consumer_observed_count(
+        project,
+        ConsumerObservationInput {
+            rel: input.file_rel,
+            symbol: Some(input.symbol_name),
+            raw: input.consumers_observed,
+            shown: input.consumers_shown,
+            group: "consumers",
+            expand: input.consumers_expand,
+            include_local: false,
+        },
+        &mut ledger,
+    );
+    verification_observation(
+        project,
+        ObservationProjection {
+            group: "verification",
+            scope: &scope,
+            observed: input.verification_observed,
+            shown: input.verification_shown,
+            expand: input.verification_expand,
+        },
+        &mut ledger,
+    );
+    ledger
+}
+
 pub(crate) fn symbol_cone_observations(
     project: &Project,
     input: SymbolConeObservationInput<'_>,
@@ -72,8 +116,20 @@ pub(crate) fn symbol_cone_observations(
 }
 
 pub(crate) fn missing_symbol_observations(project: &Project, scope: &str) -> ObservationLedger {
+    missing_symbol_group_observations(project, scope, &["incoming", "verification"])
+}
+
+pub(crate) fn missing_symbol_ls_observations(project: &Project, scope: &str) -> ObservationLedger {
+    missing_symbol_group_observations(project, scope, &["consumers", "verification"])
+}
+
+fn missing_symbol_group_observations(
+    project: &Project,
+    scope: &str,
+    groups: &[&str],
+) -> ObservationLedger {
     let mut ledger = ObservationLedger::default();
-    for group in ["incoming", "verification"] {
+    for group in groups {
         unavailable_observation(
             project,
             ObservationProjection {

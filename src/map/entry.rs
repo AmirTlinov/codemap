@@ -6,20 +6,22 @@ use crate::map::{
     cone_owner_outgoing_edges, cone_owner_proof_edges, cone_owner_unknowns,
     cone_proof_edges_with_direct_consumers, cone_symbol_report, cone_xray_card,
     directory_has_files, file_is_env_config, limit_edge_section, ls_directory_report,
-    ls_file_report, ls_symbol_report, owner_env_edges_from_facts, owner_env_facts,
-    owner_env_unknowns_from_facts, parent_anchor_for_missing, shell_quote, sort_edges,
-    split_symbol_anchor, unknown_unindexed_anchor,
+    ls_file_report, ls_missing_symbol_report, ls_symbol_report, owner_env_edges_from_facts,
+    owner_env_facts, owner_env_unknowns_from_facts, parent_anchor_for_missing, shell_quote,
+    sort_edges, split_symbol_anchor, unknown_unindexed_anchor,
 };
 use crate::model::{BoundaryFacts, ConeReport, LsReport, ObservationLedger, Project};
 use crate::repo;
 
 pub fn ls_report(project: &Project, path: &str, include_hidden: bool, limit: usize) -> LsReport {
     let rel = repo::normalize_rel_path(path);
-    if let Some((file_rel, symbol_name)) = split_symbol_anchor(&rel)
-        && let Some(info) = project.files.get(&file_rel)
-        && info.indexed_boundary != Some(crate::model::IndexedBoundary::UnavailableTrackedFile)
-    {
-        return ls_symbol_report(project, info, &symbol_name, include_hidden, limit.max(1));
+    if let Some((file_rel, symbol_name)) = split_symbol_anchor(&rel) {
+        if let Some(info) = project.files.get(&file_rel)
+            && info.indexed_boundary != Some(crate::model::IndexedBoundary::UnavailableTrackedFile)
+        {
+            return ls_symbol_report(project, info, &symbol_name, include_hidden, limit.max(1));
+        }
+        return ls_missing_symbol_report(project, &file_rel, &symbol_name);
     }
     if let Some(info) = project.files.get(&rel)
         && info.indexed_boundary != Some(crate::model::IndexedBoundary::UnavailableTrackedFile)

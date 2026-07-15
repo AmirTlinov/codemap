@@ -23,11 +23,14 @@ pub struct LsReport {
 }
 
 impl LsReport {
-    pub const SCHEMA_VERSION: &'static str = "8";
+    pub const SCHEMA_VERSION: &'static str = "9";
 
     /// Root inventory groups certified by the S03.d observation ledger.
     pub const ROOT_INVENTORY_GROUPS: [&'static str; 4] =
         ["directory_surfaces", "packages", "scripts", "test_surfaces"];
+
+    /// Exact-symbol `ls` groups certified by the S03.e observation ledger.
+    pub const SYMBOL_GROUPS: [&'static str; 2] = ["consumers", "verification"];
 
     /// Legacy detached hidden reasons whose truth now lives in the horizons.
     const LEGACY_ROOT_HIDDEN_REASONS: [&'static str; 2] = [
@@ -40,6 +43,9 @@ impl LsReport {
 
     pub fn validate_observations(&self) -> Result<(), ObservationLedgerError> {
         self.observations.validate()?;
+        if self.is_exact_symbol_scope() {
+            return self.validate_symbol_observations();
+        }
         if self.path != "." || self.mode != "directory" {
             if self.observations.horizons.is_empty() {
                 return Ok(());
@@ -76,6 +82,57 @@ impl LsReport {
             return Err(ObservationLedgerError::DuplicateVisibilityAccounting);
         }
         Ok(())
+    }
+
+    fn validate_symbol_observations(&self) -> Result<(), ObservationLedgerError> {
+        let mut shown_total = 0_u64;
+        for group in Self::SYMBOL_GROUPS {
+            let mut horizons = self
+                .observations
+                .horizons
+                .iter()
+                .filter(|horizon| horizon.group == group);
+            let horizon = horizons
+                .next()
+                .ok_or(ObservationLedgerError::MissingRequiredHorizon)?;
+            if horizons.next().is_some() {
+                return Err(ObservationLedgerError::DuplicateHorizon);
+            }
+            if horizon.scope != self.path {
+                return Err(ObservationLedgerError::ScopeMismatch);
+            }
+            let shown = self.shown_symbol_facts(group);
+            if horizon.shown != shown {
+                return Err(ObservationLedgerError::ShownFactCountMismatch);
+            }
+            shown_total += shown;
+        }
+        if self.observations.horizons.len() != Self::SYMBOL_GROUPS.len()
+            || shown_total != self.edges.len() as u64
+            || self
+                .hidden
+                .iter()
+                .any(|group| group.reason == "symbol edges hidden by limit")
+        {
+            return Err(ObservationLedgerError::DuplicateVisibilityAccounting);
+        }
+        Ok(())
+    }
+
+    fn is_exact_symbol_scope(&self) -> bool {
+        self.path
+            .rsplit_once('#')
+            .is_some_and(|(file, symbol)| !file.is_empty() && !symbol.is_empty())
+    }
+
+    fn shown_symbol_facts(&self, group: &str) -> u64 {
+        self.edges
+            .iter()
+            .filter(|edge| match group {
+                "consumers" => edge.edge_type == "symbol_reference",
+                _ => edge.edge_type == "tests",
+            })
+            .count() as u64
     }
 
     fn shown_root_facts(&self, group: &str) -> u64 {

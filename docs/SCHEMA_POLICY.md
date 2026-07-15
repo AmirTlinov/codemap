@@ -107,6 +107,23 @@ format 16 stores the four-group ledger and a body checksum; a corrupt warm
 artifact is rebuilt rather than served. File, symbol and nested-directory `ls`
 anchors stay outside this boundary.
 
+## Flagship draft migration: exact-symbol LS horizons
+
+Manifest version 8 advances `ls` from schema 8 to 9. An exact `file#symbol`
+anchor now carries exactly two certificate-backed horizons, `consumers` and
+`verification`. Readable output remains bounded, but its per-group
+`shown`/`hidden` values resolve the same certificates as the complete JSON
+edge projection. The former detached `symbol edges hidden by limit` group is
+removed because the horizons own that accounting. Missing symbols and symbols
+under unavailable files keep both groups explicit as
+`unavailable(anchor_not_indexed)` rather than returning an empty ledger.
+
+This migration reuses the existing static-consumer and structural-verification
+candidate universes; it adds no extractor and does not upgrade open coverage to
+closed. Lens artifact format 17 prevents pre-migration exact-symbol LS bodies
+without the required ledgers from being served. Ordinary file and nested
+directory `ls` anchors remain outside this propagation boundary.
+
 Semantic anchor config uses:
 
 ```yaml
