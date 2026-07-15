@@ -31,9 +31,9 @@ fn unique_where_prints_consumers_once_and_uses_remaining_incoming_in_xray() {
         "short symbol paths must retain the established readable shape: {markdown}"
     );
     assert!(
-        markdown.contains("incoming: counted-at-least(7,")
-            && markdown.contains("shown=4 hidden=3"),
-        "incoming horizon must count consumer facts plus disjoint x-ray facts: {markdown}"
+        markdown.contains("incoming: counted-at-least(3,")
+            && markdown.contains("shown=2 hidden=1"),
+        "incoming horizon must count only facts not already owned by Consumers: {markdown}"
     );
     assert!(
         markdown.contains("Consumers:")

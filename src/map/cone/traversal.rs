@@ -60,9 +60,12 @@ pub(crate) fn cone_symbol_report(
     } else {
         limit.min(3)
     };
-    incoming.truncate(incoming_limit);
-    proof.truncate(proof_limit);
     let expand_all = format!("codemap cone {} --all", shell_quote(&anchor_path));
+    incoming =
+        crate::map::BoundedProjection::ordered("incoming", incoming, incoming_limit, &expand_all)
+            .into_shown();
+    proof = crate::map::BoundedProjection::ordered("verification", proof, proof_limit, &expand_all)
+        .into_shown();
     let observations = symbol_cone_observations(
         project,
         SymbolConeObservationInput {
@@ -87,9 +90,6 @@ pub(crate) fn cone_symbol_report(
         anchor: &anchor,
         seed_files: &seed_files,
         declared_env: &declared_env,
-        outgoing: &outgoing,
-        incoming: &incoming,
-        proof: &proof,
         unknowns: &unknowns,
         limit,
         include_hidden,

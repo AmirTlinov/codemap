@@ -1,45 +1,28 @@
 // Responsibility: render-cone-xray
 use crate::model::{ConeReport, StructuralEdge};
-use crate::render::{
-    AnchorPathDisplay, code, edge_location_summary_with_paths, public_evidence_label,
-};
+use crate::render::{AnchorPathDisplay, code, public_evidence_label};
 
 pub(crate) fn render_cone_xray(report: &ConeReport) {
     let paths = AnchorPathDisplay::new(&report.anchor.path);
     let xray = &report.xray;
     if xray.roles.is_empty()
-        && xray.inputs.is_empty()
         && xray.outputs.is_empty()
         && xray.state.is_empty()
         && xray.side_effects.is_empty()
-        && xray.direct_consumers.is_empty()
-        && xray.mediated_consumers.is_empty()
         && xray.flow.is_empty()
         && xray.nearby.is_empty()
-        && xray.proof_hard.is_empty()
-        && xray.proof_direct.is_empty()
-        && xray.proof_mediated.is_empty()
-        && xray.proof_soft.is_empty()
         && xray.unknowns.is_empty()
     {
         return;
     }
     println!("\n## X-Ray Card\n");
     render_xray_surfaces("Role", &xray.roles, &paths);
-    render_xray_edges("Inputs", &xray.inputs, &paths);
     render_xray_output_surfaces(&xray.outputs, &paths);
     render_xray_surfaces("State", &xray.state, &paths);
     render_xray_surfaces("Side Effects", &xray.side_effects, &paths);
-    render_observed_xray_edges("Direct Consumers", &xray.direct_consumers, &paths);
-    render_observed_xray_edges("Mediated Consumers", &xray.mediated_consumers, &paths);
     render_xray_flow(&xray.flow, &paths);
     render_xray_surfaces("Existing Nearby Surfaces", &xray.nearby, &paths);
-    render_xray_proof(xray, &paths);
     render_xray_unknowns(&xray.unknowns, &paths);
-}
-
-pub(crate) fn render_cone_xray_proof(report: &ConeReport) {
-    render_xray_proof(&report.xray, &AnchorPathDisplay::new(&report.anchor.path));
 }
 
 fn render_xray_surfaces(
@@ -103,46 +86,6 @@ fn render_xray_surface(surface: &crate::model::Surface, paths: &AnchorPathDispla
     }
 }
 
-fn render_xray_edges(title: &str, edges: &[StructuralEdge], paths: &AnchorPathDisplay<'_>) {
-    if edges.is_empty() {
-        return;
-    }
-    println!("{title}:");
-    for edge in edges {
-        println!(
-            "- [{}] `{}` --{}--> `{}` [{}] {}",
-            xray_edge_label(edge),
-            paths.path(&edge.from),
-            edge.edge_type,
-            paths.path(&edge.to),
-            public_evidence_label(&edge.evidence),
-            edge_location_summary_with_paths(edge, paths)
-        );
-    }
-}
-
-fn render_observed_xray_edges(
-    title: &str,
-    edges: &[StructuralEdge],
-    paths: &AnchorPathDisplay<'_>,
-) {
-    if edges.is_empty() {
-        return;
-    }
-    println!("{title}:");
-    for edge in edges {
-        println!(
-            "- [{}] `{}` --{}--> `{}` [{}] {}",
-            xray_edge_label(edge),
-            paths.path(&edge.from),
-            edge.edge_type,
-            paths.path(&edge.to),
-            public_evidence_label(&edge.evidence),
-            edge_location_summary_with_paths(edge, paths)
-        );
-    }
-}
-
 fn render_xray_flow(steps: &[crate::model::FlowStep], paths: &AnchorPathDisplay<'_>) {
     if steps.is_empty() {
         return;
@@ -166,39 +109,6 @@ fn render_xray_flow(steps: &[crate::model::FlowStep], paths: &AnchorPathDisplay<
             step.kind,
             public_evidence_label(&step.evidence),
             where_hint
-        );
-    }
-}
-
-fn render_xray_proof(xray: &crate::model::XrayCard, paths: &AnchorPathDisplay<'_>) {
-    if xray.proof_hard.is_empty()
-        && xray.proof_direct.is_empty()
-        && xray.proof_mediated.is_empty()
-        && xray.proof_soft.is_empty()
-    {
-        return;
-    }
-    println!("Verification Sensors:");
-    render_xray_proof_bucket("Runnable", &xray.proof_hard, paths);
-    render_xray_proof_bucket("Direct", &xray.proof_direct, paths);
-    render_xray_proof_bucket("Mediated", &xray.proof_mediated, paths);
-    render_xray_proof_bucket("Soft", &xray.proof_soft, paths);
-    if !xray.proof_soft.is_empty() {
-        println!(
-            "- [Unknown] soft surface matches are name/path/token overlap; they are not runnable command surfaces"
-        );
-    }
-}
-
-fn render_xray_proof_bucket(label: &str, edges: &[StructuralEdge], paths: &AnchorPathDisplay<'_>) {
-    for edge in edges {
-        println!(
-            "- [{label}] `{}` --{}--> `{}` [{}] {}",
-            paths.path(&edge.from),
-            edge.edge_type,
-            paths.path(&edge.to),
-            public_evidence_label(&edge.evidence),
-            edge_location_summary_with_paths(edge, paths)
         );
     }
 }

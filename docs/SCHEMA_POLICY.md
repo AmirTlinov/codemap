@@ -287,6 +287,21 @@ surfaces cannot become a false closed zero. Lens artifact format 26 rejects
 cached exact-file cones without the complete 20-group ledger. Symbol cones and
 directory cones stay outside this migration boundary.
 
+## Flagship draft migration: canonical cone fact ownership
+
+Manifest version 22 advances `cone` from schema 16 to 17. The X-Ray card now
+owns only contextual surfaces: roles, outputs, state, side effects, structural
+flow, nearby surfaces, and typed unknowns. Canonical relationship edges remain
+in Links, while verification edges remain in Proof; the removed X-Ray input,
+consumer, and proof fields therefore can no longer repeat one edge identity in
+multiple public roles.
+
+Exact-file cones now carry 13 horizons: five relationship groups, the symbol
+catalog, and the seven contextual X-Ray groups. Their bounded projections use
+the shared group-aware projection engine and keep exact shown/hidden counts and
+concrete expansions. Lens artifact format 33 rejects cached cones written with
+the superseded duplicated X-Ray shape.
+
 Semantic anchor config uses:
 
 ```yaml

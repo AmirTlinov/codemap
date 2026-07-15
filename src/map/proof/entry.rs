@@ -18,7 +18,7 @@ use crate::map::{
     unique_proof_surfaces, unknown, unknown_ci_validation_step_not_found,
     unknown_missing_deterministic_proof, verification_topology,
 };
-use crate::model::{EvidenceStrength, HiddenGroup, Project, ProofReport, Risk};
+use crate::model::{EvidenceStrength, Project, ProofReport, Risk};
 use crate::repo;
 use std::collections::BTreeMap;
 
@@ -132,14 +132,13 @@ pub fn proof_report(
     }
     let all_proofs = unique_proof_surfaces(proofs);
     let fallback = proof_fallback_commands(project, &anchors, &changed, &all_proofs);
-    let wiring_discovery_limit = limit.saturating_mul(2).max(6);
-    let (mut wiring, wiring_clipped) = proof_wiring_facts_limited(
+    let (mut wiring, _) = proof_wiring_facts_limited(
         project,
         &anchors,
         &changed,
         &all_proofs,
         &fallback,
-        wiring_discovery_limit,
+        usize::MAX,
     );
     let mut unknowns = Vec::new();
     if target.is_none() && !changed.is_empty() {
@@ -217,15 +216,16 @@ pub fn proof_report(
     proofs = all_proofs;
     let proof_count = proofs.len();
     if proof_count > limit {
-        hidden.push(HiddenGroup {
-            reason: "verification surfaces hidden by limit".to_string(),
-            count: proof_count - limit,
-            expand: format!(
-                "codemap proof {} --depth {depth} --limit {}",
-                selector, proof_count
-            ),
-        });
-        proofs = balanced_proof_surface_prefix(&proofs, limit);
+        let selected = balanced_proof_surface_prefix(&proofs, limit);
+        let projection = crate::map::BoundedProjection::selected(
+            "verification surfaces hidden by limit",
+            proof_count,
+            selected,
+            &format!("codemap proof {} --depth {depth}", selector),
+        );
+        let (shown, hidden_group) = projection.into_parts();
+        proofs = shown;
+        hidden.extend(hidden_group);
     }
     truncate_with_hidden(
         &mut wiring,
@@ -234,17 +234,6 @@ pub fn proof_report(
         "verification wiring facts hidden by limit",
         &format!("codemap proof {} --section links", selector),
     );
-    if wiring_clipped {
-        hidden.push(HiddenGroup {
-            reason: "verification wiring facts hidden by discovery limit".to_string(),
-            count: 1,
-            expand: format!(
-                "codemap proof {} --section links --limit {}",
-                selector,
-                wiring_discovery_limit.saturating_mul(2)
-            ),
-        });
-    }
     let mut expand = Vec::new();
     if proofs.is_empty()
         && let Some(target) = target.as_ref()

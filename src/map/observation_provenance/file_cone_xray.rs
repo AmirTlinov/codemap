@@ -107,12 +107,7 @@ fn inherit_all_known_gaps(ledger: &ObservationLedger, target: &mut CoverageCerti
 
 fn basis_group(group: &str) -> &'static str {
     match group {
-        "xray_direct_consumers" | "xray_mediated_consumers" => "incoming",
-        "xray_proof_hard"
-        | "xray_proof_direct"
-        | "xray_proof_mediated"
-        | "xray_proof_soft"
-        | "xray_unknowns" => "verification",
+        "xray_unknowns" => "verification",
         "xray_nearby" => "boundary",
         _ => "outgoing",
     }

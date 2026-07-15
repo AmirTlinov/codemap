@@ -1,10 +1,9 @@
 // Responsibility: cone-report-rendering
 use crate::model::{ConeReport, StructuralEdge};
 use crate::render::{
-    AnchorPathDisplay, code, cone_section, grouped_edge_list_with_paths, hidden_section,
-    map_prelude_line_or_snapshot_line, render_anchor_summary, render_cone_xray,
-    render_cone_xray_proof, render_roles, render_visibility_section_for_groups, section,
-    unknown_section,
+    AnchorPathDisplay, code, grouped_edge_list_with_paths, hidden_section,
+    map_prelude_line_or_snapshot_line, render_anchor_summary, render_cone_xray, render_roles,
+    render_visibility_section_for_groups, section, unknown_section,
 };
 
 pub fn cone(report: &ConeReport, section_filter: Option<&str>) {
@@ -22,7 +21,7 @@ pub fn cone(report: &ConeReport, section_filter: Option<&str>) {
     let visibility_groups: &[&str] = match (report.anchor.kind.as_str(), section_filter) {
         ("directory", None | Some("observed")) => &ConeReport::RELATIONSHIP_GROUPS,
         ("directory", Some("links")) => &["outgoing", "incoming", "contracts", "boundary"],
-        (_, None | Some("observed")) if is_exact_file => &ConeReport::EXACT_FILE_GROUPS,
+        (_, None | Some("observed")) if is_exact_file => &ConeReport::EXACT_FILE_DISPLAY_GROUPS,
         (_, Some("links")) if is_exact_file => &["outgoing", "incoming", "contracts", "boundary"],
         (_, None | Some("observed")) => &["incoming", "verification"],
         (_, Some("links")) => &["incoming"],
@@ -40,19 +39,10 @@ pub fn cone(report: &ConeReport, section_filter: Option<&str>) {
         render_roles(&report.anchor);
     }
     if matches!(section_filter, None | Some("links")) {
-        let compact_default_symbol_links = paths.compact() && is_symbol && section_filter.is_none();
-        if !compact_default_symbol_links {
-            render_cone_links(report, section_filter == Some("links"));
-        }
+        render_cone_links(report, true);
     }
     if matches!(section_filter, None | Some("proof")) {
-        if is_symbol {
-            if section_filter == Some("proof") {
-                render_cone_xray_proof(report);
-            }
-        } else {
-            render_cone_proof(&report.proof);
-        }
+        render_cone_proof(&report.proof, &paths);
     }
     if matches!(section_filter, None | Some("hidden")) {
         hidden_section(&report.hidden);
@@ -111,15 +101,20 @@ pub(crate) fn cone_links_empty(report: &ConeReport) -> bool {
         && report.boundary.is_empty()
 }
 
-pub(crate) fn render_cone_proof(edges: &[StructuralEdge]) {
+pub(crate) fn render_cone_proof(edges: &[StructuralEdge], paths: &AnchorPathDisplay<'_>) {
     if edges.is_empty() {
         return;
     }
     let mut proof = Vec::new();
     let mut evidence = Vec::new();
+    let mut mediated = Vec::new();
     let mut setup = Vec::new();
     let mut soft = Vec::new();
     for edge in edges {
+        if cone_edge_is_mediated_proof(edge) {
+            mediated.push(edge.clone());
+            continue;
+        }
         match edge.edge_type.as_str() {
             "evidence_surface" => evidence.push(edge.clone()),
             "setup_support_surface" => setup.push(edge.clone()),
@@ -128,10 +123,11 @@ pub(crate) fn render_cone_proof(edges: &[StructuralEdge]) {
             _ => proof.push(edge.clone()),
         }
     }
-    cone_section("Verification Surfaces", &proof);
-    cone_section("Linked Surfaces", &evidence);
-    cone_section("Setup / Support Surfaces", &setup);
-    cone_section("Soft Surface Matches", &soft);
+    cone_proof_section("Verification Surfaces", &proof, paths);
+    cone_proof_section("Linked Surfaces", &evidence, paths);
+    cone_proof_section("Mediated Linked Surfaces", &mediated, paths);
+    cone_proof_section("Setup / Support Surfaces", &setup, paths);
+    cone_proof_section("Soft Surface Matches", &soft, paths);
     if !setup.is_empty() {
         println!(
             "\nSetup/support surfaces are connected rails such as install, codegen, migration, seed, deploy, release, watch, or dev-server steps. They are not treated as verification command surfaces."
@@ -144,33 +140,43 @@ pub(crate) fn render_cone_proof(edges: &[StructuralEdge]) {
     }
 }
 
-fn cone_edge_is_soft_proof(edge: &StructuralEdge) -> bool {
-    let mediated = edge.evidence.ends_with("_via_direct_consumer")
+fn cone_proof_section(title: &str, edges: &[StructuralEdge], paths: &AnchorPathDisplay<'_>) {
+    if edges.is_empty() {
+        return;
+    }
+    println!("\n## {title}\n");
+    grouped_edge_list_with_paths(&title.to_ascii_lowercase(), edges, 10, paths);
+}
+
+fn cone_edge_is_mediated_proof(edge: &StructuralEdge) -> bool {
+    edge.evidence.ends_with("_via_direct_consumer")
         || edge.evidence.ends_with("_via_direct_dependency")
-        || edge.evidence.ends_with("_via_local_symbol_consumer");
+        || edge.evidence.ends_with("_via_local_symbol_consumer")
+        || crate::proof_classification::proof_base_evidence(&edge.evidence) == "test_support_import"
+}
+
+fn cone_edge_is_soft_proof(edge: &StructuralEdge) -> bool {
     let base = crate::proof_classification::proof_base_evidence(&edge.evidence);
-    mediated
-        || matches!(
+    matches!(
+        base,
+        "test_name"
+            | "e2e_surface_phrase"
+            | "e2e_path_surface"
+            | "test_surface_phrase"
+            | "test_surface_tokens"
+            | "test_role_surface_match"
+            | "script_path_token"
+            | "script_surface_match"
+    ) || (edge.strength < crate::model::EvidenceStrength::High
+        && !matches!(
             base,
-            "test_name"
-                | "e2e_surface_phrase"
-                | "e2e_path_surface"
-                | "test_surface_phrase"
-                | "test_surface_tokens"
-                | "test_role_surface_match"
-                | "script_path_token"
-                | "script_surface_match"
-        )
-        || (edge.strength < crate::model::EvidenceStrength::High
-            && !matches!(
-                base,
-                "test_import"
-                    | "test_imported_symbol_reference"
-                    | "test_reexported_symbol_reference"
-                    | "test_support_import"
-                    | "test_symbol_reference"
-                    | "e2e_route"
-            ))
+            "test_import"
+                | "test_imported_symbol_reference"
+                | "test_reexported_symbol_reference"
+                | "test_support_import"
+                | "test_symbol_reference"
+                | "e2e_route"
+        ))
 }
 
 pub(crate) fn edge_location_summary_with_paths(

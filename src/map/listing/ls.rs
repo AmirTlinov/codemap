@@ -9,9 +9,9 @@ pub(crate) use surface_meta::*;
 
 use crate::map::{
     ObservationProjection, RootAtlasProjection, balanced_edge_prefix_by_source,
-    boundary_facts_for_ls, direct_files_under_directory, directory_edges,
-    directory_relation_observation, directory_role_surface, directory_surface_observations,
-    file_kind_for_ls, files_under_directory, immediate_child_dirs,
+    boundary_facts_for_ls, bounded_directory_surfaces, direct_files_under_directory,
+    directory_edges, directory_relation_observation, directory_role_surface,
+    directory_surface_observations, file_kind_for_ls, files_under_directory, immediate_child_dirs,
     inventory_recursive_structural_kind, is_generic_noise, is_support_artifact_path,
     path_under_scope, root_atlas_projection, shell_quote, surface_priority,
 };
@@ -61,7 +61,7 @@ pub(crate) fn ls_directory_report(
         include_hidden || complete_directory_projection,
     );
     if !complete_directory_projection {
-        surfaces.truncate(limit);
+        surfaces = bounded_directory_surfaces(surfaces, limit, rel);
     }
 
     let mut hidden = Vec::new();

@@ -1,29 +1,20 @@
 // Responsibility: map-cone-xray
 mod anchor_surfaces;
 mod context_surfaces;
-mod edge_classes;
 
 pub(crate) use anchor_surfaces::*;
 pub(crate) use context_surfaces::*;
-pub(crate) use edge_classes::*;
 
-use crate::model::{EnvDeclaration, FileSummary, Project, StructuralEdge, Unknown, XrayCard};
+use crate::model::{EnvDeclaration, FileSummary, Project, Unknown, XrayCard};
 
 pub(crate) fn empty_xray_card(anchor: &FileSummary, unknowns: &[Unknown]) -> XrayCard {
     XrayCard {
         roles: xray_role_surfaces(anchor).into_iter().take(8).collect(),
-        inputs: Vec::new(),
         outputs: xray_output_surfaces(anchor).into_iter().take(8).collect(),
         state: Vec::new(),
         side_effects: Vec::new(),
-        direct_consumers: Vec::new(),
-        mediated_consumers: Vec::new(),
         flow: Vec::new(),
         nearby: Vec::new(),
-        proof_hard: Vec::new(),
-        proof_direct: Vec::new(),
-        proof_mediated: Vec::new(),
-        proof_soft: Vec::new(),
         unknowns: unknowns.iter().take(8).cloned().collect(),
     }
 }
@@ -33,9 +24,6 @@ pub(crate) struct ConeXrayInput<'a> {
     pub(crate) anchor: &'a FileSummary,
     pub(crate) seed_files: &'a [String],
     pub(crate) declared_env: &'a [EnvDeclaration],
-    pub(crate) outgoing: &'a [StructuralEdge],
-    pub(crate) incoming: &'a [StructuralEdge],
-    pub(crate) proof: &'a [StructuralEdge],
     pub(crate) unknowns: &'a [Unknown],
     pub(crate) limit: usize,
     pub(crate) include_hidden: bool,
@@ -48,70 +36,61 @@ pub(crate) fn cone_xray_card(input: ConeXrayInput<'_>) -> XrayCard {
         let limit = input.limit.clamp(3, 12);
         (limit, limit.min(5))
     };
-    let mut hard = Vec::new();
-    let mut direct = Vec::new();
-    let mut mediated = Vec::new();
-    let mut soft = Vec::new();
-    for edge in input.proof {
-        match xray_proof_bucket(edge) {
-            XrayEvidenceBucket::Hard => hard.push(edge.clone()),
-            XrayEvidenceBucket::Direct => direct.push(edge.clone()),
-            XrayEvidenceBucket::Mediated => mediated.push(edge.clone()),
-            XrayEvidenceBucket::Soft => soft.push(edge.clone()),
-        }
-    }
-
+    let expand = format!(
+        "codemap cone {} --all",
+        crate::map::shell_quote(&input.anchor.path)
+    );
     XrayCard {
-        roles: xray_role_surfaces(input.anchor)
-            .into_iter()
-            .take(compact_limit)
-            .collect(),
-        inputs: input
-            .outgoing
-            .iter()
-            .filter(|edge| xray_input_edge(edge))
-            .take(compact_limit)
-            .cloned()
-            .collect(),
-        outputs: xray_output_surfaces(input.anchor)
-            .into_iter()
-            .take(limit)
-            .collect(),
-        state: xray_state_surfaces(
-            input.project,
-            input.anchor,
-            input.seed_files,
-            input.declared_env,
-        )
-        .into_iter()
-        .take(compact_limit)
-        .collect(),
-        side_effects: xray_side_effects(
-            input.project,
-            input.seed_files,
+        roles: bounded_xray_group(
+            "xray_roles",
+            xray_role_surfaces(input.anchor),
             compact_limit,
-            input.include_hidden,
+            &expand,
         ),
-        direct_consumers: input
-            .incoming
-            .iter()
-            .filter(|edge| !xray_edge_is_mediated(edge))
-            .take(limit)
-            .cloned()
-            .collect(),
-        mediated_consumers: input
-            .incoming
-            .iter()
-            .filter(|edge| xray_edge_is_mediated(edge))
-            .take(limit)
-            .cloned()
-            .collect(),
-        flow: xray_flow_steps(input.project, input.seed_files, compact_limit),
-        nearby: xray_nearby_surfaces(input.project, input.seed_files, compact_limit),
-        proof_hard: hard.into_iter().take(limit).collect(),
-        proof_direct: direct.into_iter().take(limit).collect(),
-        proof_mediated: mediated.into_iter().take(limit).collect(),
-        proof_soft: soft.into_iter().take(limit).collect(),
-        unknowns: input.unknowns.iter().take(compact_limit).cloned().collect(),
+        outputs: bounded_xray_group(
+            "xray_outputs",
+            xray_output_surfaces(input.anchor),
+            limit,
+            &expand,
+        ),
+        state: bounded_xray_group(
+            "xray_state",
+            xray_state_surfaces(
+                input.project,
+                input.anchor,
+                input.seed_files,
+                input.declared_env,
+            ),
+            compact_limit,
+            &expand,
+        ),
+        side_effects: bounded_xray_group(
+            "xray_side_effects",
+            xray_side_effects(input.project, input.seed_files, input.include_hidden),
+            compact_limit,
+            &expand,
+        ),
+        flow: bounded_xray_group(
+            "xray_flow",
+            xray_flow_steps(input.project, input.seed_files),
+            compact_limit,
+            &expand,
+        ),
+        nearby: bounded_xray_group(
+            "xray_nearby",
+            xray_nearby_surfaces(input.project, input.seed_files),
+            compact_limit,
+            &expand,
+        ),
+        unknowns: bounded_xray_group(
+            "xray_unknowns",
+            input.unknowns.to_vec(),
+            compact_limit,
+            &expand,
+        ),
     }
+}
+
+fn bounded_xray_group<T>(group: &str, values: Vec<T>, limit: usize, expand: &str) -> Vec<T> {
+    crate::map::BoundedProjection::ordered(group, values, limit, expand).into_shown()
 }

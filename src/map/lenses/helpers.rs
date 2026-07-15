@@ -65,15 +65,11 @@ pub(crate) fn truncate_with_hidden<T>(
     reason: &str,
     expand: &str,
 ) {
-    if values.len() <= limit {
-        return;
-    }
-    hidden.push(HiddenGroup {
-        reason: reason.to_string(),
-        count: values.len() - limit,
-        expand: expand_with_concrete_limit(expand, values.len()),
-    });
-    values.truncate(limit);
+    let projection =
+        crate::map::BoundedProjection::ordered(reason, std::mem::take(values), limit, expand);
+    let (shown, hidden_group) = projection.into_parts();
+    *values = shown;
+    hidden.extend(hidden_group);
 }
 
 pub(crate) fn expand_with_concrete_limit(expand: &str, next_limit: usize) -> String {

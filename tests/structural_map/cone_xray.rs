@@ -88,13 +88,27 @@ export function runFeature(path: string, value: string) {
         "x-ray should show implemented nearby surfaces without ranking them: {cone:#}"
     );
     assert!(
-        xray["proof_direct"]
+        cone["proof"]
             .as_array()
-            .expect("proof_direct")
+            .expect("canonical proof")
             .iter()
             .any(|edge| edge["evidence"] == "test_import"),
-        "direct test imports should land in the direct proof bucket: {cone:#}"
+        "direct test imports should live only in the canonical proof group: {cone:#}"
     );
+    for duplicate in [
+        "inputs",
+        "direct_consumers",
+        "mediated_consumers",
+        "proof_hard",
+        "proof_direct",
+        "proof_mediated",
+        "proof_soft",
+    ] {
+        assert!(
+            xray.get(duplicate).is_none(),
+            "X-Ray must not duplicate canonical Links or Proof identity `{duplicate}`: {cone:#}"
+        );
+    }
 
     let markdown = codemap()
         .current_dir(repo.path())
@@ -108,18 +122,25 @@ export function runFeature(path: string, value: string) {
         String::from_utf8_lossy(&markdown.stderr)
     );
     let text = String::from_utf8(markdown.stdout).expect("markdown utf8");
+    let xray_section = text
+        .split("## X-Ray Card")
+        .nth(1)
+        .and_then(|section| section.split("## Observed").next())
+        .expect("X-Ray section");
     assert!(
         text.contains("## X-Ray Card")
             && text.contains("branch=`")
             && text.contains("dirty=`")
             && text.contains("repo_footprint=`zero`")
             && text.contains("Existing Nearby Surfaces")
-            && text.contains("Verification Sensors:")
+            && text.contains("## Verification Surfaces")
             && text.contains("[Direct]")
             && text.contains("[Soft]")
+            && !xray_section.contains("tests/run.test.ts")
+            && !text.contains("Verification Sensors:")
             && !text.contains("Recommended")
             && !text.contains("best file")
             && !text.contains("should edit"),
-        "x-ray markdown should stay a source-backed map, not advice: {text}"
+        "X-Ray context and canonical proof must not repeat verification facts: {text}"
     );
 }

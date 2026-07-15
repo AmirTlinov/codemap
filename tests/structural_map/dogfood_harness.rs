@@ -184,3 +184,93 @@ fn dogfood_strict_mode_fails_closed_on_summary_violations() {
         "strict dogfood should name the summary violation: {stderr}"
     );
 }
+
+#[test]
+fn every_printed_bounded_expand_executes_and_reveals_the_promised_group() {
+    let repo = TempDir::new().expect("bounded expand fixture");
+    let cache = TempDir::new().expect("bounded expand cache");
+    git(repo.path(), &["init", "-q"]);
+    let mut owner = String::new();
+    for index in 0..8 {
+        owner.push_str(&format!("import {{ dep{index} }} from './dep-{index}';\n"));
+        write(
+            &repo.path().join(format!("src/dep-{index}.ts")),
+            &format!("export const dep{index} = {index};\n"),
+        );
+        write(
+            &repo.path().join(format!("tests/owner-{index}.test.ts")),
+            "import { owner } from '../src/owner';\ntest('owner', () => expect(owner).toBeDefined());\n",
+        );
+    }
+    owner.push_str("export const owner = dep0;\n");
+    write(&repo.path().join("src/owner.ts"), &owner);
+
+    let bounded = run_markdown(
+        repo.path(),
+        cache.path(),
+        &["cone", "src/owner.ts", "--depth", "1", "--limit", "1"],
+    );
+    assert!(!bounded.contains("tests/owner-7.test.ts"), "{bounded}");
+    let expands = printed_expands(&bounded);
+    assert!(!expands.is_empty(), "bounded cone did not print expands: {bounded}");
+    for expand in expands {
+        let output = execute_printed_expand(repo.path(), cache.path(), &expand);
+        assert!(
+            output.contains("tests/owner-7.test.ts") && output.contains("src/dep-7.ts"),
+            "expand did not reveal the hidden verification and outgoing groups: command={expand}\n{output}"
+        );
+    }
+
+    let self_cache = TempDir::new().expect("self dogfood expand cache");
+    let self_repo = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let self_map = run_markdown(
+        self_repo,
+        self_cache.path(),
+        &[
+            "cone",
+            "src/model/lens_reports.rs",
+            "--depth",
+            "1",
+            "--limit",
+            "1",
+        ],
+    );
+    let self_expands = printed_expands(&self_map);
+    assert!(!self_expands.is_empty(), "live pilot did not print expands: {self_map}");
+    for expand in self_expands {
+        let output = execute_printed_expand(self_repo, self_cache.path(), &expand);
+        assert!(!output.trim().is_empty(), "live expand was empty: {expand}");
+    }
+}
+
+fn printed_expands(markdown: &str) -> Vec<String> {
+    let mut expands = markdown
+        .lines()
+        .filter_map(|line| line.split_once("expand: `").map(|(_, tail)| tail))
+        .filter_map(|tail| tail.split_once('`').map(|(command, _)| command.to_string()))
+        .filter(|command| command.starts_with("codemap "))
+        .collect::<Vec<_>>();
+    expands.sort();
+    expands.dedup();
+    expands
+}
+
+fn execute_printed_expand(repo: &Path, cache: &Path, command: &str) -> String {
+    let command = format!(
+        "{}{}",
+        env!("CARGO_BIN_EXE_codemap"),
+        &command["codemap".len()..]
+    );
+    let output = Command::new("bash")
+        .args(["-c", &command])
+        .current_dir(repo)
+        .env("CODEMAP_CACHE_DIR", cache)
+        .output()
+        .expect("printed expand should execute");
+    assert!(
+        output.status.success(),
+        "printed expand failed: {command}\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout).expect("printed expand utf8")
+}

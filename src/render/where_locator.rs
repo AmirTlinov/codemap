@@ -1,11 +1,10 @@
 // Responsibility: render-where-locator
 use crate::model::{ConeReport, WhereDefinition, WhereReport};
 use crate::render::{
-    AnchorPathDisplay, cone_links_empty, disclaimer, edge_location_summary_with_paths,
-    grouped_edge_list_with_paths, hidden_section, public_evidence_label, readable_certificate_id,
-    render_cone_links, render_cone_xray, render_definition_visibility,
-    render_definition_visibility_compact, render_visibility_section, root_aware_expand, section,
-    unknown_section, xray_edge_label,
+    AnchorPathDisplay, disclaimer, edge_location_summary_with_paths, hidden_section,
+    public_evidence_label, readable_certificate_id, render_cone_links, render_cone_xray,
+    render_definition_visibility, render_definition_visibility_compact, render_visibility_section,
+    root_aware_expand, section, unknown_section, xray_edge_label,
 };
 
 pub fn where_locator(report: &WhereReport) {
@@ -109,21 +108,7 @@ fn has_exact_compact_expand(definition: &WhereDefinition, detail: &ConeReport) -
 }
 
 fn render_where_links(report: &ConeReport) {
-    let paths = AnchorPathDisplay::new(&report.anchor.path);
-    if paths.compact() {
-        return;
-    }
-    if cone_links_empty(report) {
-        render_cone_links(report, false);
-        return;
-    }
-    if report.outgoing.is_empty() && report.contracts.is_empty() && report.boundary.is_empty() {
-        return;
-    }
-    println!("\n## Links\n");
-    grouped_edge_list_with_paths("outgoing", &report.outgoing, 8, &paths);
-    grouped_edge_list_with_paths("contracts", &report.contracts, 8, &paths);
-    grouped_edge_list_with_paths("boundary", &report.boundary, 8, &paths);
+    render_cone_links(report, true);
 }
 
 fn render_where_multi(report: &WhereReport) {

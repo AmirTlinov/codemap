@@ -94,10 +94,10 @@ fn cone_shows_proof_edges_through_direct_consumers() {
     );
     let cone_markdown = String::from_utf8(cone_markdown.stdout).expect("markdown utf8");
     assert!(
-        cone_markdown.contains("## Soft Surface Matches")
+        cone_markdown.contains("## Mediated Linked Surfaces")
             && cone_markdown.contains("test_import_via_direct_consumer")
             && !cone_markdown.contains("## Verification Surfaces\n\nproof:"),
-        "cone markdown must not render mediated verification links under generic runnable surfaces: {cone_markdown}"
+        "cone markdown must give mediated verification links one canonical non-runnable role: {cone_markdown}"
     );
 
     let session_cone = run_json(

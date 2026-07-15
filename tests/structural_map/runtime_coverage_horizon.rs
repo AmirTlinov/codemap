@@ -160,6 +160,55 @@ fn supported_typescript_file_without_routes_is_certificate_backed_proven_zero() 
     assert_horizon_certificate_resolves(ledger, proof);
 }
 
+#[test]
+fn runtime_mass_keeps_each_fact_group_visible_and_path_order_invariant() {
+    let first = runtime_diversified_coverage_fixture(false);
+    let reordered = runtime_diversified_coverage_fixture(true);
+    let first_cache = TempDir::new().expect("runtime mass cache");
+    let reordered_cache = TempDir::new().expect("reordered runtime mass cache");
+    let readable = run_markdown(
+        first.path(),
+        first_cache.path(),
+        &["runtime", "src", "--limit", "3"],
+    );
+    for (group, observed) in [("routes", 227), ("env", 120), ("workers", 120)] {
+        let line = readable
+            .lines()
+            .find(|line| line.starts_with(&format!("- {group}:")))
+            .unwrap_or_else(|| panic!("missing {group} representation: {readable}"));
+        assert!(
+            line.contains(&format!("shown=3 hidden={}", observed - 3)),
+            "{group} lost exact bounded remainder: {readable}"
+        );
+        assert!(
+            readable.contains(&format!("codemap runtime src --all --limit {observed}")),
+            "{group} lost its concrete expansion: {readable}"
+        );
+    }
+
+    let first_json = run_json(
+        first.path(),
+        first_cache.path(),
+        &["runtime", "src", "--limit", "3", "--format", "json"],
+    );
+    let reordered_json = run_json(
+        reordered.path(),
+        reordered_cache.path(),
+        &["runtime", "src", "--limit", "3", "--format", "json"],
+    );
+    for group in ["routes", "env", "workers"] {
+        assert_eq!(
+            first_json[group], reordered_json[group],
+            "path insertion order changed the `{group}` fact group"
+        );
+        assert_eq!(
+            horizon(&first_json["observations"], group)["count"]["observed"],
+            horizon(&reordered_json["observations"], group)["count"]["observed"],
+            "path insertion order changed the `{group}` remainder scale"
+        );
+    }
+}
+
 fn runtime_route_coverage_fixture() -> TempDir {
     let repo = TempDir::new().expect("runtime coverage repo");
     initialize_runtime_coverage_repo(&repo);
@@ -200,6 +249,26 @@ fn runtime_route_coverage_fixture() -> TempDir {
         repo.path(),
         &["commit", "-qm", "runtime coverage mass fixture"],
     );
+    repo
+}
+
+fn runtime_diversified_coverage_fixture(reverse: bool) -> TempDir {
+    let repo = runtime_route_coverage_fixture();
+    let indexes: Box<dyn Iterator<Item = usize>> = if reverse {
+        Box::new((0..120).rev())
+    } else {
+        Box::new(0..120)
+    };
+    for index in indexes {
+        write(
+            &repo.path().join(format!("src/jobs/job-{index:03}.worker.ts")),
+            &format!(
+                "export const job{index:03} = process.env.RUNTIME_JOB_{index:03};\n"
+            ),
+        );
+    }
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "diversified runtime mass"]);
     repo
 }
 

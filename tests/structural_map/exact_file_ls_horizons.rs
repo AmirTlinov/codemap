@@ -82,13 +82,13 @@ fn exact_file_ls_readable_and_json_share_relationship_certificates() {
         rows.iter()
             .filter(|line| !line.starts_with("- symbols:") && line.contains("shown=1"))
             .count(),
-        1,
-        "the global limit-one projection shows one relationship: {readable}"
+        3,
+        "each populated relationship group gets its own limit-one representation: {readable}"
     );
     assert_eq!(
         rows.iter().filter(|line| line.contains("hidden=1")).count(),
-        3,
-        "every relationship group owns its hidden remainder: {readable}"
+        1,
+        "only the saturated relationship group owns a hidden remainder: {readable}"
     );
     assert!(!readable.contains("edges hidden by limit"), "{readable}");
 }

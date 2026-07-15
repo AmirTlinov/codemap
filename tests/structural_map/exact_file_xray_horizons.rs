@@ -1,18 +1,11 @@
 // Responsibility: complete-exact-file-xray-horizon-contract
-const EXACT_FILE_XRAY_GROUPS: [(&str, &str, &str); 14] = [
+const EXACT_FILE_XRAY_GROUPS: [(&str, &str, &str); 7] = [
     ("xray_roles", "roles", "file_xray_role_surfaces"),
-    ("xray_inputs", "inputs", "file_xray_input_edges"),
     ("xray_outputs", "outputs", "file_xray_output_surfaces"),
     ("xray_state", "state", "file_xray_state_surfaces"),
     ("xray_side_effects", "side_effects", "file_xray_side_effect_surfaces"),
-    ("xray_direct_consumers", "direct_consumers", "file_xray_direct_consumers"),
-    ("xray_mediated_consumers", "mediated_consumers", "file_xray_mediated_consumers"),
     ("xray_flow", "flow", "file_xray_flow_steps"),
     ("xray_nearby", "nearby", "file_xray_nearby_surfaces"),
-    ("xray_proof_hard", "proof_hard", "file_xray_hard_proof_edges"),
-    ("xray_proof_direct", "proof_direct", "file_xray_direct_proof_edges"),
-    ("xray_proof_mediated", "proof_mediated", "file_xray_mediated_proof_edges"),
-    ("xray_proof_soft", "proof_soft", "file_xray_soft_proof_edges"),
     ("xray_unknowns", "unknowns", "file_xray_unknown_surfaces"),
 ];
 
@@ -40,8 +33,12 @@ fn every_exact_file_xray_group_is_bounded_and_machine_complete() {
         ],
     );
     assert_schema("schemas/cone.schema.json", &json);
-    assert_eq!(json["observations"]["horizons"].as_array().unwrap().len(), 20);
-    assert!(readable.contains("xray ledger: certified=14"), "{readable}");
+    assert_eq!(json["observations"]["horizons"].as_array().unwrap().len(), 13);
+    assert!(readable.contains("xray ledger: certified=7"), "{readable}");
+    assert!(
+        !readable.contains("xray_proof_"),
+        "default visibility should account verification once through its canonical group: {readable}"
+    );
     for (group, field, query_kind) in EXACT_FILE_XRAY_GROUPS {
         let item = horizon(&json["observations"], group);
         let facts = json["xray"][field].as_array().expect("X-Ray fact list").len();
@@ -75,12 +72,8 @@ fn every_exact_file_xray_group_is_bounded_and_machine_complete() {
         assert!(!readable.contains(detached), "{readable}");
     }
     for group in [
-        "xray_inputs",
         "xray_outputs",
-        "xray_direct_consumers",
-        "xray_flow",
         "xray_nearby",
-        "xray_proof_direct",
         "xray_unknowns",
     ] {
         assert!(

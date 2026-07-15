@@ -1,5 +1,5 @@
 // Responsibility: map-listing-directory-helpers
-use crate::map::expand_with_concrete_limit;
+use crate::map::{BoundedProjection, expand_with_concrete_limit, shell_quote};
 use crate::model::{FileInfo, HiddenGroup, Project, StructuralEdge};
 use crate::repo;
 use std::collections::BTreeMap;
@@ -53,6 +53,15 @@ pub(crate) fn balanced_edge_prefix_by_source(
     let mut balanced = balanced_edge_order_by_source(edges);
     balanced.truncate(limit);
     balanced
+}
+
+pub(crate) fn bounded_directory_surfaces(
+    surfaces: Vec<crate::model::DirectorySurface>,
+    limit: usize,
+    rel: &str,
+) -> Vec<crate::model::DirectorySurface> {
+    let expand = format!("codemap ls {} --all", shell_quote(rel));
+    BoundedProjection::ordered("directory surfaces hidden", surfaces, limit, &expand).into_shown()
 }
 
 pub(crate) fn balanced_edge_order_by_source(edges: &[StructuralEdge]) -> Vec<StructuralEdge> {

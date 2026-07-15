@@ -48,12 +48,13 @@ pub(crate) fn cone_directory_report(
     sort_edges(&mut proof);
     sort_edges(&mut contracts);
     sort_edges(&mut boundary);
+    let expand = || format!("codemap cone {} --depth {depth} --all", shell_quote(rel));
     if !include_hidden {
-        outgoing.truncate(limit);
-        incoming.truncate(limit);
-        proof.truncate(limit);
-        contracts.truncate(limit);
-        boundary.truncate(limit);
+        outgoing = bounded_edges("outgoing", outgoing, limit, &expand());
+        incoming = bounded_edges("incoming", incoming, limit, &expand());
+        proof = bounded_edges("verification", proof, limit, &expand());
+        contracts = bounded_edges("contracts", contracts, limit, &expand());
+        boundary = bounded_edges("boundary", boundary, limit, &expand());
     }
 
     let unknowns = vec![unknown_directory_aggregate(rel, depth)];
@@ -64,14 +65,10 @@ pub(crate) fn cone_directory_report(
         anchor: &anchor,
         seed_files: &seed_files,
         declared_env: &declared_env,
-        outgoing: &outgoing,
-        incoming: &incoming,
-        proof: &proof,
         unknowns: &unknowns,
         limit,
         include_hidden,
     });
-    let expand = || format!("codemap cone {} --depth {depth} --all", shell_quote(rel));
     let projection = |group, observed, shown| ObservationProjection {
         group,
         scope: rel,
@@ -110,6 +107,15 @@ pub(crate) fn cone_directory_report(
             format!("codemap ls {} --all", shell_quote(rel)),
         ],
     }
+}
+
+fn bounded_edges(
+    group: &str,
+    edges: Vec<StructuralEdge>,
+    limit: usize,
+    expand: &str,
+) -> Vec<StructuralEdge> {
+    crate::map::BoundedProjection::ordered(group, edges, limit, expand).into_shown()
 }
 
 fn split_directory_relations(

@@ -134,6 +134,15 @@ pub fn cone_report(
     sort_edges(&mut outgoing);
     sort_edges(&mut incoming);
     sort_edges(&mut proof);
+    let (canonical_proof, _) = crate::map::BoundedProjection::by_identity(
+        "verification edges hidden by limit",
+        proof,
+        usize::MAX,
+        &format!("codemap cone {} --depth {depth} --all", shell_quote(&rel)),
+        |edge| (edge.from.clone(), edge.edge_type.clone(), edge.to.clone()),
+    )
+    .into_parts();
+    proof = canonical_proof;
     sort_edges(&mut contracts);
     sort_edges(&mut boundary);
     let observed = [
@@ -157,9 +166,6 @@ pub fn cone_report(
         anchor: &complete_anchor,
         seed_files: &seed_files,
         declared_env: &declared_env,
-        outgoing: &outgoing,
-        incoming: &incoming,
-        proof: &proof,
         unknowns: &unknowns,
         limit: usize::MAX,
         include_hidden: true,
@@ -169,9 +175,6 @@ pub fn cone_report(
         anchor: &anchor,
         seed_files: &seed_files,
         declared_env: &declared_env,
-        outgoing: &outgoing,
-        incoming: &incoming,
-        proof: &proof,
         unknowns: &unknowns,
         limit,
         include_hidden,

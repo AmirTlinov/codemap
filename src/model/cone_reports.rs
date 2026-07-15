@@ -41,7 +41,7 @@ pub struct ConeReport {
 }
 
 impl ConeReport {
-    pub const SCHEMA_VERSION: &'static str = "16";
+    pub const SCHEMA_VERSION: &'static str = "17";
     pub const RELATIONSHIP_GROUPS: [&'static str; 5] = [
         "outgoing",
         "incoming",
@@ -49,23 +49,25 @@ impl ConeReport {
         "contracts",
         "boundary",
     ];
-    pub const XRAY_GROUPS: [(&'static str, &'static str); 14] = [
+    pub const XRAY_GROUPS: [(&'static str, &'static str); 7] = [
         ("xray_roles", "file_xray_role_surfaces"),
-        ("xray_inputs", "file_xray_input_edges"),
         ("xray_outputs", "file_xray_output_surfaces"),
         ("xray_state", "file_xray_state_surfaces"),
         ("xray_side_effects", "file_xray_side_effect_surfaces"),
-        ("xray_direct_consumers", "file_xray_direct_consumers"),
-        ("xray_mediated_consumers", "file_xray_mediated_consumers"),
         ("xray_flow", "file_xray_flow_steps"),
         ("xray_nearby", "file_xray_nearby_surfaces"),
-        ("xray_proof_hard", "file_xray_hard_proof_edges"),
-        ("xray_proof_direct", "file_xray_direct_proof_edges"),
-        ("xray_proof_mediated", "file_xray_mediated_proof_edges"),
-        ("xray_proof_soft", "file_xray_soft_proof_edges"),
         ("xray_unknowns", "file_xray_unknown_surfaces"),
     ];
-    pub const EXACT_FILE_GROUPS: [&'static str; 20] = [
+    pub const XRAY_DISPLAY_GROUPS: [&'static str; 7] = [
+        "xray_roles",
+        "xray_outputs",
+        "xray_state",
+        "xray_side_effects",
+        "xray_flow",
+        "xray_nearby",
+        "xray_unknowns",
+    ];
+    pub const EXACT_FILE_GROUPS: [&'static str; 13] = [
         "outgoing",
         "incoming",
         "verification",
@@ -73,18 +75,26 @@ impl ConeReport {
         "boundary",
         "symbols",
         "xray_roles",
-        "xray_inputs",
         "xray_outputs",
         "xray_state",
         "xray_side_effects",
-        "xray_direct_consumers",
-        "xray_mediated_consumers",
         "xray_flow",
         "xray_nearby",
-        "xray_proof_hard",
-        "xray_proof_direct",
-        "xray_proof_mediated",
-        "xray_proof_soft",
+        "xray_unknowns",
+    ];
+    pub const EXACT_FILE_DISPLAY_GROUPS: [&'static str; 13] = [
+        "outgoing",
+        "incoming",
+        "verification",
+        "contracts",
+        "boundary",
+        "symbols",
+        "xray_roles",
+        "xray_outputs",
+        "xray_state",
+        "xray_side_effects",
+        "xray_flow",
+        "xray_nearby",
         "xray_unknowns",
     ];
 
@@ -204,37 +214,23 @@ impl ConeReport {
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct XrayCard {
     pub roles: Vec<Surface>,
-    pub inputs: Vec<StructuralEdge>,
     pub outputs: Vec<Surface>,
     pub state: Vec<Surface>,
     pub side_effects: Vec<Surface>,
-    pub direct_consumers: Vec<StructuralEdge>,
-    pub mediated_consumers: Vec<StructuralEdge>,
     pub flow: Vec<FlowStep>,
     pub nearby: Vec<Surface>,
-    pub proof_hard: Vec<StructuralEdge>,
-    pub proof_direct: Vec<StructuralEdge>,
-    pub proof_mediated: Vec<StructuralEdge>,
-    pub proof_soft: Vec<StructuralEdge>,
     pub unknowns: Vec<Unknown>,
 }
 
 impl XrayCard {
-    pub(crate) fn group_fact_counts(&self) -> [(&'static str, usize); 14] {
+    pub(crate) fn group_fact_counts(&self) -> [(&'static str, usize); 7] {
         [
             ("xray_roles", self.roles.len()),
-            ("xray_inputs", self.inputs.len()),
             ("xray_outputs", self.outputs.len()),
             ("xray_state", self.state.len()),
             ("xray_side_effects", self.side_effects.len()),
-            ("xray_direct_consumers", self.direct_consumers.len()),
-            ("xray_mediated_consumers", self.mediated_consumers.len()),
             ("xray_flow", self.flow.len()),
             ("xray_nearby", self.nearby.len()),
-            ("xray_proof_hard", self.proof_hard.len()),
-            ("xray_proof_direct", self.proof_direct.len()),
-            ("xray_proof_mediated", self.proof_mediated.len()),
-            ("xray_proof_soft", self.proof_soft.len()),
             ("xray_unknowns", self.unknowns.len()),
         ]
     }

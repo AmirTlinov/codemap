@@ -19,19 +19,22 @@ pub(crate) fn ls_symbol_report(
     let Some(anchor) = symbol_file_summary(project, info, symbol_name) else {
         return ls_missing_symbol_report(project, &info.rel, symbol_name);
     };
-    let consumers = symbol_reference_edges(project, &info.rel, symbol_name, false);
-    let verification = symbol_proof_edges(project, &info.rel, symbol_name);
+    let mut consumers = symbol_reference_edges(project, &info.rel, symbol_name, false);
+    let mut verification = symbol_proof_edges(project, &info.rel, symbol_name);
     let consumers_observed = consumers.len();
     let verification_observed = verification.len();
+    sort_edges(&mut consumers);
+    sort_edges(&mut verification);
+    let expand_all = format!("codemap ls {} --all", shell_quote(&anchor_path));
+    let quota = if include_hidden { usize::MAX } else { limit };
+    consumers = bounded_ls_group("consumers", consumers, quota, &expand_all);
+    verification = bounded_ls_group("verification", verification, quota, &expand_all);
     let mut edges = consumers;
     edges.extend(verification);
     sort_edges(&mut edges);
     edges.dedup_by(|a, b| {
         a.from == b.from && a.to == b.to && a.edge_type == b.edge_type && a.evidence == b.evidence
     });
-    if !include_hidden {
-        edges.truncate(limit);
-    }
     let consumers_shown = edges
         .iter()
         .filter(|edge| edge.edge_type == "symbol_reference")
@@ -40,7 +43,6 @@ pub(crate) fn ls_symbol_report(
         .iter()
         .filter(|edge| edge.edge_type == "tests")
         .count();
-    let expand_all = format!("codemap ls {} --all", shell_quote(&anchor_path));
     let observations = symbol_ls_observations(
         project,
         SymbolLsObservationInput {
@@ -144,6 +146,18 @@ pub(crate) fn ls_file_report(
     let imports_observed = imports.len();
     let consumers_observed = consumers.len();
     let verification_observed = verification.len();
+    let expand_all = format!("codemap ls {} --all", shell_quote(&info.rel));
+    let quota = if include_hidden || complete_file_projection {
+        usize::MAX
+    } else {
+        limit
+    };
+    sort_edges(&mut imports);
+    sort_edges(&mut consumers);
+    sort_edges(&mut verification);
+    imports = bounded_ls_group("imports", imports, quota, &expand_all);
+    consumers = bounded_ls_group("consumers", consumers, quota, &expand_all);
+    verification = bounded_ls_group("verification", verification, quota, &expand_all);
     let mut edges = imports;
     edges.extend(consumers);
     edges.extend(verification);
@@ -155,9 +169,6 @@ pub(crate) fn ls_file_report(
     });
     edges.dedup_by(|a, b| a.from == b.from && a.to == b.to && a.edge_type == b.edge_type);
     let hidden = Vec::new();
-    if !include_hidden && !complete_file_projection {
-        edges.truncate(limit);
-    }
     let imports_shown = edges
         .iter()
         .filter(|edge| edge.edge_type == "imports")
@@ -170,7 +181,6 @@ pub(crate) fn ls_file_report(
         .iter()
         .filter(|edge| edge.edge_type == "tests")
         .count();
-    let expand_all = format!("codemap ls {} --all", shell_quote(&info.rel));
     let anchor = file_summary(
         project,
         info,
@@ -211,4 +221,13 @@ pub(crate) fn ls_file_report(
         hidden,
         next: vec![format!("codemap cone {}", shell_quote(&info.rel))],
     }
+}
+
+fn bounded_ls_group(
+    group: &str,
+    edges: Vec<crate::model::StructuralEdge>,
+    limit: usize,
+    expand: &str,
+) -> Vec<crate::model::StructuralEdge> {
+    crate::map::BoundedProjection::ordered(group, edges, limit, expand).into_shown()
 }

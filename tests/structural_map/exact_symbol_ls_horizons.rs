@@ -69,14 +69,14 @@ fn exact_symbol_ls_readable_and_json_share_two_certified_horizons() {
     assert!(
         readable_visibility
             .iter()
-            .all(|line| line.contains("hidden=1"))
+            .all(|line| line.contains("shown=1"))
             && readable_visibility
                 .iter()
-                .any(|line| line.contains("shown=1"))
+                .any(|line| line.starts_with("- consumers:") && line.contains("hidden=1"))
             && readable_visibility
                 .iter()
-                .any(|line| line.contains("shown=0")),
-        "the limit-one readable projection must account for all three facts: {readable}"
+                .any(|line| line.starts_with("- verification:") && line.contains("hidden=0")),
+        "the limit-one projection must represent both populated relationship groups: {readable}"
     );
     assert!(
         !readable.contains("symbol edges hidden by limit"),

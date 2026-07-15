@@ -113,15 +113,22 @@ pub fn runtime_report(
     let observed_scripts = scripts.len();
     let include_hidden_expand = format!("codemap runtime {} --all", shell_quote(&scope));
 
-    entrypoints.truncate(limit);
-    routes.truncate(limit);
-    paths = crate::map::balanced_edge_prefix_by_source(&paths, limit);
-    scripts.truncate(limit);
-    env.truncate(limit);
-    workers.truncate(limit);
-    ci.truncate(limit);
-    proof.truncate(limit);
-    unknowns.truncate(limit);
+    entrypoints = bounded_group("entrypoints", entrypoints, limit, &include_hidden_expand);
+    routes = bounded_group("routes", routes, limit, &include_hidden_expand);
+    let selected_paths = crate::map::balanced_edge_prefix_by_source(&paths, limit);
+    paths = crate::map::BoundedProjection::selected(
+        "paths",
+        paths.len(),
+        selected_paths,
+        &include_hidden_expand,
+    )
+    .into_shown();
+    scripts = bounded_group("scripts", scripts, limit, &include_hidden_expand);
+    env = bounded_group("env", env, limit, &include_hidden_expand);
+    workers = bounded_group("workers", workers, limit, &include_hidden_expand);
+    ci = bounded_group("ci", ci, limit, &include_hidden_expand);
+    proof = bounded_group("proof", proof, limit, &include_hidden_expand);
+    unknowns = bounded_group("unknowns", unknowns, limit, &include_hidden_expand);
 
     let entrypoints_shown = surface_fact_count(&entrypoints);
     let route_observations = runtime_route_observations(RuntimeRouteObservationInput {
@@ -292,6 +299,10 @@ fn projection(
         shown,
         expand: horizon_expand(expand, observed, shown),
     }
+}
+
+fn bounded_group<T>(group: &str, values: Vec<T>, limit: usize, expand: &str) -> Vec<T> {
+    crate::map::BoundedProjection::ordered(group, values, limit, expand).into_shown()
 }
 
 fn horizon_expand(expand: &str, observed: usize, shown: usize) -> Option<String> {

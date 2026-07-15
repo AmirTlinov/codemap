@@ -6,7 +6,6 @@ use std::path::Path;
 pub(crate) fn xray_side_effects(
     project: &Project,
     seed_files: &[String],
-    limit: usize,
     include_hidden: bool,
 ) -> Vec<Surface> {
     let mut surfaces = Vec::new();
@@ -22,32 +21,24 @@ pub(crate) fn xray_side_effects(
             surfaces.extend(side_effect_surfaces_for_file(project, file));
         }
     }
-    surfaces.into_iter().take(limit).collect()
+    surfaces
 }
 
-pub(crate) fn xray_flow_steps(
-    project: &Project,
-    seed_files: &[String],
-    limit: usize,
-) -> Vec<FlowStep> {
+pub(crate) fn xray_flow_steps(project: &Project, seed_files: &[String]) -> Vec<FlowStep> {
     let Some(rel) = seed_files.first() else {
         return Vec::new();
     };
     if !project.files.contains_key(rel) {
         return Vec::new();
     }
-    flow_report(project, rel, false, limit)
+    flow_report(project, rel, false, usize::MAX)
         .steps
         .into_iter()
-        .take(limit)
+        .filter(|step| step.kind != "direct_dependency")
         .collect()
 }
 
-pub(crate) fn xray_nearby_surfaces(
-    project: &Project,
-    seed_files: &[String],
-    limit: usize,
-) -> Vec<Surface> {
+pub(crate) fn xray_nearby_surfaces(project: &Project, seed_files: &[String]) -> Vec<Surface> {
     let Some(rel) = seed_files.first() else {
         return Vec::new();
     };
@@ -85,7 +76,7 @@ pub(crate) fn xray_nearby_surfaces(
         });
     }
     surfaces.sort_by(|a, b| a.kind.cmp(&b.kind).then_with(|| a.path.cmp(&b.path)));
-    surfaces.into_iter().take(limit).collect()
+    surfaces
 }
 
 fn xray_nearby_kind(file: &FileInfo) -> Option<&'static str> {

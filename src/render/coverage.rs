@@ -19,11 +19,12 @@ pub(crate) fn render_visibility_section_for_groups(
         return;
     }
     println!("\n## Visibility\n");
-    let compact_xray = horizons
+    let selected_xray_groups = horizons
         .iter()
         .filter(|horizon| horizon.group.starts_with("xray_"))
-        .count()
-        == ConeReport::XRAY_GROUPS.len();
+        .count();
+    let compact_xray = selected_xray_groups == ConeReport::XRAY_GROUPS.len()
+        || selected_xray_groups == ConeReport::XRAY_DISPLAY_GROUPS.len();
     for horizon in horizons
         .iter()
         .copied()
@@ -97,11 +98,7 @@ fn render_compact_xray_visibility(horizons: &[&CoverageHorizon]) {
 }
 
 fn xray_group_family(group: &str) -> &str {
-    match group {
-        "xray_direct_consumers" | "xray_mediated_consumers" => "consumers",
-        group if group.starts_with("xray_proof_") => "proof",
-        group => group.strip_prefix("xray_").unwrap_or(group),
-    }
+    group.strip_prefix("xray_").unwrap_or(group)
 }
 
 pub(crate) fn render_runtime_visibility(observations: &ObservationLedger) {

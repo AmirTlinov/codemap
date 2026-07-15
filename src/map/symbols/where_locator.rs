@@ -1,7 +1,8 @@
 // Responsibility: map-symbols-where-locator
 use crate::map::{
-    ConeXrayInput, ConsumerObservationInput, ObservationProjection, cone_xray_card,
-    consumer_observed_count, definition_match_observation,
+    ConeXrayInput, ConsumerObservationInput, ObservationProjection, SymbolConeObservationInput,
+    cone_xray_card, consumer_observed_count, definition_match_observation,
+    symbol_cone_observations,
 };
 use crate::map::{
     cone_symbol_report, shell_quote, sort_edges, symbol_anchor_path, symbol_file_summary,
@@ -47,11 +48,13 @@ pub fn where_report(
     } else {
         limit.min(4)
     };
-    let shown = if matched.len() <= definition_limit {
-        matched.clone()
-    } else {
-        matched[..definition_limit].to_vec()
-    };
+    let (shown, _) = crate::map::BoundedProjection::ordered(
+        "where definitions hidden by limit",
+        matched.clone(),
+        definition_limit,
+        &definition_expand_command(query, kind_filter),
+    )
+    .into_parts();
     let definition_expand =
         (shown.len() < total_matches).then(|| definition_expand_command(query, kind_filter));
     let definition_scope = definition_observation_scope(query, kind_filter);
@@ -122,31 +125,43 @@ pub fn where_report(
                     } else {
                         limit.min(2)
                     };
-                    let remaining_incoming = all_incoming
+                    let all_remaining_incoming = all_incoming
                         .iter()
                         .filter(|edge| !contains_edge(&all_consumers, edge))
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    let remaining_incoming = all_remaining_incoming
+                        .iter()
                         .take(remaining_limit)
                         .cloned()
                         .collect::<Vec<_>>();
-                    let mut visible_incoming = consumers.clone();
-                    visible_incoming.extend(remaining_incoming.iter().cloned());
-                    sort_edges(&mut visible_incoming);
-                    reproject_horizon(
-                        &mut report.observations,
-                        "incoming",
-                        visible_incoming.len(),
-                        &anchor_path,
-                    );
-                    rebuild_where_xray(
+                    let verification_observed = report
+                        .observations
+                        .horizons
+                        .iter()
+                        .find(|horizon| horizon.group == "verification")
+                        .map(|horizon| horizon.count.observed as usize)
+                        .unwrap_or(report.proof.len());
+                    let expand = || format!("codemap cone {} --all", shell_quote(&anchor_path));
+                    report.observations = symbol_cone_observations(
                         project,
-                        file_rel,
-                        &mut report,
-                        &remaining_incoming,
-                        limit,
-                        include_hidden,
+                        SymbolConeObservationInput {
+                            file_rel,
+                            symbol_name: query,
+                            incoming_observed: all_remaining_incoming.len(),
+                            incoming_shown: remaining_incoming.len(),
+                            incoming_expand: (remaining_incoming.len()
+                                < all_remaining_incoming.len())
+                            .then(expand),
+                            verification_observed,
+                            verification_shown: report.proof.len(),
+                            verification_expand: (report.proof.len() < verification_observed)
+                                .then(expand),
+                        },
                     );
-                    report.incoming.clone_from(&visible_incoming);
-                    incoming = visible_incoming;
+                    rebuild_where_xray(project, file_rel, &mut report, limit, include_hidden);
+                    report.incoming.clone_from(&remaining_incoming);
+                    incoming = remaining_incoming;
                     verification.clone_from(&report.proof);
                     Box::new(report)
                 },
@@ -266,7 +281,6 @@ fn rebuild_where_xray(
     project: &Project,
     file_rel: &str,
     report: &mut crate::model::ConeReport,
-    disjoint_incoming: &[StructuralEdge],
     limit: usize,
     include_hidden: bool,
 ) {
@@ -276,9 +290,6 @@ fn rebuild_where_xray(
         anchor: &report.anchor,
         seed_files: &seed_files,
         declared_env: &report.declared_env,
-        outgoing: &report.outgoing,
-        incoming: disjoint_incoming,
-        proof: &report.proof,
         unknowns: &report.unknowns,
         limit,
         include_hidden,

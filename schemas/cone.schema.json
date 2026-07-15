@@ -25,7 +25,7 @@
   ],
   "properties": {
     "kind": { "const": "cone_report" },
-    "schema_version": { "const": "16" },
+    "schema_version": { "const": "17" },
     "build_identity": { "$ref": "#/$defs/build_identity" },
     "prelude": { "$ref": "#/$defs/map_prelude" },
     "anchor": { "$ref": "#/$defs/file_summary" },
@@ -556,28 +556,17 @@
       "additionalProperties": false,
       "required": [
         "roles",
-        "inputs",
         "outputs",
         "state",
         "side_effects",
-        "direct_consumers",
-        "mediated_consumers",
         "flow",
         "nearby",
-        "proof_hard",
-        "proof_direct",
-        "proof_mediated",
-        "proof_soft",
         "unknowns"
       ],
       "properties": {
         "roles": {
           "type": "array",
           "items": { "$ref": "#/$defs/surface" }
-        },
-        "inputs": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/structural_edge" }
         },
         "outputs": {
           "type": "array",
@@ -591,14 +580,6 @@
           "type": "array",
           "items": { "$ref": "#/$defs/surface" }
         },
-        "direct_consumers": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/structural_edge" }
-        },
-        "mediated_consumers": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/structural_edge" }
-        },
         "flow": {
           "type": "array",
           "items": { "$ref": "#/$defs/flow_step" }
@@ -606,22 +587,6 @@
         "nearby": {
           "type": "array",
           "items": { "$ref": "#/$defs/surface" }
-        },
-        "proof_hard": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/structural_edge" }
-        },
-        "proof_direct": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/structural_edge" }
-        },
-        "proof_mediated": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/structural_edge" }
-        },
-        "proof_soft": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/structural_edge" }
         },
         "unknowns": {
           "type": "array",

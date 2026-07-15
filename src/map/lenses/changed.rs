@@ -293,8 +293,15 @@ pub(crate) fn changed_proof_summary(report: ProofMapReport, limit: usize) -> Cha
             sensors.dedup_by(|a, b| {
                 a.path == b.path && a.evidence == b.evidence && a.reason == b.reason
             });
-            let hidden_count = sensors.len().saturating_sub(command_sensor_limit);
-            sensors.truncate(command_sensor_limit);
+            let observed = sensors.len();
+            sensors = crate::map::BoundedProjection::ordered(
+                "changed command sensors hidden by limit",
+                sensors,
+                command_sensor_limit,
+                "codemap proof changed",
+            )
+            .into_shown();
+            let hidden_count = observed.saturating_sub(sensors.len());
             ChangedProofCommand {
                 command,
                 sensors,
