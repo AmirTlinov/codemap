@@ -1,5 +1,5 @@
 {
-  "version": 5,
+  "version": 6,
   "structural_schema_version": "5",
   "anchor_config_version": 1,
   "schemas": [
@@ -35,7 +35,7 @@
       "kind": "cone",
       "file": "schemas/cone.schema.json",
       "contract": "structural_output",
-      "schema_version": "11",
+      "schema_version": "12",
       "json_kind": "cone_report"
     },
     {
@@ -70,7 +70,7 @@
       "kind": "runtime",
       "file": "schemas/runtime.schema.json",
       "contract": "structural_output",
-      "schema_version": "4",
+      "schema_version": "5",
       "json_kind": "runtime_report"
     },
     {
@@ -126,7 +126,7 @@
       "kind": "where",
       "file": "schemas/where.schema.json",
       "contract": "structural_output",
-      "schema_version": "5",
+      "schema_version": "6",
       "json_kind": "where_report"
     },
     {

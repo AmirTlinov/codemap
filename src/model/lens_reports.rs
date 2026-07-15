@@ -45,31 +45,58 @@ pub struct RuntimeReport {
 }
 
 impl RuntimeReport {
-    pub const SCHEMA_VERSION: &'static str = "4";
+    pub const SCHEMA_VERSION: &'static str = "5";
+
+    /// Legacy per-group hidden reasons whose truth now lives in the horizons.
+    const LEGACY_GROUP_HIDDEN_REASONS: [&'static str; 8] = [
+        "runtime routes hidden by limit",
+        "runtime entrypoints hidden by limit",
+        "runtime scripts hidden by limit",
+        "environment surfaces hidden by limit",
+        "worker/job surfaces hidden by limit",
+        "ci surfaces hidden by limit",
+        "runtime verification edges hidden by limit",
+        "runtime unknowns hidden by limit",
+    ];
 
     pub fn validate_observations(&self) -> Result<(), super::ObservationLedgerError> {
         self.observations.validate()?;
-        let mut routes = self
-            .observations
-            .horizons
-            .iter()
-            .filter(|horizon| horizon.group == "routes");
-        let horizon = routes
-            .next()
-            .ok_or(super::ObservationLedgerError::MissingRequiredHorizon)?;
-        if routes.next().is_some() {
-            return Err(super::ObservationLedgerError::DuplicateHorizon);
+        let shown_by_group: [(&str, u64); 8] = [
+            ("entrypoints", self.entrypoints.len() as u64),
+            ("routes", self.routes.len() as u64),
+            ("scripts", self.scripts.len() as u64),
+            ("env", self.env.len() as u64),
+            ("workers", self.workers.len() as u64),
+            ("ci", self.ci.len() as u64),
+            ("proof", self.proof.len() as u64),
+            ("unknowns", self.unknowns.len() as u64),
+        ];
+        for (group, shown) in shown_by_group {
+            let mut horizons = self
+                .observations
+                .horizons
+                .iter()
+                .filter(|horizon| horizon.group == group);
+            let horizon = horizons
+                .next()
+                .ok_or(super::ObservationLedgerError::MissingRequiredHorizon)?;
+            if horizons.next().is_some() {
+                return Err(super::ObservationLedgerError::DuplicateHorizon);
+            }
+            if horizon.scope != self.scope {
+                return Err(super::ObservationLedgerError::ScopeMismatch);
+            }
+            if horizon.shown != shown {
+                return Err(super::ObservationLedgerError::ShownFactCountMismatch);
+            }
         }
-        if horizon.scope != self.scope {
-            return Err(super::ObservationLedgerError::ScopeMismatch);
-        }
-        if horizon.shown != self.routes.len() as u64 {
-            return Err(super::ObservationLedgerError::ShownFactCountMismatch);
+        if self.observations.horizons.len() != shown_by_group.len() {
+            return Err(super::ObservationLedgerError::DuplicateVisibilityAccounting);
         }
         if self
             .hidden
             .iter()
-            .any(|group| group.reason == "runtime routes hidden by limit")
+            .any(|group| Self::LEGACY_GROUP_HIDDEN_REASONS.contains(&group.reason.as_str()))
         {
             return Err(super::ObservationLedgerError::DuplicateVisibilityAccounting);
         }

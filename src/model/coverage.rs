@@ -73,6 +73,7 @@ pub enum CoverageClosure {
 #[serde(rename_all = "snake_case")]
 pub enum CoverageReason {
     AnchorNotIndexed,
+    DynamicEnvLookup,
     DynamicImportFlow,
     DynamicRuntimeRegistration,
     IncompleteTraversal,
@@ -88,6 +89,7 @@ impl CoverageReason {
     pub fn label(self) -> &'static str {
         match self {
             Self::AnchorNotIndexed => "anchor is not indexed",
+            Self::DynamicEnvLookup => "dynamic env lookup",
             Self::DynamicImportFlow => "dynamic import flow",
             Self::DynamicRuntimeRegistration => "dynamic runtime registration",
             Self::IncompleteTraversal => "incomplete file traversal",

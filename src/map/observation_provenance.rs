@@ -10,6 +10,11 @@ mod definition_coverage;
 use definition_coverage::definition_extractor_capability;
 mod runtime;
 pub(crate) use runtime::{RuntimeRouteObservationInput, runtime_route_observations};
+mod runtime_group_gaps;
+mod runtime_groups;
+pub(crate) use runtime_groups::{
+    RuntimeGroupObservationInput, RuntimeGroupVisibility, record_runtime_group_observations,
+};
 
 pub(crate) struct ObservationProjection<'a> {
     pub group: &'a str,

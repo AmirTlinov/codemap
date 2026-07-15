@@ -24,8 +24,8 @@ fn runtime_route_horizon_owns_mass_truncation_and_route_gaps() {
         "readable runtime output needs the compact certificate identity: {markdown}"
     );
     assert!(
-        markdown.lines().count() <= 60,
-        "the 227-route fixture must remain a bounded daily map: {markdown}"
+        markdown.lines().count() <= 70,
+        "the 227-route fixture must remain a bounded daily map even with all eight group horizons: {markdown}"
     );
 
     let json = run_json(

@@ -25,7 +25,7 @@
     "kind": {
       "const": "runtime_report"
     },
-    "schema_version": { "const": "4" },
+    "schema_version": { "const": "5" },
     "build_identity": { "$ref": "#/$defs/build_identity" },
     "scope": {
       "type": "string"
@@ -97,6 +97,7 @@
       "type": "string",
       "enum": [
         "anchor_not_indexed",
+        "dynamic_env_lookup",
         "dynamic_import_flow",
         "dynamic_runtime_registration",
         "incomplete_traversal",

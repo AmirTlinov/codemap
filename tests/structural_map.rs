@@ -77,6 +77,7 @@ include!("structural_map/coverage_horizon.rs");
 include!("structural_map/runtime_coverage_horizon.rs");
 include!("structural_map/runtime_coverage_boundaries.rs");
 include!("structural_map/runtime_coverage_scope_boundaries.rs");
+include!("structural_map/runtime_group_horizons.rs");
 include!("structural_map/coverage_definition_gaps.rs");
 include!("structural_map/coverage_definition_members.rs");
 include!("structural_map/coverage_scanner_boundaries.rs");

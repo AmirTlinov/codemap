@@ -64,6 +64,25 @@ legacy count semantics until a separately activated S03 propagation slice.
 The adjacent hash is a corruption/stale-body checksum for a trusted local
 cache, not an authenticity or tamper-resistance claim.
 
+## Flagship draft migration: remaining runtime-group horizons
+
+Manifest version 6 completes the runtime observation contract: the
+`entrypoints`, `scripts`, `env`, `workers`, `ci`, `proof` and `unknowns` groups
+each carry exactly one certificate-backed horizon next to `routes`, and
+runtime advances from schema 4 to 5. The detached per-group
+`… hidden by limit` groups are removed because `shown`/`hidden` now belong to
+the horizons; readable and JSON projections resolve the same per-group
+certificates. Zero-fact groups close only under exact candidate-inventory
+accounting (`eligible_files == visited_files + exact disjoint exclusions` with
+no unresolved/dynamic/external stops); scope or extractor gaps stay typed
+`open` instead of becoming proven-zero.
+
+The shared coverage vocabulary adds `dynamic_env_lookup`. Because that enum is
+embedded in the strict `where` and `cone` schemas, those reports advance
+mechanically from 5 to 6 and from 11 to 12 even though their emitted horizons
+and certificate identities do not otherwise change. The root runtime cache
+validates the full eight-group ledger before serving a warm artifact.
+
 Semantic anchor config uses:
 
 ```yaml

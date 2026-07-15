@@ -1,12 +1,13 @@
 // Responsibility: runtime-report-assembly
 use crate::map::{
-    RuntimeRouteObservationInput, dedupe_runtime_entrypoints, directory_has_files,
-    env_surfaces_for_file, expand_with_concrete_limit, extend_root_nested_routes,
-    files_under_directory, group_env_surfaces, limit_edge_section, root_runtime_containers,
-    route_reference_edges_with_index, runtime_code_entrypoints, runtime_entrypoint_kind,
-    runtime_expand_commands, runtime_fact_index_for_files, runtime_manifest_entrypoints,
-    runtime_route_observations, runtime_scope_files, runtime_worker_or_job_convention, shell_quote,
-    surface_from_path, truncate_with_hidden, unknowns_for_file,
+    RuntimeGroupObservationInput, RuntimeGroupVisibility, RuntimeRouteObservationInput,
+    dedupe_runtime_entrypoints, directory_has_files, env_surfaces_for_file,
+    expand_with_concrete_limit, extend_root_nested_routes, files_under_directory,
+    group_env_surfaces, limit_edge_section, record_runtime_group_observations,
+    root_runtime_containers, route_reference_edges_with_index, runtime_code_entrypoints,
+    runtime_entrypoint_kind, runtime_expand_commands, runtime_fact_index_for_files,
+    runtime_manifest_entrypoints, runtime_route_observations, runtime_scope_files,
+    runtime_worker_or_job_convention, shell_quote, surface_from_path, unknowns_for_file,
 };
 use crate::model::{EvidenceStrength, HiddenGroup, Project, RuntimeReport, Surface};
 use crate::repo;
@@ -127,18 +128,13 @@ pub fn runtime_report(
             expand: include_hidden_expand.clone(),
         });
     }
-    truncate_with_hidden(
-        &mut entrypoints,
-        limit,
-        &mut hidden,
-        "runtime entrypoints hidden by limit",
-        &include_hidden_expand,
-    );
+    let entrypoints_visibility =
+        truncate_for_horizon(&mut entrypoints, limit, &include_hidden_expand);
     let observed_routes = routes.len();
     let route_expand = (observed_routes > limit)
         .then(|| expand_with_concrete_limit(&include_hidden_expand, observed_routes));
     routes.truncate(limit);
-    let observations = runtime_route_observations(
+    let mut observations = runtime_route_observations(
         project,
         RuntimeRouteObservationInput {
             scope: &scope,
@@ -150,41 +146,11 @@ pub fn runtime_report(
             expand: route_expand,
         },
     );
-    truncate_with_hidden(
-        &mut env,
-        limit,
-        &mut hidden,
-        "environment surfaces hidden by limit",
-        &include_hidden_expand,
-    );
-    truncate_with_hidden(
-        &mut scripts,
-        limit,
-        &mut hidden,
-        "runtime scripts hidden by limit",
-        &include_hidden_expand,
-    );
-    truncate_with_hidden(
-        &mut workers,
-        limit,
-        &mut hidden,
-        "worker/job surfaces hidden by limit",
-        &include_hidden_expand,
-    );
-    truncate_with_hidden(
-        &mut ci,
-        limit,
-        &mut hidden,
-        "ci surfaces hidden by limit",
-        &include_hidden_expand,
-    );
-    truncate_with_hidden(
-        &mut unknowns,
-        limit,
-        &mut hidden,
-        "runtime unknowns hidden by limit",
-        &include_hidden_expand,
-    );
+    let env_visibility = truncate_for_horizon(&mut env, limit, &include_hidden_expand);
+    let scripts_visibility = truncate_for_horizon(&mut scripts, limit, &include_hidden_expand);
+    let workers_visibility = truncate_for_horizon(&mut workers, limit, &include_hidden_expand);
+    let ci_visibility = truncate_for_horizon(&mut ci, limit, &include_hidden_expand);
+    let unknowns_visibility = truncate_for_horizon(&mut unknowns, limit, &include_hidden_expand);
     proof.sort_by(|a, b| {
         a.from
             .cmp(&b.from)
@@ -198,13 +164,39 @@ pub fn runtime_report(
                     .cmp(&b.locations.first().and_then(|location| location.line_start))
             })
     });
+    let observed_proof = proof.len();
+    let mut discarded_proof_hidden = Vec::new();
     limit_edge_section(
         &mut proof,
-        &mut hidden,
+        &mut discarded_proof_hidden,
         include_hidden,
         limit,
         "runtime verification edges hidden by limit",
         &include_hidden_expand,
+    );
+    let proof_visibility = RuntimeGroupVisibility {
+        observed: observed_proof,
+        shown: proof.len(),
+        expand: (observed_proof > proof.len())
+            .then(|| expand_with_concrete_limit(&include_hidden_expand, observed_proof)),
+    };
+    record_runtime_group_observations(
+        project,
+        RuntimeGroupObservationInput {
+            scope: &scope,
+            scope_indexed,
+            scope_files: &scope_files,
+            hidden_scope_count,
+            scope_unknowns: &route_scope_unknowns,
+            entrypoints: entrypoints_visibility,
+            scripts: scripts_visibility,
+            env: env_visibility,
+            workers: workers_visibility,
+            ci: ci_visibility,
+            proof: proof_visibility,
+            unknowns: unknowns_visibility,
+        },
+        &mut observations,
     );
     let expand = runtime_expand_commands(&scope, &root_containers, &entrypoints);
     RuntimeReport {
@@ -222,5 +214,20 @@ pub fn runtime_report(
         observations,
         hidden,
         expand,
+    }
+}
+
+/// The horizon, not a detached hidden group, owns per-group truncation truth.
+fn truncate_for_horizon<T>(
+    values: &mut Vec<T>,
+    limit: usize,
+    expand: &str,
+) -> RuntimeGroupVisibility {
+    let observed = values.len();
+    values.truncate(limit);
+    RuntimeGroupVisibility {
+        observed,
+        shown: values.len(),
+        expand: (observed > values.len()).then(|| expand_with_concrete_limit(expand, observed)),
     }
 }

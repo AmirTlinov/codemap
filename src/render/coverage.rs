@@ -24,28 +24,60 @@ pub(crate) fn render_visibility_section_for_groups(
     }
 }
 
-pub(crate) fn render_runtime_route_visibility(observations: &ObservationLedger) {
-    let Some(horizon) = observations
-        .horizons
+/// Readable runtime groups follow the report section order, not ledger order.
+const RUNTIME_VISIBILITY_GROUPS: [&str; 8] = [
+    "entrypoints",
+    "routes",
+    "scripts",
+    "env",
+    "workers",
+    "ci",
+    "proof",
+    "unknowns",
+];
+
+pub(crate) fn render_runtime_visibility(observations: &ObservationLedger) {
+    let horizons = RUNTIME_VISIBILITY_GROUPS
         .iter()
-        .find(|horizon| horizon.group == "routes")
-    else {
+        .filter_map(|group| {
+            observations
+                .horizons
+                .iter()
+                .find(|horizon| horizon.group == *group)
+        })
+        .collect::<Vec<_>>();
+    if horizons.is_empty() {
         return;
-    };
+    }
+    println!("\n## Visibility\n");
+    for horizon in horizons {
+        render_runtime_visibility_horizon(horizon);
+    }
+}
+
+fn render_runtime_visibility_horizon(horizon: &CoverageHorizon) {
     let unsupported_files = horizon
         .unsupported
         .iter()
         .map(|observation| observation.file.as_str())
         .collect::<std::collections::BTreeSet<_>>()
         .len();
-    println!("\n## Visibility\n");
+    let gap_basis =
+        if horizon.group == "routes" || !horizon.dynamic.is_empty() || unsupported_files > 0 {
+            format!(
+                " dynamic={} unsupported_files={};",
+                horizon.dynamic.len(),
+                unsupported_files
+            )
+        } else {
+            String::new()
+        };
     println!(
-        "- routes: {}; shown={} hidden={}; dynamic={} unsupported_files={}; cert=`{}`",
+        "- {}: {}; shown={} hidden={};{gap_basis} cert=`{}`",
+        horizon.group,
         horizon.count.display(),
         horizon.shown,
         horizon.hidden,
-        horizon.dynamic.len(),
-        unsupported_files,
         readable_certificate_id(&horizon.count.certificate_id)
     );
     if horizon.hidden > 0

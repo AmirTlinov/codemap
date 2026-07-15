@@ -139,9 +139,10 @@ fn runtime_reports_hidden_proof_edges_when_limited() {
         &["runtime", "packages/app/src", "--limit", "1"],
     );
     assert!(
-        readable.contains("runtime verification edges hidden by limit: 1")
+        readable.contains("- proof: counted-at-least(2, verification relations partial); shown=1 hidden=1")
             && readable.contains("codemap runtime packages/app/src --all --limit 2")
+            && !readable.contains("runtime verification edges hidden by limit")
             && !readable.contains("<larger-number>"),
-        "runtime proof truncation must be visible and expandable in bounded readable output, not silent: {readable}"
+        "the proof horizon must own verification-edge truncation and stay expandable in bounded readable output: {readable}"
     );
 }

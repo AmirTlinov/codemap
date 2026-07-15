@@ -73,10 +73,11 @@ fn runtime_limit_reports_hidden_worker_surfaces() {
         &["runtime", "packages/app/src/jobs", "--limit", "1"],
     );
     assert!(
-        readable.contains("worker/job surfaces hidden by limit: 2")
+        readable.contains("- workers: counted(3); shown=1 hidden=2")
             && readable.contains("codemap runtime packages/app/src/jobs --all --limit 3")
+            && !readable.contains("worker/job surfaces hidden by limit")
             && !readable.contains("<larger-number>"),
-        "bounded readable runtime lens must not silently drop worker/job surfaces behind --limit: {readable}"
+        "the workers horizon must own worker/job truncation instead of a detached hidden group: {readable}"
     );
 }
 
