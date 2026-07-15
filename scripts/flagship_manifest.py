@@ -246,6 +246,19 @@ def validate_tasks(tasks: list[dict[str, Any]]) -> dict[str, Any]:
 def verifier_artifacts(tasks: list[dict[str, Any]], tasks_path: Path) -> list[dict[str, str]]:
     artifacts: dict[str, str] = {}
     for task in tasks:
+        declared = _benchmark_meta(task).get("verifier_artifacts", [])
+        if not isinstance(declared, list) or not all(
+            isinstance(value, str) and value for value in declared
+        ):
+            raise ValueError(f"task {task['id']}: verifier_artifacts must be a path array")
+        for raw in declared:
+            candidate = Path(raw).expanduser()
+            if not candidate.is_absolute():
+                candidate = tasks_path.parent / candidate
+            if not candidate.is_file():
+                raise ValueError(f"task {task['id']}: verifier artifact missing: {candidate}")
+            resolved = candidate.resolve()
+            artifacts[str(resolved)] = file_sha256(resolved)
         for verifier in task["verify"]:
             for index, raw in enumerate(verifier["command"]):
                 if "{" in raw:

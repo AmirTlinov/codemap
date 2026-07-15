@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from flagship_acceptance import evaluate  # noqa: E402
 from flagship_judging import prepare_assignments, read_jsonl  # noqa: E402
-from flagship_manifest import EXCLUSION_REASONS, freeze_corpus  # noqa: E402
+from flagship_manifest import EXCLUSION_REASONS, freeze_corpus, load_frozen  # noqa: E402
 
 
 def write(path: Path, body: str) -> None:
@@ -63,6 +63,8 @@ def task_rows(root: Path, repos: list[tuple[Path, str]], verifier: Path) -> list
     classes = [("analysis", 12), ("implementation", 12), ("negative_control", 6)]
     ecosystems = ["rust", "typescript", "python", "go", "rust", "typescript"]
     rows = []
+    oracle = root / "hidden-oracle.txt"
+    write(oracle, "immutable external evidence\n")
     ordinal = {
         "id": "analysis-depth",
         "category": "behavior",
@@ -85,6 +87,7 @@ def task_rows(root: Path, repos: list[tuple[Path, str]], verifier: Path) -> list
                 "ecosystem": ecosystems[repo_index],
                 "ordinal_criteria": [ordinal] if task_class == "analysis" else [],
                 "exception_criteria": ["analysis-depth" if task_class == "analysis" else "behavior"],
+                "verifier_artifacts": [str(oracle)],
             }
             if task_class == "negative_control":
                 meta.update(
@@ -357,6 +360,13 @@ def main() -> int:
         assert rejected_report["acceptance"]["checks"]["complete_valid_denominator"] is False
         tampered = subprocess.run([sys.executable, str(verify), str(receipt)], capture_output=True)
         assert tampered.returncode == 1
+        write(root / "hidden-oracle.txt", "tampered\n")
+        try:
+            load_frozen(manifest_path)
+        except ValueError as error:
+            assert "verifier artifact changed" in str(error)
+        else:
+            raise AssertionError("transitive verifier artifact tampering was accepted")
     return 0
 
 

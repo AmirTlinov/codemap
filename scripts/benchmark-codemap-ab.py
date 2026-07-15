@@ -1132,6 +1132,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--keep-worktrees", action="store_true")
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--preflight-only", action="store_true")
     args = parser.parse_args(argv)
     for name in ["repetitions", "timeout_seconds", "verifier_timeout_seconds"]:
         if getattr(args, name) <= 0:
@@ -1139,7 +1140,6 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     if args.reasoning_effort not in {"minimal", "low", "medium", "high", "xhigh"}:
         parser.error("--reasoning-effort must be minimal, low, medium, high, or xhigh")
     return args
-
 
 def split_command(value: str | None, label: str) -> list[str]:
     if not value:
@@ -1157,7 +1157,6 @@ def split_command(value: str | None, label: str) -> list[str]:
     if not Path(command[0]).is_file():
         raise ValueError(f"{label} executable not found: {command[0]}")
     return command
-
 
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
@@ -1223,6 +1222,9 @@ def main(argv: list[str]) -> int:
     try:
         for task in tasks:
             preflight.append(run_preflight(task, out_dir, work_root))
+        if args.preflight_only:
+            print(f"A/B preflight: {out_dir / 'preflight'}")
+            return 0
         eligible = {
             row["task_id"] for row in preflight if row.get("baseline_passed") is False
         }
@@ -1267,8 +1269,7 @@ def main(argv: list[str]) -> int:
     finally:
         if remove_work_root:
             shutil.rmtree(work_root, ignore_errors=True)
-    print(f"A/B summary: {out_dir / 'summary.md'}")
-    print(f"A/B results: {out_dir / 'results.jsonl'}")
+    print(f"A/B summary: {out_dir / 'summary.md'}\nA/B results: {out_dir / 'results.jsonl'}")
     if summary["paired"]["invalid_pairs"]:
         print("codemap A/B: one or more pairs are invalid", file=sys.stderr)
         return 1
