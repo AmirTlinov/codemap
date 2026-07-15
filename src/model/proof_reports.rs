@@ -17,6 +17,7 @@ pub struct ProofReport {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub coverage: Option<ProofCoverageSummary>,
     pub wiring: Vec<ProofWiringFact>,
+    pub verification_topology: VerificationTopology,
     pub fallback: Vec<String>,
     pub unknowns: Vec<Unknown>,
     pub hidden: Vec<HiddenGroup>,
@@ -25,7 +26,7 @@ pub struct ProofReport {
 }
 
 impl ProofReport {
-    pub const SCHEMA_VERSION: &'static str = "10";
+    pub const SCHEMA_VERSION: &'static str = "11";
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -74,4 +75,39 @@ pub struct ProofWiringFact {
     pub effect: String,
     pub locations: Vec<EvidenceLocation>,
     pub expand: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct VerificationTopology {
+    pub direct: Vec<VerificationRelation>,
+    pub mediated: Vec<VerificationRelation>,
+    pub runnable: Vec<VerificationRelation>,
+    pub soft_related: Vec<VerificationRelation>,
+    pub support: Vec<VerificationRelation>,
+    pub missing_link: Vec<VerificationRelation>,
+    pub unknown_external: Vec<VerificationRelation>,
+    pub horizon: VerificationHorizon,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct VerificationRelation {
+    pub relation: String,
+    pub subject: String,
+    pub object: String,
+    pub path: Vec<String>,
+    pub evidence: String,
+    pub strength: EvidenceStrength,
+    pub locations: Vec<EvidenceLocation>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct VerificationHorizon {
+    pub status: String,
+    pub observed: usize,
+    pub shown: usize,
+    pub hidden: usize,
+    pub unknown_external: usize,
+    pub reasons: Vec<String>,
+    pub certificate_id: String,
+    pub expand: Vec<String>,
 }

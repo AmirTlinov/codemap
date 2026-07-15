@@ -6,7 +6,7 @@ use super::Surface;
 use super::{
     BoundaryFinding, DomainRef, EvidenceLocation, EvidenceStrength, FileSummary, HiddenGroup,
     ObservationLedger, PackageDependency, ProofSurface, ProofWiringFact, RuntimeRoute,
-    StructuralEdge, Unknown,
+    StructuralEdge, Unknown, VerificationTopology,
 };
 
 #[derive(Debug, Clone, Serialize)]
@@ -293,6 +293,7 @@ pub struct ProofMapReport {
     pub missing_direct: Vec<Surface>,
     pub commands: Vec<ProofSurface>,
     pub wiring: Vec<ProofWiringFact>,
+    pub verification_topology: VerificationTopology,
     pub fallback: Vec<String>,
     pub unknowns: Vec<Unknown>,
     pub hidden: Vec<HiddenGroup>,

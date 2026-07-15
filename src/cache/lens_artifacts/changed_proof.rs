@@ -234,6 +234,8 @@ struct CachedProofReport {
     coverage: Option<ProofCoverageSummary>,
     #[serde(default)]
     wiring: Vec<ProofWiringFact>,
+    #[serde(default)]
+    verification_topology: crate::model::VerificationTopology,
     fallback: Vec<String>,
     unknowns: Vec<Unknown>,
     hidden: Vec<HiddenGroup>,
@@ -253,6 +255,7 @@ impl CachedProofReport {
             proofs: report.proofs.clone(),
             coverage: report.coverage.clone(),
             wiring: report.wiring.clone(),
+            verification_topology: report.verification_topology.clone(),
             fallback: report.fallback.clone(),
             unknowns: report.unknowns.clone(),
             hidden: report.hidden.clone(),
@@ -272,6 +275,7 @@ impl CachedProofReport {
             proofs: self.proofs,
             coverage: self.coverage,
             wiring: self.wiring,
+            verification_topology: self.verification_topology,
             fallback: self.fallback,
             unknowns: self.unknowns,
             hidden: self.hidden,

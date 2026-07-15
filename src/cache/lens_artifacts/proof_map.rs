@@ -169,6 +169,8 @@ struct CachedProofMapReport {
     commands: Vec<ProofSurface>,
     #[serde(default)]
     wiring: Vec<ProofWiringFact>,
+    #[serde(default)]
+    verification_topology: crate::model::VerificationTopology,
     fallback: Vec<String>,
     unknowns: Vec<Unknown>,
     hidden: Vec<HiddenGroup>,
@@ -191,6 +193,7 @@ impl CachedProofMapReport {
             missing_direct: report.missing_direct.clone(),
             commands: report.commands.clone(),
             wiring: report.wiring.clone(),
+            verification_topology: report.verification_topology.clone(),
             fallback: report.fallback.clone(),
             unknowns: report.unknowns.clone(),
             hidden: report.hidden.clone(),
@@ -201,7 +204,7 @@ impl CachedProofMapReport {
     fn into_report(self) -> ProofMapReport {
         ProofMapReport {
             kind: "proof_map_report",
-            schema_version: "6",
+            schema_version: "7",
             selector: if self.selector.is_empty() {
                 self.scope
                     .clone()
@@ -219,6 +222,7 @@ impl CachedProofMapReport {
             missing_direct: self.missing_direct,
             commands: self.commands,
             wiring: self.wiring,
+            verification_topology: self.verification_topology,
             fallback: self.fallback,
             unknowns: self.unknowns,
             hidden: self.hidden,

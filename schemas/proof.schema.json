@@ -13,6 +13,7 @@
     "changed",
     "proofs",
     "wiring",
+    "verification_topology",
     "fallback",
     "unknowns",
     "hidden",
@@ -21,7 +22,7 @@
   ],
   "properties": {
     "kind": { "const": "proof_plan" },
-    "schema_version": { "const": "10" },
+    "schema_version": { "const": "11" },
     "build_identity": { "$ref": "#/$defs/build_identity" },
     "prelude": { "$ref": "#/$defs/map_prelude" },
     "target": {
@@ -42,6 +43,7 @@
       "type": "array",
       "items": { "$ref": "#/$defs/proof_wiring_fact" }
     },
+    "verification_topology": { "$ref": "#/$defs/verification_topology" },
     "fallback": {
       "type": "array",
       "items": { "type": "string" }
@@ -330,6 +332,53 @@
         "expand": {
           "anyOf": [{ "type": "string" }, { "type": "null" }]
         }
+      }
+    },
+    "verification_relation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["relation", "subject", "object", "path", "evidence", "strength", "locations"],
+      "properties": {
+        "relation": {
+          "type": "string",
+          "enum": ["verifies_directly", "verifies_via", "contains_sensor", "related_soft", "supports_verification", "missing_link", "unknown_external", "invokes_process"]
+        },
+        "subject": { "type": "string" },
+        "object": { "type": "string" },
+        "path": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "evidence": { "type": "string" },
+        "strength": { "$ref": "#/$defs/evidence_strength" },
+        "locations": { "type": "array", "items": { "$ref": "#/$defs/evidence_location" } }
+      }
+    },
+    "verification_horizon": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "observed", "shown", "hidden", "unknown_external", "reasons", "certificate_id", "expand"],
+      "properties": {
+        "status": { "type": "string", "enum": ["closed", "open"] },
+        "observed": { "type": "integer", "minimum": 0 },
+        "shown": { "type": "integer", "minimum": 0 },
+        "hidden": { "type": "integer", "minimum": 0 },
+        "unknown_external": { "type": "integer", "minimum": 0 },
+        "reasons": { "type": "array", "items": { "type": "string" } },
+        "certificate_id": { "type": "string", "pattern": "^verification-v1:[0-9a-f]{64}$" },
+        "expand": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "verification_topology": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["direct", "mediated", "runnable", "soft_related", "support", "missing_link", "unknown_external", "horizon"],
+      "properties": {
+        "direct": { "type": "array", "items": { "$ref": "#/$defs/verification_relation" } },
+        "mediated": { "type": "array", "items": { "$ref": "#/$defs/verification_relation" } },
+        "runnable": { "type": "array", "items": { "$ref": "#/$defs/verification_relation" } },
+        "soft_related": { "type": "array", "items": { "$ref": "#/$defs/verification_relation" } },
+        "support": { "type": "array", "items": { "$ref": "#/$defs/verification_relation" } },
+        "missing_link": { "type": "array", "items": { "$ref": "#/$defs/verification_relation" } },
+        "unknown_external": { "type": "array", "items": { "$ref": "#/$defs/verification_relation" } },
+        "horizon": { "$ref": "#/$defs/verification_horizon" }
       }
     }
   }

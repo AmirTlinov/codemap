@@ -6,16 +6,17 @@ pub(crate) use impact::*;
 pub(crate) use report_unknowns::*;
 
 use crate::map::{
-    balanced_proof_surface_prefix, changed_fail_open_unknowns, changed_should_check_direct_proof,
-    codemap_changed_proof_surfaces, dedupe_unknowns, directory_has_files,
-    file_uses_ci_run_step_syntax, impact_level_for_directory, nearest_proof_scope,
-    nearest_proof_scope_unknown, proof_ci_run_step_is_validation, proof_coverage_summary,
-    proof_fallback_commands, proof_missing_should_surface, proof_surface_is_soft_structural_match,
-    proof_surface_satisfies_specific_proof, proof_surfaces_for_anchor,
-    proof_surfaces_for_directory, proof_surfaces_for_symbol_anchor, proof_wiring_facts_limited,
-    proof_wiring_unknowns, shell_quote, split_symbol_anchor, strict_test_edges_for_file,
-    structural_impact_level_for_file, truncate_with_hidden, unique_proof_surfaces, unknown,
-    unknown_ci_validation_step_not_found, unknown_missing_deterministic_proof,
+    VerificationTopologyInput, balanced_proof_surface_prefix, changed_fail_open_unknowns,
+    changed_should_check_direct_proof, codemap_changed_proof_surfaces, dedupe_unknowns,
+    directory_has_files, file_uses_ci_run_step_syntax, impact_level_for_directory,
+    nearest_proof_scope, nearest_proof_scope_unknown, proof_ci_run_step_is_validation,
+    proof_coverage_summary, proof_fallback_commands, proof_missing_should_surface,
+    proof_surface_is_soft_structural_match, proof_surface_satisfies_specific_proof,
+    proof_surfaces_for_anchor, proof_surfaces_for_directory, proof_surfaces_for_symbol_anchor,
+    proof_wiring_facts_limited, proof_wiring_unknowns, shell_quote, split_symbol_anchor,
+    strict_test_edges_for_file, structural_impact_level_for_file, truncate_with_hidden,
+    unique_proof_surfaces, unknown, unknown_ci_validation_step_not_found,
+    unknown_missing_deterministic_proof, verification_topology,
 };
 use crate::model::{EvidenceStrength, HiddenGroup, Project, ProofReport, Risk};
 use crate::repo;
@@ -258,6 +259,15 @@ pub fn proof_report(
         ));
         expand.push(command);
     }
+    let verification_topology = verification_topology(VerificationTopologyInput {
+        project,
+        proofs: &proofs,
+        missing: &[],
+        wiring: &wiring,
+        unknowns: &unknowns,
+        hidden: &hidden,
+        expand: &expand,
+    });
     ProofReport {
         kind: "proof_plan",
         schema_version: crate::model::ProofReport::SCHEMA_VERSION,
@@ -268,6 +278,7 @@ pub fn proof_report(
         proofs,
         coverage,
         wiring,
+        verification_topology,
         fallback,
         unknowns,
         hidden,
@@ -288,6 +299,10 @@ pub fn clean_proof_report(selector: String) -> ProofReport {
         proofs: Vec::new(),
         coverage: None,
         wiring: Vec::new(),
+        verification_topology: crate::map::unavailable_verification_topology(
+            "clean_worktree_has_no_verification_selection",
+            Vec::new(),
+        ),
         fallback: Vec::new(),
         unknowns: Vec::new(),
         hidden: Vec::new(),

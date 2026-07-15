@@ -5,7 +5,7 @@ use crate::render::{
     proof_changed_command_selector_suffix, proof_coverage_section, proof_detail_expand,
     proof_most_direct_section, proof_plan_surface_sections, proof_unknowns_section,
     proof_wiring_expand, proof_wiring_summary_section, render_proof_filtered_section,
-    root_aware_expand, section,
+    root_aware_expand, section, verification_topology_section,
 };
 
 pub fn proof(report: &ProofReport, section_filter: Option<&str>) {
@@ -35,6 +35,7 @@ pub fn proof(report: &ProofReport, section_filter: Option<&str>) {
     } else {
         println!("- target anchors: `0`");
     }
+    verification_topology_section(&report.verification_topology);
     if report.proofs.is_empty()
         && report.fallback.is_empty()
         && report.unknowns.is_empty()

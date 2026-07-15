@@ -50,6 +50,21 @@ fn soft_token_proof_does_not_hide_missing_deterministic_proof_or_fallback() {
             .any(|unknown| unknown["kind"] == "missing_deterministic_proof"),
         "soft proof must keep missing direct-link uncertainty visible as Unknown: {proof:#}"
     );
+    assert!(
+        !proof["verification_topology"]["soft_related"]
+            .as_array()
+            .expect("soft topology")
+            .is_empty()
+            && !proof["verification_topology"]["missing_link"]
+                .as_array()
+                .expect("missing topology")
+                .is_empty()
+            && proof["verification_topology"]["direct"]
+                .as_array()
+                .expect("direct topology")
+                .is_empty(),
+        "proof should show soft relation and missing direct link as separate topology facts: {proof:#}"
+    );
 
     let proof_map = run_json(
         repo.path(),
@@ -76,6 +91,18 @@ fn soft_token_proof_does_not_hide_missing_deterministic_proof_or_fallback() {
                 .expect("direct evidence")
                 .is_empty(),
         "soft token/name evidence must not be promoted into hard or direct evidence JSON buckets: {proof_map:#}"
+    );
+    let topology = &proof_map["verification_topology"];
+    assert!(
+        !topology["soft_related"]
+            .as_array()
+            .expect("soft topology")
+            .is_empty()
+            && topology["direct"]
+                .as_array()
+                .expect("direct topology")
+                .is_empty(),
+        "soft overlap must stay separate from verifies_directly: {proof_map:#}"
     );
     assert!(
         !proof_map["missing_direct"]

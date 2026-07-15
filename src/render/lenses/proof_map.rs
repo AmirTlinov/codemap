@@ -3,7 +3,7 @@ use crate::model::ProofMapReport;
 use crate::render::{
     code_block, hidden_section, map_snapshot_line, proof_command_summary_section,
     proof_surface_section, proof_wiring_summary_section, root_aware_expand, section,
-    shell_quote_for_markdown, surface_section, unknown_section,
+    shell_quote_for_markdown, surface_section, unknown_section, verification_topology_section,
 };
 
 pub fn proof_map(report: &ProofMapReport) {
@@ -15,6 +15,7 @@ pub fn proof_map(report: &ProofMapReport) {
     if !report.changed.is_empty() {
         proof_map_changed_summary(report);
     }
+    verification_topology_section(&report.verification_topology);
     if proof_map_should_compact(report) {
         proof_map_compact_surface_summary(report);
     } else {

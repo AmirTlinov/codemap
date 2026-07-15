@@ -28,6 +28,31 @@ fn proof_links_mixed_e2e_layout_through_test_support_import_chain() {
         proof["fallback"].as_array().expect("fallback").is_empty(),
         "support import chain should avoid broad fallback: {proof:#}"
     );
+    let topology = &proof["verification_topology"];
+    let mediated = topology["mediated"].as_array().expect("mediated topology");
+    assert!(
+        mediated.iter().any(|relation| {
+            let path = relation["path"].as_array().expect("mediated path");
+            relation["relation"] == "verifies_via"
+                && relation["evidence"] == "test_support_import"
+                && path.len() >= 3
+                && path.first().is_some_and(|item| {
+                    item == "packages/app/src/features/studio/mixed-layout-panel.ts"
+                })
+                && path.last().is_some_and(|item| {
+                    item == "packages/app/tests/e2e/mixed-layout.spec.ts"
+                })
+        }),
+        "support verification must preserve the observed support path instead of collapsing it to direct: {proof:#}"
+    );
+    assert!(
+        topology["direct"]
+            .as_array()
+            .expect("direct topology")
+            .iter()
+            .all(|relation| relation["evidence"] != "test_support_import"),
+        "a support chain is mediated, never verifies_directly: {proof:#}"
+    );
 
     let cone = run_json(
         repo.path(),

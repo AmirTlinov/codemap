@@ -148,6 +148,7 @@ pub(crate) fn proof_surface_wiring_facts(
     selector: &str,
 ) -> Vec<ProofWiringFact> {
     let mut facts = Vec::new();
+    facts.extend(process_invocation_facts(project, proof, selector));
     let subject = proof
         .command
         .clone()
@@ -201,8 +202,10 @@ mod artifact_paths;
 mod artifacts;
 mod commands;
 mod helpers;
+mod processes;
 
 pub(crate) use artifact_paths::*;
 pub(crate) use artifacts::*;
 pub(crate) use commands::*;
 pub(crate) use helpers::*;
+pub(crate) use processes::*;

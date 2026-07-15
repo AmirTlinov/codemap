@@ -4,7 +4,8 @@ use crate::map::{
     inventory_root_script_edges, inventory_top_level_dirs, javascript_script_command,
     json_key_line, manifest_command_prefix, manifest_dir_for_rel, manifest_file_name,
     manifest_script_evidence, manifest_script_is_proof_or_support_relevant, proof_surface,
-    truncate_with_hidden, unique_proof_commands, unique_proof_surfaces,
+    truncate_with_hidden, unavailable_verification_topology, unique_proof_commands,
+    unique_proof_surfaces,
 };
 use crate::model::{
     EvidenceLocation, EvidenceStrength, HiddenGroup, ProofMapReport, ProofSurface, Unknown,
@@ -86,7 +87,7 @@ pub(crate) fn root_inventory_proof_map_report(
 
     ProofMapReport {
         kind: "proof_map_report",
-        schema_version: "6",
+        schema_version: "7",
         selector: ".".to_string(),
         scope: Some(".".to_string()),
         changed: Vec::new(),
@@ -98,6 +99,10 @@ pub(crate) fn root_inventory_proof_map_report(
         missing_direct: Vec::new(),
         commands,
         wiring: Vec::new(),
+        verification_topology: unavailable_verification_topology(
+            "bounded_root_inventory_does_not_expand_file_level_verification_topology",
+            vec![expand_raw.to_string()],
+        ),
         fallback: Vec::new(),
         unknowns,
         hidden,

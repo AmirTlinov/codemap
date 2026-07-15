@@ -9,6 +9,7 @@ mod owner;
 mod precedence;
 mod runner_neighbors;
 mod surfaces;
+mod topology;
 mod wiring;
 
 pub(crate) use commands::*;
@@ -21,4 +22,5 @@ pub(crate) use owner::*;
 pub(crate) use precedence::*;
 pub(crate) use runner_neighbors::*;
 pub(crate) use surfaces::*;
+pub(crate) use topology::*;
 pub(crate) use wiring::*;

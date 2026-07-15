@@ -1,8 +1,8 @@
 // Responsibility: proof-map-report-assembly
 use crate::map::{
-    codemap_changed_proof_surfaces, dedupe_unknowns, expand_with_concrete_limit,
-    group_duplicate_missing_surfaces, group_duplicate_proof_surfaces, group_duplicate_unknowns,
-    proof_fallback_commands, proof_map_changed_scope_repair_unknown,
+    VerificationTopologyInput, codemap_changed_proof_surfaces, dedupe_unknowns,
+    expand_with_concrete_limit, group_duplicate_missing_surfaces, group_duplicate_proof_surfaces,
+    group_duplicate_unknowns, proof_fallback_commands, proof_map_changed_scope_repair_unknown,
     proof_map_current_level_containers, proof_map_discovery_limit, proof_map_exact_scope_repair,
     proof_map_expand, proof_map_missing_should_surface, proof_map_proof_expand,
     proof_map_route_index_paths, proof_map_seed_selection, proof_surface_satisfies_specific_proof,
@@ -10,7 +10,7 @@ use crate::map::{
     proof_wiring_unknowns, push_unique_proof_wiring, route_proof_surfaces_for_routes,
     route_proof_unknowns_for_routes, runtime_fact_index_for_paths, shell_quote,
     sort_proof_wiring_facts, surface_from_path, truncate_with_hidden, unique_proof_commands,
-    unknown_missing_deterministic_proof, unknowns_for_file,
+    unknown_missing_deterministic_proof, unknowns_for_file, verification_topology,
 };
 use crate::model::{EvidenceStrength, HiddenGroup, Project, ProofMapReport};
 use crate::repo;
@@ -318,9 +318,26 @@ pub fn proof_map_report(
     let proof_expand = proof_map_proof_expand(&proof_selector);
     let mut expand = vec![proof_expand];
     expand.extend(scope_expand);
+    let topology_proofs = hard
+        .iter()
+        .chain(&direct_evidence)
+        .chain(&mediated_evidence)
+        .chain(&soft_evidence)
+        .chain(&setup_support)
+        .cloned()
+        .collect::<Vec<_>>();
+    let verification_topology = verification_topology(VerificationTopologyInput {
+        project,
+        proofs: &topology_proofs,
+        missing: &missing_direct,
+        wiring: &wiring,
+        unknowns: &unknowns,
+        hidden: &hidden,
+        expand: &expand,
+    });
     ProofMapReport {
         kind: "proof_map_report",
-        schema_version: "6",
+        schema_version: "7",
         selector: proof_selector,
         scope,
         changed,
@@ -332,6 +349,7 @@ pub fn proof_map_report(
         missing_direct,
         commands,
         wiring,
+        verification_topology,
         fallback,
         unknowns,
         hidden,

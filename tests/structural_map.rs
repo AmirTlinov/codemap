@@ -154,6 +154,7 @@ include!("structural_map/role_hint_truth.rs");
 include!("structural_map/false_confidence_makefile.rs");
 include!("structural_map/proof_false_confidence.rs");
 include!("structural_map/proof_wiring.rs");
+include!("structural_map/verification_topology.rs");
 include!("structural_map/false_confidence_owner_cones.rs");
 include!("structural_map/false_confidence_ci_and_deleted_env.rs");
 include!("structural_map/ci_owner_cone.rs");

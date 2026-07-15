@@ -1,5 +1,5 @@
 // Responsibility: changed-report-shell
-use crate::map::{changed_expand, changed_proof_selector};
+use crate::map::{changed_expand, changed_proof_selector, unavailable_verification_topology};
 use crate::model::{
     BoundaryFacts, ChangedMapDelta, ChangedProofSummary, ChangedReport, GitChange, ProofMapReport,
 };
@@ -121,7 +121,7 @@ fn empty_changed_proof_summary() -> ChangedProofSummary {
 pub(crate) fn empty_proof_map_report(selector: String, changed: Vec<String>) -> ProofMapReport {
     ProofMapReport {
         kind: "proof_map_report",
-        schema_version: "6",
+        schema_version: "7",
         selector: selector.clone(),
         scope: None,
         changed,
@@ -133,6 +133,10 @@ pub(crate) fn empty_proof_map_report(selector: String, changed: Vec<String>) -> 
         missing_direct: Vec::new(),
         commands: Vec::new(),
         wiring: Vec::new(),
+        verification_topology: unavailable_verification_topology(
+            "changed_proof_map_was_not_materialized",
+            vec![format!("codemap proof {}", selector)],
+        ),
         fallback: Vec::new(),
         unknowns: Vec::new(),
         hidden: Vec::new(),

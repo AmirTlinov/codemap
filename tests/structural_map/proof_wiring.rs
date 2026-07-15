@@ -136,6 +136,21 @@ if data["exit_code"] != 0:
         "declared proof command should resolve to Makefile target: {proof_map:#}"
     );
     assert!(
+        wiring.iter().any(|fact| fact["stage"] == "invokes_process"
+            && fact["status"] == "wired"
+            && fact["subject"] == "make validate-receipts"
+            && fact["path"] == "tools/validate_receipts.py"),
+        "the Makefile recipe should expose its external verifier as invokes_process: {proof_map:#}"
+    );
+    assert!(
+        proof_map["verification_topology"]["runnable"]
+            .as_array()
+            .expect("runnable topology")
+            .iter()
+            .any(|relation| relation["relation"] == "invokes_process"),
+        "process wiring should also be available in the stable runnable topology bucket: {proof_map:#}"
+    );
+    assert!(
         wiring.iter().any(|fact| fact["stage"] == "contract_field"
             && fact["status"] == "validated"
             && fact["subject"] == "schema_version"),
