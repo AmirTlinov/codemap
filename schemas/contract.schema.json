@@ -11,6 +11,8 @@
     "anchor",
     "contract_kind",
     "public_surface",
+    "declarations",
+    "lineage",
     "exported_contracts",
     "package_exports",
     "producers",
@@ -25,7 +27,7 @@
     "kind": {
       "const": "contract_report"
     },
-    "schema_version": { "const": "4" },
+    "schema_version": { "const": "5" },
     "build_identity": { "$ref": "#/$defs/build_identity" },
     "anchor": {
       "$ref": "#/$defs/file_summary"
@@ -35,6 +37,14 @@
     },
     "public_surface": {
       "type": "boolean"
+    },
+    "declarations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/surface" }
+    },
+    "lineage": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/structural_edge" }
     },
     "exported_contracts": {
       "type": "array",

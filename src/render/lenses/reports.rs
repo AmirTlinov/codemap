@@ -62,6 +62,8 @@ pub fn contract(report: &ContractReport) {
             ],
         )
     );
+    surface_section("Declarations", &report.declarations);
+    cone_section("Lineage", &report.lineage);
     contract_exports_section("Exported Contracts", &report.exported_contracts);
     cone_section("Package Exports", &report.package_exports);
     cone_section("Producers", &report.producers);

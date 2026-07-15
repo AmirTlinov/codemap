@@ -1,5 +1,5 @@
 {
-  "version": 18,
+  "version": 19,
   "structural_schema_version": "5",
   "anchor_config_version": 1,
   "schemas": [
@@ -63,7 +63,7 @@
       "kind": "contract",
       "file": "schemas/contract.schema.json",
       "contract": "structural_output",
-      "schema_version": "4",
+      "schema_version": "5",
       "json_kind": "contract_report"
     },
     {

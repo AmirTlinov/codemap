@@ -1,4 +1,6 @@
 // Responsibility: contract-lens
+mod lineage;
+
 use crate::map::{
     cone_proof_edges_with_direct_consumers, contract_evidence, direct_consumer_edges,
     direct_dependency_edges, exported_symbol_surface, file_summary, limit_edge_section,
@@ -21,6 +23,7 @@ pub fn contract_report(
         .get(&rel)
         .map(|file| file_summary(project, file, include_hidden, 20))
         .unwrap_or_else(|| missing_file_summary(project, &rel));
+    let mut lineage_facts = lineage::contract_lineage(project, &rel);
     let mut producers = direct_dependency_edges(project, &rel);
     let mut consumers = direct_consumer_edges(project, &rel);
     let mut cross_package_consumers = consumers
@@ -31,7 +34,11 @@ pub fn contract_report(
         })
         .cloned()
         .collect::<Vec<_>>();
-    let mut proof = cone_proof_edges_with_direct_consumers(project, std::slice::from_ref(&rel));
+    let mut proof = if lineage_facts.edges.is_empty() && lineage_facts.declarations.is_empty() {
+        cone_proof_edges_with_direct_consumers(project, std::slice::from_ref(&rel))
+    } else {
+        std::mem::take(&mut lineage_facts.proof)
+    };
     let mut package_exports = package_export_edges(project, &rel);
     let mut exported_contracts = project
         .files
@@ -68,6 +75,21 @@ pub fn contract_report(
         });
     let mut hidden = Vec::new();
     let include_hidden_expand = format!("codemap contract {} --all", shell_quote(&rel));
+    truncate_with_hidden(
+        &mut lineage_facts.declarations,
+        limit,
+        &mut hidden,
+        "contract declarations hidden by limit",
+        &include_hidden_expand,
+    );
+    limit_edge_section(
+        &mut lineage_facts.edges,
+        &mut hidden,
+        include_hidden,
+        limit,
+        "contract lineage edges hidden by limit",
+        &include_hidden_expand,
+    );
     truncate_with_hidden(
         &mut exported_contracts,
         limit,
@@ -120,6 +142,7 @@ pub fn contract_report(
         .get(&rel)
         .map(|file| unknowns_for_file(project, file))
         .unwrap_or_default();
+    unknowns.extend(lineage_facts.unknowns);
     truncate_with_hidden(
         &mut unknowns,
         limit,
@@ -129,10 +152,12 @@ pub fn contract_report(
     );
     ContractReport {
         kind: "contract_report",
-        schema_version: "4",
+        schema_version: "5",
         anchor,
         contract_kind,
         public_surface,
+        declarations: lineage_facts.declarations,
+        lineage: lineage_facts.edges,
         exported_contracts,
         package_exports,
         producers,

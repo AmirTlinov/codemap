@@ -16,6 +16,8 @@ pub struct ContractReport {
     pub anchor: FileSummary,
     pub contract_kind: String,
     pub public_surface: bool,
+    pub declarations: Vec<Surface>,
+    pub lineage: Vec<StructuralEdge>,
     pub exported_contracts: Vec<Surface>,
     pub package_exports: Vec<StructuralEdge>,
     pub producers: Vec<StructuralEdge>,

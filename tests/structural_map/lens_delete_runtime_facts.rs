@@ -40,7 +40,7 @@ fn delete_lens_reports_package_manifest_export_blocker() {
         ],
     );
     assert_schema("schemas/contract.schema.json", &contract);
-    assert_eq!(contract["schema_version"], "4");
+    assert_eq!(contract["schema_version"], "5");
     assert!(contract["public_surface"].as_bool().unwrap_or(false));
     assert!(
         contract["package_exports"]
