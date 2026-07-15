@@ -22,6 +22,7 @@ pub struct LsLensKey<'a> {
     pub include_hidden: bool,
     pub limit: usize,
     pub complete_file_projection: bool,
+    pub complete_directory_relations: bool,
 }
 
 pub struct ConeLensKey<'a> {
@@ -41,6 +42,7 @@ pub fn read_ls_report(key: LsLensKey<'_>) -> Option<LsReport> {
         || cached.include_hidden != key.include_hidden
         || cached.limit != key.limit
         || cached.complete_file_projection != key.complete_file_projection
+        || cached.complete_directory_relations != key.complete_directory_relations
     {
         return None;
     }
@@ -63,6 +65,7 @@ pub fn write_ls_report(key: LsLensKey<'_>, report: &LsReport) -> Result<()> {
         include_hidden: key.include_hidden,
         limit: key.limit,
         complete_file_projection: key.complete_file_projection,
+        complete_directory_relations: key.complete_directory_relations,
         report_sha256: ls_report_sha256(&report),
         report,
     };
@@ -114,6 +117,7 @@ struct CachedLsLens {
     include_hidden: bool,
     limit: usize,
     complete_file_projection: bool,
+    complete_directory_relations: bool,
     report_sha256: String,
     report: CachedLsReport,
 }

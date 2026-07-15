@@ -23,7 +23,7 @@ pub struct LsReport {
 }
 
 impl LsReport {
-    pub const SCHEMA_VERSION: &'static str = "11";
+    pub const SCHEMA_VERSION: &'static str = "12";
 
     /// Root inventory groups certified by the S03.d observation ledger.
     pub const ROOT_INVENTORY_GROUPS: [&'static str; 4] =
@@ -51,6 +51,9 @@ impl LsReport {
         }
         if self.mode == "file" {
             return self.validate_file_observations();
+        }
+        if self.mode == "directory" && self.path != "." {
+            return self.validate_nested_directory_observations();
         }
         if self.path != "." || self.mode != "directory" {
             if self.observations.horizons.is_empty() {
@@ -84,6 +87,35 @@ impl LsReport {
             .hidden
             .iter()
             .any(|group| Self::LEGACY_ROOT_HIDDEN_REASONS.contains(&group.reason.as_str()))
+        {
+            return Err(ObservationLedgerError::DuplicateVisibilityAccounting);
+        }
+        Ok(())
+    }
+
+    fn validate_nested_directory_observations(&self) -> Result<(), ObservationLedgerError> {
+        let mut horizons = self
+            .observations
+            .horizons
+            .iter()
+            .filter(|horizon| horizon.group == "relations");
+        let horizon = horizons
+            .next()
+            .ok_or(ObservationLedgerError::MissingRequiredHorizon)?;
+        if horizons.next().is_some() {
+            return Err(ObservationLedgerError::DuplicateHorizon);
+        }
+        if horizon.scope != self.path {
+            return Err(ObservationLedgerError::ScopeMismatch);
+        }
+        if horizon.shown != self.edges.len() as u64 {
+            return Err(ObservationLedgerError::ShownFactCountMismatch);
+        }
+        if self.observations.horizons.len() != 1
+            || self
+                .hidden
+                .iter()
+                .any(|group| group.reason == "directory edges hidden by limit")
         {
             return Err(ObservationLedgerError::DuplicateVisibilityAccounting);
         }

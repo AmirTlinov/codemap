@@ -16,11 +16,9 @@ use crate::cli::{
     try_runtime_root_fast_path, validate_anchors,
 };
 use crate::{map, render, repo};
-use anyhow::Result;
-use anyhow::bail;
+use anyhow::{Result, bail};
 use clap::Parser;
-use std::collections::BTreeSet;
-use std::env;
+use std::{collections::BTreeSet, env};
 
 pub fn run() -> Result<()> {
     let cli = Cli::parse();
@@ -120,7 +118,7 @@ pub fn run() -> Result<()> {
             accept_depth_compat(args.depth, "ls")?;
             let format = output_format_with_json_alias(args.format, args.json);
             let exact_file = project.files.contains_key(&path);
-            let (include_hidden, limit, complete_file_projection) =
+            let (include_hidden, limit, complete_file_projection, complete_directory_relations) =
                 args.effective_projection(&path, format, exact_file);
             let report = map::ls_report(
                 &project,
@@ -128,6 +126,7 @@ pub fn run() -> Result<()> {
                 include_hidden,
                 limit,
                 complete_file_projection,
+                complete_directory_relations,
             );
             maybe_write_ls_lens_cache(
                 &project,
@@ -135,6 +134,7 @@ pub fn run() -> Result<()> {
                 include_hidden,
                 limit,
                 complete_file_projection,
+                complete_directory_relations,
                 &report,
             );
             let prelude = repo::map_prelude(&project.root);

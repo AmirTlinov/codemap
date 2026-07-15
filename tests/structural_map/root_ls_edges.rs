@@ -157,15 +157,20 @@ fn root_ls_hides_agent_support_dirs_and_edges_by_default() {
             .as_array()
             .expect("package edges")
             .iter()
-            .all(|edge| !edge["from"]
+            .any(|edge| edge["from"]
                 .as_str()
                 .unwrap_or_default()
                 .starts_with("packages/app/.agents/")
-                && !edge["to"]
+                && edge["to"]
                     .as_str()
                     .unwrap_or_default()
-                    .starts_with("packages/app/.agents/")),
-        "nested agent support imports should not appear as default package-level edges: {package:#}"
+                    == "packages/app/src/"),
+        "complete machine relations should retain nested support crossings: {package:#}"
+    );
+    let package_readable = run_markdown(repo.path(), cache.path(), &["ls", "packages/app"]);
+    assert!(
+        !package_readable.contains("packages/app/.agents/"),
+        "bounded readable package maps should still suppress support crossings: {package_readable}"
     );
 
     let package_expanded = run_json(

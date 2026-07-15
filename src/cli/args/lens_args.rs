@@ -33,18 +33,28 @@ impl LsArgs {
         path: &str,
         format: OutputFormat,
         exact_file: bool,
-    ) -> (bool, usize, bool) {
+    ) -> (bool, usize, bool, bool) {
         let complete_json = format == OutputFormat::Json
             && (path == "." || crate::map::split_symbol_anchor(path).is_some());
         let complete_file_projection =
             self.include_hidden || (format == OutputFormat::Json && exact_file);
+        let complete_directory_relations = path != "."
+            && (self.include_hidden
+                || (format == OutputFormat::Json
+                    && !exact_file
+                    && crate::map::split_symbol_anchor(path).is_none()));
         let include_hidden = self.include_hidden || complete_json;
         let limit = if include_hidden {
             usize::MAX / 2
         } else {
             self.limit
         };
-        (include_hidden, limit, complete_file_projection)
+        (
+            include_hidden,
+            limit,
+            complete_file_projection,
+            complete_directory_relations,
+        )
     }
 }
 

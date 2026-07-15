@@ -161,6 +161,25 @@ artifact format 19 renames the exact-file cache projection key and prevents
 pre-migration bounded symbol bodies from being served. Exact-symbol, root,
 nested-directory and cone projections remain outside this propagation boundary.
 
+
+## Flagship draft migration: nested-directory relationship horizon
+
+Manifest version 11 advances `ls` from schema 11 to 12. Every non-root
+directory report now owns one certificate-backed `relations` horizon. Readable
+output retains its balanced edge budget, while JSON serializes all observed
+aggregate directory relations; both projections resolve the same candidate
+universe and certificate. The detached `directory edges hidden by limit` row is
+removed from nested-directory reports because the horizon owns the remainder.
+
+The relation certificate covers project-wide static source candidates that can
+create incoming crossings plus scoped package, script, CI, env, schema and
+lockfile owners. Dynamic or unresolved imports, unsupported source languages,
+malformed manifests and unavailable candidate bodies remain typed open stops.
+Lens artifact format 20 records the complete-directory-relations projection and
+rejects pre-migration bounded edge bodies. Root directory relations, nested
+surface inventory and cone projections remain outside this propagation
+boundary.
+
 Semantic anchor config uses:
 
 ```yaml

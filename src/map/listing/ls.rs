@@ -8,12 +8,13 @@ pub(crate) use root_horizons::*;
 pub(crate) use surface_meta::*;
 
 use crate::map::{
-    balanced_edge_prefix_by_source, boundary_facts_for_ls, direct_files_under_directory,
-    directory_edges, directory_role_surface, file_kind_for_ls, files_under_directory,
-    immediate_child_dirs, inventory_recursive_structural_kind, is_generic_noise,
-    is_support_artifact_path, path_under_scope, shell_quote, surface_priority,
+    ObservationProjection, balanced_edge_prefix_by_source, boundary_facts_for_ls,
+    direct_files_under_directory, directory_edges, directory_relation_observation,
+    directory_role_surface, file_kind_for_ls, files_under_directory, immediate_child_dirs,
+    inventory_recursive_structural_kind, is_generic_noise, is_support_artifact_path,
+    path_under_scope, shell_quote, surface_priority,
 };
-use crate::model::{DirectorySurface, FileInfo, HiddenGroup, LsReport, ObservationLedger, Project};
+use crate::model::{DirectorySurface, FileInfo, HiddenGroup, LsReport, Project};
 use std::collections::BTreeMap;
 
 pub(crate) fn ls_directory_report(
@@ -21,11 +22,13 @@ pub(crate) fn ls_directory_report(
     rel: &str,
     include_hidden: bool,
     limit: usize,
+    complete_directory_relations: bool,
 ) -> LsReport {
     // Root observation truth is assembled from the complete current scope and
     // is intentionally independent of the readable projection. This makes a
     // limit a display choice rather than a different candidate universe.
     let complete_root = (rel == ".").then(|| directory_grouping(project, rel, true));
+    let complete_nested_edges = (rel != ".").then(|| directory_edges(project, rel, true));
     let projected = directory_grouping(project, rel, include_hidden);
     let DirectoryGrouping {
         grouped,
@@ -42,12 +45,19 @@ pub(crate) fn ls_directory_report(
     surfaces.truncate(limit);
 
     let mut hidden = Vec::new();
-    let mut edges = directory_edges(project, rel, include_hidden);
-    let edge_count = edges.len();
-    if !include_hidden {
+    let mut edges = if complete_directory_relations {
+        complete_nested_edges.clone().unwrap_or_default()
+    } else {
+        directory_edges(project, rel, include_hidden)
+    };
+    let edge_count = complete_nested_edges
+        .as_ref()
+        .map(|complete| complete.len())
+        .unwrap_or(edges.len());
+    if !include_hidden && !complete_directory_relations {
         edges = balanced_edge_prefix_by_source(&edges, limit);
     }
-    if edge_count > edges.len() {
+    if edge_count > edges.len() && rel == "." {
         hidden.push(HiddenGroup {
             reason: "directory edges hidden by limit".to_string(),
             count: edge_count - edges.len(),
@@ -107,7 +117,17 @@ pub(crate) fn ls_directory_report(
             &surfaces,
         )
     } else {
-        ObservationLedger::default()
+        directory_relation_observation(
+            project,
+            ObservationProjection {
+                group: "relations",
+                scope: rel,
+                observed: edge_count,
+                shown: edges.len(),
+                expand: (edges.len() < edge_count)
+                    .then(|| format!("codemap ls {} --all", shell_quote(rel))),
+            },
+        )
     };
     LsReport {
         kind: "ls_report",
