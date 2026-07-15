@@ -92,6 +92,33 @@ def main() -> int:
         )
         assert treatment_report["compliant"] is True
         assert treatment_report["agent_command_trace_matches"] is True
+        multiline_rows = [
+            {"argv": ["ls", scope, "--all"], "status": 0, "agent_direct": True}
+            for scope in (
+                ".github",
+                "deploy",
+                "packages",
+                "apps",
+                "docs/contracts",
+                "docs/ops",
+            )
+        ]
+        multiline_report = codemap_protocol(
+            "analysis",
+            "codemap",
+            multiline_rows,
+            agent_commands=[
+                "/bin/zsh -lc 'codemap ls .github --all\n"
+                "codemap ls deploy --all\n"
+                "codemap ls packages --all\n"
+                "codemap ls apps --all\n"
+                "codemap ls docs/contracts --all\n"
+                "codemap ls docs/ops --all'"
+            ],
+        )
+        assert len(multiline_report["agent_command_invocations"]) == 6
+        assert multiline_report["agent_command_trace_matches"] is True
+        assert multiline_report["compliant"] is True
         assert not codemap_protocol(
             "analysis",
             "control",

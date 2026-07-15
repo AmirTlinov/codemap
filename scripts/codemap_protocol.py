@@ -95,7 +95,11 @@ def _words(invocation: str) -> list[str]:
 
 def _shell_words(script: str) -> list[str]:
     try:
-        lexer = shlex.shlex(script, posix=True, punctuation_chars=";&|()")
+        lexer = shlex.shlex(script, posix=True, punctuation_chars=";&|()\n")
+        # A newline is a shell command boundary, not disposable whitespace. Keeping
+        # it as punctuation lets one completed Codex event account for every
+        # command in a multi-line `sh -lc` payload.
+        lexer.whitespace = " \t\r"
         lexer.whitespace_split = True
         return list(lexer)
     except ValueError:
@@ -104,7 +108,7 @@ def _shell_words(script: str) -> list[str]:
 
 def agent_codemap_commands(commands: list[str]) -> list[str]:
     observed = []
-    separators = {";", "&&", "||", "|", "&", "(", ")"}
+    separators = {";", "&&", "||", "|", "&", "(", ")", "\n"}
     prefixes = {"command", "exec", "time", "env"}
     for command in commands:
         outer = _words(command)
