@@ -5,11 +5,12 @@ use crate::map::{
 };
 use crate::model::{
     CoverageCertificate, CoverageClosure, CoverageLocation, CoverageReason, CoverageStop,
-    ExtractorCapability, FileInfo, ObservationLedger, Project, UnsupportedObservation,
+    ExtractorCapability, FileInfo, ObservationLedger, Project, UnsupportedObservation, XrayCard,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::file_ls::record_file_symbol_observation;
+use super::{FileConeXrayObservationInput, record_file_xray_observations};
 
 pub(crate) struct FileConeObservationInput<'a> {
     pub info: &'a FileInfo,
@@ -21,7 +22,9 @@ pub(crate) struct FileConeObservationInput<'a> {
     pub contracts: ObservationProjection<'a>,
     pub boundary: ObservationProjection<'a>,
     pub symbols: ObservationProjection<'a>,
-    pub xray_outputs: ObservationProjection<'a>,
+    pub xray_observed: &'a XrayCard,
+    pub xray_shown: &'a XrayCard,
+    pub xray_expand: String,
 }
 
 pub(crate) fn file_cone_observations(
@@ -81,7 +84,17 @@ pub(crate) fn file_cone_observations(
         &mut ledger,
     );
     record_file_symbol_observation(project, input.info, input.symbols.clone(), &mut ledger);
-    record_file_symbol_observation(project, input.info, input.xray_outputs.clone(), &mut ledger);
+    record_file_xray_observations(
+        project,
+        FileConeXrayObservationInput {
+            info: input.info,
+            depth: input.depth,
+            observed: input.xray_observed,
+            shown: input.xray_shown,
+            expand: input.xray_expand,
+        },
+        &mut ledger,
+    );
     ledger
 }
 

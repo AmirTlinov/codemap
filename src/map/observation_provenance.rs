@@ -20,6 +20,8 @@ mod file_ls;
 pub(crate) use file_ls::{FileLsObservationInput, file_ls_observations};
 mod file_cone;
 pub(crate) use file_cone::{FileConeObservationInput, file_cone_observations};
+mod file_cone_xray;
+use file_cone_xray::{FileConeXrayObservationInput, record_file_xray_observations};
 mod root_inventory;
 pub(crate) use root_inventory::{
     RootInventoryGroupVisibility, RootInventoryObservationInput,

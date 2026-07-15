@@ -268,6 +268,25 @@ empty output list into proven absence. Lens artifact format 25 rejects cached
 exact-file cones without the seventh horizon. The remaining X-Ray groups stay
 outside this migration boundary.
 
+## Flagship draft migration: complete exact-file cone X-Ray ledger
+
+Manifest version 17 advances `cone` from schema 15 to 16. Every indexed
+exact-file cone now carries 20 horizons: five relationship groups, the symbol
+catalog, and all 14 X-Ray fact classes. Roles, inputs, outputs, state, side
+effects, direct and mediated consumers, flow, nearby surfaces, four proof
+buckets, and X-Ray unknowns therefore share the same certificate-backed
+shown/hidden contract as the rest of the report.
+
+Readable X-Ray limits now belong exclusively to `cone_xray_card`; renderers
+emit the complete model projection instead of applying a second local cap.
+Each X-Ray certificate inherits the candidate basis of its existing collector:
+outgoing/depth, incoming consumers, verification, boundary inventory, or the
+exact symbol/output catalog. X-Ray unknowns inherit every typed gap already
+known by those bases, so dynamic, re-export, unavailable, and unsupported
+surfaces cannot become a false closed zero. Lens artifact format 26 rejects
+cached exact-file cones without the complete 20-group ledger. Symbol cones and
+directory cones stay outside this migration boundary.
+
 Semantic anchor config uses:
 
 ```yaml

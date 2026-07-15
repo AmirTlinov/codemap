@@ -41,7 +41,7 @@ pub struct ConeReport {
 }
 
 impl ConeReport {
-    pub const SCHEMA_VERSION: &'static str = "15";
+    pub const SCHEMA_VERSION: &'static str = "16";
     pub const RELATIONSHIP_GROUPS: [&'static str; 5] = [
         "outgoing",
         "incoming",
@@ -49,14 +49,43 @@ impl ConeReport {
         "contracts",
         "boundary",
     ];
-    pub const EXACT_FILE_GROUPS: [&'static str; 7] = [
+    pub const XRAY_GROUPS: [(&'static str, &'static str); 14] = [
+        ("xray_roles", "file_xray_role_surfaces"),
+        ("xray_inputs", "file_xray_input_edges"),
+        ("xray_outputs", "file_xray_output_surfaces"),
+        ("xray_state", "file_xray_state_surfaces"),
+        ("xray_side_effects", "file_xray_side_effect_surfaces"),
+        ("xray_direct_consumers", "file_xray_direct_consumers"),
+        ("xray_mediated_consumers", "file_xray_mediated_consumers"),
+        ("xray_flow", "file_xray_flow_steps"),
+        ("xray_nearby", "file_xray_nearby_surfaces"),
+        ("xray_proof_hard", "file_xray_hard_proof_edges"),
+        ("xray_proof_direct", "file_xray_direct_proof_edges"),
+        ("xray_proof_mediated", "file_xray_mediated_proof_edges"),
+        ("xray_proof_soft", "file_xray_soft_proof_edges"),
+        ("xray_unknowns", "file_xray_unknown_surfaces"),
+    ];
+    pub const EXACT_FILE_GROUPS: [&'static str; 20] = [
         "outgoing",
         "incoming",
         "verification",
         "contracts",
         "boundary",
         "symbols",
+        "xray_roles",
+        "xray_inputs",
         "xray_outputs",
+        "xray_state",
+        "xray_side_effects",
+        "xray_direct_consumers",
+        "xray_mediated_consumers",
+        "xray_flow",
+        "xray_nearby",
+        "xray_proof_hard",
+        "xray_proof_direct",
+        "xray_proof_mediated",
+        "xray_proof_soft",
+        "xray_unknowns",
     ];
 
     pub fn validate_observations(&self) -> Result<(), super::ObservationLedgerError> {
@@ -87,7 +116,36 @@ impl ConeReport {
         }
         if !directory {
             self.validate_shown_facts("symbols", self.anchor.symbols.len())?;
-            self.validate_shown_facts("xray_outputs", self.xray.outputs.len())?;
+            let mut certificate_ids = std::collections::BTreeSet::new();
+            for (group, shown) in self.xray.group_fact_counts() {
+                self.validate_shown_facts(group, shown)?;
+                let query_kind = Self::XRAY_GROUPS
+                    .iter()
+                    .find_map(|(candidate, query)| (*candidate == group).then_some(*query))
+                    .ok_or(super::ObservationLedgerError::UnexpectedHorizon)?;
+                let horizon = self
+                    .observations
+                    .horizons
+                    .iter()
+                    .find(|horizon| horizon.group == group)
+                    .ok_or(super::ObservationLedgerError::MissingRequiredHorizon)?;
+                let certificate = self
+                    .observations
+                    .certificates
+                    .get(&horizon.count.certificate_id)
+                    .ok_or(super::ObservationLedgerError::DanglingCertificate)?;
+                if !certificate_ids.insert(&horizon.count.certificate_id) {
+                    return Err(super::ObservationLedgerError::ReusedCertificate);
+                }
+                let expected_query = if group == "xray_outputs" {
+                    query_kind.to_string()
+                } else {
+                    format!("{query_kind}_depth_{}", self.depth)
+                };
+                if certificate.query_kind != expected_query {
+                    return Err(super::ObservationLedgerError::CertificateQueryMismatch);
+                }
+            }
         }
         let expected_groups = if directory {
             Self::RELATIONSHIP_GROUPS.len()
@@ -159,6 +217,27 @@ pub struct XrayCard {
     pub proof_mediated: Vec<StructuralEdge>,
     pub proof_soft: Vec<StructuralEdge>,
     pub unknowns: Vec<Unknown>,
+}
+
+impl XrayCard {
+    pub(crate) fn group_fact_counts(&self) -> [(&'static str, usize); 14] {
+        [
+            ("xray_roles", self.roles.len()),
+            ("xray_inputs", self.inputs.len()),
+            ("xray_outputs", self.outputs.len()),
+            ("xray_state", self.state.len()),
+            ("xray_side_effects", self.side_effects.len()),
+            ("xray_direct_consumers", self.direct_consumers.len()),
+            ("xray_mediated_consumers", self.mediated_consumers.len()),
+            ("xray_flow", self.flow.len()),
+            ("xray_nearby", self.nearby.len()),
+            ("xray_proof_hard", self.proof_hard.len()),
+            ("xray_proof_direct", self.proof_direct.len()),
+            ("xray_proof_mediated", self.proof_mediated.len()),
+            ("xray_proof_soft", self.proof_soft.len()),
+            ("xray_unknowns", self.unknowns.len()),
+        ]
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]

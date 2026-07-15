@@ -51,13 +51,8 @@ fn render_xray_surfaces(
         return;
     }
     println!("{title}:");
-    const XRAY_SURFACE_LIMIT: usize = 5;
-    for surface in surfaces.iter().take(XRAY_SURFACE_LIMIT) {
+    for surface in surfaces {
         render_xray_surface(surface, paths);
-    }
-    let hidden = surfaces.len().saturating_sub(XRAY_SURFACE_LIMIT);
-    if hidden > 0 {
-        println!("- [Unknown] {hidden} more {title} entries hidden by compact x-ray limit");
     }
 }
 
@@ -113,8 +108,7 @@ fn render_xray_edges(title: &str, edges: &[StructuralEdge], paths: &AnchorPathDi
         return;
     }
     println!("{title}:");
-    const XRAY_EDGE_LIMIT: usize = 5;
-    for edge in edges.iter().take(XRAY_EDGE_LIMIT) {
+    for edge in edges {
         println!(
             "- [{}] `{}` --{}--> `{}` [{}] {}",
             xray_edge_label(edge),
@@ -124,10 +118,6 @@ fn render_xray_edges(title: &str, edges: &[StructuralEdge], paths: &AnchorPathDi
             public_evidence_label(&edge.evidence),
             edge_location_summary_with_paths(edge, paths)
         );
-    }
-    let hidden = edges.len().saturating_sub(XRAY_EDGE_LIMIT);
-    if hidden > 0 {
-        println!("- [Unknown] {hidden} more {title} edges hidden by compact x-ray limit");
     }
 }
 
@@ -158,8 +148,7 @@ fn render_xray_flow(steps: &[crate::model::FlowStep], paths: &AnchorPathDisplay<
         return;
     }
     println!("Structural Flow:");
-    const XRAY_FLOW_LIMIT: usize = 5;
-    for step in steps.iter().take(XRAY_FLOW_LIMIT) {
+    for step in steps {
         let where_hint = step
             .locations
             .first()
@@ -178,10 +167,6 @@ fn render_xray_flow(steps: &[crate::model::FlowStep], paths: &AnchorPathDisplay<
             public_evidence_label(&step.evidence),
             where_hint
         );
-    }
-    let hidden = steps.len().saturating_sub(XRAY_FLOW_LIMIT);
-    if hidden > 0 {
-        println!("- [Unknown] {hidden} more structural flow steps hidden by compact x-ray limit");
     }
 }
 
@@ -223,17 +208,13 @@ fn render_xray_unknowns(unknowns: &[crate::model::Unknown], paths: &AnchorPathDi
         return;
     }
     println!("Unknown:");
-    for unknown in unknowns.iter().take(5) {
+    for unknown in unknowns {
         println!(
             "- [Unknown] `{}` at {} - {}",
             unknown.kind,
             compact_unknown_where(unknown, paths),
             unknown.reason
         );
-    }
-    let hidden = unknowns.len().saturating_sub(5);
-    if hidden > 0 {
-        println!("- [Unknown] {hidden} more Unknown entries hidden by compact x-ray limit");
     }
 }
 

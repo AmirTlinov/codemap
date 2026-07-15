@@ -9,7 +9,7 @@ use crate::map::{
     file_is_env_config, file_summary, limit_edge_projection, ls_directory_report, ls_file_report,
     ls_missing_symbol_report, ls_symbol_report, owner_env_edges_from_facts, owner_env_facts,
     owner_env_unknowns_from_facts, parent_anchor_for_missing, shell_quote, sort_edges,
-    split_symbol_anchor, unknown_unindexed_anchor, xray_output_surfaces,
+    split_symbol_anchor, unknown_unindexed_anchor,
 };
 use crate::model::{BoundaryFacts, ConeReport, LsReport, ObservationLedger, Project};
 use crate::repo;
@@ -142,15 +142,27 @@ pub fn cone_report(
         contracts.len(),
         boundary.len(),
     ];
-    limit_edge_projection(&mut outgoing, include_hidden, limit);
-    limit_edge_projection(&mut incoming, include_hidden, limit);
-    limit_edge_projection(&mut proof, include_hidden, limit);
-    limit_edge_projection(&mut contracts, include_hidden, limit);
-    limit_edge_projection(&mut boundary, include_hidden, limit);
     let declared_env = cone_declared_env(project, &rel);
     if seed_files.is_empty() {
         unknowns.push(unknown_unindexed_anchor(&rel));
     }
+    let complete_anchor = project
+        .files
+        .get(&rel)
+        .map(|info| file_summary(project, info, true, usize::MAX))
+        .unwrap_or_else(|| anchor.clone());
+    let xray_observed = cone_xray_card(ConeXrayInput {
+        project,
+        anchor: &complete_anchor,
+        seed_files: &seed_files,
+        declared_env: &declared_env,
+        outgoing: &outgoing,
+        incoming: &incoming,
+        proof: &proof,
+        unknowns: &unknowns,
+        limit: usize::MAX,
+        include_hidden: true,
+    });
     let xray = cone_xray_card(ConeXrayInput {
         project,
         anchor: &anchor,
@@ -163,9 +175,11 @@ pub fn cone_report(
         limit,
         include_hidden,
     });
-    let xray_outputs_observed = project.files.get(&rel).map_or(0, |info| {
-        xray_output_surfaces(&file_summary(project, info, true, usize::MAX)).len()
-    });
+    limit_edge_projection(&mut outgoing, include_hidden, limit);
+    limit_edge_projection(&mut incoming, include_hidden, limit);
+    limit_edge_projection(&mut proof, include_hidden, limit);
+    limit_edge_projection(&mut contracts, include_hidden, limit);
+    limit_edge_projection(&mut boundary, include_hidden, limit);
     let observations = project
         .files
         .get(&rel)
@@ -190,11 +204,9 @@ pub fn cone_report(
                     contracts: projection("contracts", observed[3], contracts.len()),
                     boundary: projection("boundary", observed[4], boundary.len()),
                     symbols: projection("symbols", info.symbols.len(), anchor.symbols.len()),
-                    xray_outputs: projection(
-                        "xray_outputs",
-                        xray_outputs_observed,
-                        xray.outputs.len(),
-                    ),
+                    xray_observed: &xray_observed,
+                    xray_shown: &xray,
+                    xray_expand: expand(),
                 },
             )
         });

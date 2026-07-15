@@ -30,7 +30,7 @@ fn exact_file_cone_relationships_are_bounded_in_readable_and_complete_in_json() 
         ],
     );
     assert_schema("schemas/cone.schema.json", &json);
-    assert_eq!(json["schema_version"], "15", "{json:#}");
+    assert_eq!(json["schema_version"], "16", "{json:#}");
     assert_eq!(json["outgoing"].as_array().expect("outgoing").len(), 1);
     assert_eq!(json["incoming"].as_array().expect("incoming").len(), 2);
     assert_eq!(json["proof"].as_array().expect("proof").len(), 1);
@@ -196,6 +196,11 @@ fn dynamic_unresolved_and_reexport_flows_keep_file_cone_groups_open() {
     assert!(reasons.iter().any(|reason| reason == "dynamic_import_flow"));
     assert!(reasons.iter().any(|reason| reason == "incomplete_traversal"));
     assert!(reasons.iter().any(|reason| reason == "reexport_flow"));
+    let xray_unknowns = horizon(&json["observations"], "xray_unknowns");
+    assert_eq!(xray_unknowns["count"]["closure"], "open", "{json:#}");
+    let xray_reasons = xray_unknowns["count"]["reasons"].as_array().unwrap();
+    assert!(xray_reasons.iter().any(|reason| reason == "dynamic_import_flow"));
+    assert!(xray_reasons.iter().any(|reason| reason == "reexport_flow"));
 }
 
 #[test]
@@ -253,7 +258,7 @@ fn malformed_manifest_keeps_every_file_cone_candidate_basis_open() {
 }
 
 #[test]
-fn exact_file_cone_cache_preserves_the_seven_group_ledger() {
+fn exact_file_cone_cache_preserves_the_twenty_group_ledger() {
     let repo = file_cone_fixture();
     let cache = TempDir::new().expect("file cone warm cache");
     let args = [
@@ -279,7 +284,7 @@ fn exact_file_cone_cache_preserves_the_seven_group_ledger() {
             .as_array()
             .expect("cached horizons")
             .len(),
-        7,
+        20,
         "{artifact:#}"
     );
 }

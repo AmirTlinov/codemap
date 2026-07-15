@@ -42,10 +42,11 @@ pub(crate) struct ConeXrayInput<'a> {
 }
 
 pub(crate) fn cone_xray_card(input: ConeXrayInput<'_>) -> XrayCard {
-    let limit = if input.include_hidden {
-        usize::MAX
+    let (limit, compact_limit) = if input.include_hidden {
+        (usize::MAX, usize::MAX)
     } else {
-        input.limit.clamp(3, 12)
+        let limit = input.limit.clamp(3, 12);
+        (limit, limit.min(5))
     };
     let mut hard = Vec::new();
     let mut direct = Vec::new();
@@ -63,13 +64,13 @@ pub(crate) fn cone_xray_card(input: ConeXrayInput<'_>) -> XrayCard {
     XrayCard {
         roles: xray_role_surfaces(input.anchor)
             .into_iter()
-            .take(limit)
+            .take(compact_limit)
             .collect(),
         inputs: input
             .outgoing
             .iter()
             .filter(|edge| xray_input_edge(edge))
-            .take(limit)
+            .take(compact_limit)
             .cloned()
             .collect(),
         outputs: xray_output_surfaces(input.anchor)
@@ -83,12 +84,12 @@ pub(crate) fn cone_xray_card(input: ConeXrayInput<'_>) -> XrayCard {
             input.declared_env,
         )
         .into_iter()
-        .take(limit)
+        .take(compact_limit)
         .collect(),
         side_effects: xray_side_effects(
             input.project,
             input.seed_files,
-            limit,
+            compact_limit,
             input.include_hidden,
         ),
         direct_consumers: input
@@ -105,12 +106,12 @@ pub(crate) fn cone_xray_card(input: ConeXrayInput<'_>) -> XrayCard {
             .take(limit)
             .cloned()
             .collect(),
-        flow: xray_flow_steps(input.project, input.seed_files, limit),
-        nearby: xray_nearby_surfaces(input.project, input.seed_files, limit),
+        flow: xray_flow_steps(input.project, input.seed_files, compact_limit),
+        nearby: xray_nearby_surfaces(input.project, input.seed_files, compact_limit),
         proof_hard: hard.into_iter().take(limit).collect(),
         proof_direct: direct.into_iter().take(limit).collect(),
         proof_mediated: mediated.into_iter().take(limit).collect(),
         proof_soft: soft.into_iter().take(limit).collect(),
-        unknowns: input.unknowns.iter().take(limit).cloned().collect(),
+        unknowns: input.unknowns.iter().take(compact_limit).cloned().collect(),
     }
 }
