@@ -93,6 +93,7 @@ include!("structural_map/root_inventory_horizon_gaps.rs");
 include!("structural_map/exact_symbol_ls_horizons.rs");
 include!("structural_map/exact_file_ls_horizons.rs");
 include!("structural_map/nested_directory_ls_horizons.rs");
+include!("structural_map/directory_cone_horizons.rs");
 include!("structural_map/coverage_definition_gaps.rs");
 include!("structural_map/coverage_definition_members.rs");
 include!("structural_map/coverage_scanner_boundaries.rs");

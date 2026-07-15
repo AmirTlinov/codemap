@@ -14,10 +14,12 @@ pub fn cone(report: &ConeReport, section_filter: Option<&str>) {
     println!("Anchor: `{}`{}", report.anchor.path, paths.header_suffix());
     println!("Depth: `{}`", report.depth);
     let is_symbol = report.anchor.kind.starts_with("symbol");
-    let visibility_groups: &[&str] = match section_filter {
-        None | Some("observed") => &["incoming", "verification"],
-        Some("links") => &["incoming"],
-        Some("proof") => &["verification"],
+    let visibility_groups: &[&str] = match (report.anchor.kind.as_str(), section_filter) {
+        ("directory", None | Some("observed")) => &ConeReport::DIRECTORY_GROUPS,
+        ("directory", Some("links")) => &["outgoing", "incoming", "contracts", "boundary"],
+        (_, None | Some("observed")) => &["incoming", "verification"],
+        (_, Some("links")) => &["incoming"],
+        (_, Some("proof")) => &["verification"],
         _ => &[],
     };
     if !visibility_groups.is_empty() {

@@ -199,6 +199,25 @@ projection key, persists the three-horizon ledger and rejects bounded
 pre-migration surface bodies. Root, exact-anchor and cone projections remain
 outside this migration boundary.
 
+## Flagship draft migration: directory-cone relationship horizons
+
+Manifest version 13 advances `cone` from schema 11 to 12. A directory anchor
+now carries exactly five relationship horizons: `outgoing`, `incoming`,
+`verification`, `contracts` and `boundary`. Readable output retains its
+per-section edge budget, while JSON serializes every observed aggregate edge;
+both projections resolve the same group certificates. The five detached
+`directory ... edges hidden by limit` rows are removed because their horizons
+own the typed remainders and expansion handles.
+
+Outgoing and incoming groups reuse the nested-directory static relation
+candidate universe. Verification, contract and boundary groups audit their
+indexed scoped and external carriers independently. Dynamic or unresolved
+flows, malformed manifests and unavailable candidate bodies remain typed open;
+a zero closes only when its declared candidate inventory was fully visited.
+Lens artifact format 22 rejects cached directory cones without the five-group
+ledger. Symbol/file cone and X-Ray surface projections remain outside this
+migration boundary.
+
 Semantic anchor config uses:
 
 ```yaml

@@ -41,13 +41,49 @@ pub struct ConeReport {
 }
 
 impl ConeReport {
-    pub const SCHEMA_VERSION: &'static str = "11";
+    pub const SCHEMA_VERSION: &'static str = "12";
+    pub const DIRECTORY_GROUPS: [&'static str; 5] = [
+        "outgoing",
+        "incoming",
+        "verification",
+        "contracts",
+        "boundary",
+    ];
 
     pub fn validate_observations(&self) -> Result<(), super::ObservationLedgerError> {
         self.observations.validate()?;
         if self.anchor.kind.starts_with("symbol") || self.anchor.kind == "missing_symbol" {
             self.validate_shown_facts("incoming", self.incoming.len())?;
             self.validate_shown_facts("verification", self.proof.len())?;
+        } else if self.anchor.kind == "directory" {
+            self.validate_directory_observations()?;
+        }
+        Ok(())
+    }
+
+    fn validate_directory_observations(&self) -> Result<(), super::ObservationLedgerError> {
+        for (group, shown) in [
+            ("outgoing", self.outgoing.len()),
+            ("incoming", self.incoming.len()),
+            ("verification", self.proof.len()),
+            ("contracts", self.contracts.len()),
+            ("boundary", self.boundary.len()),
+        ] {
+            self.validate_shown_facts(group, shown)?;
+        }
+        if self.observations.horizons.len() != Self::DIRECTORY_GROUPS.len()
+            || self.hidden.iter().any(|hidden| {
+                matches!(
+                    hidden.reason.as_str(),
+                    "directory outgoing edges hidden by limit"
+                        | "directory incoming edges hidden by limit"
+                        | "directory verification edges hidden by limit"
+                        | "directory contract edges hidden by limit"
+                        | "directory boundary edges hidden by limit"
+                )
+            })
+        {
+            return Err(super::ObservationLedgerError::DuplicateVisibilityAccounting);
         }
         Ok(())
     }

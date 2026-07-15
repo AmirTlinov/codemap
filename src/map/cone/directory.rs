@@ -1,16 +1,15 @@
 // Responsibility: map-cone-directory
 use crate::map::{
-    ConeXrayInput, add_directory_edge, boundary_findings, cone_xray_card, contract_evidence,
-    dedupe_proof_edges_by_endpoint, directory_edge_endpoint_at_depth, directory_edges_at_depth,
+    ConeXrayInput, DirectoryConeObservationInput, ObservationProjection, add_directory_edge,
+    boundary_findings, cone_xray_card, contract_evidence, dedupe_proof_edges_by_endpoint,
+    directory_cone_observations, directory_edge_endpoint_at_depth, directory_edges_at_depth,
     e2e_test_visits_unique_route, edge_with_aggregate_location, edge_with_path_location,
     files_under_directory, import_edge, is_generic_noise, is_support_artifact_path,
-    limit_edge_section, next_app_route_pattern, package_name_for_file, shell_quote, sort_edges,
+    next_app_route_pattern, package_name_for_file, shell_quote, sort_edges,
     unknown_directory_aggregate,
 };
 use crate::model::CountFact;
-use crate::model::{
-    ConeReport, EvidenceStrength, FileSummary, ObservationLedger, Project, StructuralEdge,
-};
+use crate::model::{ConeReport, EvidenceStrength, FileSummary, Project, StructuralEdge};
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 
@@ -23,62 +22,39 @@ pub(crate) fn cone_directory_report(
 ) -> ConeReport {
     let depth = depth.max(1);
     let anchor = directory_file_summary(project, rel);
-    let mut outgoing = Vec::new();
-    let mut incoming = Vec::new();
-    for edge in directory_edges_at_depth(project, rel, include_hidden, depth) {
-        match edge.edge_type.as_str() {
-            "incoming_import" | "package_incoming" => incoming.push(edge),
-            _ => outgoing.push(edge),
-        }
-    }
-    let mut proof = directory_proof_edges_at_depth(project, rel, include_hidden, depth);
-    let mut contracts = directory_contract_edges_at_depth(project, rel, include_hidden, depth);
-    let mut boundary = directory_boundary_edges_at_depth(project, rel, depth);
-    let mut hidden = Vec::new();
+    let (complete_outgoing, complete_incoming) =
+        split_directory_relations(directory_edges_at_depth(project, rel, true, depth));
+    let (mut outgoing, mut incoming) = if include_hidden {
+        (complete_outgoing.clone(), complete_incoming.clone())
+    } else {
+        split_directory_relations(directory_edges_at_depth(project, rel, false, depth))
+    };
+    let complete_proof = directory_proof_edges_at_depth(project, rel, true, depth);
+    let complete_contracts = directory_contract_edges_at_depth(project, rel, true, depth);
+    let complete_boundary = directory_boundary_edges_at_depth(project, rel, depth);
+    let mut proof = if include_hidden {
+        complete_proof.clone()
+    } else {
+        directory_proof_edges_at_depth(project, rel, false, depth)
+    };
+    let mut contracts = if include_hidden {
+        complete_contracts.clone()
+    } else {
+        directory_contract_edges_at_depth(project, rel, false, depth)
+    };
+    let mut boundary = complete_boundary.clone();
     sort_edges(&mut outgoing);
     sort_edges(&mut incoming);
     sort_edges(&mut proof);
+    sort_edges(&mut contracts);
     sort_edges(&mut boundary);
-    limit_edge_section(
-        &mut outgoing,
-        &mut hidden,
-        include_hidden,
-        limit,
-        "directory outgoing edges hidden by limit",
-        &format!("codemap cone {} --depth {depth} --all", shell_quote(rel)),
-    );
-    limit_edge_section(
-        &mut incoming,
-        &mut hidden,
-        include_hidden,
-        limit,
-        "directory incoming edges hidden by limit",
-        &format!("codemap cone {} --depth {depth} --all", shell_quote(rel)),
-    );
-    limit_edge_section(
-        &mut proof,
-        &mut hidden,
-        include_hidden,
-        limit,
-        "directory verification edges hidden by limit",
-        &format!("codemap cone {} --depth {depth} --all", shell_quote(rel)),
-    );
-    limit_edge_section(
-        &mut contracts,
-        &mut hidden,
-        include_hidden,
-        limit,
-        "directory contract edges hidden by limit",
-        &format!("codemap cone {} --depth {depth} --all", shell_quote(rel)),
-    );
-    limit_edge_section(
-        &mut boundary,
-        &mut hidden,
-        include_hidden,
-        limit,
-        "directory boundary edges hidden by limit",
-        &format!("codemap cone {} --depth {depth} --all", shell_quote(rel)),
-    );
+    if !include_hidden {
+        outgoing.truncate(limit);
+        incoming.truncate(limit);
+        proof.truncate(limit);
+        contracts.truncate(limit);
+        boundary.truncate(limit);
+    }
 
     let unknowns = vec![unknown_directory_aggregate(rel, depth)];
     let declared_env = Vec::new();
@@ -95,6 +71,25 @@ pub(crate) fn cone_directory_report(
         limit,
         include_hidden,
     });
+    let expand = || format!("codemap cone {} --depth {depth} --all", shell_quote(rel));
+    let projection = |group, observed, shown| ObservationProjection {
+        group,
+        scope: rel,
+        observed,
+        shown,
+        expand: (shown < observed).then(expand),
+    };
+    let observations = directory_cone_observations(
+        project,
+        DirectoryConeObservationInput {
+            depth,
+            outgoing: projection("outgoing", complete_outgoing.len(), outgoing.len()),
+            incoming: projection("incoming", complete_incoming.len(), incoming.len()),
+            verification: projection("verification", complete_proof.len(), proof.len()),
+            contracts: projection("contracts", complete_contracts.len(), contracts.len()),
+            boundary: projection("boundary", complete_boundary.len(), boundary.len()),
+        },
+    );
     ConeReport {
         kind: "cone_report",
         schema_version: crate::model::ConeReport::SCHEMA_VERSION,
@@ -107,14 +102,25 @@ pub(crate) fn cone_directory_report(
         proof,
         contracts,
         boundary,
-        observations: ObservationLedger::default(),
-        hidden,
+        observations,
+        hidden: Vec::new(),
         unknowns,
         expand: vec![
             format!("codemap cone {} --depth {}", shell_quote(rel), depth + 1),
             format!("codemap ls {} --all", shell_quote(rel)),
         ],
     }
+}
+
+fn split_directory_relations(
+    edges: Vec<StructuralEdge>,
+) -> (Vec<StructuralEdge>, Vec<StructuralEdge>) {
+    edges.into_iter().partition(|edge| {
+        !matches!(
+            edge.edge_type.as_str(),
+            "incoming_import" | "package_incoming"
+        )
+    })
 }
 
 fn directory_file_summary(project: &Project, rel: &str) -> FileSummary {

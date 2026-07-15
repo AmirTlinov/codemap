@@ -8,8 +8,14 @@ use crate::map::{ConsumerObservationInput, consumer_observed_count};
 
 mod definition_coverage;
 use definition_coverage::definition_extractor_capability;
+mod directory_cone;
+pub(crate) use directory_cone::{DirectoryConeObservationInput, directory_cone_observations};
 mod directory_ls;
-pub(crate) use directory_ls::{directory_relation_observation, directory_surface_observations};
+pub(crate) use directory_ls::{
+    directory_relation_observation, directory_relation_observation_for_query,
+};
+mod directory_surfaces;
+pub(crate) use directory_surfaces::directory_surface_observations;
 mod file_ls;
 pub(crate) use file_ls::{FileLsObservationInput, file_ls_observations};
 mod root_inventory;
