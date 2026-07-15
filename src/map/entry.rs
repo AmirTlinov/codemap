@@ -19,7 +19,7 @@ pub fn ls_report(
     include_hidden: bool,
     limit: usize,
     complete_file_projection: bool,
-    complete_directory_relations: bool,
+    complete_directory_projection: bool,
 ) -> LsReport {
     let rel = repo::normalize_rel_path(path);
     if let Some((file_rel, symbol_name)) = split_symbol_anchor(&rel) {
@@ -47,7 +47,7 @@ pub fn ls_report(
             &rel,
             include_hidden,
             limit.max(1),
-            complete_directory_relations,
+            complete_directory_projection,
         );
     }
     LsReport {

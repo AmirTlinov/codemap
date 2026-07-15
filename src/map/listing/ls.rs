@@ -10,9 +10,9 @@ pub(crate) use surface_meta::*;
 use crate::map::{
     ObservationProjection, balanced_edge_prefix_by_source, boundary_facts_for_ls,
     direct_files_under_directory, directory_edges, directory_relation_observation,
-    directory_role_surface, file_kind_for_ls, files_under_directory, immediate_child_dirs,
-    inventory_recursive_structural_kind, is_generic_noise, is_support_artifact_path,
-    path_under_scope, shell_quote, surface_priority,
+    directory_role_surface, directory_surface_observations, file_kind_for_ls,
+    files_under_directory, immediate_child_dirs, inventory_recursive_structural_kind,
+    is_generic_noise, is_support_artifact_path, path_under_scope, shell_quote, surface_priority,
 };
 use crate::model::{DirectorySurface, FileInfo, HiddenGroup, LsReport, Project};
 use std::collections::BTreeMap;
@@ -22,30 +22,43 @@ pub(crate) fn ls_directory_report(
     rel: &str,
     include_hidden: bool,
     limit: usize,
-    complete_directory_relations: bool,
+    complete_directory_projection: bool,
 ) -> LsReport {
     // Root observation truth is assembled from the complete current scope and
     // is intentionally independent of the readable projection. This makes a
     // limit a display choice rather than a different candidate universe.
     let complete_root = (rel == ".").then(|| directory_grouping(project, rel, true));
     let complete_nested_edges = (rel != ".").then(|| directory_edges(project, rel, true));
-    let projected = directory_grouping(project, rel, include_hidden);
+    let complete_nested = (rel != ".").then(|| directory_grouping(project, rel, true));
+    let complete_nested_surfaces = complete_nested
+        .as_ref()
+        .map(|complete| directory_surfaces(project, rel, complete.grouped.clone(), true));
+    let projected = directory_grouping(
+        project,
+        rel,
+        include_hidden || complete_directory_projection,
+    );
     let DirectoryGrouping {
         grouped,
         direct_files: _,
         recursive_files,
         hidden_generic_count,
-        hidden_support_package_count,
         hidden_support_artifact_count,
         child_dir_count: _,
     } = projected;
 
-    let mut surfaces = directory_surfaces(project, rel, grouped, include_hidden);
-    let surface_count = surfaces.len();
-    surfaces.truncate(limit);
+    let mut surfaces = directory_surfaces(
+        project,
+        rel,
+        grouped,
+        include_hidden || complete_directory_projection,
+    );
+    if !complete_directory_projection {
+        surfaces.truncate(limit);
+    }
 
     let mut hidden = Vec::new();
-    let mut edges = if complete_directory_relations {
+    let mut edges = if complete_directory_projection {
         complete_nested_edges.clone().unwrap_or_default()
     } else {
         directory_edges(project, rel, include_hidden)
@@ -54,7 +67,7 @@ pub(crate) fn ls_directory_report(
         .as_ref()
         .map(|complete| complete.len())
         .unwrap_or(edges.len());
-    if !include_hidden && !complete_directory_relations {
+    if !include_hidden && !complete_directory_projection {
         edges = balanced_edge_prefix_by_source(&edges, limit);
     }
     if edge_count > edges.len() && rel == "." {
@@ -64,35 +77,21 @@ pub(crate) fn ls_directory_report(
             expand: format!("codemap ls {} --all", shell_quote(rel)),
         });
     }
-    if surface_count > surfaces.len() && rel != "." {
-        hidden.push(HiddenGroup {
-            reason: "directory surfaces hidden by limit".to_string(),
-            count: surface_count - surfaces.len(),
-            expand: format!("codemap ls {} --all", shell_quote(rel)),
-        });
-    }
-    if hidden_generic_count > 0 {
+    if hidden_generic_count > 0 && rel == "." {
         hidden.push(HiddenGroup {
             reason: "generic source files hidden".to_string(),
             count: hidden_generic_count,
             expand: format!("codemap ls {} --all", shell_quote(rel)),
         });
     }
-    if hidden_support_package_count > 0 && rel != "." {
-        hidden.push(HiddenGroup {
-            reason: "support packages hidden below support scopes".to_string(),
-            count: hidden_support_package_count,
-            expand: format!("codemap ls {} --all", shell_quote(rel)),
-        });
-    }
-    if hidden_support_artifact_count > 0 {
+    if hidden_support_artifact_count > 0 && rel == "." {
         hidden.push(HiddenGroup {
             reason: "support artifacts hidden".to_string(),
             count: hidden_support_artifact_count,
             expand: format!("codemap ls {} --all", shell_quote(rel)),
         });
     }
-    if !include_hidden && !recursive_files.is_empty() {
+    if !include_hidden && !recursive_files.is_empty() && rel == "." {
         hidden.push(HiddenGroup {
             reason: "recursive files below this level hidden".to_string(),
             count: recursive_files.len(),
@@ -117,7 +116,20 @@ pub(crate) fn ls_directory_report(
             &surfaces,
         )
     } else {
-        directory_relation_observation(
+        let complete_surfaces = complete_nested_surfaces
+            .as_ref()
+            .expect("nested directory surface inventory");
+        let surface_group_count = complete_surfaces.len();
+        let surface_member_count = complete_surfaces
+            .iter()
+            .map(|surface| surface.count)
+            .sum::<usize>();
+        let shown_member_count = surfaces
+            .iter()
+            .map(|surface| surface.examples.len())
+            .sum::<usize>();
+        let expand = || format!("codemap ls {} --all", shell_quote(rel));
+        let mut observations = directory_relation_observation(
             project,
             ObservationProjection {
                 group: "relations",
@@ -127,7 +139,25 @@ pub(crate) fn ls_directory_report(
                 expand: (edges.len() < edge_count)
                     .then(|| format!("codemap ls {} --all", shell_quote(rel))),
             },
-        )
+        );
+        observations.merge(&directory_surface_observations(
+            project,
+            ObservationProjection {
+                group: "surface_groups",
+                scope: rel,
+                observed: surface_group_count,
+                shown: surfaces.len(),
+                expand: (surfaces.len() < surface_group_count).then(expand),
+            },
+            ObservationProjection {
+                group: "surface_members",
+                scope: rel,
+                observed: surface_member_count,
+                shown: shown_member_count,
+                expand: (shown_member_count < surface_member_count).then(expand),
+            },
+        ));
+        observations
     };
     LsReport {
         kind: "ls_report",
@@ -149,7 +179,6 @@ struct DirectoryGrouping<'a> {
     direct_files: Vec<&'a FileInfo>,
     recursive_files: Vec<&'a FileInfo>,
     hidden_generic_count: usize,
-    hidden_support_package_count: usize,
     hidden_support_artifact_count: usize,
     child_dir_count: usize,
 }
@@ -252,16 +281,12 @@ fn directory_grouping<'a>(
         .remove("generic_hidden")
         .map(|files| files.len())
         .unwrap_or(0);
-    let hidden_support_package_count = grouped
-        .remove("support_package_hidden")
-        .map(|files| files.len())
-        .unwrap_or(0);
+    grouped.remove("support_package_hidden");
     DirectoryGrouping {
         grouped,
         direct_files,
         recursive_files,
         hidden_generic_count,
-        hidden_support_package_count,
         hidden_support_artifact_count,
         child_dir_count,
     }

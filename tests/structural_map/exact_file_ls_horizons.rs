@@ -24,7 +24,7 @@ fn exact_file_ls_readable_and_json_share_relationship_certificates() {
         ],
     );
     assert_schema("schemas/ls.schema.json", &json);
-    assert_eq!(json["schema_version"], "12", "{json:#}");
+    assert_eq!(json["schema_version"], "13", "{json:#}");
     assert_eq!(json["edges"].as_array().expect("file edges").len(), 4);
     assert_eq!(
         json["edges"]

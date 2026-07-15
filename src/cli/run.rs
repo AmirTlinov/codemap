@@ -118,7 +118,7 @@ pub fn run() -> Result<()> {
             accept_depth_compat(args.depth, "ls")?;
             let format = output_format_with_json_alias(args.format, args.json);
             let exact_file = project.files.contains_key(&path);
-            let (include_hidden, limit, complete_file_projection, complete_directory_relations) =
+            let (include_hidden, limit, complete_file_projection, complete_directory_projection) =
                 args.effective_projection(&path, format, exact_file);
             let report = map::ls_report(
                 &project,
@@ -126,7 +126,7 @@ pub fn run() -> Result<()> {
                 include_hidden,
                 limit,
                 complete_file_projection,
-                complete_directory_relations,
+                complete_directory_projection,
             );
             maybe_write_ls_lens_cache(
                 &project,
@@ -134,7 +134,7 @@ pub fn run() -> Result<()> {
                 include_hidden,
                 limit,
                 complete_file_projection,
-                complete_directory_relations,
+                complete_directory_projection,
                 &report,
             );
             let prelude = repo::map_prelude(&project.root);

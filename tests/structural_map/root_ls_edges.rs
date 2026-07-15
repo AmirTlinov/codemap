@@ -145,12 +145,13 @@ fn root_ls_hides_agent_support_dirs_and_edges_by_default() {
             .as_array()
             .expect("package directory")
             .iter()
-            .all(|surface| surface["examples"]
-                .as_array()
-                .expect("examples")
-                .iter()
-                .all(|example| example != "packages/app/.agents/")),
-        "nested agent support dirs should not be default package-level surfaces: {package:#}"
+            .any(|surface| surface["kind"] == "agent_support"
+                && surface["examples"]
+                    .as_array()
+                    .expect("examples")
+                    .iter()
+                    .any(|example| example == "packages/app/.agents/")),
+        "complete machine surfaces should retain nested support facts: {package:#}"
     );
     assert!(
         package["edges"]

@@ -180,6 +180,25 @@ rejects pre-migration bounded edge bodies. Root directory relations, nested
 surface inventory and cone projections remain outside this propagation
 boundary.
 
+## Flagship draft migration: nested-directory surface horizons
+
+Manifest version 12 advances `ls` from schema 12 to 13. Every non-root
+directory report adds `surface_groups` and `surface_members` beside its
+`relations` horizon. Readable output keeps its bounded group and example
+projection, while JSON serializes every classified surface group and member;
+each projection reconciles separately against the same candidate basis. The
+detached nested-directory rows for hidden surfaces, generic files, support
+packages, support artifacts and recursive files are removed because the two
+surface horizons now own that visibility accounting.
+
+The shared surface basis audits every indexed file below the directory and the
+package manifests among them. Unavailable bodies and malformed manifests keep
+both horizons typed open with exact unsupported carriers rather than silently
+closing the inventory. Lens artifact format 21 renames the complete nested
+projection key, persists the three-horizon ledger and rejects bounded
+pre-migration surface bodies. Root, exact-anchor and cone projections remain
+outside this migration boundary.
+
 Semantic anchor config uses:
 
 ```yaml

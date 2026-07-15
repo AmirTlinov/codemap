@@ -69,6 +69,12 @@ pub enum CoverageClosure {
     Unavailable,
 }
 
+impl CoverageClosure {
+    pub(crate) fn from_gaps(has_gaps: bool) -> Self {
+        if has_gaps { Self::Open } else { Self::Closed }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "snake_case")]
 pub enum CoverageReason {

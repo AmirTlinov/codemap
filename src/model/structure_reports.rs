@@ -23,7 +23,7 @@ pub struct LsReport {
 }
 
 impl LsReport {
-    pub const SCHEMA_VERSION: &'static str = "12";
+    pub const SCHEMA_VERSION: &'static str = "13";
 
     /// Root inventory groups certified by the S03.d observation ledger.
     pub const ROOT_INVENTORY_GROUPS: [&'static str; 4] =
@@ -35,10 +35,23 @@ impl LsReport {
     /// Exact-file groups certified by the S03.f/g ledger.
     pub const FILE_GROUPS: [&'static str; 4] = ["imports", "consumers", "verification", "symbols"];
 
+    /// Nested-directory groups certified by the S03.h/i ledger.
+    pub const NESTED_DIRECTORY_GROUPS: [&'static str; 3] =
+        ["relations", "surface_groups", "surface_members"];
+
     /// Legacy detached hidden reasons whose truth now lives in the horizons.
     const LEGACY_ROOT_HIDDEN_REASONS: [&'static str; 2] = [
         "directory surfaces hidden by limit",
         "support packages hidden below support scopes",
+    ];
+
+    const LEGACY_NESTED_DIRECTORY_HIDDEN_REASONS: [&'static str; 6] = [
+        "directory edges hidden by limit",
+        "directory surfaces hidden by limit",
+        "generic source files hidden",
+        "support packages hidden below support scopes",
+        "support artifacts hidden",
+        "recursive files below this level hidden",
     ];
 
     /// Surface kinds counted by the `test_surfaces` horizon at the root level.
@@ -94,28 +107,39 @@ impl LsReport {
     }
 
     fn validate_nested_directory_observations(&self) -> Result<(), ObservationLedgerError> {
-        let mut horizons = self
-            .observations
-            .horizons
-            .iter()
-            .filter(|horizon| horizon.group == "relations");
-        let horizon = horizons
-            .next()
-            .ok_or(ObservationLedgerError::MissingRequiredHorizon)?;
-        if horizons.next().is_some() {
-            return Err(ObservationLedgerError::DuplicateHorizon);
-        }
-        if horizon.scope != self.path {
-            return Err(ObservationLedgerError::ScopeMismatch);
-        }
-        if horizon.shown != self.edges.len() as u64 {
-            return Err(ObservationLedgerError::ShownFactCountMismatch);
-        }
-        if self.observations.horizons.len() != 1
-            || self
-                .hidden
+        for group in Self::NESTED_DIRECTORY_GROUPS {
+            let mut horizons = self
+                .observations
+                .horizons
                 .iter()
-                .any(|group| group.reason == "directory edges hidden by limit")
+                .filter(|horizon| horizon.group == group);
+            let horizon = horizons
+                .next()
+                .ok_or(ObservationLedgerError::MissingRequiredHorizon)?;
+            if horizons.next().is_some() {
+                return Err(ObservationLedgerError::DuplicateHorizon);
+            }
+            if horizon.scope != self.path {
+                return Err(ObservationLedgerError::ScopeMismatch);
+            }
+            let shown = match group {
+                "relations" => self.edges.len(),
+                "surface_groups" => self.directory.len(),
+                "surface_members" => self
+                    .directory
+                    .iter()
+                    .map(|surface| surface.examples.len())
+                    .sum(),
+                _ => unreachable!("nested directory group vocabulary"),
+            } as u64;
+            if horizon.shown != shown {
+                return Err(ObservationLedgerError::ShownFactCountMismatch);
+            }
+        }
+        if self.observations.horizons.len() != Self::NESTED_DIRECTORY_GROUPS.len()
+            || self.hidden.iter().any(|group| {
+                Self::LEGACY_NESTED_DIRECTORY_HIDDEN_REASONS.contains(&group.reason.as_str())
+            })
         {
             return Err(ObservationLedgerError::DuplicateVisibilityAccounting);
         }

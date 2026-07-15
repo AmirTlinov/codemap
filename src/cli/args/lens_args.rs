@@ -25,9 +25,8 @@ pub(crate) struct LsArgs {
 }
 
 impl LsArgs {
-    /// S03.d-g make root, exact-symbol, and exact-file machine projections
-    /// complete. Nested-directory anchors keep their normal bounded signal
-    /// filter unless the caller explicitly asks for `--all`.
+    /// Root, exact anchors, and nested-directory machine projections are
+    /// complete. Readable nested-directory output keeps its bounded signal.
     pub(crate) fn effective_projection(
         &self,
         path: &str,
@@ -38,7 +37,7 @@ impl LsArgs {
             && (path == "." || crate::map::split_symbol_anchor(path).is_some());
         let complete_file_projection =
             self.include_hidden || (format == OutputFormat::Json && exact_file);
-        let complete_directory_relations = path != "."
+        let complete_directory_projection = path != "."
             && (self.include_hidden
                 || (format == OutputFormat::Json
                     && !exact_file
@@ -53,7 +52,7 @@ impl LsArgs {
             include_hidden,
             limit,
             complete_file_projection,
-            complete_directory_relations,
+            complete_directory_projection,
         )
     }
 }

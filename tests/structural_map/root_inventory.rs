@@ -39,22 +39,21 @@ fn flat_huge_directory_ls_stays_bounded_without_expanding_the_galaxy() {
         .find(|surface| surface["kind"] == "source")
         .expect("source surface");
     assert_eq!(source_surface["count"], 80);
-    assert!(
-        source_surface["examples"]
-            .as_array()
-            .expect("examples")
-            .len()
-            <= 5,
-        "flat directory examples must stay bounded"
-    );
+    assert_eq!(source_surface["examples"].as_array().expect("examples").len(), 80);
+    assert_eq!(source_surface["hidden_count"], 0);
     assert!(
         json["hidden"]
             .as_array()
             .expect("hidden")
             .iter()
-            .any(|hidden| hidden["reason"] == "recursive files below this level hidden"),
-        "recursive detail must stay hidden unless explicitly expanded"
+            .all(|hidden| hidden["reason"] != "recursive files below this level hidden"),
+        "the surface horizon, not a detached row, owns recursive visibility"
     );
+    let members = horizon(&json["observations"], "surface_members");
+    assert_eq!(members["shown"], members["count"]["observed"], "{json:#}");
+    let readable = run_markdown(repo.path(), cache.path(), &["ls", "src/flat"]);
+    assert!(readable.contains("count=80") && readable.contains("additional examples: 75"));
+    assert!(!readable.contains("module-05.ts"), "readable examples must stay bounded: {readable}");
     assert_eq!(json.get("read_first"), None);
 }
 
@@ -195,4 +194,3 @@ edition = "2021"
         "workspace containers should remain ordinary current-level dirs: {json:#}"
     );
 }
-

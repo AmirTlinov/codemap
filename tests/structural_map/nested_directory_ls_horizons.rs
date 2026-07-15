@@ -1,4 +1,4 @@
-// Responsibility: nested-directory-ls-relation-horizon-contract
+// Responsibility: nested-directory-ls-horizon-contract
 const NESTED_DIRECTORY_ANCHOR: &str = "src/domain";
 
 #[test]
@@ -22,7 +22,7 @@ fn nested_directory_relations_are_bounded_in_readable_and_complete_in_json() {
         ],
     );
     assert_schema("schemas/ls.schema.json", &json);
-    assert_eq!(json["schema_version"], "12", "{json:#}");
+    assert_eq!(json["schema_version"], "13", "{json:#}");
     assert_eq!(json["edges"].as_array().expect("directory edges").len(), 5);
     let relations = horizon(&json["observations"], "relations");
     assert_eq!(relations["count"]["observed"], 5, "{json:#}");
@@ -30,21 +30,23 @@ fn nested_directory_relations_are_bounded_in_readable_and_complete_in_json() {
     assert_eq!(relations["shown"], 5, "{json:#}");
     assert_eq!(relations["hidden"], 0, "{json:#}");
     assert_horizon_certificate_resolves(&json["observations"], relations);
+    let surface_groups = horizon(&json["observations"], "surface_groups");
+    let surface_members = horizon(&json["observations"], "surface_members");
+    assert_eq!(json["directory"].as_array().expect("surface groups").len(), 3);
+    assert_eq!(surface_groups["count"]["observed"], 3, "{json:#}");
+    assert_eq!(surface_groups["shown"], 3, "{json:#}");
+    assert_eq!(surface_members["count"]["observed"], 12, "{json:#}");
+    assert_eq!(surface_members["shown"], 12, "{json:#}");
+    assert_horizon_certificate_resolves(&json["observations"], surface_groups);
+    assert_horizon_certificate_resolves(&json["observations"], surface_members);
+    assert_shared_surface_candidate_basis(&json, surface_groups, surface_members);
     assert!(
         json["hidden"]
             .as_array()
             .expect("hidden")
             .iter()
-            .all(|group| group["reason"] != "directory edges hidden by limit"),
-        "machine relation accounting belongs only to the horizon: {json:#}"
-    );
-    assert!(
-        json["hidden"]
-            .as_array()
-            .expect("hidden")
-            .iter()
-            .any(|group| group["reason"] == "recursive files below this level hidden"),
-        "surface inventory remains deliberately outside S03.h: {json:#}"
+            .all(|group| !legacy_nested_reason(group["reason"].as_str().unwrap_or_default())),
+        "nested visibility accounting belongs only to the horizons: {json:#}"
     );
 
     let digest = relations["count"]["certificate_id"]
@@ -60,6 +62,19 @@ fn nested_directory_relations_are_bounded_in_readable_and_complete_in_json() {
     assert!(row.contains("shown=2 hidden=3"), "{readable}");
     assert!(row.contains(&format!("cert=`v1:{}`", &digest[..12])), "{readable}");
     assert!(!readable.contains("directory edges hidden by limit"), "{readable}");
+    let group_row = readable
+        .lines()
+        .find(|line| line.starts_with("- surface_groups:"))
+        .expect("readable surface group horizon");
+    let member_row = readable
+        .lines()
+        .find(|line| line.starts_with("- surface_members:"))
+        .expect("readable surface member horizon");
+    assert!(group_row.contains("counted(3)"), "{readable}");
+    assert!(group_row.contains("shown=2 hidden=1"), "{readable}");
+    assert!(member_row.contains("counted(12)"), "{readable}");
+    assert!(member_row.contains("shown=8 hidden=4"), "{readable}");
+    assert!(!legacy_nested_reason_in(&readable), "{readable}");
 }
 
 #[test]
@@ -129,6 +144,42 @@ fn unavailable_relation_candidate_keeps_the_directory_horizon_open() {
         "{json:#}"
     );
     assert!(!relations["unsupported"].as_array().expect("unsupported").is_empty());
+    for group in ["surface_groups", "surface_members"] {
+        let surface = horizon(&json["observations"], group);
+        assert_eq!(surface["count"]["closure"], "open", "{json:#}");
+        assert!(
+            surface["count"]["reasons"]
+                .as_array()
+                .expect("surface reasons")
+                .iter()
+                .any(|reason| reason == "unsupported_construct"),
+            "{json:#}"
+        );
+    }
+}
+
+#[test]
+fn malformed_manifest_keeps_the_nested_surface_basis_open() {
+    let repo = nested_directory_fixture();
+    write(&repo.path().join("src/domain/package.json"), "{ malformed");
+    let json = run_json(
+        repo.path(),
+        TempDir::new().expect("malformed surface cache").path(),
+        &["ls", NESTED_DIRECTORY_ANCHOR, "--format", "json"],
+    );
+    let groups = horizon(&json["observations"], "surface_groups");
+    let members = horizon(&json["observations"], "surface_members");
+    assert_eq!(groups["count"]["closure"], "open", "{json:#}");
+    assert_eq!(members["count"]["closure"], "open", "{json:#}");
+    assert_shared_surface_candidate_basis(&json, groups, members);
+    assert!(
+        groups["unsupported"]
+            .as_array()
+            .expect("unsupported manifests")
+            .iter()
+            .any(|gap| gap["file"] == "src/domain/package.json"),
+        "{json:#}"
+    );
 }
 
 #[test]
@@ -151,15 +202,53 @@ fn nested_directory_ls_cache_preserves_complete_relations() {
             .expect("nested-directory ls artifact"),
     )
     .expect("nested-directory ls artifact json");
-    assert_eq!(artifact["complete_directory_relations"], true, "{artifact:#}");
+    assert_eq!(artifact["complete_directory_projection"], true, "{artifact:#}");
     assert_eq!(
         artifact["report"]["observations"]["horizons"]
             .as_array()
             .expect("cached horizons")
             .len(),
-        1,
+        3,
         "{artifact:#}"
     );
+}
+
+fn assert_shared_surface_candidate_basis(json: &Value, groups: &Value, members: &Value) {
+    let certificates = &json["observations"]["certificates"];
+    let group_certificate = &certificates[groups["count"]["certificate_id"].as_str().unwrap()];
+    let member_certificate = &certificates[members["count"]["certificate_id"].as_str().unwrap()];
+    for field in [
+        "scope",
+        "snapshot",
+        "eligible_files",
+        "visited_files",
+        "excluded_files_by_reason",
+        "extractor_capabilities",
+        "unsupported",
+        "closure",
+        "reasons",
+    ] {
+        assert_eq!(group_certificate[field], member_certificate[field], "{field}: {json:#}");
+    }
+}
+
+fn legacy_nested_reason(reason: &str) -> bool {
+    [
+        "directory edges hidden by limit",
+        "directory surfaces hidden by limit",
+        "generic source files hidden",
+        "support packages hidden below support scopes",
+        "support artifacts hidden",
+        "recursive files below this level hidden",
+    ]
+    .contains(&reason)
+}
+
+fn legacy_nested_reason_in(output: &str) -> bool {
+    output.lines().any(|line| {
+        let label = line.trim_start().trim_start_matches("- ");
+        legacy_nested_reason(label.split(':').next().unwrap_or(label))
+    })
 }
 
 fn nested_directory_fixture() -> TempDir {
