@@ -30,7 +30,7 @@ fn exact_file_cone_relationships_are_bounded_in_readable_and_complete_in_json() 
         ],
     );
     assert_schema("schemas/cone.schema.json", &json);
-    assert_eq!(json["schema_version"], "14", "{json:#}");
+    assert_eq!(json["schema_version"], "15", "{json:#}");
     assert_eq!(json["outgoing"].as_array().expect("outgoing").len(), 1);
     assert_eq!(json["incoming"].as_array().expect("incoming").len(), 2);
     assert_eq!(json["proof"].as_array().expect("proof").len(), 1);
@@ -114,6 +114,18 @@ fn exact_file_cone_symbol_catalog_is_bounded_and_complete() {
     );
     assert!(!readable.contains("symbols hidden by limit"), "{readable}");
     assert!(!readable.contains("nested symbols hidden by default"), "{readable}");
+    let outputs = horizon(&json["observations"], "xray_outputs");
+    assert_eq!(outputs["count"]["observed"], 4, "{json:#}");
+    assert_eq!(outputs["count"]["closure"], "closed", "{json:#}");
+    assert_eq!(outputs["shown"], 4, "{json:#}");
+    assert_eq!(json["xray"]["outputs"].as_array().unwrap().len(), 4);
+    assert!(
+        readable.lines().any(|line| {
+            line.starts_with("- xray_outputs:") && line.contains("shown=3 hidden=1")
+        }),
+        "{readable}"
+    );
+    assert!(!readable.contains("more Outputs entries hidden"), "{readable}");
 }
 
 #[test]
@@ -130,6 +142,10 @@ fn supported_empty_file_cone_proves_an_empty_symbol_catalog() {
     assert_eq!(symbols["count"]["observed"], 0, "{json:#}");
     assert_eq!(symbols["count"]["closure"], "closed", "{json:#}");
     assert!(json["anchor"]["symbols"].as_array().unwrap().is_empty());
+    let outputs = horizon(&json["observations"], "xray_outputs");
+    assert_eq!(outputs["count"]["observed"], 0, "{json:#}");
+    assert_eq!(outputs["count"]["closure"], "closed", "{json:#}");
+    assert!(json["xray"]["outputs"].as_array().unwrap().is_empty());
 }
 
 #[test]
@@ -149,6 +165,8 @@ fn unsupported_file_cone_keeps_symbol_catalog_unavailable() {
         serde_json::json!(["unsupported_language"]),
         "{json:#}"
     );
+    let outputs = horizon(&json["observations"], "xray_outputs");
+    assert_eq!(outputs["count"]["closure"], "unavailable", "{json:#}");
 }
 
 #[test]
@@ -205,6 +223,9 @@ fn unavailable_body_keeps_every_file_cone_group_open() {
     let symbols = horizon(&json["observations"], "symbols");
     assert_eq!(symbols["count"]["closure"], "unavailable", "{json:#}");
     assert_eq!(symbols["count"]["observed"], 0, "{json:#}");
+    let outputs = horizon(&json["observations"], "xray_outputs");
+    assert_eq!(outputs["count"]["closure"], "unavailable", "{json:#}");
+    assert_eq!(outputs["count"]["observed"], 0, "{json:#}");
 }
 
 #[test]
@@ -232,7 +253,7 @@ fn malformed_manifest_keeps_every_file_cone_candidate_basis_open() {
 }
 
 #[test]
-fn exact_file_cone_cache_preserves_the_six_group_ledger() {
+fn exact_file_cone_cache_preserves_the_seven_group_ledger() {
     let repo = file_cone_fixture();
     let cache = TempDir::new().expect("file cone warm cache");
     let args = [
@@ -258,7 +279,7 @@ fn exact_file_cone_cache_preserves_the_six_group_ledger() {
             .as_array()
             .expect("cached horizons")
             .len(),
-        6,
+        7,
         "{artifact:#}"
     );
 }

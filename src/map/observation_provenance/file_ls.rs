@@ -125,8 +125,13 @@ pub(super) fn record_file_symbol_observation(
         .then_some(CoverageReason::UnsupportedLanguage)
         .into_iter()
         .collect();
+    let query_kind = if projection.group == "xray_outputs" {
+        "file_xray_output_surfaces"
+    } else {
+        "file_symbol_catalog"
+    };
     let mut certificate = CoverageCertificate::new(
-        "file_symbol_catalog",
+        query_kind,
         &info.rel,
         crate::cache::fingerprint(project, None),
         1,
@@ -141,7 +146,7 @@ pub(super) fn record_file_symbol_observation(
                 extractor_id: "codemap.indexed-symbol-table".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_string(),
                 language: info.language.clone(),
-                constructs: vec!["file_symbol_catalog".to_string()],
+                constructs: vec![query_kind.to_string()],
             });
     } else {
         certificate

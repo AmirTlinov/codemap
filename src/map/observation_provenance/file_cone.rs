@@ -21,6 +21,7 @@ pub(crate) struct FileConeObservationInput<'a> {
     pub contracts: ObservationProjection<'a>,
     pub boundary: ObservationProjection<'a>,
     pub symbols: ObservationProjection<'a>,
+    pub xray_outputs: ObservationProjection<'a>,
 }
 
 pub(crate) fn file_cone_observations(
@@ -80,6 +81,7 @@ pub(crate) fn file_cone_observations(
         &mut ledger,
     );
     record_file_symbol_observation(project, input.info, input.symbols.clone(), &mut ledger);
+    record_file_symbol_observation(project, input.info, input.xray_outputs.clone(), &mut ledger);
     ledger
 }
 

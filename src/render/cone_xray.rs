@@ -27,7 +27,7 @@ pub(crate) fn render_cone_xray(report: &ConeReport) {
     println!("\n## X-Ray Card\n");
     render_xray_surfaces("Role", &xray.roles, &paths);
     render_xray_edges("Inputs", &xray.inputs, &paths);
-    render_xray_surfaces("Outputs", &xray.outputs, &paths);
+    render_xray_output_surfaces(&xray.outputs, &paths);
     render_xray_surfaces("State", &xray.state, &paths);
     render_xray_surfaces("Side Effects", &xray.side_effects, &paths);
     render_observed_xray_edges("Direct Consumers", &xray.direct_consumers, &paths);
@@ -53,40 +53,58 @@ fn render_xray_surfaces(
     println!("{title}:");
     const XRAY_SURFACE_LIMIT: usize = 5;
     for surface in surfaces.iter().take(XRAY_SURFACE_LIMIT) {
-        let label = surface
-            .path
-            .as_ref()
-            .map(|path| code(&paths.path(path)))
-            .unwrap_or_else(|| code(&surface.kind));
-        let examples = if surface.examples.is_empty() || paths.compact() {
-            String::new()
-        } else {
-            format!(
-                " examples={}",
-                surface
-                    .examples
-                    .iter()
-                    .take(3)
-                    .map(|example| code(&paths.path(example)))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            )
-        };
-        println!(
-            "- [{}] `{}` {} [{}]{}",
-            xray_surface_label(surface),
-            surface.kind,
-            label,
-            public_evidence_label(&surface.evidence),
-            examples
-        );
-        if surface.hidden_count > 0 {
-            println!("  additional examples: {}", surface.hidden_count);
-        }
+        render_xray_surface(surface, paths);
     }
     let hidden = surfaces.len().saturating_sub(XRAY_SURFACE_LIMIT);
     if hidden > 0 {
         println!("- [Unknown] {hidden} more {title} entries hidden by compact x-ray limit");
+    }
+}
+
+fn render_xray_output_surfaces(surfaces: &[crate::model::Surface], paths: &AnchorPathDisplay<'_>) {
+    if surfaces.is_empty() {
+        return;
+    }
+    println!("Outputs:");
+    for surface in surfaces {
+        render_xray_surface(surface, paths);
+    }
+}
+
+fn render_xray_surface(surface: &crate::model::Surface, paths: &AnchorPathDisplay<'_>) {
+    let label = surface
+        .path
+        .as_ref()
+        .map(|path| code(&paths.path(path)))
+        .unwrap_or_else(|| code(&surface.kind));
+    let distinct_examples = surface
+        .examples
+        .iter()
+        .filter(|example| surface.path.as_deref() != Some(example.as_str()))
+        .take(3)
+        .collect::<Vec<_>>();
+    let examples = if distinct_examples.is_empty() || paths.compact() {
+        String::new()
+    } else {
+        format!(
+            " examples={}",
+            distinct_examples
+                .iter()
+                .map(|example| code(&paths.path(example)))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    };
+    println!(
+        "- [{}] `{}` {} [{}]{}",
+        xray_surface_label(surface),
+        surface.kind,
+        label,
+        public_evidence_label(&surface.evidence),
+        examples
+    );
+    if surface.hidden_count > 0 {
+        println!("  additional examples: {}", surface.hidden_count);
     }
 }
 

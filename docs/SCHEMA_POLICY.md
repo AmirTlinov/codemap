@@ -252,6 +252,22 @@ typed unavailable. Lens artifact format 24 rejects cached exact-file cones
 without the sixth horizon. Symbol anchors and the remaining X-Ray surface
 groups stay outside this migration boundary.
 
+## Flagship draft migration: exact-file cone X-Ray outputs
+
+Manifest version 16 advances `cone` from schema 14 to 15. An indexed
+exact-file cone adds `xray_outputs` beside the five relationship and symbol
+catalog horizons. Readable output keeps the bounded output projection, JSON
+serializes every output surface, and both resolve a certificate derived from
+the same exact-file symbol/export basis. Output rendering no longer applies a
+second compact cap after the model projection, so the horizon is the sole owner
+of hidden output mass.
+
+Supported files can close an empty output basis. Unsupported languages and
+unavailable bodies retain the same typed catalog gap rather than turning an
+empty output list into proven absence. Lens artifact format 25 rejects cached
+exact-file cones without the seventh horizon. The remaining X-Ray groups stay
+outside this migration boundary.
+
 Semantic anchor config uses:
 
 ```yaml

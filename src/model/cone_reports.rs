@@ -41,7 +41,7 @@ pub struct ConeReport {
 }
 
 impl ConeReport {
-    pub const SCHEMA_VERSION: &'static str = "14";
+    pub const SCHEMA_VERSION: &'static str = "15";
     pub const RELATIONSHIP_GROUPS: [&'static str; 5] = [
         "outgoing",
         "incoming",
@@ -49,13 +49,14 @@ impl ConeReport {
         "contracts",
         "boundary",
     ];
-    pub const EXACT_FILE_GROUPS: [&'static str; 6] = [
+    pub const EXACT_FILE_GROUPS: [&'static str; 7] = [
         "outgoing",
         "incoming",
         "verification",
         "contracts",
         "boundary",
         "symbols",
+        "xray_outputs",
     ];
 
     pub fn validate_observations(&self) -> Result<(), super::ObservationLedgerError> {
@@ -86,6 +87,7 @@ impl ConeReport {
         }
         if !directory {
             self.validate_shown_facts("symbols", self.anchor.symbols.len())?;
+            self.validate_shown_facts("xray_outputs", self.xray.outputs.len())?;
         }
         let expected_groups = if directory {
             Self::RELATIONSHIP_GROUPS.len()

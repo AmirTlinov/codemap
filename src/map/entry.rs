@@ -6,10 +6,10 @@ use crate::map::{
     cone_owner_env_proof_edges_from_facts, cone_owner_incoming_edges, cone_owner_outgoing_edges,
     cone_owner_proof_edges, cone_owner_unknowns, cone_proof_edges_with_direct_consumers,
     cone_symbol_report, cone_xray_card, directory_has_files, file_cone_observations,
-    file_is_env_config, limit_edge_projection, ls_directory_report, ls_file_report,
+    file_is_env_config, file_summary, limit_edge_projection, ls_directory_report, ls_file_report,
     ls_missing_symbol_report, ls_symbol_report, owner_env_edges_from_facts, owner_env_facts,
     owner_env_unknowns_from_facts, parent_anchor_for_missing, shell_quote, sort_edges,
-    split_symbol_anchor, unknown_unindexed_anchor,
+    split_symbol_anchor, unknown_unindexed_anchor, xray_output_surfaces,
 };
 use crate::model::{BoundaryFacts, ConeReport, LsReport, ObservationLedger, Project};
 use crate::repo;
@@ -163,6 +163,9 @@ pub fn cone_report(
         limit,
         include_hidden,
     });
+    let xray_outputs_observed = project.files.get(&rel).map_or(0, |info| {
+        xray_output_surfaces(&file_summary(project, info, true, usize::MAX)).len()
+    });
     let observations = project
         .files
         .get(&rel)
@@ -187,6 +190,11 @@ pub fn cone_report(
                     contracts: projection("contracts", observed[3], contracts.len()),
                     boundary: projection("boundary", observed[4], boundary.len()),
                     symbols: projection("symbols", info.symbols.len(), anchor.symbols.len()),
+                    xray_outputs: projection(
+                        "xray_outputs",
+                        xray_outputs_observed,
+                        xray.outputs.len(),
+                    ),
                 },
             )
         });
