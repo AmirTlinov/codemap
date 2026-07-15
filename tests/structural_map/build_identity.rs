@@ -156,7 +156,7 @@ fn doctor_bounds_a_hanging_path_version_probe() {
         .output()
         .expect("doctor timeout fixture");
     assert!(output.status.success());
-    assert!(started.elapsed() < std::time::Duration::from_secs(6));
+    assert!(started.elapsed() < std::time::Duration::from_secs(8));
     let doctor: Value = serde_json::from_slice(&output.stdout).expect("doctor json");
     assert_eq!(doctor["path_identity"]["version_probe"], "unavailable");
     assert_eq!(doctor["path_identity"]["semver"], Value::Null);

@@ -12,6 +12,7 @@ fn codemap() -> Command {
 
 fn git(dir: &Path, args: &[&str]) {
     let status = Command::new("git")
+        .args(["-c", "init.defaultBranch=main"])
         .args(args)
         .current_dir(dir)
         .status()
@@ -35,4 +36,3 @@ fn assert_schema(schema_rel: &str, instance: &Value) {
         .validate(instance)
         .unwrap_or_else(|error| panic!("{schema_rel} rejected instance: {error}"));
 }
-
