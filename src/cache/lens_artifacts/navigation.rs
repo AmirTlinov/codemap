@@ -11,7 +11,7 @@ use crate::model::{
 
 use super::{
     LensArtifact, current_status_fingerprint, format_version, read_lens_artifact,
-    write_lens_artifact,
+    read_lens_artifact_with_fingerprint, write_lens_artifact,
 };
 
 pub struct LsLensKey<'a> {
@@ -55,12 +55,51 @@ pub fn read_ls_report(key: LsLensKey<'_>) -> Option<LsReport> {
 }
 
 pub fn write_ls_report(key: LsLensKey<'_>, report: &LsReport) -> Result<()> {
+    let fingerprint = current_status_fingerprint(key.cache_dir).unwrap_or_default();
+    write_ls_report_with_fingerprint(key, report, &fingerprint)
+}
+
+pub fn read_inventory_ls_report(key: LsLensKey<'_>, fingerprint: &str) -> Option<LsReport> {
+    let cached: CachedLsLens = read_lens_artifact_with_fingerprint(
+        key.cache_dir,
+        "ls-current.json",
+        key.version,
+        key.root,
+        fingerprint,
+    )?;
+    if cached.path != key.path
+        || cached.include_hidden != key.include_hidden
+        || cached.limit != key.limit
+        || cached.complete_file_projection != key.complete_file_projection
+        || cached.complete_directory_projection != key.complete_directory_projection
+        || cached.report_sha256 != ls_report_sha256(&cached.report)
+    {
+        return None;
+    }
+    let report = cached.report.into_report();
+    report.validate_observations().ok()?;
+    Some(report)
+}
+
+pub fn write_inventory_ls_report(
+    key: LsLensKey<'_>,
+    report: &LsReport,
+    fingerprint: &str,
+) -> Result<()> {
+    write_ls_report_with_fingerprint(key, report, fingerprint)
+}
+
+fn write_ls_report_with_fingerprint(
+    key: LsLensKey<'_>,
+    report: &LsReport,
+    fingerprint: &str,
+) -> Result<()> {
     let report = CachedLsReport::from_report(report);
     let cached = CachedLsLens {
         format_version: format_version(),
         version: key.version.to_string(),
         root: key.root.to_string_lossy().to_string(),
-        fingerprint: current_status_fingerprint(key.cache_dir).unwrap_or_default(),
+        fingerprint: fingerprint.to_string(),
         path: key.path.to_string(),
         include_hidden: key.include_hidden,
         limit: key.limit,

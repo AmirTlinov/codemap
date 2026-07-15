@@ -8,11 +8,12 @@ pub(crate) use root_horizons::*;
 pub(crate) use surface_meta::*;
 
 use crate::map::{
-    ObservationProjection, balanced_edge_prefix_by_source, boundary_facts_for_ls,
-    direct_files_under_directory, directory_edges, directory_relation_observation,
-    directory_role_surface, directory_surface_observations, file_kind_for_ls,
-    files_under_directory, immediate_child_dirs, inventory_recursive_structural_kind,
-    is_generic_noise, is_support_artifact_path, path_under_scope, shell_quote, surface_priority,
+    ObservationProjection, RootAtlasProjection, balanced_edge_prefix_by_source,
+    boundary_facts_for_ls, direct_files_under_directory, directory_edges,
+    directory_relation_observation, directory_role_surface, directory_surface_observations,
+    file_kind_for_ls, files_under_directory, immediate_child_dirs,
+    inventory_recursive_structural_kind, is_generic_noise, is_support_artifact_path,
+    path_under_scope, root_atlas_projection, shell_quote, surface_priority,
 };
 use crate::model::{DirectorySurface, FileInfo, HiddenGroup, LsReport, Project};
 use std::collections::BTreeMap;
@@ -27,9 +28,14 @@ pub(crate) fn ls_directory_report(
     // Root observation truth is assembled from the complete current scope and
     // is intentionally independent of the readable projection. This makes a
     // limit a display choice rather than a different candidate universe.
-    let complete_root = (rel == ".").then(|| directory_grouping(project, rel, true));
+    let root_files = (rel == ".").then(|| project.files.keys().cloned().collect::<Vec<_>>());
+    let root_atlas = root_files
+        .as_ref()
+        .map(|files| root_atlas_projection(&project.root, files, &project.packages));
+    let complete_root =
+        (rel == ".").then(|| directory_grouping(project, rel, true, root_atlas.as_ref()));
     let complete_nested_edges = (rel != ".").then(|| directory_edges(project, rel, true));
-    let complete_nested = (rel != ".").then(|| directory_grouping(project, rel, true));
+    let complete_nested = (rel != ".").then(|| directory_grouping(project, rel, true, None));
     let complete_nested_surfaces = complete_nested
         .as_ref()
         .map(|complete| directory_surfaces(project, rel, complete.grouped.clone(), true));
@@ -37,6 +43,7 @@ pub(crate) fn ls_directory_report(
         project,
         rel,
         include_hidden || complete_directory_projection,
+        root_atlas.as_ref(),
     );
     let DirectoryGrouping {
         grouped,
@@ -63,6 +70,9 @@ pub(crate) fn ls_directory_report(
     } else {
         directory_edges(project, rel, include_hidden)
     };
+    if rel == "." {
+        merge_root_atlas_edges(&mut edges, root_atlas.as_ref(), include_hidden);
+    }
     let edge_count = complete_nested_edges
         .as_ref()
         .map(|complete| complete.len())
@@ -187,9 +197,10 @@ fn directory_grouping<'a>(
     project: &'a Project,
     rel: &str,
     include_hidden: bool,
+    root_atlas: Option<&RootAtlasProjection>,
 ) -> DirectoryGrouping<'a> {
     let mut grouped: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    for domain in &project.domains {
+    for domain in project.domains.iter().filter(|_| root_atlas.is_none()) {
         if path_under_scope(&domain.path, rel) {
             grouped
                 .entry("domain".to_string())
@@ -197,7 +208,7 @@ fn directory_grouping<'a>(
                 .push(domain.path.clone());
         }
     }
-    for package in &project.packages {
+    for package in project.packages.iter().filter(|_| root_atlas.is_none()) {
         if path_under_scope(&package.path, rel) || path_under_scope(&package.manifest, rel) {
             let package_is_support = is_support_artifact_path(&package.path)
                 || is_support_artifact_path(&package.manifest);
@@ -262,10 +273,8 @@ fn directory_grouping<'a>(
     if include_hidden {
         for file in &recursive_files {
             let file_kind = file_kind_for_ls(file);
-            // Root `ls .` is a current-level atlas even in its complete
-            // machine projection. Nested manifests/config/schema/CI rails
-            // are root-level structural facts; arbitrary recursive source
-            // files are not, and must be opened through an exact scope.
+            // Complete root output keeps structural rails, not a recursive
+            // source galaxy; exact scopes own the omitted file layer.
             if rel == "." && !inventory_recursive_structural_kind(&file_kind, &file.rel) {
                 continue;
             }
@@ -275,6 +284,22 @@ fn directory_grouping<'a>(
                 format!("recursive:{file_kind}")
             };
             grouped.entry(kind).or_default().push(file.rel.clone());
+        }
+    }
+    if let Some(atlas) = root_atlas {
+        for legacy_test_kind in ["test", "e2e_test", "test_support"] {
+            grouped.remove(legacy_test_kind);
+        }
+        for (kind, paths) in &atlas.grouped {
+            for path in paths {
+                if !include_hidden && is_support_artifact_path(path) {
+                    continue;
+                }
+                let values = grouped.entry(kind.clone()).or_default();
+                if !values.contains(path) {
+                    values.push(path.clone());
+                }
+            }
         }
     }
     let hidden_generic_count = grouped
@@ -292,6 +317,36 @@ fn directory_grouping<'a>(
     }
 }
 
+fn merge_root_atlas_edges(
+    edges: &mut Vec<crate::model::StructuralEdge>,
+    atlas: Option<&RootAtlasProjection>,
+    include_hidden: bool,
+) {
+    let Some(atlas) = atlas else {
+        return;
+    };
+    for edge in atlas.edges.iter().filter(|edge| {
+        include_hidden
+            || (!is_support_artifact_path(&edge.from) && !is_support_artifact_path(&edge.to))
+    }) {
+        if let Some(existing) = edges.iter_mut().find(|existing| {
+            existing.from == edge.from
+                && existing.to == edge.to
+                && existing.edge_type == edge.edge_type
+        }) {
+            *existing = edge.clone();
+        } else {
+            edges.push(edge.clone());
+        }
+    }
+    edges.sort_by(|a, b| {
+        a.from
+            .cmp(&b.from)
+            .then_with(|| a.edge_type.cmp(&b.edge_type))
+            .then_with(|| a.to.cmp(&b.to))
+    });
+}
+
 fn directory_surfaces(
     project: &Project,
     rel: &str,
@@ -301,7 +356,16 @@ fn directory_surfaces(
     let mut surfaces = grouped
         .into_iter()
         .map(|(kind, mut files)| {
-            files.sort();
+            if kind == "domain" || kind.starts_with("package:") || kind.ends_with("_container") {
+                files.sort_by(|a, b| {
+                    a.matches('/')
+                        .count()
+                        .cmp(&b.matches('/').count())
+                        .then_with(|| a.cmp(b))
+                });
+            } else {
+                files.sort();
+            }
             let count = files.len();
             let examples = if include_all_examples {
                 files

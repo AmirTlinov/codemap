@@ -9,7 +9,7 @@ mod navigation;
 mod proof_map;
 mod siblings_place;
 
-const LENS_ARTIFACT_FORMAT_VERSION: u64 = 26;
+const LENS_ARTIFACT_FORMAT_VERSION: u64 = 27;
 const LENS_ARTIFACTS: &[&str] = &[
     "ls-current.json",
     "cone-current.json",
@@ -25,7 +25,8 @@ pub use changed_proof::{
     write_proof_changed_report,
 };
 pub use navigation::{
-    ConeLensKey, LsLensKey, read_cone_report, read_ls_report, write_cone_report, write_ls_report,
+    ConeLensKey, LsLensKey, read_cone_report, read_inventory_ls_report, read_ls_report,
+    write_cone_report, write_inventory_ls_report, write_ls_report,
 };
 pub use proof_map::{read_proof_map_report, write_proof_map_report};
 pub use siblings_place::{
@@ -45,6 +46,20 @@ fn read_lens_artifact<T>(cache_dir: &Path, name: &str, version: &str, root: &Pat
 where
     T: LensArtifact + DeserializeOwned,
 {
+    let fingerprint = current_status_fingerprint(cache_dir)?;
+    read_lens_artifact_with_fingerprint(cache_dir, name, version, root, &fingerprint)
+}
+
+fn read_lens_artifact_with_fingerprint<T>(
+    cache_dir: &Path,
+    name: &str,
+    version: &str,
+    root: &Path,
+    fingerprint: &str,
+) -> Option<T>
+where
+    T: LensArtifact + DeserializeOwned,
+{
     let text = fs::read_to_string(cache_dir.join(name)).ok()?;
     let cached: T = serde_json::from_str(&text).ok()?;
     if cached.format_version() != LENS_ARTIFACT_FORMAT_VERSION {
@@ -56,7 +71,7 @@ where
     if cached.root() != root.to_string_lossy() {
         return None;
     }
-    if cached.fingerprint() != current_status_fingerprint(cache_dir)? {
+    if cached.fingerprint() != fingerprint {
         return None;
     }
     Some(cached)

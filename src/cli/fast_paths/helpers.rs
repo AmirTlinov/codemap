@@ -34,6 +34,21 @@ pub(crate) fn set_inventory_map_snapshot_with_fingerprint(root: &Path, fingerpri
     render::set_inventory_map_snapshot_parts(root, Some(fingerprint), &cache_dir);
 }
 
+pub(crate) fn root_inventory_has_codemap_config(root: &Path, files: &[String]) -> bool {
+    if [".codemap.yml", ".codemap.yaml", ".codemap.json"]
+        .iter()
+        .any(|name| root.join(name).exists())
+    {
+        return true;
+    }
+    files.iter().any(|rel| {
+        Path::new(rel)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| matches!(name, ".codemap.yml" | ".codemap.yaml" | ".codemap.json"))
+    })
+}
+
 pub(crate) fn root_relative_arg(root: &Path, value: &str) -> Result<String> {
     let path = Path::new(value);
     let normalized_root = normalize_absolute_arg(root);

@@ -1,7 +1,9 @@
 // Responsibility: map-listing-root-inventory
+mod atlas;
 mod classify;
 mod graph;
 
+pub(crate) use atlas::*;
 pub(crate) use classify::*;
 pub(crate) use graph::*;
 
@@ -30,16 +32,17 @@ pub(crate) fn root_inventory_ls_report(
     let mut source_edge_hidden = 0usize;
     let package_audit =
         crate::repo::audit_package_discovery_paths(root, files.iter().map(String::as_str));
-    let package_kinds = package_audit
-        .packages
-        .iter()
-        .map(|package| {
-            (
-                package.manifest.as_str(),
-                format!("package:{}", package.ecosystem),
-            )
-        })
-        .collect::<BTreeMap<_, _>>();
+    let mut atlas = root_atlas_projection(root, files, &package_audit.packages);
+    for (kind, paths) in atlas.grouped {
+        for path in paths {
+            inventory_push(&mut complete_grouped, &kind, &path);
+            if is_support_artifact_path(&path) && !include_hidden {
+                hidden_support.insert(inventory_support_unit(&path));
+            } else {
+                inventory_push(&mut grouped, &kind, &path);
+            }
+        }
+    }
 
     let top_level_dirs = inventory_top_level_dirs(files);
     let top_level_dir_count = top_level_dirs.len();
@@ -58,17 +61,19 @@ pub(crate) fn root_inventory_ls_report(
         inventory_push(&mut grouped, "dir", &dir);
     }
 
+    if !include_hidden {
+        atlas.edges.retain(|edge| {
+            !is_support_artifact_path(&edge.from) && !is_support_artifact_path(&edge.to)
+        });
+    }
     let (script_labels, mut edges) = inventory_root_script_edges(root, files);
+    edges.extend(atlas.edges);
     for label in script_labels {
         inventory_push(&mut complete_grouped, "script", &label);
         inventory_push(&mut grouped, "script", &label);
     }
 
     for rel in files {
-        let package_kind = package_kinds.get(rel.as_str()).cloned();
-        if let Some(package_kind) = &package_kind {
-            inventory_push(&mut complete_grouped, package_kind, rel);
-        }
         let direct = !rel.contains('/');
         let kind = inventory_file_kind(rel);
         let root_structural = inventory_recursive_structural_kind(&kind, rel);
@@ -87,19 +92,16 @@ pub(crate) fn root_inventory_ls_report(
             hidden_support.insert(inventory_support_unit(rel));
             continue;
         }
-        if let Some(package_kind) = package_kind {
-            inventory_push(&mut grouped, &package_kind, rel);
-        }
-        if direct || root_structural {
+        if direct {
             inventory_push(&mut grouped, &kind, rel);
         }
     }
 
     edges.extend(inventory_workspace_edges(root, files));
     edges.sort_by(|a, b| {
-        a.from
-            .cmp(&b.from)
-            .then_with(|| inventory_edge_priority(a).cmp(&inventory_edge_priority(b)))
+        inventory_edge_priority(a)
+            .cmp(&inventory_edge_priority(b))
+            .then_with(|| a.from.cmp(&b.from))
             .then_with(|| a.edge_type.cmp(&b.edge_type))
             .then_with(|| a.to.cmp(&b.to))
             .then_with(|| a.evidence.cmp(&b.evidence))
@@ -108,11 +110,7 @@ pub(crate) fn root_inventory_ls_report(
         a.from == b.from && a.to == b.to && a.edge_type == b.edge_type && a.evidence == b.evidence
     });
 
-    let packages_observed = complete_grouped
-        .iter()
-        .filter(|(kind, _)| kind.starts_with("package:"))
-        .map(|(_, files)| files.len())
-        .sum::<usize>();
+    let packages_observed = package_audit.packages.len();
     let scripts_observed = complete_grouped.get("script").map_or(0, BTreeSet::len);
     let tests_observed = complete_grouped
         .iter()
@@ -197,6 +195,7 @@ pub(crate) fn root_inventory_ls_report(
             script_manifests_visited,
             script_manifests_excluded,
             full_index: false,
+            complete_current_level_atlas: true,
             directory_surfaces: group_visibility(surface_count, surfaces.len()),
             packages: group_visibility(
                 packages_observed,

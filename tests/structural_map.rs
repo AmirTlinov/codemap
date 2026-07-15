@@ -32,6 +32,7 @@ include!("structural_map/swift_package_manifest.rs");
 include!("structural_map/swift_symbol_reference.rs");
 include!("structural_map/ui_surface_literals.rs");
 include!("structural_map/root_inventory.rs");
+include!("structural_map/root_atlas.rs");
 include!("structural_map/root_ls_edges.rs");
 include!("structural_map/root_ls_cold_inventory.rs");
 include!("structural_map/root_graph_cold_inventory.rs");

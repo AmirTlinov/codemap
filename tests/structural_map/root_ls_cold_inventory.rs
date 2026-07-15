@@ -120,7 +120,7 @@ fn cold_large_root_ls_uses_bounded_inventory_map() {
         json["edges"].as_array().expect("edges").iter().any(|edge| {
             edge["type"] == "workspace_member"
                 && edge["evidence"] == "root_inventory_workspace_pattern"
-                && edge["to"] == "packages/app/package.json"
+                && edge["to"] == "packages/app/"
         }),
         "cold root inventory should keep manifest workspace edges: {json:#}"
     );

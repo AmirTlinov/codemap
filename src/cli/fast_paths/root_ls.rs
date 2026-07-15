@@ -7,7 +7,7 @@ use crate::{map, render, repo};
 use anyhow::Result;
 use std::env;
 
-const COLD_ROOT_LS_FILE_THRESHOLD: usize = 800;
+const ROOT_ATLAS_FAST_PATH_FILE_THRESHOLD: usize = 800;
 
 pub(crate) fn try_cold_root_ls_fast_path(
     command: &CommandKind,
@@ -35,14 +35,42 @@ pub(crate) fn try_cold_root_ls_fast_path(
         return Ok(None);
     }
 
-    let files = repo::structural_inventory_candidate_files(&root);
-    if files.len() < COLD_ROOT_LS_FILE_THRESHOLD {
+    let files = repo::list_visible_candidate_files(&root);
+    if crate::cli::root_inventory_has_codemap_config(&root, &files) {
+        return Ok(None);
+    }
+    if files.len() < ROOT_ATLAS_FAST_PATH_FILE_THRESHOLD {
         return Ok(None);
     }
 
     let fingerprint = crate::cache::inventory_fingerprint(&root, &files);
+    let remote = repo::git_remote(&root);
+    let cache_dir = crate::cache::project_cache_dir(&root, remote.as_deref(), repo::VERSION);
+    let lens_key = || crate::cache::LsLensKey {
+        cache_dir: &cache_dir,
+        version: repo::VERSION,
+        root: &root,
+        path: ".",
+        include_hidden,
+        limit,
+        complete_file_projection: false,
+        complete_directory_projection: false,
+    };
+    if crate::cache::cache_enabled()
+        && let Some(report) = crate::cache::read_inventory_ls_report(lens_key(), &fingerprint)
+    {
+        render::set_cached_map_snapshot_parts(&root, Some(&fingerprint), &cache_dir);
+        let prelude = repo::map_prelude(&root);
+        output_with_prelude(format, &report, &prelude, || {
+            render::ls(&report, ls_section_name(args.section))
+        })?;
+        return Ok(Some(()));
+    }
     let report = map::root_inventory_ls_report(&root, &files, include_hidden, limit);
     set_inventory_map_snapshot_with_fingerprint(&root, &fingerprint);
+    if crate::cache::cache_enabled() {
+        let _ = crate::cache::write_inventory_ls_report(lens_key(), &report, &fingerprint);
+    }
     let prelude = repo::map_prelude(&root);
     output_with_prelude(format, &report, &prelude, || {
         render::ls(&report, ls_section_name(args.section))

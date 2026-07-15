@@ -55,7 +55,8 @@ impl LsReport {
     ];
 
     /// Surface kinds counted by the `test_surfaces` horizon at the root level.
-    pub const TEST_SURFACE_KINDS: [&'static str; 3] = ["test", "e2e_test", "test_support"];
+    pub const TEST_SURFACE_KINDS: [&'static str; 4] =
+        ["test", "e2e_test", "test_support", "verification_container"];
 
     pub fn validate_observations(&self) -> Result<(), ObservationLedgerError> {
         self.observations.validate()?;

@@ -1,11 +1,13 @@
 // Responsibility: package-detection-and-edges
 mod detect;
+mod edges_from_paths;
 mod edges_js_cargo;
 mod edges_other;
 mod metadata;
 mod targets;
 
 pub(crate) use detect::*;
+pub(crate) use edges_from_paths::*;
 pub(crate) use edges_js_cargo::*;
 pub(crate) use edges_other::*;
 pub(crate) use metadata::*;

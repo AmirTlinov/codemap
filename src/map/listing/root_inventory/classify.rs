@@ -13,9 +13,13 @@ use std::path::Path;
 
 pub(crate) fn inventory_edge_priority(edge: &StructuralEdge) -> usize {
     match edge.edge_type.as_str() {
-        "runs_command" => 0,
-        "declares_script" => 1,
-        "workspace_member" => 2,
+        "package_internal" => 0,
+        "domain_contains_package" => 1,
+        value if value.starts_with("package_contains_") => 2,
+        value if value.starts_with("domain_contains_") => 3,
+        "workspace_member" => 4,
+        "declares_script" => 7,
+        "runs_command" => 8,
         "declares_run_block" => 8,
         _ => 9,
     }
@@ -51,8 +55,17 @@ pub(crate) fn inventory_surfaces(
         .into_iter()
         .map(|(kind, files)| {
             let count = files.len();
+            let mut files = files.into_iter().collect::<Vec<_>>();
+            if kind == "domain" || kind.starts_with("package:") || kind.ends_with("_container") {
+                files.sort_by(|a, b| {
+                    a.matches('/')
+                        .count()
+                        .cmp(&b.matches('/').count())
+                        .then_with(|| a.cmp(b))
+                });
+            }
             let examples = if include_all_examples {
-                files.into_iter().collect::<Vec<_>>()
+                files
             } else {
                 files.into_iter().take(5).collect::<Vec<_>>()
             };

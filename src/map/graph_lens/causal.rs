@@ -5,7 +5,8 @@ use super::{
 };
 use crate::map::{
     direct_files_under_directory, directory_edges_at_depth, directory_has_files,
-    immediate_child_dirs, is_generic_noise, is_support_artifact_path, path_under_scope,
+    immediate_child_dirs, is_generic_noise, is_support_artifact_path, ls_directory_report,
+    path_under_scope, root_inventory_graph_projection,
 };
 use crate::model::{EvidenceStrength, GraphEdge, HiddenGroup, Project};
 use std::collections::BTreeSet;
@@ -37,6 +38,10 @@ pub(crate) fn causal_graph(
     let rel = path
         .map(crate::repo::normalize_rel_path)
         .unwrap_or_else(|| ".".to_string());
+    if rel == "." && directory_has_files(project, &rel) {
+        let atlas = ls_directory_report(project, ".", false, usize::MAX / 2, false);
+        return root_inventory_graph_projection(atlas, limit, lens);
+    }
     if directory_has_files(project, &rel) {
         return directory_causal_graph(project, &rel, limit, lens, path);
     }

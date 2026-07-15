@@ -1,5 +1,5 @@
 // Responsibility: repo-constants
-pub const VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), "+surface-cache-v10");
+pub const VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), "+surface-cache-v11");
 
 pub(crate) const ROOT_MARKERS: &[&str] = &[
     ".codemap.yml",
@@ -77,7 +77,8 @@ pub(crate) const SCRIPT_EXTS: &[&str] = &["sh", "bash", "zsh"];
 
 pub(crate) const TEXT_EXTS: &[&str] = &[
     "json", "toml", "yaml", "yml", "md", "txt", "sql", "prisma", "graphql", "gql", "proto", "avsc",
-    "lock", "css", "scss", "sass", "less", "svg", "snap", "snapshot", "sh", "bash", "zsh",
+    "lock", "tf", "hcl", "css", "scss", "sass", "less", "svg", "snap", "snapshot", "sh", "bash",
+    "zsh",
 ];
 
 pub(crate) const DOMAIN_HINT_DIRS: &[&str] = &[

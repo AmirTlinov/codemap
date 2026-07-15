@@ -215,7 +215,7 @@ pub(crate) fn inventory_workspace_edges(root: &Path, files: &[String]) -> Vec<St
             if inventory_workspace_pattern_matches(&package_dir, &pattern) {
                 edges.push(structural_edge_with_locations(
                     manifest.clone(),
-                    (*package_manifest).clone(),
+                    directory_coordinate(&package_dir),
                     "workspace_member",
                     "root_inventory_workspace_pattern",
                     EvidenceStrength::Hard,
@@ -225,6 +225,15 @@ pub(crate) fn inventory_workspace_edges(root: &Path, files: &[String]) -> Vec<St
         }
     }
     edges
+}
+
+fn directory_coordinate(path: &str) -> String {
+    let path = path.trim_end_matches('/');
+    if path.is_empty() || path == "." {
+        ".".to_string()
+    } else {
+        format!("{path}/")
+    }
 }
 
 fn inventory_workspace_patterns(root: &Path, files: &[String]) -> Vec<(String, String, usize)> {

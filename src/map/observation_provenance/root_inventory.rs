@@ -39,6 +39,9 @@ pub(crate) struct RootInventoryObservationInput {
     /// Whether role classification ran over the full index or only over the
     /// bounded cold inventory grammar.
     pub full_index: bool,
+    /// Whether the complete current-level path-atlas grammar classified the
+    /// finite visible inventory without requiring a source index.
+    pub complete_current_level_atlas: bool,
     pub directory_surfaces: RootInventoryGroupVisibility,
     pub packages: RootInventoryGroupVisibility,
     pub scripts: RootInventoryGroupVisibility,
@@ -157,17 +160,16 @@ fn base_certificate(
     )
 }
 
-/// The current-level surface catalog is an exact grouping over the visited
-/// entries. The bounded cold inventory owns a narrower role grammar than the
-/// full index, so its catalog stays a typed open lower bound instead of
-/// pretending to be the complete atlas of this level.
+/// The current-level surface catalog closes when either the full source index
+/// or the complete path-atlas grammar classified the finite visible inventory.
 fn directory_surfaces_certificate(input: &RootInventoryObservationInput) -> CoverageCertificate {
+    let complete = input.full_index || input.complete_current_level_atlas;
     let mut certificate = base_certificate(
         input,
         "root_level_directory_surfaces",
         input.classified_entries,
         input.classified_entries,
-        if input.full_index {
+        if complete {
             Vec::new()
         } else {
             vec![CoverageReason::UnsupportedConstruct]
@@ -184,6 +186,18 @@ fn directory_surfaces_certificate(input: &RootInventoryObservationInput) -> Cove
                 "manifest_file",
                 "package_manifest",
                 "script_catalog",
+            ],
+        )
+    } else if input.complete_current_level_atlas {
+        root_capability(
+            "codemap.root-atlas-surfaces",
+            "path",
+            &[
+                "contract_data_runtime_containers",
+                "deployment_ci_containers",
+                "directory_inventory",
+                "domain_package_containers",
+                "verification_containers",
             ],
         )
     } else {
@@ -219,7 +233,7 @@ fn packages_certificate(input: &RootInventoryObservationInput) -> CoverageCertif
         "package_manifest_inventory",
         input.package_manifest_candidates.len() as u64,
         input.package_manifests_visited.len() as u64,
-        (!input.full_index)
+        (!(input.full_index || input.complete_current_level_atlas))
             .then_some(CoverageReason::UnsupportedConstruct)
             .into_iter()
             .collect(),
@@ -275,16 +289,16 @@ fn scripts_certificate(input: &RootInventoryObservationInput) -> CoverageCertifi
 }
 
 /// Test surfaces are level-local role projections over the finite direct
-/// entry universe. Only the full-index role classifier covers that grammar;
-/// the bounded cold inventory cannot detect test roles, so its zero stays a
-/// typed open extractor gap instead of a proven zero.
+/// entry universe. They close only when a declared classifier covers the
+/// complete current-level grammar.
 fn test_surfaces_certificate(input: &RootInventoryObservationInput) -> CoverageCertificate {
+    let complete = input.full_index || input.complete_current_level_atlas;
     let mut certificate = base_certificate(
         input,
         "root_level_test_surfaces",
         input.current_level_entries,
         input.current_level_entries,
-        if input.full_index {
+        if complete {
             Vec::new()
         } else {
             vec![CoverageReason::UnsupportedConstruct]
@@ -295,6 +309,16 @@ fn test_surfaces_certificate(input: &RootInventoryObservationInput) -> CoverageC
             "codemap.test-surface-roles",
             "path",
             &["test_path_convention", "test_role_classifier"],
+        )
+    } else if input.complete_current_level_atlas {
+        root_capability(
+            "codemap.root-atlas-surfaces",
+            "path",
+            &[
+                "directory_inventory",
+                "test_file_convention",
+                "test_path_convention",
+            ],
         )
     } else {
         root_capability(

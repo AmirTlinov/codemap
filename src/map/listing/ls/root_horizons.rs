@@ -52,6 +52,7 @@ pub(crate) fn root_ls_observations(
             script_manifests_visited,
             script_manifests_excluded,
             full_index: true,
+            complete_current_level_atlas: true,
             directory_surfaces: group_visibility(counts.surface_total, surfaces.len()),
             packages: group_visibility(
                 counts.packages_observed,

@@ -15,6 +15,28 @@ pub(crate) fn root_inventory_graph_lens(
     lens: &str,
 ) -> GraphLens {
     let report = root_inventory_ls_report(root, files, false, usize::MAX / 2);
+    let (nodes, edges, hidden) = root_inventory_graph_projection(report, limit, lens);
+    GraphLens {
+        kind: "graph_lens",
+        schema_version: "5",
+        domain: (&Domain {
+            id: "repo".to_string(),
+            path: ".".to_string(),
+            config_path: None,
+        })
+            .into(),
+        lens: lens.to_string(),
+        nodes,
+        edges,
+        hidden,
+    }
+}
+
+pub(crate) fn root_inventory_graph_projection(
+    report: LsReport,
+    limit: usize,
+    lens: &str,
+) -> (Vec<String>, Vec<GraphEdge>, Vec<HiddenGroup>) {
     let mut graph_edges = Vec::new();
     let mut seen_edges = BTreeSet::new();
 
@@ -77,34 +99,45 @@ pub(crate) fn root_inventory_graph_lens(
             || group.reason == "support artifacts hidden"
     }));
 
-    GraphLens {
-        kind: "graph_lens",
-        schema_version: "5",
-        domain: (&Domain {
-            id: "repo".to_string(),
-            path: ".".to_string(),
-            config_path: None,
-        })
-            .into(),
-        lens: lens.to_string(),
-        nodes,
-        edges: graph_edges,
-        hidden,
-    }
+    (nodes, graph_edges, hidden)
 }
 
 fn inventory_graph_node_order(report: &LsReport, graph_edges: &[GraphEdge]) -> Vec<String> {
     let mut nodes = Vec::new();
     inventory_graph_push_node(&mut nodes, ".".to_string());
-    let (primary_surfaces, secondary_surfaces) =
-        inventory_graph_surface_node_rounds(&report.directory);
-    for node in primary_surfaces {
+    for surface in report
+        .directory
+        .iter()
+        .filter(|surface| inventory_graph_is_atlas_surface(&surface.kind))
+    {
+        if let Some(node) = inventory_graph_surface_examples(surface).into_iter().next() {
+            inventory_graph_push_node(&mut nodes, node);
+        }
+    }
+    for node in inventory_graph_edge_node_order(
+        &report
+            .edges
+            .iter()
+            .filter(|edge| inventory_graph_is_atlas_edge(&edge.edge_type))
+            .cloned()
+            .collect::<Vec<_>>(),
+    ) {
+        inventory_graph_push_node(&mut nodes, node);
+    }
+    for surface in report
+        .directory
+        .iter()
+        .filter(|surface| !inventory_graph_is_atlas_surface(&surface.kind))
+    {
+        if let Some(node) = inventory_graph_surface_examples(surface).into_iter().next() {
+            inventory_graph_push_node(&mut nodes, node);
+        }
+    }
+    let (_, secondary_surfaces) = inventory_graph_surface_node_rounds(&report.directory);
+    for node in secondary_surfaces {
         inventory_graph_push_node(&mut nodes, node);
     }
     for node in inventory_graph_edge_node_order(&report.edges) {
-        inventory_graph_push_node(&mut nodes, node);
-    }
-    for node in secondary_surfaces {
         inventory_graph_push_node(&mut nodes, node);
     }
     for edge in graph_edges {
@@ -112,6 +145,26 @@ fn inventory_graph_node_order(report: &LsReport, graph_edges: &[GraphEdge]) -> V
         inventory_graph_push_node(&mut nodes, edge.to.clone());
     }
     nodes
+}
+
+fn inventory_graph_is_atlas_surface(kind: &str) -> bool {
+    kind == "domain"
+        || kind.starts_with("package:")
+        || matches!(
+            kind,
+            "runtime_container"
+                | "contract_container"
+                | "data_container"
+                | "deployment_container"
+                | "verification_container"
+        )
+}
+
+fn inventory_graph_is_atlas_edge(edge_type: &str) -> bool {
+    edge_type == "package_internal"
+        || edge_type == "domain_contains_package"
+        || edge_type.starts_with("package_contains_")
+        || edge_type.starts_with("domain_contains_")
 }
 
 fn inventory_graph_surface_node_rounds(

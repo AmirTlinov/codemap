@@ -6,7 +6,6 @@ use crate::cli::{
 use crate::{map, render, repo};
 use anyhow::Result;
 use std::env;
-use std::path::Path;
 
 const COLD_ROOT_PROOF_MAP_FILE_THRESHOLD: usize = 800;
 
@@ -37,8 +36,8 @@ pub(crate) fn try_cold_root_proof_map_fast_path(
         return Ok(None);
     }
 
-    let files = repo::structural_inventory_candidate_files(&root);
-    if root_inventory_has_codemap_config(&root, &files) {
+    let files = repo::list_visible_candidate_files(&root);
+    if crate::cli::root_inventory_has_codemap_config(&root, &files) {
         return Ok(None);
     }
     if files.len() < COLD_ROOT_PROOF_MAP_FILE_THRESHOLD {
@@ -50,19 +49,4 @@ pub(crate) fn try_cold_root_proof_map_fast_path(
     set_inventory_map_snapshot_with_fingerprint(&root, &fingerprint);
     output(args.format, &report, || render::proof_map(&report))?;
     Ok(Some(()))
-}
-
-fn root_inventory_has_codemap_config(root: &Path, files: &[String]) -> bool {
-    if [".codemap.yml", ".codemap.yaml", ".codemap.json"]
-        .iter()
-        .any(|name| root.join(name).exists())
-    {
-        return true;
-    }
-    files.iter().any(|rel| {
-        Path::new(rel)
-            .file_name()
-            .and_then(|name| name.to_str())
-            .is_some_and(|name| matches!(name, ".codemap.yml" | ".codemap.yaml" | ".codemap.json"))
-    })
 }

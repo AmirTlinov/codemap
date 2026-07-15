@@ -197,7 +197,7 @@ fn warm_ls_cache_preserves_root_inventory_horizons() {
 }
 
 #[test]
-fn cold_root_inventory_fast_path_keeps_horizons_typed_open() {
+fn cold_root_atlas_fast_path_closes_supported_horizons() {
     let repo = TempDir::new().expect("cold root inventory horizon repo");
     let cache = TempDir::new().expect("cold root inventory horizon cache");
     git(repo.path(), &["init", "-q"]);
@@ -276,34 +276,27 @@ fn cold_root_inventory_fast_path_keeps_horizons_typed_open() {
             .all(|surface| surface["kind"] != "recursive:env_config"),
         "expansion may not rename an already observed surface: {json:#}"
     );
-    for group in ["directory_surfaces", "test_surfaces"] {
+    for group in ["directory_surfaces", "test_surfaces", "packages"] {
         let bounded = horizon(ledger, group);
         assert_eq!(
-            bounded["count"]["closure"], "open",
-            "{group}: the bounded inventory grammar cannot prove completeness: {json:#}"
+            bounded["count"]["closure"], "closed",
+            "{group}: the complete atlas grammar classified the finite visible inventory: {json:#}"
         );
-        assert!(
-            bounded["count"]["reasons"]
-                .as_array()
-                .expect("bounded reasons")
-                .iter()
-                .any(|reason| reason == "unsupported_construct"),
-            "{group}: the extractor gap must stay typed: {json:#}"
-        );
+        assert_eq!(bounded["count"]["reasons"], serde_json::json!([]), "{json:#}");
         assert_horizon_certificate_resolves(ledger, bounded);
     }
     let tests = horizon(ledger, "test_surfaces");
     assert_eq!(
-        tests["count"]["observed"], 0,
-        "the bounded inventory cannot see test roles, so zero stays open: {json:#}"
+        tests["count"]["observed"], 1,
+        "the atlas must preserve a visible verification container: {json:#}"
     );
     let packages = horizon(ledger, "packages");
-    assert_eq!(packages["count"]["closure"], "open", "{json:#}");
+    assert_eq!(packages["count"]["closure"], "closed", "{json:#}");
     let packages_certificate =
         &ledger["certificates"][packages["count"]["certificate_id"].as_str().expect("id")];
     assert_eq!(
         packages_certificate["eligible_files"], packages_certificate["visited_files"],
-        "the bounded path owner sees the complete finite manifest inventory but stays typed open: {json:#}"
+        "the atlas owner must account for the complete finite manifest inventory: {json:#}"
     );
     assert_horizon_certificate_resolves(ledger, packages);
     assert_eq!(

@@ -4,7 +4,7 @@ use crate::{map, render, repo};
 use anyhow::Result;
 use std::env;
 
-const COLD_ROOT_GRAPH_FILE_THRESHOLD: usize = 800;
+const ROOT_ATLAS_FAST_PATH_FILE_THRESHOLD: usize = 800;
 
 pub(crate) fn try_cold_root_graph_fast_path(
     command: &CommandKind,
@@ -29,8 +29,11 @@ pub(crate) fn try_cold_root_graph_fast_path(
         return Ok(None);
     }
 
-    let files = repo::structural_inventory_candidate_files(&root);
-    if files.len() < COLD_ROOT_GRAPH_FILE_THRESHOLD {
+    let files = repo::list_visible_candidate_files(&root);
+    if crate::cli::root_inventory_has_codemap_config(&root, &files) {
+        return Ok(None);
+    }
+    if files.len() < ROOT_ATLAS_FAST_PATH_FILE_THRESHOLD {
         return Ok(None);
     }
 

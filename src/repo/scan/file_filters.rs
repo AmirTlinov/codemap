@@ -154,7 +154,7 @@ pub(crate) fn language_for(path: &Path) -> String {
         "rs" => "rust",
         "go" => "go",
         "swift" => "swift",
-        "json" | "toml" | "yaml" | "yml" => "config",
+        "json" | "toml" | "yaml" | "yml" | "tf" | "hcl" => "config",
         "prisma" | "graphql" | "gql" | "proto" | "avsc" => "schema",
         "sql" => "sql",
         "css" | "scss" | "sass" | "less" => "style",

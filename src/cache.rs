@@ -28,9 +28,10 @@ pub use identity::{
 pub(crate) use lens_artifacts::format_version as lens_artifact_format_version;
 pub use lens_artifacts::{
     ConeLensKey, LsLensKey, PlaceLensKey, SiblingsLensKey, read_changed_report, read_cone_report,
-    read_ls_report, read_place_report, read_proof_changed_report, read_proof_map_report,
-    read_siblings_report, write_changed_report, write_cone_report, write_ls_report,
-    write_place_report, write_proof_changed_report, write_proof_map_report, write_siblings_report,
+    read_inventory_ls_report, read_ls_report, read_place_report, read_proof_changed_report,
+    read_proof_map_report, read_siblings_report, write_changed_report, write_cone_report,
+    write_inventory_ls_report, write_ls_report, write_place_report, write_proof_changed_report,
+    write_proof_map_report, write_siblings_report,
 };
 pub use runtime_root::read_runtime_root_report;
 pub use snapshots::looks_like_snapshot_token;

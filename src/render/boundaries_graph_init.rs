@@ -35,35 +35,35 @@ pub fn boundaries(findings: &[BoundaryFinding]) {
 }
 
 pub fn graph_markdown(graph: &GraphLens) {
-    println!("# Graph Lens: {}\n", graph.lens);
+    let current_level_relations =
+        graph.lens == "causal" && graph.nodes.first().is_some_and(|node| node == ".");
+    if current_level_relations {
+        println!("# Structural Relations\n");
+        println!("Lens: `{}` (compatibility alias)\n", graph.lens);
+    } else {
+        println!("# Graph Lens: {}\n", graph.lens);
+    }
     println!("Domain: `{}` (`{}`)\n", graph.domain.id, graph.domain.path);
     println!("## Nodes\n");
     println!("{}", bullet(&graph.nodes, true, Some(30)));
-    println!("\n## Edges\n");
-    if graph.edges.is_empty() {
-        println!("- none");
-    } else {
-        let rows = graph
+    if current_level_relations {
+        let relations = graph
             .edges
             .iter()
-            .map(|e| {
-                vec![
-                    code(&e.from),
-                    e.edge_type.clone(),
-                    code(&e.to),
-                    e.evidence.clone(),
-                    format!("{:?}", e.strength).to_ascii_lowercase(),
-                    graph_edge_location_summary(e),
-                ]
-            })
-            .collect();
-        println!(
-            "{}",
-            table(
-                &["From", "Type", "To", "Evidence", "Strength", "Where"],
-                rows
-            )
-        );
+            .filter(|edge| edge.edge_type != "contains")
+            .collect::<Vec<_>>();
+        let containment = graph
+            .edges
+            .iter()
+            .filter(|edge| edge.edge_type == "contains")
+            .collect::<Vec<_>>();
+        println!("\n## Relations\n");
+        graph_edges_markdown(&relations);
+        println!("\n## Containment\n");
+        graph_edges_markdown(&containment);
+    } else {
+        println!("\n## Edges\n");
+        graph_edges_markdown(&graph.edges.iter().collect::<Vec<_>>());
     }
     if !graph.hidden.is_empty() {
         println!("\n## Hidden\n");
@@ -80,6 +80,33 @@ pub fn graph_markdown(graph: &GraphLens) {
             .collect();
         println!("{}", table(&["Reason", "Count", "Expand"], rows));
     }
+}
+
+fn graph_edges_markdown(edges: &[&GraphEdge]) {
+    if edges.is_empty() {
+        println!("- none");
+        return;
+    }
+    let rows = edges
+        .iter()
+        .map(|e| {
+            vec![
+                code(&e.from),
+                e.edge_type.clone(),
+                code(&e.to),
+                e.evidence.clone(),
+                format!("{:?}", e.strength).to_ascii_lowercase(),
+                graph_edge_location_summary(e),
+            ]
+        })
+        .collect();
+    println!(
+        "{}",
+        table(
+            &["From", "Type", "To", "Evidence", "Strength", "Where"],
+            rows
+        )
+    );
 }
 
 pub fn graph_mermaid(graph: &GraphLens) {

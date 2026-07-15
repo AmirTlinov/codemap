@@ -46,8 +46,8 @@ fn graph_causal_root_keeps_current_level_relationships_without_import_edges() {
         assert!(
             edges.iter().any(|edge| {
                 edge["from"] == "." && edge["to"] == target && edge["type"] == "contains"
-                    && edge["evidence"] == "current_level_surface"
-                    && edge["strength"] == "medium"
+                    && edge["evidence"] == "current_level_inventory_surface"
+                    && matches!(edge["strength"].as_str(), Some("high" | "hard"))
                     && edge["locations"][0]["path"] == target
             }),
             "root causal graph should keep deterministic containment edge with evidence for {target}: {graph:#}"
@@ -166,7 +166,10 @@ fn graph_default_output_is_agent_facing_markdown() {
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.starts_with("# Graph Lens: causal")
+        stdout.starts_with("# Structural Relations")
+            && stdout.contains("Lens: `causal` (compatibility alias)")
+            && stdout.contains("## Relations")
+            && stdout.contains("## Containment")
             && stdout.contains("| From | Type | To | Evidence | Strength | Where |")
             && !stdout.starts_with("graph TD"),
         "default graph output should be readable markdown with edge evidence: {stdout}"

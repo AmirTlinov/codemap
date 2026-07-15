@@ -49,6 +49,15 @@ pub(crate) fn directory_surface_role(kind: &str) -> Option<String> {
         Some("script".to_string())
     } else if kind == "dir" {
         Some("container".to_string())
+    } else if matches!(
+        kind,
+        "runtime_container"
+            | "contract_container"
+            | "data_container"
+            | "deployment_container"
+            | "verification_container"
+    ) {
+        Some(kind.trim_end_matches("_container").to_string())
     } else if kind.starts_with("package:") || kind.starts_with("support_package:") {
         Some("package".to_string())
     } else if matches!(
@@ -124,6 +133,8 @@ pub(crate) fn directory_surface_evidence(kind: &str) -> String {
         "package_script".to_string()
     } else if kind == "dir" {
         "directory_inventory".to_string()
+    } else if kind.ends_with("_container") {
+        "current_level_atlas".to_string()
     } else if kind.starts_with("package:") || kind.starts_with("support_package:") {
         "package_manifest".to_string()
     } else if kind == "manifest" {
@@ -145,6 +156,7 @@ pub(crate) fn directory_surface_strength(kind: &str) -> EvidenceStrength {
     if kind == "script" || kind.starts_with("package:") || kind.starts_with("support_package:") {
         EvidenceStrength::Hard
     } else if kind == "domain"
+        || kind.ends_with("_container")
         || kind == "schema_contract"
         || kind == "public_boundary"
         || kind == "manifest"

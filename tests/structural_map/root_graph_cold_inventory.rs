@@ -57,11 +57,11 @@ fn cold_large_root_graph_uses_bounded_inventory_map() {
     for expected in [
         ".",
         "package.json",
-        "packages/app/package.json",
+        "packages/app/",
         ".env.example",
         "README.md",
         ".github/workflows/ci.yml",
-        "apps/api/prisma/schema.prisma",
+        "apps/api/prisma/",
     ] {
         assert!(
             nodes.iter().any(|node| node == expected),
@@ -107,7 +107,7 @@ fn cold_large_root_graph_uses_bounded_inventory_map() {
     assert!(
         edges.iter().any(|edge| {
             edge["from"] == "package.json"
-                && edge["to"] == "packages/app/package.json"
+                && edge["to"] == "packages/app/"
                 && edge["type"] == "workspace_member"
                 && edge["evidence"] == "root_inventory_workspace_pattern"
         }),
@@ -137,10 +137,10 @@ fn cold_large_root_graph_uses_bounded_inventory_map() {
     for expected in [
         ".",
         "package.json",
-        ".github/workflows/ci.yml",
+        ".github/",
         ".env.example",
         "README.md",
-        "apps/api/prisma/schema.prisma",
+        "apps/api/prisma/",
     ] {
         assert!(
             compact_nodes.iter().any(|node| node == expected),

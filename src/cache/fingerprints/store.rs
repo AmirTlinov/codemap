@@ -11,7 +11,7 @@ use crate::cache::git_probe::{
 };
 use crate::model::Project;
 
-pub(crate) const FINGERPRINT_CACHE_FORMAT: u32 = 10;
+pub(crate) const FINGERPRINT_CACHE_FORMAT: u32 = 11;
 
 pub(crate) fn format_version() -> u32 {
     FINGERPRINT_CACHE_FORMAT

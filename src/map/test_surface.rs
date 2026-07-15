@@ -122,11 +122,21 @@ pub(crate) fn surface_priority(kind: &str) -> usize {
     if kind.starts_with("package:") {
         return 1;
     }
-    if kind == "dir" {
+    if matches!(
+        kind,
+        "runtime_container"
+            | "contract_container"
+            | "data_container"
+            | "deployment_container"
+            | "verification_container"
+    ) {
         return 2;
     }
-    if kind == "script" {
+    if kind == "dir" {
         return 3;
+    }
+    if kind == "script" {
+        return 4;
     }
     if kind.starts_with("recursive:") {
         return 11;
@@ -135,11 +145,11 @@ pub(crate) fn surface_priority(kind: &str) -> usize {
         return 10;
     }
     match kind {
-        "schema_contract" | "public_boundary" => 4,
-        "runtime_state" | "persistence" | "adapter" | "parser" | "renderer_ui" => 5,
-        "test" | "e2e_test" | "test_support" => 6,
-        "source" => 7,
-        "config" | "build_ci" => 8,
-        _ => 9,
+        "schema_contract" | "public_boundary" => 5,
+        "runtime_state" | "persistence" | "adapter" | "parser" | "renderer_ui" => 6,
+        "test" | "e2e_test" | "test_support" => 7,
+        "source" => 8,
+        "config" | "build_ci" => 9,
+        _ => 10,
     }
 }
