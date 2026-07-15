@@ -24,7 +24,7 @@ pub(crate) fn cargo_manifest_builtin_proof_surfaces(
     if manifest_file_name(&file.rel) != "Cargo.toml" {
         return Vec::new();
     }
-    let Ok(text) = std::fs::read_to_string(project.root.join(&file.rel)) else {
+    let Some(text) = project.read_indexed_text(&file.rel) else {
         return Vec::new();
     };
     if !text.contains("[package]") && !text.contains("[workspace]") {
@@ -54,7 +54,7 @@ pub(crate) fn swift_manifest_builtin_proof_surfaces(
     if manifest_file_name(&file.rel) != "Package.swift" {
         return Vec::new();
     }
-    let Ok(text) = std::fs::read_to_string(project.root.join(&file.rel)) else {
+    let Some(text) = project.read_indexed_text(&file.rel) else {
         return Vec::new();
     };
     if !text.contains("Package(") {
@@ -216,7 +216,7 @@ fn pnpm_workspace_patterns(project: &Project, rel: &str) -> Vec<WorkspacePattern
     if !workspace_manifest_file(rel) {
         return Vec::new();
     }
-    let Ok(text) = std::fs::read_to_string(project.root.join(rel)) else {
+    let Some(text) = project.read_indexed_text(rel) else {
         return Vec::new();
     };
     let mut out = Vec::new();

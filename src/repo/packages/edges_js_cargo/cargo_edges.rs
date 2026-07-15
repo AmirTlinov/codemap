@@ -85,8 +85,11 @@ pub(crate) fn cargo_workspace_infos(
     by_path: &BTreeMap<String, &PackageInfo>,
 ) -> Vec<CargoWorkspaceInfo> {
     let mut workspaces = Vec::new();
-    for rel in files.keys() {
+    for (rel, file) in files {
         if Path::new(rel).file_name().and_then(|name| name.to_str()) != Some("Cargo.toml") {
+            continue;
+        }
+        if file.content_hash.is_none() {
             continue;
         }
         let Ok(text) = fs::read_to_string(root.join(rel)) else {
@@ -114,7 +117,8 @@ pub(crate) fn cargo_workspace_infos(
     }
     workspaces.sort_by(|a, b| a.path.cmp(&b.path));
     for workspace in &mut workspaces {
-        workspace.member_paths = cargo_workspace_member_paths(root, workspace, packages, by_path);
+        workspace.member_paths =
+            cargo_workspace_member_paths(root, files, workspace, packages, by_path);
     }
     workspaces
 }
@@ -135,6 +139,7 @@ fn cargo_workspace_contains_package(workspace: &CargoWorkspaceInfo, package_path
 
 fn cargo_workspace_member_paths(
     root: &Path,
+    files: &BTreeMap<String, FileInfo>,
     workspace: &CargoWorkspaceInfo,
     packages: &[PackageInfo],
     by_path: &BTreeMap<String, &PackageInfo>,
@@ -151,6 +156,12 @@ fn cargo_workspace_member_paths(
             let Some(package) = by_path.get(&package_path) else {
                 continue;
             };
+            if files
+                .get(&package.manifest)
+                .is_none_or(|file| file.content_hash.is_none())
+            {
+                continue;
+            }
             let Ok(text) = fs::read_to_string(root.join(&package.manifest)) else {
                 continue;
             };

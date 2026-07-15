@@ -17,10 +17,13 @@ pub fn ls_report(project: &Project, path: &str, include_hidden: bool, limit: usi
     let rel = repo::normalize_rel_path(path);
     if let Some((file_rel, symbol_name)) = split_symbol_anchor(&rel)
         && let Some(info) = project.files.get(&file_rel)
+        && info.indexed_boundary != Some(crate::model::IndexedBoundary::UnavailableTrackedFile)
     {
         return ls_symbol_report(project, info, &symbol_name, include_hidden, limit.max(1));
     }
-    if let Some(info) = project.files.get(&rel) {
+    if let Some(info) = project.files.get(&rel)
+        && info.indexed_boundary != Some(crate::model::IndexedBoundary::UnavailableTrackedFile)
+    {
         return ls_file_report(project, info, include_hidden, limit.max(1));
     }
     if directory_has_files(project, &rel) {

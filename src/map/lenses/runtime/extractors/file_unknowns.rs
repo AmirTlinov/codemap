@@ -12,7 +12,7 @@ pub(crate) fn unknowns_for_file(project: &Project, file: &FileInfo) -> Vec<Unkno
     if file.content_hash.is_none() {
         return Vec::new();
     }
-    let Ok(text) = std::fs::read_to_string(project.root.join(&file.rel)) else {
+    let Some(text) = project.read_indexed_text(&file.rel) else {
         return Vec::new();
     };
     let mut out = Vec::new();

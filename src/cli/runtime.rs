@@ -10,10 +10,15 @@ pub(crate) fn run_runtime(project: &crate::model::Project, args: RuntimeArgs) ->
     let limit = if include_hidden {
         usize::MAX / 2
     } else {
-        args.limit
+        args.limit.max(1)
     };
     let report = map::runtime_report(project, &scope, include_hidden, limit);
-    if let Err(error) = report.validate_observations() {
+    let validation = if include_hidden {
+        report.validate_full_projection()
+    } else {
+        report.validate_bounded_projection(limit)
+    };
+    if let Err(error) = validation {
         bail!("invalid runtime observation ledger: {error:?}");
     }
     if scope == "." && !include_hidden && limit == 20 {

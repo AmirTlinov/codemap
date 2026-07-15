@@ -72,7 +72,11 @@ pub fn status_report(
     let unclassified: Vec<String> = project
         .files
         .values()
-        .filter(|file| repo::is_source_ext(&file.ext) && file.roles.is_empty())
+        .filter(|file| {
+            file.indexed_boundary.is_none()
+                && repo::is_source_ext(&file.ext)
+                && file.roles.is_empty()
+        })
         .map(|file| file.rel.clone())
         .collect();
     StatusReport {
@@ -311,7 +315,7 @@ fn status_env_reader_keys(project: &Project) -> BTreeSet<String> {
         if file.has_role("generated") || file.has_role("fixture") || file.has_role("archive") {
             continue;
         }
-        let Ok(text) = std::fs::read_to_string(project.root.join(&file.rel)) else {
+        let Some(text) = project.read_indexed_text(&file.rel) else {
             continue;
         };
         for line in text.lines() {

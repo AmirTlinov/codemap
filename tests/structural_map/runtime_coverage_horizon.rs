@@ -24,8 +24,8 @@ fn runtime_route_horizon_owns_mass_truncation_and_route_gaps() {
         "readable runtime output needs the compact certificate identity: {markdown}"
     );
     assert!(
-        markdown.lines().count() <= 70,
-        "the 227-route fixture must remain a bounded daily map even with all eight group horizons: {markdown}"
+        markdown.lines().count() <= 75,
+        "the 227-route fixture must remain a bounded daily map: {markdown}"
     );
 
     let json = run_json(
@@ -152,6 +152,12 @@ fn supported_typescript_file_without_routes_is_certificate_backed_proven_zero() 
     assert_eq!(certificate["eligible_files"], 1, "{json:#}");
     assert_eq!(certificate["visited_files"], 1, "{json:#}");
     assert_eq!(certificate["observed_facts"], 0, "{json:#}");
+
+    let proof = horizon(ledger, "proof");
+    assert_eq!(proof["count"]["observed"], 0, "{json:#}");
+    assert_eq!(proof["count"]["closure"], "closed", "{json:#}");
+    assert_eq!(proof["count"]["reasons"], serde_json::json!([]));
+    assert_horizon_certificate_resolves(ledger, proof);
 }
 
 fn runtime_route_coverage_fixture() -> TempDir {

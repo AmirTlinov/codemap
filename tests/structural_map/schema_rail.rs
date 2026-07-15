@@ -218,7 +218,7 @@ fn evidence_horizon_schemas_keep_the_same_required_certificate_contract() {
     .expect("manifest json");
     assert_eq!(manifest["version"], 6);
 
-    for (kind, version) in [("cone", "12"), ("where", "6"), ("runtime", "5")] {
+    for (kind, version) in [("cone", "11"), ("where", "5"), ("runtime", "5")] {
         let entry = manifest["schemas"]
             .as_array()
             .expect("manifest schemas")
@@ -258,6 +258,27 @@ fn evidence_horizon_schemas_keep_the_same_required_certificate_contract() {
                 .iter()
                 .any(|reason| reason == "reexport_flow")
         );
+        if kind == "runtime" {
+            let runtime_groups = schema["$defs"]["coverage_horizon"]["properties"]["group"]
+                ["enum"]
+                .as_array()
+                .expect("runtime horizon groups")
+                .iter()
+                .map(|group| group.as_str().expect("runtime group"))
+                .collect::<BTreeSet<_>>();
+            assert_eq!(runtime_groups, S03C_RUNTIME_GROUPS.into_iter().collect());
+            let horizons = &schema["$defs"]["observation_ledger"]["properties"]["horizons"];
+            assert_eq!(horizons["minItems"], 8);
+            assert_eq!(horizons["maxItems"], 8);
+            assert_eq!(
+                schema["$defs"]["coverage_horizon"]["properties"]["hidden"]["const"],
+                0
+            );
+            assert!(
+                schema["$defs"]["coverage_horizon"]["properties"]["expand"]["const"]
+                    .is_null()
+            );
+        }
     }
 }
 

@@ -13,10 +13,7 @@ pub(super) fn collect_unobserved_query_gap(
     observed_sources: &BTreeSet<String>,
     out: &mut Vec<ConsumerBlindSpot>,
 ) {
-    if candidate.content_hash.is_none() {
-        return;
-    }
-    let Ok(text) = std::fs::read_to_string(project.root.join(&candidate.rel)) else {
+    let Some(text) = project.read_indexed_text(&candidate.rel) else {
         return;
     };
     if let Some(construct) = text

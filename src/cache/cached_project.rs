@@ -30,10 +30,9 @@ pub fn read_cached_project(
             (rel, file.into_file_info())
         })
         .collect();
-    Some(CachedProjectData {
-        files,
-        scan_stats: inventory.scan_stats,
-    })
+    let mut scan_stats = inventory.scan_stats;
+    scan_stats.inventory_boundaries = inventory.scan_inventory_boundaries;
+    Some(CachedProjectData { files, scan_stats })
 }
 
 pub(super) fn write_inventory(project: &Project, version: &str) -> Result<()> {
@@ -51,6 +50,7 @@ pub(super) fn write_inventory(project: &Project, version: &str) -> Result<()> {
                     language: file.language.clone(),
                     ext: file.ext.clone(),
                     size: file.size,
+                    indexed_boundary: file.indexed_boundary,
                     content_hash: file.content_hash.clone(),
                     line_count: file.line_count,
                     roles: base_roles.into_iter().collect(),
@@ -85,6 +85,7 @@ pub(super) fn write_inventory(project: &Project, version: &str) -> Result<()> {
         scripts: project.scripts.clone(),
         languages: project.languages.iter().cloned().collect(),
         scan_stats: project.scan_stats.clone(),
+        scan_inventory_boundaries: project.scan_stats.inventory_boundaries.clone(),
     };
     let body = serde_json::to_string_pretty(&inventory)?;
     fs::write(
@@ -121,6 +122,8 @@ struct CachedInventory {
     scripts: Vec<ScriptInfo>,
     languages: Vec<String>,
     scan_stats: ScanStats,
+    #[serde(default)]
+    scan_inventory_boundaries: Vec<crate::model::ScanInventoryBoundary>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -129,6 +132,8 @@ struct CachedFile {
     language: String,
     ext: String,
     size: u64,
+    #[serde(default)]
+    indexed_boundary: Option<crate::model::IndexedBoundary>,
     #[serde(default)]
     content_hash: Option<String>,
     line_count: usize,
@@ -157,6 +162,7 @@ impl CachedFile {
             rel: self.path,
             ext: self.ext,
             size: self.size,
+            indexed_boundary: self.indexed_boundary,
             content_hash: self.content_hash,
             line_count: self.line_count,
             language: self.language,

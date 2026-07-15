@@ -46,62 +46,218 @@ pub struct RuntimeReport {
 
 impl RuntimeReport {
     pub const SCHEMA_VERSION: &'static str = "5";
+    pub(crate) const ROOT_RECURSIVE_HIDDEN_REASON: &'static str =
+        "recursive runtime files hidden at root scope";
+    pub(crate) const ROOT_RECURSIVE_HIDDEN_EXPAND: &'static str = "codemap runtime . --all";
 
-    /// Legacy per-group hidden reasons whose truth now lives in the horizons.
-    const LEGACY_GROUP_HIDDEN_REASONS: [&'static str; 8] = [
-        "runtime routes hidden by limit",
-        "runtime entrypoints hidden by limit",
-        "runtime scripts hidden by limit",
-        "environment surfaces hidden by limit",
-        "worker/job surfaces hidden by limit",
-        "ci surfaces hidden by limit",
-        "runtime verification edges hidden by limit",
-        "runtime unknowns hidden by limit",
+    pub(crate) const OBSERVATION_GROUPS: [(&'static str, &'static str); 8] = [
+        ("entrypoints", "runtime_entrypoint_surfaces"),
+        ("routes", "supported_static_runtime_routes"),
+        ("scripts", "runtime_script_catalog"),
+        ("env", "static_runtime_environment_references"),
+        ("workers", "runtime_worker_job_path_conventions"),
+        ("ci", "indexed_build_ci_role_surfaces"),
+        ("proof", "runtime_route_verification_relations"),
+        ("unknowns", "runtime_unknown_detector_surface"),
     ];
+
+    pub(crate) fn observation_query_kind(group: &str) -> Option<&'static str> {
+        Self::OBSERVATION_GROUPS
+            .iter()
+            .find_map(|(candidate, query)| (*candidate == group).then_some(*query))
+    }
 
     pub fn validate_observations(&self) -> Result<(), super::ObservationLedgerError> {
         self.observations.validate()?;
-        let shown_by_group: [(&str, u64); 8] = [
-            ("entrypoints", self.entrypoints.len() as u64),
-            ("routes", self.routes.len() as u64),
-            ("scripts", self.scripts.len() as u64),
-            ("env", self.env.len() as u64),
-            ("workers", self.workers.len() as u64),
-            ("ci", self.ci.len() as u64),
-            ("proof", self.proof.len() as u64),
-            ("unknowns", self.unknowns.len() as u64),
+        if self
+            .entrypoints
+            .iter()
+            .chain(&self.scripts)
+            .chain(&self.workers)
+            .chain(&self.ci)
+            .any(|surface| surface.count == Some(0))
+        {
+            return Err(super::ObservationLedgerError::InvalidFactMultiplicity);
+        }
+        if self.observations.horizons.len() != Self::OBSERVATION_GROUPS.len() {
+            return Err(
+                if self.observations.horizons.len() < Self::OBSERVATION_GROUPS.len() {
+                    super::ObservationLedgerError::MissingRequiredHorizon
+                } else {
+                    super::ObservationLedgerError::UnexpectedHorizon
+                },
+            );
+        }
+        let shown_counts = [
+            self.entrypoints
+                .iter()
+                .map(|surface| surface.count.unwrap_or(1))
+                .sum(),
+            self.routes.len(),
+            self.scripts.len(),
+            self.env.len(),
+            self.workers.len(),
+            self.ci.len(),
+            self.proof.len(),
+            self.unknowns.len(),
         ];
-        for (group, shown) in shown_by_group {
-            let mut horizons = self
+        let mut certificate_ids = std::collections::BTreeSet::new();
+        for ((group, query_kind), shown) in Self::OBSERVATION_GROUPS.iter().zip(shown_counts) {
+            let mut matches = self
                 .observations
                 .horizons
                 .iter()
-                .filter(|horizon| horizon.group == group);
-            let horizon = horizons
+                .filter(|horizon| horizon.group == *group);
+            let horizon = matches
                 .next()
                 .ok_or(super::ObservationLedgerError::MissingRequiredHorizon)?;
-            if horizons.next().is_some() {
+            if matches.next().is_some() {
                 return Err(super::ObservationLedgerError::DuplicateHorizon);
             }
             if horizon.scope != self.scope {
                 return Err(super::ObservationLedgerError::ScopeMismatch);
             }
-            if horizon.shown != shown {
+            if horizon.shown != shown as u64 {
                 return Err(super::ObservationLedgerError::ShownFactCountMismatch);
             }
+            if !certificate_ids.insert(&horizon.count.certificate_id) {
+                return Err(super::ObservationLedgerError::ReusedCertificate);
+            }
+            let certificate = self
+                .observations
+                .certificates
+                .get(&horizon.count.certificate_id)
+                .ok_or(super::ObservationLedgerError::DanglingCertificate)?;
+            if certificate.query_kind != *query_kind {
+                return Err(super::ObservationLedgerError::CertificateQueryMismatch);
+            }
+            if horizon.count.observed > 0 && certificate.eligible_files == 0 {
+                return Err(super::ObservationLedgerError::ObservedWithoutEligibleCandidate);
+            }
         }
-        if self.observations.horizons.len() != shown_by_group.len() {
-            return Err(super::ObservationLedgerError::DuplicateVisibilityAccounting);
-        }
+        const LEGACY_VISIBILITY_REASONS: [&str; 8] = [
+            "runtime entrypoints hidden by limit",
+            "runtime routes hidden by limit",
+            "runtime scripts hidden by limit",
+            "environment surfaces hidden by limit",
+            "worker/job surfaces hidden by limit",
+            "ci surfaces hidden by limit",
+            "runtime verification edges hidden by limit",
+            "runtime unknowns hidden by limit",
+        ];
         if self
             .hidden
             .iter()
-            .any(|group| Self::LEGACY_GROUP_HIDDEN_REASONS.contains(&group.reason.as_str()))
+            .any(|hidden| LEGACY_VISIBILITY_REASONS.contains(&hidden.reason.as_str()))
         {
             return Err(super::ObservationLedgerError::DuplicateVisibilityAccounting);
         }
         Ok(())
     }
+
+    pub fn validate_bounded_projection(
+        &self,
+        limit: usize,
+    ) -> Result<(), super::ObservationLedgerError> {
+        self.validate_observations()?;
+        let row_counts = [
+            self.entrypoints.len(),
+            self.routes.len(),
+            self.scripts.len(),
+            self.env.len(),
+            self.workers.len(),
+            self.ci.len(),
+            self.proof.len(),
+            self.unknowns.len(),
+        ];
+        if row_counts.into_iter().any(|count| count > limit) {
+            return Err(super::ObservationLedgerError::ProjectionMismatch);
+        }
+        Ok(())
+    }
+
+    pub(crate) fn validate_current_level_root_projection(
+        &self,
+        limit: usize,
+    ) -> Result<(), super::ObservationLedgerError> {
+        self.validate_bounded_projection(limit)?;
+        if self.scope != "."
+            || self
+                .entrypoints
+                .iter()
+                .any(|surface| !runtime_root_entrypoint_is_current_level(surface))
+            || self.scripts.iter().any(|surface| {
+                surface
+                    .path
+                    .as_deref()
+                    .is_none_or(|path| path.contains('/'))
+            })
+            || self.workers.iter().chain(&self.ci).any(|surface| {
+                surface
+                    .path
+                    .as_deref()
+                    .is_none_or(|path| !runtime_root_path_is_current_level(path))
+            })
+            || self
+                .env
+                .iter()
+                .any(|surface| !runtime_root_path_is_current_level(&surface.used_by))
+            || self.unknowns.iter().any(|unknown| {
+                unknown
+                    .path
+                    .as_deref()
+                    .is_some_and(|path| !runtime_root_path_is_current_level(path))
+            })
+        {
+            return Err(super::ObservationLedgerError::ProjectionMismatch);
+        }
+        Ok(())
+    }
+
+    pub fn validate_full_projection(&self) -> Result<(), super::ObservationLedgerError> {
+        self.validate_observations()?;
+        if self.observations.horizons.iter().any(|horizon| {
+            horizon.shown != horizon.count.observed
+                || horizon.hidden != 0
+                || horizon.expand.is_some()
+        }) {
+            return Err(super::ObservationLedgerError::ProjectionMismatch);
+        }
+        Ok(())
+    }
+}
+
+fn runtime_root_path_is_current_level(path: &str) -> bool {
+    !path.contains('/') || path.starts_with(".github/")
+}
+
+fn runtime_root_entrypoint_is_current_level(surface: &Surface) -> bool {
+    if surface.kind == "runtime_container" {
+        return surface.path.as_ref().is_some_and(|path| {
+            surface.id == format!("surface:runtime_container:{path}")
+                && surface.evidence == "current_level_runtime_container"
+        });
+    }
+    if surface.kind == "cli_entrypoint" {
+        let manifest = surface
+            .id
+            .strip_prefix("surface:cli_entrypoint:")
+            .and_then(runtime_cli_entrypoint_manifest);
+        return manifest.is_some_and(runtime_root_path_is_current_level);
+    }
+    surface
+        .path
+        .as_deref()
+        .is_some_and(runtime_root_path_is_current_level)
+}
+
+fn runtime_cli_entrypoint_manifest(value: &str) -> Option<&str> {
+    ["package.json", "Cargo.toml", "pyproject.toml"]
+        .into_iter()
+        .find_map(|name| {
+            let end = value.find(&format!("{name}:"))? + name.len();
+            Some(&value[..end])
+        })
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

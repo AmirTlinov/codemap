@@ -25,7 +25,7 @@
   ],
   "properties": {
     "kind": { "const": "cone_report" },
-    "schema_version": { "const": "12" },
+    "schema_version": { "const": "11" },
     "build_identity": { "$ref": "#/$defs/build_identity" },
     "prelude": { "$ref": "#/$defs/map_prelude" },
     "anchor": { "$ref": "#/$defs/file_summary" },
@@ -74,7 +74,6 @@
       "type": "string",
       "enum": [
         "anchor_not_indexed",
-        "dynamic_env_lookup",
         "dynamic_import_flow",
         "dynamic_runtime_registration",
         "incomplete_traversal",

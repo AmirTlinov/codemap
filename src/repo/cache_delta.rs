@@ -1,8 +1,8 @@
 // Responsibility: repo-cache-delta
 use crate::cache;
 use crate::repo::{
-    git_status_root_prefix, git_status_snapshot, is_cache_candidate_file, normalize_rel_path,
-    should_ignore_rel,
+    GitIndexInventory, git_index_inventory, git_status_root_prefix, git_status_snapshot,
+    is_cache_candidate_with_index, normalize_rel_path, should_ignore_rel,
 };
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -61,6 +61,7 @@ pub(crate) fn cached_index_cache_delta(
 pub(crate) fn git_status_cache_change_sets(
     root: &Path,
 ) -> Option<(BTreeSet<String>, BTreeSet<String>)> {
+    let git_index = git_index_inventory(root)?;
     let snapshot = git_status_snapshot(root)?;
     let mut changed_or_added = BTreeSet::new();
     let mut removed = BTreeSet::new();
@@ -70,16 +71,19 @@ pub(crate) fn git_status_cache_change_sets(
         }
         if change.status == "renamed"
             && let Some(old_path) = change.old_path
-            && !should_ignore_rel(&old_path)
         {
             removed.insert(old_path);
         }
-        if should_ignore_rel(&change.path) {
+        if should_ignore_rel(&change.path) && git_index.kind(&change.path).is_none() {
             continue;
         }
         if change.status == "deleted" {
-            removed.insert(change.path);
-        } else if is_cache_candidate_file(root, &change.path) {
+            if is_cache_candidate_with_index(root, &change.path, &git_index) {
+                changed_or_added.insert(change.path);
+            } else {
+                removed.insert(change.path);
+            }
+        } else if is_cache_candidate_with_index(root, &change.path, &git_index) {
             changed_or_added.insert(change.path);
         } else {
             removed.insert(change.path);
@@ -93,6 +97,7 @@ fn git_head_cache_change_sets(
     cached_head: &str,
     current_head: &str,
 ) -> Option<(BTreeSet<String>, BTreeSet<String>)> {
+    let git_index = git_index_inventory(root)?;
     let root_prefix = git_status_root_prefix(root);
     let output = crate::repo::read_only_git_command()
         .arg("-C")
@@ -143,7 +148,13 @@ fn git_head_cache_change_sets(
                     .next()
                     .and_then(|entry| diff_path(entry, root_prefix.as_deref()))
                 {
-                    record_changed_candidate(root, &mut changed_or_added, &mut removed, new_path);
+                    record_changed_candidate(
+                        root,
+                        &git_index,
+                        &mut changed_or_added,
+                        &mut removed,
+                        new_path,
+                    );
                 }
             }
             'C' => {
@@ -152,7 +163,13 @@ fn git_head_cache_change_sets(
                     .next()
                     .and_then(|entry| diff_path(entry, root_prefix.as_deref()))
                 {
-                    record_changed_candidate(root, &mut changed_or_added, &mut removed, new_path);
+                    record_changed_candidate(
+                        root,
+                        &git_index,
+                        &mut changed_or_added,
+                        &mut removed,
+                        new_path,
+                    );
                 }
             }
             _ => {
@@ -160,7 +177,13 @@ fn git_head_cache_change_sets(
                     .next()
                     .and_then(|entry| diff_path(entry, root_prefix.as_deref()))
                 {
-                    record_changed_candidate(root, &mut changed_or_added, &mut removed, path);
+                    record_changed_candidate(
+                        root,
+                        &git_index,
+                        &mut changed_or_added,
+                        &mut removed,
+                        path,
+                    );
                 }
             }
         }
@@ -179,21 +202,20 @@ fn diff_path(bytes: &[u8], root_prefix: Option<&str>) -> Option<String> {
 }
 
 fn record_removed_candidate(removed: &mut BTreeSet<String>, path: String) {
-    if !should_ignore_rel(&path) {
-        removed.insert(path);
-    }
+    removed.insert(path);
 }
 
 fn record_changed_candidate(
     root: &Path,
+    git_index: &GitIndexInventory,
     changed_or_added: &mut BTreeSet<String>,
     removed: &mut BTreeSet<String>,
     path: String,
 ) {
-    if should_ignore_rel(&path) {
+    if should_ignore_rel(&path) && git_index.kind(&path).is_none() {
         return;
     }
-    if is_cache_candidate_file(root, &path) {
+    if is_cache_candidate_with_index(root, &path, git_index) {
         changed_or_added.insert(path);
     } else {
         removed.insert(path);

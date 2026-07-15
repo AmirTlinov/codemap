@@ -30,6 +30,8 @@ fn file_delta_from_cached(
     cached: &CachedFingerprints,
     current_files: &[String],
 ) -> CacheFileDelta {
+    let mut scan_stats = crate::repo::ScanStatsBuilder::default();
+    let candidates = crate::repo::scan_candidate_inventory(root, &mut scan_stats);
     let cached_by_path = cached
         .files
         .iter()
@@ -46,7 +48,13 @@ fn file_delta_from_cached(
             changed_or_added.insert(rel.clone());
             continue;
         };
-        if !cached_file_matches(root, rel, cached) {
+        let boundary = candidates.boundary(root, rel);
+        let needs_content_recheck = !cached.git_tracked
+            || candidates
+                .git_index
+                .as_ref()
+                .is_some_and(|index| index.needs_content_recheck(rel));
+        if !cached_file_matches(root, rel, cached, boundary, needs_content_recheck) {
             changed_or_added.insert(rel.clone());
             continue;
         }
@@ -117,15 +125,50 @@ fn current_content_hash(path: impl AsRef<Path>) -> Option<String> {
     Some(super::hex_prefix(&hash, 16))
 }
 
-fn cached_file_matches(root: &Path, rel: &str, cached: &CachedFileFingerprint) -> bool {
-    let Ok(meta) = fs::metadata(root.join(rel)) else {
+fn cached_file_matches(
+    root: &Path,
+    rel: &str,
+    cached: &CachedFileFingerprint,
+    current_boundary: Option<crate::model::IndexedBoundary>,
+    needs_content_recheck: bool,
+) -> bool {
+    if cached.indexed_boundary != current_boundary {
+        return false;
+    }
+    if current_boundary.is_some() {
+        return true;
+    }
+    let Ok(meta) = fs::symlink_metadata(root.join(rel)) else {
         return false;
     };
+    if !meta.is_file() || meta.file_type().is_symlink() {
+        return false;
+    }
+    let path = root.join(rel);
+    let readable = fs::File::open(&path).is_ok();
+    // A matching stat tuple cannot prove that a previously readable body is
+    // still readable (permissions/ACLs may change without touching mtime).
+    // Probe readability before taking the fast path so stale body facts never
+    // survive an unreadable transition.
+    if cached.content_hash.is_some() && !readable {
+        return false;
+    }
+    // Conversely, a small supported file cached without body facts represents
+    // a failed read, not a permanent parser placeholder. Once it becomes
+    // readable it must be rescanned even when size/mtime are unchanged.
+    let expects_body = !crate::repo::source_parser_requires_placeholder(&path)
+        && crate::repo::scan_file_rejection(&path, rel, meta.len()).is_none();
+    if cached.content_hash.is_none() && expects_body && readable {
+        return false;
+    }
     if meta.len() != cached.size {
         return false;
     }
     let (modified_secs, modified_nanos) = file_modified_parts_from_meta(&meta);
-    if modified_secs == cached.modified_secs && modified_nanos == cached.modified_nanos {
+    if !needs_content_recheck
+        && modified_secs == cached.modified_secs
+        && modified_nanos == cached.modified_nanos
+    {
         return true;
     }
     cached
@@ -134,11 +177,21 @@ fn cached_file_matches(root: &Path, rel: &str, cached: &CachedFileFingerprint) -
         .is_some_and(|hash| current_content_hash(root.join(rel)).as_deref() == Some(hash))
 }
 
-fn cached_file_content_matches(root: &Path, rel: &str, cached: &CachedFileFingerprint) -> bool {
-    let Ok(meta) = fs::metadata(root.join(rel)) else {
+fn cached_file_content_matches(
+    root: &Path,
+    rel: &str,
+    cached: &CachedFileFingerprint,
+    current_boundary: Option<crate::model::IndexedBoundary>,
+) -> bool {
+    if cached.indexed_boundary != current_boundary || current_boundary.is_some() {
+        return false;
+    }
+    let Ok(meta) = fs::symlink_metadata(root.join(rel)) else {
         return false;
     };
-    meta.len() == cached.size
+    meta.is_file()
+        && !meta.file_type().is_symlink()
+        && meta.len() == cached.size
         && cached
             .content_hash
             .as_deref()
@@ -169,5 +222,50 @@ trait RelPath {
 impl RelPath for crate::model::FileInfo {
     fn rel_path(&self, project: &Project) -> std::path::PathBuf {
         project.root.join(&self.rel)
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+
+    #[test]
+    fn stat_fast_path_tracks_readability_transitions_in_both_directions() {
+        let root = tempfile::TempDir::new().expect("fingerprint root");
+        let rel = "src/app.ts";
+        let path = root.path().join(rel);
+        fs::create_dir_all(path.parent().expect("source parent")).expect("source parent");
+        fs::write(&path, "app.get('/cached', handler);\n").expect("source body");
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o000)).expect("deny body read");
+        assert!(
+            fs::File::open(&path).is_err(),
+            "fixture must deny body reads"
+        );
+        let meta = fs::symlink_metadata(&path).expect("source metadata");
+        let (modified_secs, modified_nanos) = file_modified_parts_from_meta(&meta);
+        let readable_cache = CachedFileFingerprint {
+            path: rel.to_string(),
+            git_tracked: true,
+            size: meta.len(),
+            indexed_boundary: None,
+            content_hash: Some("previously-readable".to_string()),
+            modified_secs,
+            modified_nanos,
+        };
+        assert!(
+            !cached_file_matches(root.path(), rel, &readable_cache, None, false),
+            "matching stat metadata cannot retain facts after readability is lost"
+        );
+
+        let unreadable_cache = CachedFileFingerprint {
+            content_hash: None,
+            ..readable_cache
+        };
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).expect("restore body read");
+        assert!(
+            !cached_file_matches(root.path(), rel, &unreadable_cache, None, false),
+            "restored readable bodies must replace an unreadable placeholder"
+        );
     }
 }

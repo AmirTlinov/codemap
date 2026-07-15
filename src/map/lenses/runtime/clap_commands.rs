@@ -20,10 +20,10 @@ struct ClapCommandVariant {
 }
 
 pub(crate) fn runtime_code_entrypoints(project: &Project, file: &FileInfo) -> Vec<Surface> {
-    if file.ext != "rs" {
+    if file.ext != "rs" || file.content_hash.is_none() {
         return Vec::new();
     }
-    let Ok(text) = std::fs::read_to_string(project.root.join(&file.rel)) else {
+    let Some(text) = project.read_indexed_text(&file.rel) else {
         return Vec::new();
     };
     clap_subcommand_surfaces(&file.rel, &text)

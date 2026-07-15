@@ -16,7 +16,7 @@ pub(crate) fn owner_schema_edges(project: &Project, rel: &str) -> Vec<Structural
 }
 
 fn owner_schema_env_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {
-    let Ok(text) = std::fs::read_to_string(project.root.join(rel)) else {
+    let Some(text) = project.read_indexed_text(rel) else {
         return Vec::new();
     };
     let mut edges = Vec::new();
@@ -86,7 +86,7 @@ fn owner_schema_migration_edges(project: &Project, rel: &str) -> Vec<StructuralE
 }
 
 fn owner_prisma_generator_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {
-    let Ok(text) = std::fs::read_to_string(project.root.join(rel)) else {
+    let Some(text) = project.read_indexed_text(rel) else {
         return Vec::new();
     };
     text.lines()

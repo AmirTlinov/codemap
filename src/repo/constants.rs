@@ -16,6 +16,7 @@ pub(crate) const ROOT_MARKERS: &[&str] = &[
     "requirements.txt",
     "Package.swift",
     "Makefile",
+    "GNUmakefile",
     "justfile",
 ];
 

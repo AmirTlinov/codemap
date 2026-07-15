@@ -5,7 +5,10 @@ fn unindexed_runtime_scope_is_unavailable_instead_of_proven_zero() {
     let cache = TempDir::new().expect("missing runtime scope cache");
     initialize_runtime_coverage_repo(&repo);
     git(repo.path(), &["add", "."]);
-    git(repo.path(), &["commit", "-qm", "missing runtime scope fixture"]);
+    git(
+        repo.path(),
+        &["commit", "-qm", "missing runtime scope fixture"],
+    );
 
     let json = run_json(
         repo.path(),
@@ -18,15 +21,17 @@ fn unindexed_runtime_scope_is_unavailable_instead_of_proven_zero() {
         ],
     );
     let ledger = &json["observations"];
-    let routes = horizon(ledger, "routes");
-    assert_eq!(routes["count"]["observed"], 0, "{json:#}");
-    assert_eq!(routes["count"]["closure"], "unavailable", "{json:#}");
-    assert_eq!(
-        routes["count"]["reasons"],
-        serde_json::json!(["anchor_not_indexed"]),
-        "an absent scope cannot prove route absence: {json:#}"
-    );
-    assert_horizon_certificate_resolves(ledger, routes);
+    for group in S03C_RUNTIME_GROUPS {
+        let item = horizon(ledger, group);
+        assert_eq!(item["count"]["observed"], 0, "{group}: {json:#}");
+        assert_eq!(item["count"]["closure"], "unavailable", "{group}: {json:#}");
+        assert_eq!(
+            item["count"]["reasons"],
+            serde_json::json!(["anchor_not_indexed"]),
+            "an absent scope cannot prove {group} absence: {json:#}"
+        );
+        assert_horizon_certificate_resolves(ledger, item);
+    }
 }
 
 #[test]
@@ -35,7 +40,10 @@ fn existing_empty_runtime_directory_is_a_valid_proven_zero_scope() {
     let cache = TempDir::new().expect("empty runtime scope cache");
     initialize_runtime_coverage_repo(&repo);
     git(repo.path(), &["add", "."]);
-    git(repo.path(), &["commit", "-qm", "empty runtime scope fixture"]);
+    git(
+        repo.path(),
+        &["commit", "-qm", "empty runtime scope fixture"],
+    );
     fs::create_dir_all(repo.path().join("empty-scope")).expect("empty runtime directory");
 
     let json = run_json(
@@ -44,11 +52,51 @@ fn existing_empty_runtime_directory_is_a_valid_proven_zero_scope() {
         &["runtime", "empty-scope", "--format", "json"],
     );
     let ledger = &json["observations"];
-    let routes = horizon(ledger, "routes");
-    assert_eq!(routes["count"]["observed"], 0, "{json:#}");
-    assert_eq!(routes["count"]["closure"], "closed", "{json:#}");
-    assert_eq!(routes["count"]["reasons"], serde_json::json!([]));
-    assert_horizon_certificate_resolves(ledger, routes);
+    for group in S03C_RUNTIME_GROUPS {
+        let item = horizon(ledger, group);
+        assert_eq!(item["count"]["observed"], 0, "{group}: {json:#}");
+        assert_eq!(item["count"]["closure"], "closed", "{group}: {json:#}");
+        assert_eq!(item["count"]["reasons"], serde_json::json!([]));
+        assert_horizon_certificate_resolves(ledger, item);
+    }
+}
+
+#[test]
+fn nonempty_ignored_runtime_directory_is_unavailable_not_proven_zero() {
+    let repo = TempDir::new().expect("ignored runtime scope repo");
+    let cache = TempDir::new().expect("ignored runtime scope cache");
+    initialize_runtime_coverage_repo(&repo);
+    write(&repo.path().join(".gitignore"), "ignored-runtime/\n");
+    write(
+        &repo.path().join("ignored-runtime/main.rs"),
+        "fn main() { let _ = std::env::var(\"HIDDEN_TOKEN\"); }\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(
+        repo.path(),
+        &["commit", "-qm", "ignored runtime scope fixture"],
+    );
+
+    let json = run_json(
+        repo.path(),
+        cache.path(),
+        &["runtime", "ignored-runtime", "--format", "json"],
+    );
+    let ledger = &json["observations"];
+    for group in S03C_RUNTIME_GROUPS {
+        let item = horizon(ledger, group);
+        assert_eq!(item["count"]["observed"], 0, "{group}: {json:#}");
+        assert_eq!(
+            item["count"]["closure"], "unavailable",
+            "physical content absent from the index cannot prove {group} zero: {json:#}"
+        );
+        assert_eq!(
+            item["count"]["reasons"],
+            serde_json::json!(["anchor_not_indexed"]),
+            "{group}: {json:#}"
+        );
+        assert_horizon_certificate_resolves(ledger, item);
+    }
 }
 
 #[test]
@@ -60,7 +108,10 @@ fn unsupported_regular_placeholder_timestamp_does_not_change_its_certificate() {
     let body = "router.get('/not-parsed', handler);\n";
     write(&placeholder, body);
     git(repo.path(), &["add", "."]);
-    git(repo.path(), &["commit", "-qm", "runtime parser placeholder"]);
+    git(
+        repo.path(),
+        &["commit", "-qm", "runtime parser placeholder"],
+    );
 
     let first = run_json(
         repo.path(),
@@ -113,11 +164,7 @@ fn tracked_route_symlink_is_not_followed_and_remains_a_typed_runtime_boundary() 
 
     let mut certificate_ids = Vec::new();
     for iteration in 0..2 {
-        let json = run_json(
-            &repo,
-            cache.path(),
-            &["runtime", "src", "--format", "json"],
-        );
+        let json = run_json(&repo, cache.path(), &["runtime", "src", "--format", "json"]);
         assert!(
             json["routes"]
                 .as_array()
@@ -125,6 +172,20 @@ fn tracked_route_symlink_is_not_followed_and_remains_a_typed_runtime_boundary() 
                 .is_empty(),
             "external symlink contents must never become route facts: {json:#}"
         );
+        for group in ["entrypoints", "env", "proof", "unknowns"] {
+            assert!(
+                json[group]
+                    .as_array()
+                    .expect("runtime fact group")
+                    .is_empty(),
+                "external symlink contents must never become {group} facts: {json:#}"
+            );
+            assert_eq!(
+                horizon(&json["observations"], group)["count"]["closure"],
+                "open",
+                "the unread {group} candidate must remain typed open: {json:#}"
+            );
+        }
         let ledger = &json["observations"];
         let routes = horizon(ledger, "routes");
         assert_eq!(routes["count"]["observed"], 0, "{json:#}");
@@ -161,7 +222,8 @@ fn tracked_route_symlink_is_not_followed_and_remains_a_typed_runtime_boundary() 
                 "router.post('/changed-outside-repository', changedHandler);\n",
             );
             fs::remove_file(repo.join("src/routes.ts")).expect("replace runtime source symlink");
-            symlink(&external, repo.join("src/routes.ts")).expect("recreate runtime source symlink");
+            symlink(&external, repo.join("src/routes.ts"))
+                .expect("recreate runtime source symlink");
         }
     }
     assert_eq!(

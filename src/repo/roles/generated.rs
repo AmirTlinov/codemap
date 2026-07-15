@@ -13,6 +13,9 @@ pub(crate) fn is_generated(rel: &str) -> bool {
 }
 
 pub(crate) fn has_generated_header(root: &Path, info: &FileInfo) -> bool {
+    if info.content_hash.is_none() {
+        return false;
+    }
     if !is_source_ext(&info.ext) && !TEXT_EXTS.iter().any(|ext| ext == &info.ext) {
         return false;
     }

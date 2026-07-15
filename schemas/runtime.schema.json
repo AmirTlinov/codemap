@@ -97,7 +97,6 @@
       "type": "string",
       "enum": [
         "anchor_not_indexed",
-        "dynamic_env_lookup",
         "dynamic_import_flow",
         "dynamic_runtime_registration",
         "incomplete_traversal",
@@ -189,14 +188,15 @@
         "dynamic"
       ],
       "properties": {
-        "group": { "type": "string" },
+        "group": {
+          "type": "string",
+          "enum": ["entrypoints", "routes", "scripts", "env", "workers", "ci", "proof", "unknowns"]
+        },
         "scope": { "type": "string" },
         "count": { "$ref": "#/$defs/observed_count" },
         "shown": { "type": "integer", "minimum": 0 },
-        "hidden": { "type": "integer", "minimum": 0 },
-        "expand": {
-          "anyOf": [{ "type": "string" }, { "type": "null" }]
-        },
+        "hidden": { "const": 0 },
+        "expand": { "const": null },
         "unsupported": {
           "type": "array",
           "items": { "$ref": "#/$defs/unsupported_observation" }
@@ -287,6 +287,8 @@
       "properties": {
         "certificates": {
           "type": "object",
+          "minProperties": 8,
+          "maxProperties": 8,
           "propertyNames": {
             "pattern": "^coverage-v1:[0-9a-f]{64}$"
           },
@@ -296,7 +298,19 @@
         },
         "horizons": {
           "type": "array",
-          "items": { "$ref": "#/$defs/coverage_horizon" }
+          "minItems": 8,
+          "maxItems": 8,
+          "items": { "$ref": "#/$defs/coverage_horizon" },
+          "allOf": [
+            { "contains": { "properties": { "group": { "const": "entrypoints" } }, "required": ["group"] }, "minContains": 1, "maxContains": 1 },
+            { "contains": { "properties": { "group": { "const": "routes" } }, "required": ["group"] }, "minContains": 1, "maxContains": 1 },
+            { "contains": { "properties": { "group": { "const": "scripts" } }, "required": ["group"] }, "minContains": 1, "maxContains": 1 },
+            { "contains": { "properties": { "group": { "const": "env" } }, "required": ["group"] }, "minContains": 1, "maxContains": 1 },
+            { "contains": { "properties": { "group": { "const": "workers" } }, "required": ["group"] }, "minContains": 1, "maxContains": 1 },
+            { "contains": { "properties": { "group": { "const": "ci" } }, "required": ["group"] }, "minContains": 1, "maxContains": 1 },
+            { "contains": { "properties": { "group": { "const": "proof" } }, "required": ["group"] }, "minContains": 1, "maxContains": 1 },
+            { "contains": { "properties": { "group": { "const": "unknowns" } }, "required": ["group"] }, "minContains": 1, "maxContains": 1 }
+          ]
         }
       }
     },
@@ -535,7 +549,7 @@
           "anyOf": [
             {
               "type": "integer",
-              "minimum": 0
+              "minimum": 1
             },
             {
               "type": "null"

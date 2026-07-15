@@ -7,6 +7,13 @@ use sha2::{Digest, Sha256};
 
 use crate::model::Project;
 
+mod runtime_scope;
+pub(crate) use runtime_scope::runtime_scope_fingerprint_from_project_snapshot;
+pub use runtime_scope::{
+    runtime_scope_fingerprint, runtime_scope_has_unindexed_entries,
+    runtime_scope_is_logically_empty,
+};
+
 const CACHE_ARTIFACTS: &[&str] = &[
     "status.json",
     "inventory.json",
@@ -63,7 +70,10 @@ pub fn fingerprint(project: &Project, domain_path: Option<&str>) -> String {
         hasher.update(file.rel.as_bytes());
         hasher.update([0]);
         hasher.update(file.size.to_string().as_bytes());
-        if let Some(content_hash) = &file.content_hash {
+        if let Some(boundary) = file.indexed_boundary {
+            hasher.update(b"indexed_boundary");
+            hasher.update(indexed_boundary_fingerprint_token(boundary));
+        } else if let Some(content_hash) = &file.content_hash {
             hasher.update(b"content");
             hasher.update(content_hash.as_bytes());
         } else if let Ok(meta) = std::fs::symlink_metadata(file.rel_path(project)) {
@@ -73,10 +83,7 @@ pub fn fingerprint(project: &Project, domain_path: Option<&str>) -> String {
                     hasher.update(target.to_string_lossy().as_bytes());
                 }
             } else {
-                // Placeholders are deliberately not parsed, so timestamp-only
-                // changes cannot alter any structural fact. Path and size are
-                // already committed above; keep their snapshot independent of
-                // incidental mtime churn.
+                // Unparsed placeholders depend on path/size, not incidental mtime churn.
                 hasher.update(b"placeholder");
             }
         }
@@ -84,19 +91,47 @@ pub fn fingerprint(project: &Project, domain_path: Option<&str>) -> String {
     if let Some(path) = &project.config_path {
         hasher.update(path.as_bytes());
     }
+    let mut inventory_boundaries = project.scan_stats.inventory_boundaries.clone();
+    inventory_boundaries.sort();
+    inventory_boundaries.dedup();
+    for boundary in inventory_boundaries {
+        hasher.update(b"scan_inventory_boundary");
+        hasher.update(scan_inventory_boundary_fingerprint_token(boundary));
+        hasher.update([0]);
+    }
     let hash = hasher.finalize();
     hex_prefix(&hash, 16)
 }
 
 pub fn inventory_fingerprint(root: &Path, files: &[String]) -> String {
     let mut hasher = Sha256::new();
+    let git_index = crate::repo::git_index_inventory(root);
     hasher.update(root.to_string_lossy().as_bytes());
+    hasher.update([0]);
+    hasher.update(b"git_index_probe");
+    hasher.update(if git_index.is_some() {
+        b"available".as_slice()
+    } else if crate::repo::is_git_repo(root) {
+        b"unavailable".as_slice()
+    } else {
+        b"not_repository".as_slice()
+    });
     hasher.update([0]);
     let mut files = files.to_vec();
     files.sort();
     for rel in files {
         hasher.update(rel.as_bytes());
         hasher.update([0]);
+        let boundary = crate::repo::indexed_boundary_for_path(
+            root,
+            &rel,
+            git_index.as_ref().and_then(|index| index.kind(&rel)),
+        );
+        if let Some(boundary) = boundary {
+            hasher.update(indexed_boundary_fingerprint_token(boundary));
+            hasher.update([0]);
+            continue;
+        }
         if let Ok(meta) = fs::metadata(root.join(&rel)) {
             hasher.update(meta.len().to_string().as_bytes());
             hasher.update([0]);
@@ -111,6 +146,27 @@ pub fn inventory_fingerprint(root: &Path, files: &[String]) -> String {
     }
     let hash = hasher.finalize();
     hex_prefix(&hash, 16)
+}
+
+fn indexed_boundary_fingerprint_token(boundary: crate::model::IndexedBoundary) -> &'static [u8] {
+    match boundary {
+        crate::model::IndexedBoundary::ExternalTree => b"external_tree",
+        crate::model::IndexedBoundary::ExternalGitlink => b"external_gitlink",
+        crate::model::IndexedBoundary::IgnoredTrackedFile => b"ignored_tracked_file",
+        crate::model::IndexedBoundary::TraversalError => b"traversal_error",
+        crate::model::IndexedBoundary::UnavailableTrackedFile => b"unavailable_tracked_file",
+    }
+}
+
+fn scan_inventory_boundary_fingerprint_token(
+    boundary: crate::model::ScanInventoryBoundary,
+) -> &'static [u8] {
+    match boundary {
+        crate::model::ScanInventoryBoundary::FilesystemTraversalUnavailable => {
+            b"filesystem_traversal_unavailable"
+        }
+        crate::model::ScanInventoryBoundary::GitIndexUnavailable => b"git_index_unavailable",
+    }
 }
 
 pub(crate) fn hex_prefix(bytes: &[u8], chars: usize) -> String {

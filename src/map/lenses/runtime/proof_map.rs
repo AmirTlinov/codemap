@@ -1,4 +1,5 @@
 // Responsibility: runtime-lens-proof-map
+mod fact_groups;
 mod proof_map_report;
 mod runtime_report;
 

@@ -9,11 +9,9 @@ use crate::map::{ConsumerObservationInput, consumer_observed_count};
 mod definition_coverage;
 use definition_coverage::definition_extractor_capability;
 mod runtime;
-pub(crate) use runtime::{RuntimeRouteObservationInput, runtime_route_observations};
-mod runtime_group_gaps;
-mod runtime_groups;
-pub(crate) use runtime_groups::{
-    RuntimeGroupObservationInput, RuntimeGroupVisibility, record_runtime_group_observations,
+pub(crate) use runtime::{
+    RuntimeGroupObservationInput, RuntimeGroupProjection, RuntimeRouteObservationInput,
+    runtime_group_observations, runtime_route_observations,
 };
 
 pub(crate) struct ObservationProjection<'a> {

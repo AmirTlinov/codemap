@@ -25,6 +25,7 @@ pub(crate) fn resolve_imports(
     let paths: BTreeSet<String> = files.keys().cloned().collect();
     let snapshot: Vec<ImportResolutionSeed> = files
         .values()
+        .filter(|file| file.content_hash.is_some())
         .map(|f| ImportResolutionSeed {
             rel: f.rel.clone(),
             ext: f.ext.clone(),
@@ -93,6 +94,9 @@ pub(crate) fn enrich_accessible_surfaces_from_component_contracts(
             let Some(info) = files.get(&rel) else {
                 continue;
             };
+            if info.content_hash.is_none() {
+                continue;
+            }
             if !matches!(
                 info.ext.as_str(),
                 "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte"
@@ -161,6 +165,9 @@ fn component_export_resolves_to_dialog_labelledby_contract(
     let Some(info) = files.get(file_rel) else {
         return false;
     };
+    if info.content_hash.is_none() {
+        return false;
+    }
     if file_exports_dialog_labelledby_contract(root, info, export_name) {
         return true;
     }

@@ -51,7 +51,7 @@ pub(crate) fn runtime_routes_for_file(project: &Project, file: &FileInfo) -> Vec
 }
 
 fn framework_routes_for_file(project: &Project, file: &FileInfo) -> Vec<RuntimeRoute> {
-    let Ok(text) = std::fs::read_to_string(project.root.join(&file.rel)) else {
+    let Some(text) = project.read_indexed_text(&file.rel) else {
         return Vec::new();
     };
     let mut routes = Vec::new();

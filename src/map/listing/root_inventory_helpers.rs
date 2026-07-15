@@ -6,11 +6,22 @@ use crate::map::{
 use crate::model::{EvidenceLocation, EvidenceStrength, StructuralEdge};
 use std::path::Path;
 
+pub(crate) fn inventory_readable_text(root: &Path, rel: &str) -> Option<String> {
+    let path = root.join(rel);
+    let metadata = std::fs::symlink_metadata(&path).ok()?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return None;
+    }
+    crate::repo::scan_file_rejection(&path, rel, metadata.len())
+        .is_none()
+        .then_some(())?;
+    std::fs::read_to_string(path).ok()
+}
+
 pub(crate) fn inventory_package_kind(root: &Path, rel: &str) -> Option<String> {
     match manifest_file_name(rel) {
         "package.json" => Some("package:javascript".to_string()),
-        "Cargo.toml" => std::fs::read_to_string(root.join(rel))
-            .ok()
+        "Cargo.toml" => inventory_readable_text(root, rel)
             .filter(|text| text.contains("[package]"))
             .map(|_| "package:rust".to_string()),
         "go.mod" => Some("package:go".to_string()),
@@ -43,7 +54,7 @@ pub(crate) fn inventory_root_script_edges(
         inventory_package_json_script_edges(root, "package.json", &mut labels, &mut edges);
     }
     if files.iter().any(|rel| rel == "Cargo.toml")
-        && let Ok(text) = std::fs::read_to_string(root.join("Cargo.toml"))
+        && let Some(text) = inventory_readable_text(root, "Cargo.toml")
         && (text.contains("[package]") || text.contains("[workspace]"))
     {
         inventory_command_edges(
@@ -70,7 +81,7 @@ fn inventory_package_json_script_edges(
     labels: &mut Vec<String>,
     edges: &mut Vec<StructuralEdge>,
 ) {
-    let Ok(text) = std::fs::read_to_string(root.join(rel)) else {
+    let Some(text) = inventory_readable_text(root, rel) else {
         return;
     };
     let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {
@@ -101,7 +112,7 @@ fn inventory_target_file_edges(
     labels: &mut Vec<String>,
     edges: &mut Vec<StructuralEdge>,
 ) {
-    let Ok(text) = std::fs::read_to_string(root.join(rel)) else {
+    let Some(text) = inventory_readable_text(root, rel) else {
         return;
     };
     for (index, line) in text.lines().enumerate() {
@@ -135,7 +146,7 @@ fn inventory_target_file_edges(
 
 fn inventory_ci_run_edges(root: &Path, files: &[String], edges: &mut Vec<StructuralEdge>) {
     for rel in files.iter().filter(|rel| inventory_ci_path(rel)) {
-        let Ok(text) = std::fs::read_to_string(root.join(rel)) else {
+        let Some(text) = inventory_readable_text(root, rel) else {
             continue;
         };
         for (index, line) in text.lines().enumerate() {
@@ -203,7 +214,7 @@ pub(crate) fn inventory_workspace_edges(root: &Path, files: &[String]) -> Vec<St
         .iter()
         .filter(|rel| manifest_file_name(rel) == "package.json" && rel.as_str() != "package.json")
         .collect::<Vec<_>>();
-    let patterns = inventory_workspace_patterns(root);
+    let patterns = inventory_workspace_patterns(root, files);
     for (manifest, pattern, line) in patterns {
         for package_manifest in &package_manifests {
             let package_dir = manifest_dir_for_rel(package_manifest);
@@ -222,9 +233,10 @@ pub(crate) fn inventory_workspace_edges(root: &Path, files: &[String]) -> Vec<St
     edges
 }
 
-fn inventory_workspace_patterns(root: &Path) -> Vec<(String, String, usize)> {
+fn inventory_workspace_patterns(root: &Path, files: &[String]) -> Vec<(String, String, usize)> {
     let mut patterns = Vec::new();
-    if let Ok(text) = std::fs::read_to_string(root.join("package.json"))
+    if files.iter().any(|rel| rel == "package.json")
+        && let Some(text) = inventory_readable_text(root, "package.json")
         && let Ok(value) = serde_json::from_str::<serde_json::Value>(&text)
         && let Some(workspaces) = value.get("workspaces")
     {
@@ -246,7 +258,9 @@ fn inventory_workspace_patterns(root: &Path) -> Vec<(String, String, usize)> {
             }
         }
     }
-    if let Ok(text) = std::fs::read_to_string(root.join("pnpm-workspace.yaml")) {
+    if files.iter().any(|rel| rel == "pnpm-workspace.yaml")
+        && let Some(text) = inventory_readable_text(root, "pnpm-workspace.yaml")
+    {
         for (index, line) in text.lines().enumerate() {
             let trimmed = line.trim();
             if let Some(pattern) = trimmed.strip_prefix("-").map(str::trim) {

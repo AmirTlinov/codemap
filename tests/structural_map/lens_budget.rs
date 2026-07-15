@@ -77,7 +77,7 @@ fn runtime_limit_reports_hidden_worker_surfaces() {
             && readable.contains("codemap runtime packages/app/src/jobs --all --limit 3")
             && !readable.contains("worker/job surfaces hidden by limit")
             && !readable.contains("<larger-number>"),
-        "the workers horizon must own worker/job truncation instead of a detached hidden group: {readable}"
+        "the worker horizon must own bounded visibility without detached hidden accounting: {readable}"
     );
 }
 

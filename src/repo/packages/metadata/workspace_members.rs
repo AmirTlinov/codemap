@@ -14,15 +14,16 @@ pub(crate) fn workspace_domain_paths(
     files: &BTreeMap<String, FileInfo>,
 ) -> BTreeSet<String> {
     let mut out = BTreeSet::new();
-    for pattern in workspace_patterns(root) {
+    for pattern in workspace_patterns(root, files) {
         expand_workspace_pattern(root, files, &pattern, &mut out);
     }
     out
 }
 
-fn workspace_patterns(root: &Path) -> Vec<String> {
+fn workspace_patterns(root: &Path, files: &BTreeMap<String, FileInfo>) -> Vec<String> {
     let mut patterns = Vec::new();
-    if let Ok(text) = fs::read_to_string(root.join("package.json"))
+    if indexed_readable(files, "package.json")
+        && let Ok(text) = fs::read_to_string(root.join("package.json"))
         && let Ok(value) = serde_json::from_str::<serde_json::Value>(&text)
         && let Some(workspaces) = value.get("workspaces")
     {
@@ -40,7 +41,9 @@ fn workspace_patterns(root: &Path) -> Vec<String> {
             );
         }
     }
-    if let Ok(text) = fs::read_to_string(root.join("pnpm-workspace.yaml")) {
+    if indexed_readable(files, "pnpm-workspace.yaml")
+        && let Ok(text) = fs::read_to_string(root.join("pnpm-workspace.yaml"))
+    {
         for line in text.lines() {
             let trimmed = line.trim();
             if let Some(value) = trimmed.strip_prefix("- ") {
@@ -48,13 +51,19 @@ fn workspace_patterns(root: &Path) -> Vec<String> {
             }
         }
     }
-    if let Ok(text) = fs::read_to_string(root.join("Cargo.toml")) {
+    if indexed_readable(files, "Cargo.toml")
+        && let Ok(text) = fs::read_to_string(root.join("Cargo.toml"))
+    {
         patterns.extend(cargo_workspace_array_values(&text, "members"));
     }
-    if let Ok(text) = fs::read_to_string(root.join("go.work")) {
+    if indexed_readable(files, "go.work")
+        && let Ok(text) = fs::read_to_string(root.join("go.work"))
+    {
         patterns.extend(go_work_uses(&text));
     }
-    if let Ok(text) = fs::read_to_string(root.join("pyproject.toml")) {
+    if indexed_readable(files, "pyproject.toml")
+        && let Ok(text) = fs::read_to_string(root.join("pyproject.toml"))
+    {
         patterns.extend(pyproject_workspace_patterns(&text));
     }
     patterns
@@ -62,6 +71,12 @@ fn workspace_patterns(root: &Path) -> Vec<String> {
         .map(|pattern| normalize_rel_path(pattern.trim().trim_start_matches("./")))
         .filter(|pattern| !pattern.is_empty() && pattern != ".")
         .collect()
+}
+
+fn indexed_readable(files: &BTreeMap<String, FileInfo>, path: &str) -> bool {
+    files
+        .get(path)
+        .is_some_and(|file| file.content_hash.is_some())
 }
 
 fn expand_workspace_pattern(

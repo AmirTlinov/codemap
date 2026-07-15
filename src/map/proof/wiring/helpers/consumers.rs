@@ -33,7 +33,7 @@ pub(crate) fn artifact_consumers(project: &Project, artifact: &str) -> Vec<(Stri
         if !proof_wiring_file_can_consume_evidence(file) {
             continue;
         }
-        let Ok(text) = std::fs::read_to_string(project.root.join(&file.rel)) else {
+        let Some(text) = project.read_indexed_text(&file.rel) else {
             continue;
         };
         for (index, line) in text.lines().enumerate() {
@@ -54,8 +54,8 @@ pub(crate) fn proof_wiring_consumer_texts(project: &Project, owner: &str) -> Vec
         .filter(|file| proof_wiring_file_can_consume_artifact(file))
         .filter(|file| proof_wiring_file_can_consume_evidence(file))
         .filter_map(|file| {
-            std::fs::read_to_string(project.root.join(&file.rel))
-                .ok()
+            project
+                .read_indexed_text(&file.rel)
                 .map(|text| (file.rel.clone(), text))
         })
         .collect()

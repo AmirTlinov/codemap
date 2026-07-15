@@ -71,7 +71,11 @@ pub(crate) fn files_report(
         .map(|p| format!("{}/", p.trim_end_matches('/')));
     let mut files: Vec<String> = project
         .files
-        .keys()
+        .values()
+        .filter(|file| {
+            file.indexed_boundary != Some(crate::model::IndexedBoundary::IgnoredTrackedFile)
+        })
+        .map(|file| &file.rel)
         .filter(|rel| prefix.as_ref().map(|p| rel.starts_with(p)).unwrap_or(true))
         .cloned()
         .collect();

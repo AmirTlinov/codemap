@@ -10,7 +10,10 @@ use std::path::Path;
 
 pub(crate) fn detect_packages(root: &Path, files: &BTreeMap<String, FileInfo>) -> Vec<PackageInfo> {
     let mut packages = Vec::new();
-    for rel in files.keys() {
+    for (rel, file) in files {
+        if file.content_hash.is_none() {
+            continue;
+        }
         let name = Path::new(rel).file_name().and_then(|s| s.to_str());
         match name {
             Some("package.json") => {

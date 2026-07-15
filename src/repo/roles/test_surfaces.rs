@@ -52,6 +52,9 @@ pub(crate) fn is_test_support_path(rel: &str) -> bool {
 }
 
 pub(crate) fn source_has_test_declaration(root: &Path, info: &FileInfo) -> bool {
+    if info.content_hash.is_none() {
+        return false;
+    }
     let Ok(text) = fs::read_to_string(root.join(&info.rel)) else {
         return false;
     };

@@ -59,6 +59,24 @@ pub struct Project {
     pub timings: ProjectTimings,
 }
 
+impl Project {
+    /// Reads repository text only when the indexed file was actually scanned.
+    ///
+    /// `content_hash == None` is the shared unread-body boundary for symlinks,
+    /// gitlinks, unavailable tracked files, oversized files, and unsupported
+    /// parsers. Downstream fact builders must not turn those paths into body
+    /// facts.
+    pub(crate) fn read_indexed_text(&self, rel: &str) -> Option<String> {
+        self.files.get(rel)?.content_hash.as_ref()?;
+        let path = self.root.join(rel);
+        let metadata = std::fs::symlink_metadata(&path).ok()?;
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            return None;
+        }
+        std::fs::read_to_string(path).ok()
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ConfigLoadError {
     pub path: String,
@@ -70,6 +88,11 @@ pub struct FileInfo {
     pub rel: String,
     pub ext: String,
     pub size: u64,
+    /// A stable index-owned boundary which cannot be derived from the current
+    /// worktree node alone. Public reports expose its consequences through
+    /// coverage certificates rather than leaking scanner bookkeeping.
+    #[serde(default, skip_serializing)]
+    pub indexed_boundary: Option<IndexedBoundary>,
     #[serde(default, skip_serializing)]
     pub content_hash: Option<String>,
     pub line_count: usize,
@@ -93,6 +116,16 @@ pub struct FileInfo {
     pub visited_route_paths: BTreeSet<String>,
 }
 
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "snake_case")]
+pub enum IndexedBoundary {
+    ExternalTree,
+    ExternalGitlink,
+    IgnoredTrackedFile,
+    TraversalError,
+    UnavailableTrackedFile,
+}
+
 impl FileInfo {
     pub fn has_role(&self, role: &str) -> bool {
         self.roles.contains(role)
@@ -107,6 +140,17 @@ pub struct ScanStats {
     pub bytes_scanned: u64,
     pub ignored: Vec<ScanGroup>,
     pub generated: Vec<ScanGroup>,
+    /// Internal completeness state persisted by the cache owner separately;
+    /// it is deliberately absent from stable public status/doctor schemas.
+    #[serde(default, skip_serializing)]
+    pub inventory_boundaries: Vec<ScanInventoryBoundary>,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "snake_case")]
+pub enum ScanInventoryBoundary {
+    FilesystemTraversalUnavailable,
+    GitIndexUnavailable,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

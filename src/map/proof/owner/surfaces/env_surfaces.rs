@@ -24,7 +24,7 @@ pub(crate) fn env_consumer_proof_surfaces(project: &Project, file: &FileInfo) ->
         {
             continue;
         }
-        let Ok(text) = std::fs::read_to_string(project.root.join(&candidate.rel)) else {
+        let Some(text) = project.read_indexed_text(&candidate.rel) else {
             continue;
         };
         for (line_number, line) in text.lines().enumerate() {
@@ -77,7 +77,7 @@ pub(crate) fn env_ci_reference_proof_surfaces(
 }
 
 pub(crate) fn env_declared_keys(project: &Project, rel: &str) -> Vec<(String, usize)> {
-    let Ok(text) = std::fs::read_to_string(project.root.join(rel)) else {
+    let Some(text) = project.read_indexed_text(rel) else {
         return Vec::new();
     };
     let mut out = Vec::new();

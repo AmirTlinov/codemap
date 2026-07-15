@@ -5,6 +5,9 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 pub(crate) fn runtime_manifest_entrypoints(project: &Project, file: &FileInfo) -> Vec<Surface> {
+    if file.content_hash.is_none() {
+        return Vec::new();
+    }
     let package = project
         .packages
         .iter()
@@ -21,16 +24,28 @@ pub(crate) fn runtime_manifest_entrypoints(project: &Project, file: &FileInfo) -
     else {
         return Vec::new();
     };
-    match name.to_ascii_lowercase().as_str() {
+    match name {
         "package.json" => {
             js_manifest_cli_entrypoints(project, &file.rel, &package_path, &package_name)
         }
-        "cargo.toml" => {
+        "Cargo.toml" => {
             cargo_manifest_cli_entrypoints(project, &file.rel, &package_path, &package_name)
         }
         "pyproject.toml" => pyproject_manifest_cli_entrypoints(project, &file.rel, &package_path),
         _ => Vec::new(),
     }
+}
+
+pub(crate) fn runtime_manifest_entrypoint_candidate(file: &FileInfo) -> bool {
+    Path::new(&file.rel)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| {
+            matches!(
+                name,
+                "package.json" | "Cargo.toml" | "pyproject.toml" | "Package.swift"
+            )
+        })
 }
 
 fn js_manifest_cli_entrypoints(
@@ -39,7 +54,7 @@ fn js_manifest_cli_entrypoints(
     package_path: &str,
     package_name: &str,
 ) -> Vec<Surface> {
-    let Ok(text) = std::fs::read_to_string(project.root.join(manifest)) else {
+    let Some(text) = project.read_indexed_text(manifest) else {
         return Vec::new();
     };
     let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {
@@ -75,7 +90,7 @@ fn cargo_manifest_cli_entrypoints(
     package_path: &str,
     package_name: &str,
 ) -> Vec<Surface> {
-    let Ok(text) = std::fs::read_to_string(project.root.join(manifest)) else {
+    let Some(text) = project.read_indexed_text(manifest) else {
         return Vec::new();
     };
     let Ok(value) = toml::from_str::<toml::Value>(&text) else {
@@ -124,7 +139,7 @@ fn pyproject_manifest_cli_entrypoints(
     manifest: &str,
     package_path: &str,
 ) -> Vec<Surface> {
-    let Ok(text) = std::fs::read_to_string(project.root.join(manifest)) else {
+    let Some(text) = project.read_indexed_text(manifest) else {
         return Vec::new();
     };
     let Ok(value) = toml::from_str::<toml::Value>(&text) else {

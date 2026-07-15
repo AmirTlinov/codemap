@@ -12,7 +12,7 @@ pub(crate) fn local_named_export_bindings(
     project: &Project,
     file_rel: &str,
 ) -> BTreeMap<String, BTreeSet<String>> {
-    let Ok(text) = std::fs::read_to_string(project.root.join(file_rel)) else {
+    let Some(text) = project.read_indexed_text(file_rel) else {
         return BTreeMap::new();
     };
     let mut out = BTreeMap::new();

@@ -129,7 +129,7 @@ fn proof_neighbor_token_hits(tokens: &BTreeSet<String>, other: &BTreeSet<String>
 }
 
 fn proof_neighbor_mentions_path(project: &Project, candidate: &str, rel: &str) -> bool {
-    let Ok(text) = std::fs::read_to_string(project.root.join(candidate)) else {
+    let Some(text) = project.read_indexed_text(candidate) else {
         return false;
     };
     let lower = text.to_ascii_lowercase();
@@ -154,7 +154,7 @@ fn proof_neighbor_file_location(
 }
 
 fn first_line_containing_ci(project: &Project, rel: &str, needles: &[&str]) -> Option<usize> {
-    let text = std::fs::read_to_string(project.root.join(rel)).ok()?;
+    let text = project.read_indexed_text(rel)?;
     text.lines().enumerate().find_map(|(index, line)| {
         let lower = line.to_ascii_lowercase();
         needles

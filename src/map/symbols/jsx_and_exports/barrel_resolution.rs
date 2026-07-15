@@ -184,7 +184,7 @@ fn barrel_has_local_named_export_public_name(
     barrel: &FileInfo,
     public_name: &str,
 ) -> bool {
-    let Ok(text) = std::fs::read_to_string(project.root.join(&barrel.rel)) else {
+    let Some(text) = project.read_indexed_text(&barrel.rel) else {
         return false;
     };
     for statement in local_named_export_statement_slices(&text) {

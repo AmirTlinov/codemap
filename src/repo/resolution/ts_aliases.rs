@@ -18,8 +18,11 @@ pub(crate) fn detect_ts_path_aliases(
     files: &BTreeMap<String, FileInfo>,
 ) -> Vec<TsPathAlias> {
     let mut aliases = Vec::new();
-    for rel in files.keys() {
+    for (rel, file) in files {
         if Path::new(rel).file_name().and_then(|name| name.to_str()) != Some("tsconfig.json") {
+            continue;
+        }
+        if file.content_hash.is_none() {
             continue;
         }
         aliases.extend(read_ts_path_aliases(root, rel));

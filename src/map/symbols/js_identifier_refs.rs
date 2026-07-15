@@ -2,7 +2,7 @@
 use crate::model::{FileInfo, Project};
 
 pub(crate) fn default_export_symbol_name(project: &Project, file_rel: &str) -> Option<String> {
-    let text = std::fs::read_to_string(project.root.join(file_rel)).ok()?;
+    let text = project.read_indexed_text(file_rel)?;
     for line in text.lines() {
         let trimmed = line.trim_start();
         let Some(rest) = trimmed.strip_prefix("export default ") else {
@@ -29,7 +29,7 @@ pub(crate) fn file_references_identifier_after_imports(
     file: &FileInfo,
     name: &str,
 ) -> bool {
-    let Ok(text) = std::fs::read_to_string(project.root.join(&file.rel)) else {
+    let Some(text) = project.read_indexed_text(&file.rel) else {
         return file.references.contains(name);
     };
     let mut skipping_import = false;

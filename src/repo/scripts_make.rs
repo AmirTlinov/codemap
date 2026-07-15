@@ -1,12 +1,17 @@
 // Responsibility: repo-scripts-make
-use crate::model::ScriptInfo;
+use crate::model::{FileInfo, ScriptInfo};
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
-pub(crate) fn makefile_scripts(root: &Path) -> Vec<ScriptInfo> {
-    ["Makefile", "makefile"]
+pub(crate) fn makefile_scripts(root: &Path, files: &BTreeMap<String, FileInfo>) -> Vec<ScriptInfo> {
+    ["GNUmakefile", "makefile", "Makefile"]
         .iter()
-        .find_map(|name| {
+        .find(|name| files.contains_key(**name))
+        .and_then(|name| {
+            if !indexed_readable(files, name) {
+                return None;
+            }
             let path = root.join(name);
             let text = fs::read_to_string(&path).ok()?;
             Some(make_like_scripts_from_text(
@@ -19,10 +24,14 @@ pub(crate) fn makefile_scripts(root: &Path) -> Vec<ScriptInfo> {
         .unwrap_or_default()
 }
 
-pub(crate) fn justfile_scripts(root: &Path) -> Vec<ScriptInfo> {
+pub(crate) fn justfile_scripts(root: &Path, files: &BTreeMap<String, FileInfo>) -> Vec<ScriptInfo> {
     ["justfile", "Justfile"]
         .iter()
-        .find_map(|name| {
+        .find(|name| files.contains_key(**name))
+        .and_then(|name| {
+            if !indexed_readable(files, name) {
+                return None;
+            }
             let path = root.join(name);
             let text = fs::read_to_string(&path).ok()?;
             Some(make_like_scripts_from_text(
@@ -33,6 +42,12 @@ pub(crate) fn justfile_scripts(root: &Path) -> Vec<ScriptInfo> {
             ))
         })
         .unwrap_or_default()
+}
+
+fn indexed_readable(files: &BTreeMap<String, FileInfo>, path: &str) -> bool {
+    files
+        .get(path)
+        .is_some_and(|file| file.content_hash.is_some())
 }
 
 fn make_like_scripts_from_text(

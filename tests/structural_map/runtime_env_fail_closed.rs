@@ -57,6 +57,22 @@ fn runtime_lens_env_surfaces_ignore_cross_line_literals_and_comments() {
         dynamic_env_unknowns[0]["path"],
         "packages/app/src/env-noise.ts"
     );
+    let env_horizon = horizon(&runtime["observations"], "env");
+    assert_eq!(env_horizon["count"]["closure"], "open", "{runtime:#}");
+    let stops = env_horizon["dynamic"]
+        .as_array()
+        .expect("dynamic env coverage stops");
+    assert_eq!(stops.len(), 1, "{runtime:#}");
+    assert_eq!(stops[0]["kind"], "unsupported_construct", "{runtime:#}");
+    assert_eq!(
+        stops[0]["location"]["path"],
+        "packages/app/src/env-noise.ts",
+        "{runtime:#}"
+    );
+    assert_eq!(
+        stops[0]["location"]["line_start"], 13,
+        "the env horizon must preserve the exact dynamic lookup location: {runtime:#}"
+    );
 }
 
 #[test]

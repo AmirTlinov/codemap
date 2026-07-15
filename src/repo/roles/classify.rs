@@ -1,7 +1,7 @@
 // Responsibility: repo-roles-classify
 use crate::model::FileInfo;
 use crate::repo::{
-    classify_source_roles, has_generated_header, is_asset_ext, is_build_ci_surface,
+    classify_build_ci_role, classify_source_roles, has_generated_header, is_asset_ext,
     is_deploy_surface, is_docs_surface, is_doctor_surface, is_e2e_test_path, is_entrypoint_surface,
     is_env_surface_name, is_generated, is_golden_surface, is_internal_api_surface,
     is_lockfile_name, is_migration_surface, is_owner_doc_surface, is_package_manifest_name,
@@ -181,9 +181,7 @@ pub(crate) fn classify_roles(root: &Path, info: &mut FileInfo) {
     if matches!(name.as_str(), "repo.rs" | "repo.ts" | "repo.js") {
         info.roles.insert("repo_discovery".to_string());
     }
-    if is_build_ci_surface(&rel, &name, &info.ext, &info.tokens) {
-        info.roles.insert("build_ci".to_string());
-    }
+    classify_build_ci_role(info);
     if is_runtime_config_surface(&rel, &name) {
         info.roles.insert("runtime_config".to_string());
     }

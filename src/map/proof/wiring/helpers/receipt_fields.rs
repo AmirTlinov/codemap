@@ -115,7 +115,7 @@ pub(crate) fn receipt_field_is_schema(key: &str) -> bool {
 }
 
 pub(crate) fn file_has_predicate_language(project: &Project, rel: &str) -> bool {
-    let Ok(text) = std::fs::read_to_string(project.root.join(rel)) else {
+    let Some(text) = project.read_indexed_text(rel) else {
         return false;
     };
     text_has_predicate_language(&text)

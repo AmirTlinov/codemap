@@ -97,7 +97,7 @@ pub(crate) fn package_public_targets(
     if package.ecosystem != "javascript" {
         return Vec::new();
     }
-    let Ok(text) = std::fs::read_to_string(project.root.join(&package.manifest)) else {
+    let Some(text) = project.read_indexed_text(&package.manifest) else {
         return Vec::new();
     };
     let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {

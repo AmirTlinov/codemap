@@ -213,7 +213,7 @@ pub(crate) fn route_visit_locations(
     rel: &str,
     path: &str,
 ) -> Vec<EvidenceLocation> {
-    let Ok(text) = std::fs::read_to_string(project.root.join(rel)) else {
+    let Some(text) = project.read_indexed_text(rel) else {
         return vec![EvidenceLocation::path(rel, "route_visit")];
     };
     for (index, line) in text.lines().enumerate() {

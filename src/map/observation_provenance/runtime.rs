@@ -4,7 +4,12 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::map::runtime_route_extractor_capability;
 use crate::model::{
     CoverageCertificate, CoverageClosure, CoverageLocation, CoverageReason, CoverageStop, FileInfo,
-    ObservationLedger, Project, Unknown, UnsupportedObservation,
+    ObservationLedger, ScanInventoryBoundary, Unknown, UnsupportedObservation,
+};
+
+mod groups;
+pub(crate) use groups::{
+    RuntimeGroupObservationInput, RuntimeGroupProjection, runtime_group_observations,
 };
 
 /// Exact inputs already owned by runtime report assembly. This projection does
@@ -12,8 +17,13 @@ use crate::model::{
 /// report observed and chose to show.
 pub(crate) struct RuntimeRouteObservationInput<'a> {
     pub scope: &'a str,
+    pub snapshot: &'a str,
     pub scope_indexed: bool,
+    pub scope_has_unindexed_entries: bool,
     pub candidate_files: &'a [&'a FileInfo],
+    pub incomplete_boundaries: &'a [&'a FileInfo],
+    pub external_boundaries: &'a [&'a FileInfo],
+    pub scan_boundaries: &'a [ScanInventoryBoundary],
     pub observed: usize,
     pub shown: usize,
     pub route_unknowns: &'a [Unknown],
@@ -21,14 +31,14 @@ pub(crate) struct RuntimeRouteObservationInput<'a> {
 }
 
 pub(crate) fn runtime_route_observations(
-    project: &Project,
     input: RuntimeRouteObservationInput<'_>,
 ) -> ObservationLedger {
     if !input.scope_indexed {
         let certificate = CoverageCertificate::new(
-            "supported_static_runtime_routes",
+            crate::model::RuntimeReport::observation_query_kind("routes")
+                .expect("runtime route query kind"),
             input.scope,
-            crate::cache::fingerprint(project, None),
+            input.snapshot,
             0,
             0,
             CoverageClosure::Unavailable,
@@ -48,8 +58,50 @@ pub(crate) fn runtime_route_observations(
     let mut unsupported = Vec::new();
     let mut excluded_files_by_reason = BTreeMap::new();
     let mut visited_files = 0_u64;
+    let external_boundaries = input
+        .external_boundaries
+        .iter()
+        .map(|file| file.rel.as_str())
+        .collect::<BTreeSet<_>>();
+    let incomplete_boundaries = input
+        .incomplete_boundaries
+        .iter()
+        .map(|file| file.rel.as_str())
+        .collect::<BTreeSet<_>>();
+    let mut external_stops = Vec::new();
+    let mut unresolved_stops = Vec::new();
 
     for file in candidates.values() {
+        if incomplete_boundaries.contains(file.rel.as_str()) {
+            excluded_files_by_reason
+                .entry(CoverageReason::IncompleteTraversal)
+                .or_insert_with(Vec::new)
+                .push(file.rel.clone());
+            if external_boundaries.contains(file.rel.as_str()) {
+                unsupported.push(UnsupportedObservation {
+                    file: file.rel.clone(),
+                    construct: "non-followed external tree may contain runtime routes".to_string(),
+                    location: Some(CoverageLocation::path(&file.rel)),
+                });
+                external_stops.push(CoverageStop {
+                    kind: CoverageReason::IncompleteTraversal,
+                    location: Some(CoverageLocation::path(&file.rel)),
+                    missing_surface: Some(
+                        "external tree is outside indexed runtime truth".to_string(),
+                    ),
+                });
+            } else if file.indexed_boundary == Some(crate::model::IndexedBoundary::TraversalError) {
+                unresolved_stops.push(CoverageStop {
+                    kind: CoverageReason::IncompleteTraversal,
+                    location: Some(CoverageLocation::path(&file.rel)),
+                    missing_surface: Some(
+                        "repository traversal failed before runtime route contents were indexed"
+                            .to_string(),
+                    ),
+                });
+            }
+            continue;
+        }
         match runtime_route_extractor_capability(file) {
             Ok(capability) => {
                 visited_files += 1;
@@ -64,6 +116,31 @@ pub(crate) fn runtime_route_observations(
                     file: file.rel.clone(),
                     construct,
                     location: Some(CoverageLocation::path(&file.rel)),
+                });
+            }
+        }
+    }
+
+    for boundary in input.scan_boundaries {
+        match boundary {
+            ScanInventoryBoundary::FilesystemTraversalUnavailable => {
+                unresolved_stops.push(CoverageStop {
+                    kind: CoverageReason::IncompleteTraversal,
+                    location: Some(CoverageLocation::path(input.scope)),
+                    missing_surface: Some(
+                        "repository traversal failed without a path; hidden routes are unknown"
+                            .to_string(),
+                    ),
+                });
+            }
+            ScanInventoryBoundary::GitIndexUnavailable => {
+                unresolved_stops.push(CoverageStop {
+                    kind: CoverageReason::IncompleteTraversal,
+                    location: Some(CoverageLocation::path(".git/index")),
+                    missing_surface: Some(
+                        "Git index inventory was unavailable; hidden tracked routes are unknown"
+                            .to_string(),
+                    ),
                 });
             }
         }
@@ -103,15 +180,31 @@ pub(crate) fn runtime_route_observations(
         }
     }
 
-    let closure = if unsupported.is_empty() && dynamic_stops.is_empty() {
+    if input.scope_has_unindexed_entries {
+        unresolved_stops.push(CoverageStop {
+            kind: CoverageReason::IncompleteTraversal,
+            location: Some(CoverageLocation::path(input.scope)),
+            missing_surface: Some(
+                "physical scope entries exist outside indexed runtime candidates".to_string(),
+            ),
+        });
+    }
+
+    let closure = if unsupported.is_empty()
+        && dynamic_stops.is_empty()
+        && unresolved_stops.is_empty()
+        && external_stops.is_empty()
+        && excluded_files_by_reason.is_empty()
+    {
         CoverageClosure::Closed
     } else {
         CoverageClosure::Open
     };
     let mut certificate = CoverageCertificate::new(
-        "supported_static_runtime_routes",
+        crate::model::RuntimeReport::observation_query_kind("routes")
+            .expect("runtime route query kind"),
         input.scope,
-        crate::cache::fingerprint(project, None),
+        input.snapshot,
         candidates.len() as u64,
         visited_files,
         closure,
@@ -120,6 +213,8 @@ pub(crate) fn runtime_route_observations(
     certificate.extractor_capabilities = capabilities;
     certificate.unsupported = unsupported;
     certificate.dynamic_stops = dynamic_stops;
+    certificate.unresolved_stops = unresolved_stops;
+    certificate.external_stops = external_stops;
     certificate.excluded_files_by_reason = excluded_files_by_reason;
 
     let mut ledger = ObservationLedger::default();

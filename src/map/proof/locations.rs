@@ -108,7 +108,7 @@ fn symbol_reference_locations_for_test(
     if names.is_empty() {
         return proof_surface_locations_for_test(test, "test_symbol_reference");
     }
-    let Ok(text) = std::fs::read_to_string(project.root.join(test)) else {
+    let Some(text) = project.read_indexed_text(test) else {
         return proof_surface_locations_for_test(test, "test_symbol_reference");
     };
     let mut locations = Vec::new();
@@ -140,7 +140,7 @@ fn test_surface_match_locations_for_target(
     let Some(test_file) = project.files.get(test) else {
         return proof_surface_locations_for_test(test, evidence);
     };
-    let Ok(text) = std::fs::read_to_string(project.root.join(test)) else {
+    let Some(text) = project.read_indexed_text(test) else {
         return proof_surface_locations_for_test(test, evidence);
     };
     let shared_phrases = shared_surface_phrases(project, target, test_file);
@@ -168,7 +168,7 @@ fn test_name_match_locations_for_target(
     target: &str,
     test: &str,
 ) -> Vec<EvidenceLocation> {
-    let Ok(text) = std::fs::read_to_string(project.root.join(test)) else {
+    let Some(text) = project.read_indexed_text(test) else {
         return proof_surface_locations_for_test(test, "test_name");
     };
     let terms = semantic_name_terms(&source_stem(target));

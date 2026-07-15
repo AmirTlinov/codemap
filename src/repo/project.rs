@@ -13,7 +13,7 @@ use crate::repo::{
 };
 use anyhow::Context;
 use anyhow::Result;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::path::Path;
 use std::path::PathBuf;
@@ -59,90 +59,110 @@ pub fn load_project_with_cache(
     };
     let cache_dir = cache::project_cache_dir(&root, remote.as_deref(), VERSION);
 
-    if cache::cache_enabled() {
-        let cache_artifact_started = Instant::now();
-        if let Some(delta) =
-            incremental_file_delta(&root, &cache_dir, VERSION, config_path.as_deref())
-            && let Some(mut cached) =
-                cache::read_cached_project(&cache_dir, VERSION, &delta.cached_fingerprint)
-        {
-            let mut files = BTreeMap::new();
-            let mut scan_candidates = delta.changed_or_added.clone();
-            for rel in &delta.unchanged {
-                if let Some(file) = cached.files.remove(rel) {
-                    if cached_file_facts_match_delta(&file, &delta, rel) {
-                        files.insert(rel.clone(), file);
+    'cached_load: {
+        if cache::cache_enabled() {
+            let cache_artifact_started = Instant::now();
+            if let Some(delta) =
+                incremental_file_delta(&root, &cache_dir, VERSION, config_path.as_deref())
+                && let Some(mut cached) =
+                    cache::read_cached_project(&cache_dir, VERSION, &delta.cached_fingerprint)
+            {
+                let mut files = BTreeMap::new();
+                let mut scan_candidates = delta.changed_or_added.clone();
+                for rel in &delta.unchanged {
+                    if let Some(file) = cached.files.remove(rel) {
+                        if cached_file_facts_match_delta(&file, &delta, rel) {
+                            files.insert(rel.clone(), file);
+                        } else {
+                            scan_candidates.insert(rel.clone());
+                        }
                     } else {
                         scan_candidates.insert(rel.clone());
                     }
-                } else {
-                    scan_candidates.insert(rel.clone());
                 }
-            }
-            let file_reuse_count = files.len();
-            let scan_started = Instant::now();
-            let (rescanned, rescanned_stats) = scan_selected_files(&root, &scan_candidates);
-            let scan_ms = scan_started.elapsed().as_millis();
-            files.extend(rescanned);
-            if files.len() == delta.current_file_count() {
-                let scan_stats = cached_scan_stats(&cached.scan_stats, rescanned_stats, &files);
-                let mut project = build_project_from_files(ProjectBuildInput {
-                    root,
-                    cwd,
-                    vcs,
-                    cache_dir,
-                    config_path,
-                    config_errors,
-                    nearest_agents,
-                    anchors,
-                    files,
-                    scan_stats,
-                    cache_strategy: if scan_candidates.is_empty() && delta.is_exact_hit() {
-                        "warm_load".to_string()
-                    } else {
-                        "partial_rescan".to_string()
-                    },
-                    files_reused: file_reuse_count,
-                });
-                let fingerprint = cache::fingerprint(&project, None);
-                let cache_artifacts = cache::artifact_statuses(&project, &fingerprint);
-                project.cache_state = cache::cache_state(&cache_artifacts);
-                project.cache_artifacts = cache_artifacts;
-                let cache_artifact_ms = cache_artifact_started.elapsed().as_millis();
-                let cache_write_started = Instant::now();
-                let cache_needs_refresh = project
-                    .cache_artifacts
-                    .iter()
-                    .any(|artifact| artifact.fingerprint_match != Some(true));
-                let cached_head_mismatch =
-                    cache::cached_git_head_matches(&project.root, &project.cache_dir, VERSION)
-                        == Some(false);
-                if cache_write == CacheWriteMode::Enabled
-                    && (!scan_candidates.is_empty()
-                        || !delta.is_exact_hit()
-                        || cache_needs_refresh
-                        || cached_head_mismatch)
+                let file_reuse_count = files.len();
+                let scan_started = Instant::now();
+                let (rescanned, rescanned_stats) = scan_selected_files(&root, &scan_candidates);
+                let scan_ms = scan_started.elapsed().as_millis();
+                if scan_inventory_boundaries(&cached.scan_stats)
+                    != scan_inventory_boundaries(&rescanned_stats)
                 {
-                    let git_status_change_sets = git_status_cache_change_sets(&project.root);
-                    cache::write_status_with_change_sets(
-                        &project,
-                        VERSION,
-                        git_status_change_sets
-                            .as_ref()
-                            .map(|(changed_or_added, removed)| (changed_or_added, removed)),
-                    )?;
+                    // A global completeness transition can add or remove paths
+                    // which never had a per-file fingerprint. Rebuild from the
+                    // actual scanner owner instead of composing unlike worlds.
+                    break 'cached_load;
+                }
+                let discovered_boundary_count = rescanned
+                    .keys()
+                    .filter(|rel| {
+                        !delta.unchanged.contains(*rel) && !delta.changed_or_added.contains(*rel)
+                    })
+                    .count();
+                files.extend(rescanned);
+                if files.len() == delta.current_file_count() + discovered_boundary_count {
+                    let scan_stats = cached_scan_stats(&cached.scan_stats, rescanned_stats, &files);
+                    let mut project = build_project_from_files(ProjectBuildInput {
+                        root,
+                        cwd,
+                        vcs,
+                        cache_dir,
+                        config_path,
+                        config_errors,
+                        nearest_agents,
+                        anchors,
+                        files,
+                        scan_stats,
+                        cache_strategy: if scan_candidates.is_empty()
+                            && delta.is_exact_hit()
+                            && discovered_boundary_count == 0
+                        {
+                            "warm_load".to_string()
+                        } else {
+                            "partial_rescan".to_string()
+                        },
+                        files_reused: file_reuse_count,
+                    });
                     let fingerprint = cache::fingerprint(&project, None);
                     let cache_artifacts = cache::artifact_statuses(&project, &fingerprint);
                     project.cache_state = cache::cache_state(&cache_artifacts);
                     project.cache_artifacts = cache_artifacts;
+                    let cache_artifact_ms = cache_artifact_started.elapsed().as_millis();
+                    let cache_write_started = Instant::now();
+                    let cache_needs_refresh = project
+                        .cache_artifacts
+                        .iter()
+                        .any(|artifact| artifact.fingerprint_match != Some(true));
+                    let cached_head_mismatch =
+                        cache::cached_git_head_matches(&project.root, &project.cache_dir, VERSION)
+                            == Some(false);
+                    if cache_write == CacheWriteMode::Enabled
+                        && (!scan_candidates.is_empty()
+                            || !delta.is_exact_hit()
+                            || discovered_boundary_count > 0
+                            || cache_needs_refresh
+                            || cached_head_mismatch)
+                    {
+                        let git_status_change_sets = git_status_cache_change_sets(&project.root);
+                        cache::write_status_with_change_sets(
+                            &project,
+                            VERSION,
+                            git_status_change_sets
+                                .as_ref()
+                                .map(|(changed_or_added, removed)| (changed_or_added, removed)),
+                        )?;
+                        let fingerprint = cache::fingerprint(&project, None);
+                        let cache_artifacts = cache::artifact_statuses(&project, &fingerprint);
+                        project.cache_state = cache::cache_state(&cache_artifacts);
+                        project.cache_artifacts = cache_artifacts;
+                    }
+                    let cache_write_ms = cache_write_started.elapsed().as_millis();
+                    project.timings.root_ms = root_ms;
+                    project.timings.scan_ms = scan_ms;
+                    project.timings.cache_artifact_ms = cache_artifact_ms;
+                    project.timings.cache_write_ms = cache_write_ms;
+                    project.timings.total_ms = total_started.elapsed().as_millis();
+                    return Ok(project);
                 }
-                let cache_write_ms = cache_write_started.elapsed().as_millis();
-                project.timings.root_ms = root_ms;
-                project.timings.scan_ms = scan_ms;
-                project.timings.cache_artifact_ms = cache_artifact_ms;
-                project.timings.cache_write_ms = cache_write_ms;
-                project.timings.total_ms = total_started.elapsed().as_millis();
-                return Ok(project);
             }
         }
     }
@@ -159,8 +179,8 @@ pub fn load_project_with_cache(
     enrich_accessible_surfaces_from_component_contracts(&root, &mut files);
     let reverse_imports = build_reverse_imports(&files);
     let package_edges = detect_package_edges(&root, &files, &packages);
-    let scripts = detect_scripts(&root);
-    let package_manager = detect_package_manager(&root);
+    let scripts = detect_scripts(&root, &files);
+    let package_manager = detect_package_manager(&files);
     let languages = detect_languages(&files);
     let domains = discover_domains(&root, &files, &anchors, config_path.as_deref());
     let facts_ms = facts_started.elapsed().as_millis();
@@ -222,6 +242,10 @@ pub fn load_project_with_cache(
     Ok(project)
 }
 
+fn scan_inventory_boundaries(stats: &ScanStats) -> BTreeSet<crate::model::ScanInventoryBoundary> {
+    stats.inventory_boundaries.iter().copied().collect()
+}
+
 fn incremental_file_delta(
     root: &Path,
     cache_dir: &Path,
@@ -273,8 +297,8 @@ fn build_project_from_files(input: ProjectBuildInput) -> Project {
     enrich_accessible_surfaces_from_component_contracts(&input.root, &mut files);
     let reverse_imports = build_reverse_imports(&files);
     let package_edges = detect_package_edges(&input.root, &files, &packages);
-    let scripts = detect_scripts(&input.root);
-    let package_manager = detect_package_manager(&input.root);
+    let scripts = detect_scripts(&input.root, &files);
+    let package_manager = detect_package_manager(&files);
     let languages = detect_languages(&files);
     let domains = discover_domains(
         &input.root,
@@ -324,6 +348,7 @@ fn cached_scan_stats(
         bytes_scanned: rescanned.bytes_scanned,
         ignored: cached.ignored.clone(),
         generated: generated_scan_groups(files),
+        inventory_boundaries: rescanned.inventory_boundaries,
     }
 }
 

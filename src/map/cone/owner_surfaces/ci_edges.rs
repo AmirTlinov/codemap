@@ -3,7 +3,7 @@ use crate::map::{ci_owner_step_kind_for_project, ci_run_steps, structural_edge_w
 use crate::model::{EvidenceLocation, EvidenceStrength, Project, StructuralEdge};
 
 pub(crate) fn owner_ci_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {
-    let Ok(text) = std::fs::read_to_string(project.root.join(rel)) else {
+    let Some(text) = project.read_indexed_text(rel) else {
         return Vec::new();
     };
     ci_run_steps(&text)

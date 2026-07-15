@@ -6,7 +6,7 @@ pub(crate) fn package_json_scripts(
     project: &Project,
     manifest: &str,
 ) -> Vec<(String, String, usize)> {
-    let Ok(text) = std::fs::read_to_string(project.root.join(manifest)) else {
+    let Some(text) = project.read_indexed_text(manifest) else {
         return Vec::new();
     };
     let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {
@@ -77,7 +77,7 @@ pub(crate) fn first_line_containing(
     rel: &str,
     needles: &[&str],
 ) -> Option<usize> {
-    let text = std::fs::read_to_string(project.root.join(rel)).ok()?;
+    let text = project.read_indexed_text(rel)?;
     text.lines()
         .enumerate()
         .find(|(_, line)| needles.iter().any(|needle| line.contains(needle)))

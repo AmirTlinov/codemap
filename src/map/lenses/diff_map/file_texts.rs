@@ -52,13 +52,23 @@ pub(crate) fn diff_current_file_texts(
         DiffMapMode::Staged => git_show_files(project, ":", rels),
         DiffMapMode::WorkingTree | DiffMapMode::Since(_) => rels
             .iter()
-            .filter_map(|rel| {
-                std::fs::read_to_string(project.root.join(rel))
-                    .ok()
-                    .map(|text| (rel.clone(), text))
-            })
+            .filter_map(|rel| diff_worktree_blob_text(project, rel).map(|text| (rel.clone(), text)))
             .collect(),
     }
+}
+
+/// Reads the content Git assigns to a working-tree path without following links.
+/// Regular bodies retain the indexed-readable boundary; a symlink's blob is its
+/// target path, not the contents of that target.
+pub(crate) fn diff_worktree_blob_text(project: &Project, rel: &str) -> Option<String> {
+    let path = project.root.join(rel);
+    let metadata = std::fs::symlink_metadata(&path).ok()?;
+    if metadata.file_type().is_symlink() {
+        return std::fs::read_link(path)
+            .ok()
+            .map(|target| target.to_string_lossy().into_owned());
+    }
+    project.read_indexed_text(rel)
 }
 
 pub(crate) fn diff_current_file_text(

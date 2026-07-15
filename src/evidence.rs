@@ -24,7 +24,7 @@ pub(crate) fn import_statement_locations(
     if let Some(stem) = Path::new(to).file_stem().and_then(|name| name.to_str()) {
         names.push(stem);
     }
-    let Ok(text) = std::fs::read_to_string(project.root.join(from)) else {
+    let Some(text) = project.read_indexed_text(from) else {
         return vec![EvidenceLocation::path(from, "import_source_file")];
     };
     let mut locations = Vec::new();
@@ -193,7 +193,7 @@ pub(crate) fn package_dependency_locations(
         manifests.push(workspace_manifest);
     }
     for manifest in manifests {
-        let Ok(text) = std::fs::read_to_string(project.root.join(manifest)) else {
+        let Some(text) = project.read_indexed_text(manifest) else {
             continue;
         };
         for (index, line) in text.lines().enumerate() {

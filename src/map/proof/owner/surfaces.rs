@@ -26,7 +26,7 @@ pub(crate) fn owner_surface_proof_surfaces(project: &Project, anchor: &str) -> V
 }
 
 pub(crate) fn ci_owner_proof_surfaces(project: &Project, file: &FileInfo) -> Vec<ProofSurface> {
-    let Ok(text) = std::fs::read_to_string(project.root.join(&file.rel)) else {
+    let Some(text) = project.read_indexed_text(&file.rel) else {
         return Vec::new();
     };
     ci_run_steps(&text)

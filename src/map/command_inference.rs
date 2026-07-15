@@ -182,7 +182,7 @@ pub(crate) fn package_minimal_command(
 }
 
 fn root_cargo_workspace_includes(project: &Project, package_path: &str) -> bool {
-    let Ok(text) = std::fs::read_to_string(project.root.join("Cargo.toml")) else {
+    let Some(text) = project.read_indexed_text("Cargo.toml") else {
         return false;
     };
     cargo_workspace_values(&text, "members")
@@ -250,7 +250,7 @@ pub(crate) fn javascript_package_has_script(
     package: &crate::model::PackageInfo,
     script: &str,
 ) -> bool {
-    let Ok(text) = std::fs::read_to_string(project.root.join(&package.manifest)) else {
+    let Some(text) = project.read_indexed_text(&package.manifest) else {
         return false;
     };
     let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {
@@ -269,21 +269,24 @@ pub(crate) fn javascript_runner_for_package(
     package: &crate::model::PackageInfo,
 ) -> String {
     for rel in ancestor_paths(&package.path) {
-        let dir = if rel == "." {
-            project.root.clone()
-        } else {
-            project.root.join(&rel)
+        let indexed = |name: &str| {
+            let path = if rel == "." {
+                name.to_string()
+            } else {
+                format!("{rel}/{name}")
+            };
+            project.files.contains_key(&path)
         };
-        if dir.join("pnpm-workspace.yaml").exists() || dir.join("pnpm-lock.yaml").exists() {
+        if indexed("pnpm-workspace.yaml") || indexed("pnpm-lock.yaml") {
             return "pnpm".to_string();
         }
-        if dir.join("yarn.lock").exists() {
+        if indexed("yarn.lock") {
             return "yarn".to_string();
         }
-        if dir.join("bun.lockb").exists() {
+        if indexed("bun.lockb") {
             return "bun".to_string();
         }
-        if dir.join("package-lock.json").exists() {
+        if indexed("package-lock.json") {
             return "npm".to_string();
         }
     }

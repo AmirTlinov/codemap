@@ -132,7 +132,7 @@ fn current_level_ci_edges(
         if !path_under_scope(&ci.rel, rel) {
             continue;
         }
-        let Ok(text) = std::fs::read_to_string(project.root.join(&ci.rel)) else {
+        let Some(text) = project.read_indexed_text(&ci.rel) else {
             continue;
         };
         let from = directory_edge_endpoint_at_depth(project, rel, &ci.rel, endpoint_depth);

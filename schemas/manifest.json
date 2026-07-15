@@ -35,7 +35,7 @@
       "kind": "cone",
       "file": "schemas/cone.schema.json",
       "contract": "structural_output",
-      "schema_version": "12",
+      "schema_version": "11",
       "json_kind": "cone_report"
     },
     {
@@ -126,7 +126,7 @@
       "kind": "where",
       "file": "schemas/where.schema.json",
       "contract": "structural_output",
-      "schema_version": "6",
+      "schema_version": "5",
       "json_kind": "where_report"
     },
     {

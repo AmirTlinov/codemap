@@ -102,7 +102,7 @@ pub(crate) fn first_identifier_reference_location(
     name: &str,
     kind: &str,
 ) -> Vec<EvidenceLocation> {
-    let Ok(text) = std::fs::read_to_string(project.root.join(file_rel)) else {
+    let Some(text) = project.read_indexed_text(file_rel) else {
         return vec![EvidenceLocation::path(file_rel, kind)];
     };
     for (index, line) in text.lines().enumerate() {

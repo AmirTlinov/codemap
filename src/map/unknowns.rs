@@ -125,7 +125,7 @@ fn rust_include_blind_spot_unknowns(project: &Project, file: &FileInfo) -> Vec<U
     if file.ext != "rs" {
         return Vec::new();
     }
-    let Ok(text) = std::fs::read_to_string(project.root.join(&file.rel)) else {
+    let Some(text) = project.read_indexed_text(&file.rel) else {
         return Vec::new();
     };
     repo::rust_include_blind_spot_lines(&text)
@@ -144,7 +144,7 @@ fn rust_include_blind_spot_unknowns(project: &Project, file: &FileInfo) -> Vec<U
 }
 
 fn unresolved_import_line(project: &Project, file: &FileInfo, spec: &str) -> Option<usize> {
-    let text = std::fs::read_to_string(project.root.join(&file.rel)).ok()?;
+    let text = project.read_indexed_text(&file.rel)?;
     text.lines()
         .enumerate()
         .find(|(_, line)| line.contains(spec) && line_looks_like_import_or_reexport(line.trim()))

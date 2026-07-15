@@ -100,3 +100,43 @@ fn runtime_root_readable_is_current_level_while_json_is_complete() {
         "manifest-derived CLI entrypoint should suppress duplicate file-convention entrypoint for the same path: {expanded:#}"
     );
 }
+
+#[test]
+fn runtime_root_does_not_reaggregate_entrypoints_already_visible_under_github() {
+    let (repo, cache) = runtime_candidate_fixture();
+    write(
+        &repo.path().join(".github/actions/tool/package.json"),
+        r#"{"name":"tool","bin":{"tool:run":"bin/tool.js"}}"#,
+    );
+    write(
+        &repo.path().join(".github/actions/tool/bin/tool.js"),
+        "export function main() {}\n",
+    );
+    commit_runtime_candidate_fixture(&repo, "visible github package entrypoint");
+
+    let readable = run_markdown(
+        repo.path(),
+        cache.path(),
+        &["runtime", ".", "--limit", "3"],
+    );
+    assert!(
+        readable.contains("entrypoints: counted-at-least(1,")
+            && readable.contains("shown=1 hidden=0")
+            && readable.contains(".github/actions/tool/bin/tool.js")
+            && !readable.contains(".github/actions/tool` [runtime_container"),
+        "a visible manifest fact must have exactly one current-level representation: {readable}"
+    );
+    let json = run_json(
+        repo.path(),
+        cache.path(),
+        &["runtime", ".", "--format", "json"],
+    );
+    let item = horizon(&json["observations"], "entrypoints");
+    assert_eq!(item["count"]["observed"], 1, "{json:#}");
+    assert_eq!(item["shown"], 1, "{json:#}");
+    let id = item["count"]["certificate_id"]
+        .as_str()
+        .expect("entrypoint certificate");
+    let preview = &id["coverage-v1:".len()..][..12];
+    assert!(readable.contains(&format!("cert=`v1:{preview}`")), "{readable}");
+}

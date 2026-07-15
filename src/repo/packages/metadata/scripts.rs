@@ -1,25 +1,27 @@
 // Responsibility: repo-packages-scripts
-use crate::model::ScriptInfo;
+use crate::model::{FileInfo, ScriptInfo};
 use crate::repo::{justfile_scripts, makefile_scripts};
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
-pub(crate) fn detect_package_manager(root: &Path) -> String {
-    if root.join("pnpm-lock.yaml").exists() || root.join("pnpm-workspace.yaml").exists() {
+pub(crate) fn detect_package_manager(files: &BTreeMap<String, FileInfo>) -> String {
+    if indexed_present(files, "pnpm-lock.yaml") || indexed_present(files, "pnpm-workspace.yaml") {
         "pnpm"
-    } else if root.join("yarn.lock").exists() {
+    } else if indexed_present(files, "yarn.lock") {
         "yarn"
-    } else if root.join("bun.lockb").exists() {
+    } else if indexed_present(files, "bun.lockb") {
         "bun"
-    } else if root.join("package.json").exists() {
+    } else if indexed_present(files, "package.json") {
         "npm"
-    } else if root.join("Cargo.toml").exists() {
+    } else if indexed_present(files, "Cargo.toml") {
         "cargo"
-    } else if root.join("go.mod").exists() || root.join("go.work").exists() {
+    } else if indexed_present(files, "go.mod") || indexed_present(files, "go.work") {
         "go"
-    } else if root.join("pyproject.toml").exists() || root.join("requirements.txt").exists() {
+    } else if indexed_present(files, "pyproject.toml") || indexed_present(files, "requirements.txt")
+    {
         "python"
-    } else if root.join("Package.swift").exists() {
+    } else if indexed_present(files, "Package.swift") {
         "swift"
     } else {
         "unknown"
@@ -27,10 +29,10 @@ pub(crate) fn detect_package_manager(root: &Path) -> String {
     .to_string()
 }
 
-pub(crate) fn detect_scripts(root: &Path) -> Vec<ScriptInfo> {
+pub(crate) fn detect_scripts(root: &Path, files: &BTreeMap<String, FileInfo>) -> Vec<ScriptInfo> {
     let mut scripts = Vec::new();
-    if root.join("package.json").exists() {
-        let pm = detect_package_manager(root);
+    if indexed_readable(files, "package.json") {
+        let pm = detect_package_manager(files);
         if let Ok(text) = fs::read_to_string(root.join("package.json"))
             && let Ok(value) = serde_json::from_str::<serde_json::Value>(&text)
             && let Some(map) = value.get("scripts").and_then(|v| v.as_object())
@@ -65,7 +67,7 @@ pub(crate) fn detect_scripts(root: &Path) -> Vec<ScriptInfo> {
             }
         }
     }
-    if root.join("Cargo.toml").exists() {
+    if indexed_readable(files, "Cargo.toml") {
         scripts.push(ScriptInfo {
             name: "test".to_string(),
             command: "cargo test".to_string(),
@@ -74,7 +76,7 @@ pub(crate) fn detect_scripts(root: &Path) -> Vec<ScriptInfo> {
             line_start: Some(1),
         });
     }
-    if root.join("go.mod").exists() {
+    if indexed_readable(files, "go.mod") {
         scripts.push(ScriptInfo {
             name: "test".to_string(),
             command: "go test ./...".to_string(),
@@ -83,19 +85,19 @@ pub(crate) fn detect_scripts(root: &Path) -> Vec<ScriptInfo> {
             line_start: Some(1),
         });
     }
-    if root.join("pyproject.toml").exists() || root.join("requirements.txt").exists() {
+    if indexed_readable(files, "pyproject.toml") || indexed_readable(files, "requirements.txt") {
         scripts.push(ScriptInfo {
             name: "test".to_string(),
             command: "pytest".to_string(),
             reason: "Python project files detected".to_string(),
             path: ["pyproject.toml", "requirements.txt"]
                 .into_iter()
-                .find(|path| root.join(path).exists())
+                .find(|path| indexed_readable(files, path))
                 .map(str::to_string),
             line_start: Some(1),
         });
     }
-    if root.join("Package.swift").exists() {
+    if indexed_readable(files, "Package.swift") {
         scripts.push(ScriptInfo {
             name: "test".to_string(),
             command: "swift test".to_string(),
@@ -104,11 +106,21 @@ pub(crate) fn detect_scripts(root: &Path) -> Vec<ScriptInfo> {
             line_start: Some(1),
         });
     }
-    scripts.extend(makefile_scripts(root));
-    scripts.extend(justfile_scripts(root));
+    scripts.extend(makefile_scripts(root, files));
+    scripts.extend(justfile_scripts(root, files));
     scripts.sort_by(|a, b| a.command.cmp(&b.command));
     scripts.dedup_by(|a, b| a.command == b.command);
     scripts
+}
+
+fn indexed_readable(files: &BTreeMap<String, FileInfo>, path: &str) -> bool {
+    files
+        .get(path)
+        .is_some_and(|file| file.content_hash.is_some())
+}
+
+fn indexed_present(files: &BTreeMap<String, FileInfo>, path: &str) -> bool {
+    files.contains_key(path)
 }
 
 pub(crate) fn json_key_line(text: &str, key: &str) -> Option<usize> {

@@ -132,7 +132,7 @@ fn javascript_package_script_matching<F>(
 where
     F: Fn(&str, &str) -> bool,
 {
-    let text = std::fs::read_to_string(project.root.join(&package.manifest)).ok()?;
+    let text = project.read_indexed_text(&package.manifest)?;
     let value = serde_json::from_str::<serde_json::Value>(&text).ok()?;
     let scripts = value
         .get("scripts")
@@ -228,7 +228,7 @@ fn javascript_package_script(
     package: &crate::model::PackageInfo,
     script: &str,
 ) -> Option<String> {
-    let text = std::fs::read_to_string(project.root.join(&package.manifest)).ok()?;
+    let text = project.read_indexed_text(&package.manifest)?;
     let value = serde_json::from_str::<serde_json::Value>(&text).ok()?;
     value
         .get("scripts")

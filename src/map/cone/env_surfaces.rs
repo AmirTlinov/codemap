@@ -68,7 +68,7 @@ pub(crate) fn owner_env_facts(project: &Project, rel: &str) -> OwnerEnvFacts {
         {
             continue;
         }
-        let Ok(text) = std::fs::read_to_string(project.root.join(&file.rel)) else {
+        let Some(text) = project.read_indexed_text(&file.rel) else {
             continue;
         };
         for (index, line) in text.lines().enumerate() {

@@ -19,7 +19,7 @@ where
         .values()
         .filter(|candidate| candidate.has_role("build_ci"))
     {
-        let Ok(text) = std::fs::read_to_string(project.root.join(&ci.rel)) else {
+        let Some(text) = project.read_indexed_text(&ci.rel) else {
             continue;
         };
         for step in ci_run_steps(&text) {
@@ -55,7 +55,7 @@ where
         .values()
         .filter(|candidate| candidate.has_role("build_ci"))
     {
-        let Ok(text) = std::fs::read_to_string(project.root.join(&ci.rel)) else {
+        let Some(text) = project.read_indexed_text(&ci.rel) else {
             continue;
         };
         for (index, line) in text.lines().enumerate() {

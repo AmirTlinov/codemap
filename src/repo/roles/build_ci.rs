@@ -1,6 +1,19 @@
 // Responsibility: repo-roles-build-ci
+use crate::model::FileInfo;
 use crate::repo::is_source_ext;
 use std::collections::BTreeSet;
+use std::path::Path;
+
+pub(crate) fn classify_build_ci_role(info: &mut FileInfo) {
+    let rel = info.rel.to_ascii_lowercase();
+    let name = Path::new(&rel)
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("");
+    if is_build_ci_surface(&rel, name, &info.ext, &info.tokens) {
+        info.roles.insert("build_ci".to_string());
+    }
+}
 
 pub(crate) fn is_build_ci_surface(
     rel: &str,
@@ -22,7 +35,7 @@ fn is_explicit_ci_dir(rel: &str) -> bool {
         || rel.starts_with(".teamcity/")
 }
 
-fn is_known_build_ci_name(name: &str) -> bool {
+pub(crate) fn is_known_build_ci_name(name: &str) -> bool {
     matches!(
         name,
         ".gitlab-ci.yml"

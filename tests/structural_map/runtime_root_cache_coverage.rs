@@ -14,9 +14,53 @@ fn runtime_root_cache_preserves_the_cold_route_horizon_on_warm_read() {
         "the warm runtime root must preserve the exact cold route horizon",
     );
     assert_eq!(
-        runtime_route_horizon(&warm_artifact),
-        runtime_route_horizon(&cold_artifact),
-        "the persisted route horizon must survive a warm cache read unchanged",
+        warm_artifact["report"]["observations"], cold_artifact["report"]["observations"],
+        "the complete persisted runtime ledger must survive a warm cache read unchanged",
+    );
+    assert_eq!(
+        cold_artifact["report"]["observations"]["horizons"]
+            .as_array()
+            .expect("runtime group horizons")
+            .len(),
+        8,
+        "the root cache must persist every runtime group horizon"
+    );
+}
+
+#[test]
+fn runtime_root_cache_body_hash_is_canonical_across_json_object_order() {
+    let (repo, cache) = runtime_root_cache_fixture();
+    let expected_output = run_markdown(repo.path(), cache.path(), &["runtime", "."]);
+    let path = lens_artifact_path(cache.path(), "runtime-root.json");
+    let original = fs::read_to_string(&path).expect("runtime root cache");
+    let value: Value = serde_json::from_str(&original).expect("runtime root cache json");
+    let reordered = format!(
+        "{}\n",
+        serde_json::to_string_pretty(&value).expect("reordered runtime cache")
+    );
+    assert_ne!(
+        reordered, original,
+        "the test must actually reorder JSON object keys"
+    );
+    assert_eq!(
+        runtime_report_digest(&reordered),
+        value["report_sha256"]
+            .as_str()
+            .expect("runtime report sha256"),
+        "the body hash must bind semantic JSON independently of object order"
+    );
+    fs::write(&path, &reordered).expect("write reordered runtime root cache");
+
+    let warm_output = run_markdown(repo.path(), cache.path(), &["runtime", "."]);
+    assert_lens_markdown_eq(
+        &expected_output,
+        &warm_output,
+        "an order-only JSON rewrite must remain a valid warm cache hit",
+    );
+    assert_eq!(
+        fs::read_to_string(&path).expect("runtime root cache after warm read"),
+        reordered,
+        "a valid reordered artifact must not be repaired as corruption"
     );
 }
 
@@ -51,7 +95,10 @@ fn runtime_root_cache_coherent_route_mutation_with_a_stale_body_hash_misses_and_
 fn runtime_root_readable_honors_no_cache_without_creating_an_external_artifact() {
     let (repo, cache_parent) = runtime_root_cache_fixture();
     let absent_cache = cache_parent.path().join("disabled");
-    assert!(!absent_cache.exists(), "disabled cache fixture starts absent");
+    assert!(
+        !absent_cache.exists(),
+        "disabled cache fixture starts absent"
+    );
 
     let output = codemap()
         .current_dir(repo.path())
@@ -156,14 +203,25 @@ fn runtime_root_cache_fixture() -> (TempDir, TempDir) {
     git(repo.path(), &["config", "user.name", "a"]);
     write(
         &repo.path().join("package.json"),
-        r#"{"name":"runtime-root-cache-fixture","private":true}"#,
+        r#"{"name":"runtime-root-cache-fixture","private":true,"scripts":{"test":"vitest"}}"#,
     );
     write(
         &repo.path().join("src/routes.ts"),
         "router.get('/health', health);\n",
     );
+    write(
+        &repo.path().join("__main__.py"),
+        "def main():\n    return True\n",
+    );
+    write(
+        &repo.path().join("workers/job.ts"),
+        "export async function run() { return true; }\n",
+    );
     git(repo.path(), &["add", "."]);
-    git(repo.path(), &["commit", "-qm", "runtime root cache fixture"]);
+    git(
+        repo.path(),
+        &["commit", "-qm", "runtime root cache fixture"],
+    );
     (repo, cache)
 }
 
@@ -171,15 +229,6 @@ fn runtime_root_cache_json(cache: &Path) -> Value {
     let path = lens_artifact_path(cache, "runtime-root.json");
     serde_json::from_str(&fs::read_to_string(path).expect("runtime root cache"))
         .expect("runtime root cache json")
-}
-
-fn runtime_route_horizon(artifact: &Value) -> &Value {
-    artifact["report"]["observations"]["horizons"]
-        .as_array()
-        .expect("runtime horizons")
-        .iter()
-        .find(|horizon| horizon["group"] == "routes")
-        .expect("runtime route horizon")
 }
 
 fn corrupt_runtime_horizon_certificate_reference(text: String) -> String {
@@ -261,33 +310,7 @@ fn with_current_runtime_report_hash(text: String) -> String {
 fn runtime_report_digest(text: &str) -> String {
     use sha2::{Digest, Sha256};
 
-    let report_marker = "\n  \"report\": ";
-    let start = text.find(report_marker).expect("cached runtime report") + report_marker.len();
-    let end = matching_json_delimiter(text, start, '{', '}');
-    let compact = compact_json(&text[start..=end]);
-    format!("{:x}", Sha256::digest(compact.as_bytes()))
-}
-
-fn compact_json(text: &str) -> String {
-    let mut compact = String::with_capacity(text.len());
-    let mut quoted = false;
-    let mut escaped = false;
-    for character in text.chars() {
-        if quoted {
-            compact.push(character);
-            if escaped {
-                escaped = false;
-            } else if character == '\\' {
-                escaped = true;
-            } else if character == '"' {
-                quoted = false;
-            }
-        } else if character == '"' {
-            quoted = true;
-            compact.push(character);
-        } else if !character.is_whitespace() {
-            compact.push(character);
-        }
-    }
-    compact
+    let parsed: Value = serde_json::from_str(text).expect("runtime cache json");
+    let canonical = serde_json::to_vec(&parsed["report"]).expect("canonical runtime report");
+    format!("{:x}", Sha256::digest(canonical))
 }

@@ -15,6 +15,9 @@ pub(crate) fn file_exports_dialog_labelledby_contract(
     info: &FileInfo,
     export_name: &str,
 ) -> bool {
+    if info.content_hash.is_none() {
+        return false;
+    }
     let Ok(text) = fs::read_to_string(root.join(&info.rel)) else {
         return false;
     };

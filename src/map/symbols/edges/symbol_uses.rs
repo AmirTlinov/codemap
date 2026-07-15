@@ -157,7 +157,7 @@ pub(crate) fn symbol_is_top_level(
     info: &FileInfo,
     symbol: &crate::model::SymbolInfo,
 ) -> bool {
-    let Ok(text) = std::fs::read_to_string(project.root.join(&info.rel)) else {
+    let Some(text) = project.read_indexed_text(&info.rel) else {
         return true;
     };
     text.lines()

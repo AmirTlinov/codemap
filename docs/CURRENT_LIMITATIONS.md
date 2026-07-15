@@ -204,18 +204,23 @@ workflow -> scripts -> Git/Kubernetes mutations -> runtime smoke -> receipt
 codemap обнаружил failure-atomicity gap, неработающий deploy freeze и forged JWT
 login smoke, которые treatment пропустил несмотря на focused cone.
 
-### 10. Runtime lens зависит от bounded sample и порядка элементов
+### 10. Runtime lens всё ещё зависит от порядка bounded sample
 
 Panel routes попали в видимый блок и дали сильный результат, но 215 других
 маршрутов и 202 env surfaces были скрыты. В частности, карта не вывела рядом
 outbox health, CSRF deployment value и их защитные границы.
 
+Текущий runtime-отчёт уже не может выдать эту выборку за полную
+карту: все восемь групп сообщают `observed/shown/hidden`, certificate и
+typed gaps. Это устраняет ложное впечатление полноты, но не выбирает
+более полезных представителей внутри видимого лимита.
+
 Полезность panel anchor частично зависела от того, что маршруты оказались рано в
 детерминированном порядке, а не от гарантированного покрытия риска.
 
-**Следствие:** один удачный A/B может переоценивать устойчивость эффекта. Нужен
-diversity-preserving bounded output и ясная картина непокрытых owner surfaces,
-не превращающая инструмент в ranking engine.
+**Следствие:** один удачный A/B может переоценивать устойчивость эффекта.
+Оставшаяся граница — diversity-preserving bounded output без ranking engine;
+горизонт непокрытых owner surfaces теперь уже является частью карты.
 
 ### 11. Contract lens создаёт ложные verification-связи и не проводит главный контракт
 

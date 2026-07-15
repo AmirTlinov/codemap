@@ -149,6 +149,9 @@ fn source_is_test_support_module(root: &Path, info: &FileInfo, rel: &str, name: 
     {
         return true;
     }
+    if info.content_hash.is_none() {
+        return false;
+    }
     let Ok(text) = fs::read_to_string(root.join(&info.rel)) else {
         return false;
     };

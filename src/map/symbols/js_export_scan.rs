@@ -263,7 +263,7 @@ pub(crate) fn file_has_inline_named_export(
     let Some(info) = project.files.get(file_rel) else {
         return false;
     };
-    let text = std::fs::read_to_string(project.root.join(file_rel)).unwrap_or_default();
+    let text = project.read_indexed_text(file_rel).unwrap_or_default();
     matching_symbols(info, symbol_name).iter().any(|symbol| {
         if !symbol.exported {
             return false;

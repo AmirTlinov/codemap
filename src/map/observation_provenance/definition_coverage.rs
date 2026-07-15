@@ -52,7 +52,7 @@ fn audit_javascript_query(
     file: &FileInfo,
     query: &str,
 ) -> Result<(), (CoverageReason, String)> {
-    let text = std::fs::read_to_string(project.root.join(&file.rel)).map_err(|_| {
+    let text = project.read_indexed_text(&file.rel).ok_or_else(|| {
         (
             CoverageReason::UnsupportedConstruct,
             "definition source could not be read".to_string(),

@@ -1,5 +1,5 @@
 // Responsibility: repo-scan-stats
-use crate::model::{ScanGroup, ScanStats};
+use crate::model::{ScanGroup, ScanInventoryBoundary, ScanStats};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Default)]
@@ -10,6 +10,7 @@ pub(crate) struct ScanStatsBuilder {
     ignored: BTreeMap<String, ScanGroupBuilder>,
     skipped: BTreeMap<String, ScanGroupBuilder>,
     generated: BTreeMap<String, ScanGroupBuilder>,
+    inventory_boundaries: BTreeSet<ScanInventoryBoundary>,
 }
 
 impl ScanStatsBuilder {
@@ -20,6 +21,7 @@ impl ScanStatsBuilder {
         self.merge_groups(GroupKind::Ignored, other.ignored);
         self.merge_groups(GroupKind::Skipped, other.skipped);
         self.merge_groups(GroupKind::Generated, other.generated);
+        self.inventory_boundaries.extend(other.inventory_boundaries);
     }
 
     fn merge_groups(&mut self, kind: GroupKind, groups: BTreeMap<String, ScanGroupBuilder>) {
@@ -40,6 +42,10 @@ impl ScanStatsBuilder {
 
     pub(crate) fn record_generated(&mut self, reason: &str, rel: &str) {
         self.record_group(GroupKind::Generated, reason, rel);
+    }
+
+    pub(crate) fn record_inventory_boundary(&mut self, boundary: ScanInventoryBoundary) {
+        self.inventory_boundaries.insert(boundary);
     }
 
     fn record_group(&mut self, kind: GroupKind, reason: &str, rel: &str) {
@@ -65,6 +71,7 @@ impl ScanStatsBuilder {
             bytes_scanned: self.bytes_scanned,
             ignored: finish_groups(self.ignored),
             generated: finish_groups(self.generated),
+            inventory_boundaries: self.inventory_boundaries.into_iter().collect(),
         }
     }
 }

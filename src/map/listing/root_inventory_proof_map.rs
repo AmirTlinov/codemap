@@ -1,10 +1,10 @@
 // Responsibility: map-listing-root-inventory-proof-map
 use crate::map::{
-    ancestor_paths, expand_with_concrete_limit, inventory_root_script_edges,
-    inventory_top_level_dirs, javascript_script_command, json_key_line, manifest_command_prefix,
-    manifest_dir_for_rel, manifest_file_name, manifest_script_evidence,
-    manifest_script_is_proof_or_support_relevant, proof_surface, truncate_with_hidden,
-    unique_proof_commands, unique_proof_surfaces,
+    ancestor_paths, expand_with_concrete_limit, inventory_readable_text,
+    inventory_root_script_edges, inventory_top_level_dirs, javascript_script_command,
+    json_key_line, manifest_command_prefix, manifest_dir_for_rel, manifest_file_name,
+    manifest_script_evidence, manifest_script_is_proof_or_support_relevant, proof_surface,
+    truncate_with_hidden, unique_proof_commands, unique_proof_surfaces,
 };
 use crate::model::{
     EvidenceLocation, EvidenceStrength, HiddenGroup, ProofMapReport, ProofSurface, Unknown,
@@ -183,7 +183,7 @@ fn inventory_command_edge_is_manifest_body(path: &Option<String>) -> bool {
 }
 
 fn inventory_package_json_proof_surfaces(root: &Path, rel: &str) -> Vec<ProofSurface> {
-    let Ok(text) = std::fs::read_to_string(root.join(rel)) else {
+    let Some(text) = inventory_readable_text(root, rel) else {
         return Vec::new();
     };
     let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {

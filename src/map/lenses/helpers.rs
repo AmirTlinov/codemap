@@ -205,7 +205,10 @@ fn route_path(value: &str) -> String {
 }
 
 pub(crate) fn env_surfaces_for_file(project: &Project, file: &FileInfo) -> Vec<EnvSurface> {
-    let Ok(text) = std::fs::read_to_string(project.root.join(&file.rel)) else {
+    if file.content_hash.is_none() {
+        return Vec::new();
+    }
+    let Some(text) = project.read_indexed_text(&file.rel) else {
         return Vec::new();
     };
     let mut out = Vec::new();

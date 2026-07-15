@@ -79,13 +79,13 @@ pub fn runtime(report: &RuntimeReport) {
     println!("Scope: `{}`", report.scope);
     surface_section("Entrypoints", &report.entrypoints);
     runtime_routes_section("Routes", &report.routes);
-    render_runtime_visibility(&report.observations);
     surface_section("Scripts", &report.scripts);
     env_section("Env", &report.env);
     surface_section("Workers", &report.workers);
     surface_section("CI", &report.ci);
     cone_section("Verification Surfaces", &report.proof);
     unknown_section(&report.unknowns);
+    render_runtime_visibility(&report.observations);
     hidden_section(&report.hidden);
     section("Expand", &report.expand);
 }

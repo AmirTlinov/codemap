@@ -255,11 +255,8 @@ fn dynamic_require_neighbors(project: &Project, rel: &str) -> Vec<String> {
     consumer_universe(project, rel)
         .into_iter()
         .filter(|file| {
-            if file.content_hash.is_none() {
-                return false;
-            }
-            std::fs::read_to_string(project.root.join(&file.rel))
-                .ok()
+            project
+                .read_indexed_text(&file.rel)
                 .is_some_and(|text| text.lines().any(crate::map::dynamic_require_line))
         })
         .map(|file| file.rel.clone())

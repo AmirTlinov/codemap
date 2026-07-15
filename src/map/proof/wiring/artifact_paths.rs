@@ -18,15 +18,13 @@ pub(crate) fn artifact_paths_for_command_or_file(
         collect_artifact_paths_from_resolved_runner(project, &parsed, command, path, &mut out);
         for arg in &parsed.args {
             let rel = repo::normalize_rel_path(unquote_shell_token(arg));
-            if project.files.contains_key(&rel)
-                && let Ok(text) = std::fs::read_to_string(project.root.join(&rel))
-            {
+            if let Some(text) = project.read_indexed_text(&rel) {
                 collect_artifact_path_tokens(&text, &mut out);
             }
         }
     }
     if let Some(path) = path
-        && let Ok(text) = std::fs::read_to_string(project.root.join(path))
+        && let Some(text) = project.read_indexed_text(path)
     {
         collect_artifact_path_tokens(&text, &mut out);
     }
@@ -68,7 +66,7 @@ fn collect_artifact_paths_from_resolved_runner(
             script.name == target && script.command.starts_with(parsed.runner.as_str())
         })
         && let Some(path) = script.path.as_deref()
-        && let Ok(text) = std::fs::read_to_string(project.root.join(path))
+        && let Some(text) = project.read_indexed_text(path)
     {
         collect_artifact_path_tokens(
             &make_like_target_body(&text, script.line_start.unwrap_or(1)),

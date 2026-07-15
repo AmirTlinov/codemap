@@ -28,7 +28,7 @@ pub(crate) fn symbol_body_text(
         .map(|symbol| symbol.line_end)
         .max()
         .unwrap_or(line_start);
-    let text = std::fs::read_to_string(project.root.join(&info.rel)).ok()?;
+    let text = project.read_indexed_text(&info.rel)?;
     Some(
         text.lines()
             .skip(line_start.saturating_sub(1))

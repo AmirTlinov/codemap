@@ -1,5 +1,5 @@
 // Responsibility: diff-map-lens-git
-use crate::map::DiffMapMode;
+use crate::map::{DiffMapMode, diff_worktree_blob_text};
 use crate::model::Project;
 use crate::repo;
 use std::collections::BTreeMap;
@@ -299,7 +299,7 @@ fn git_show_file(project: &Project, revision: &str, rel: &str) -> Option<String>
 }
 
 fn git_file_is_untracked(project: &Project, rel: &str) -> bool {
-    if !project.root.join(rel).is_file() {
+    if !working_tree_file_or_symlink(project, rel) {
         return false;
     }
     let Ok(output) = crate::repo::read_only_git_command()
@@ -317,7 +317,7 @@ fn git_file_is_untracked(project: &Project, rel: &str) -> bool {
 fn git_untracked_files(project: &Project, rels: &[String]) -> BTreeSet<String> {
     let candidates = rels
         .iter()
-        .filter(|rel| project.root.join(rel).is_file())
+        .filter(|rel| working_tree_file_or_symlink(project, rel))
         .collect::<Vec<_>>();
     if candidates.is_empty() {
         return BTreeSet::new();
@@ -343,7 +343,7 @@ fn git_untracked_files(project: &Project, rels: &[String]) -> BTreeSet<String> {
 }
 
 fn file_as_added_delta(project: &Project, rel: &str) -> LineDelta {
-    let Ok(text) = std::fs::read_to_string(project.root.join(rel)) else {
+    let Some(text) = diff_worktree_blob_text(project, rel) else {
         return LineDelta::default();
     };
     LineDelta {
@@ -354,6 +354,12 @@ fn file_as_added_delta(project: &Project, rel: &str) -> LineDelta {
             .collect(),
         removed: Vec::new(),
     }
+}
+
+fn working_tree_file_or_symlink(project: &Project, rel: &str) -> bool {
+    std::fs::symlink_metadata(project.root.join(rel))
+        .ok()
+        .is_some_and(|metadata| metadata.is_file() || metadata.file_type().is_symlink())
 }
 
 fn parse_diff_hunk_header(line: &str) -> Option<(usize, usize)> {

@@ -151,7 +151,7 @@ fn receipt_declared_command_wiring_facts(
     rel: &str,
     selector: &str,
 ) -> Vec<ProofWiringFact> {
-    let Ok(text) = std::fs::read_to_string(project.root.join(rel)) else {
+    let Some(text) = project.read_indexed_text(rel) else {
         return Vec::new();
     };
     let Some(command) = json_string_field(&text, "proof_command")
@@ -182,7 +182,7 @@ fn receipt_field_wiring_facts_limited(
     selector: &str,
     limit: usize,
 ) -> Vec<ProofWiringFact> {
-    let Ok(text) = std::fs::read_to_string(project.root.join(rel)) else {
+    let Some(text) = project.read_indexed_text(rel) else {
         return Vec::new();
     };
     if limit == 0 {
@@ -265,7 +265,7 @@ fn markdown_declared_field_wiring_facts_limited(
     selector: &str,
     limit: usize,
 ) -> Vec<ProofWiringFact> {
-    let Ok(artifact_text) = std::fs::read_to_string(project.root.join(rel)) else {
+    let Some(artifact_text) = project.read_indexed_text(rel) else {
         return Vec::new();
     };
     if limit == 0 {
@@ -286,7 +286,7 @@ fn markdown_declared_field_wiring_facts_limited(
         if file.rel == rel || file.language != "markdown" {
             continue;
         }
-        let Ok(text) = std::fs::read_to_string(project.root.join(&file.rel)) else {
+        let Some(text) = project.read_indexed_text(&file.rel) else {
             continue;
         };
         if !text.contains(rel) && !text.contains(basename) && !text.contains(stem) {

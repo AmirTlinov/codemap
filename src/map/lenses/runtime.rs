@@ -14,7 +14,6 @@ mod route_handlers;
 mod route_rust;
 mod scope;
 mod unsupported_routes;
-mod worker_jobs;
 
 pub(crate) use clap_commands::*;
 pub(crate) use cli_entrypoints::*;
@@ -31,4 +30,3 @@ pub(crate) use route_handlers::*;
 pub(crate) use route_rust::*;
 pub(crate) use scope::*;
 pub(crate) use unsupported_routes::*;
-pub(crate) use worker_jobs::*;

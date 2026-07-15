@@ -53,7 +53,7 @@ pub(crate) fn runtime_entrypoint_direct_call_steps(
     if file.language != "rust" {
         return Vec::new();
     }
-    let Ok(text) = std::fs::read_to_string(project.root.join(&file.rel)) else {
+    let Some(text) = project.read_indexed_text(&file.rel) else {
         return Vec::new();
     };
     let body_lines = text
@@ -157,7 +157,7 @@ fn cargo_bin_table_path_line(
     command: &str,
     target: &str,
 ) -> Option<usize> {
-    let text = std::fs::read_to_string(project.root.join(manifest)).ok()?;
+    let text = project.read_indexed_text(manifest)?;
     let mut current = CargoBinTable::default();
     for (index, line) in text.lines().enumerate() {
         let line_number = index + 1;

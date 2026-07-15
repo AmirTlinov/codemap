@@ -1,11 +1,19 @@
 // Responsibility: runtime-lens-root-containers
 use crate::map::{SurfaceFact, runtime_manifest_entrypoints, shell_quote, surface};
-use crate::model::{EvidenceStrength, Project, Surface};
+use crate::model::{EvidenceStrength, FileInfo, Project, Surface};
+use std::collections::BTreeSet;
 
-pub(crate) fn root_runtime_containers(project: &Project) -> Vec<Surface> {
+pub(crate) fn root_runtime_containers(
+    project: &Project,
+    visible_files: &[&FileInfo],
+) -> Vec<Surface> {
+    let visible_paths = visible_files
+        .iter()
+        .map(|file| file.rel.as_str())
+        .collect::<BTreeSet<_>>();
     let mut out = Vec::new();
     for package in &project.packages {
-        if package.path == "." {
+        if package.path == "." || visible_paths.contains(package.manifest.as_str()) {
             continue;
         }
         let Some(manifest) = project.files.get(&package.manifest) else {

@@ -22,6 +22,8 @@ pub use fingerprints::{
 pub(crate) use identity::hex_prefix;
 pub use identity::{
     cache_enabled, expected_artifacts, fingerprint, inventory_fingerprint, project_cache_dir,
+    runtime_scope_fingerprint, runtime_scope_has_unindexed_entries,
+    runtime_scope_is_logically_empty,
 };
 pub(crate) use lens_artifacts::format_version as lens_artifact_format_version;
 pub use lens_artifacts::{

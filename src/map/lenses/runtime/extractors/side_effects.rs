@@ -3,7 +3,7 @@ use crate::map::{code_shape_without_literal_content, quoted_literal_contents, ru
 use crate::model::{EvidenceStrength, FileInfo, Project, Surface};
 
 pub(crate) fn side_effect_surfaces_for_file(project: &Project, file: &FileInfo) -> Vec<Surface> {
-    let Ok(text) = std::fs::read_to_string(project.root.join(&file.rel)) else {
+    let Some(text) = project.read_indexed_text(&file.rel) else {
         return Vec::new();
     };
     let mut out = Vec::new();
