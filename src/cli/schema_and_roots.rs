@@ -19,6 +19,7 @@ pub(crate) fn schema_text(kind: SchemaKind) -> &'static str {
         SchemaKind::Manifest => include_str!("../../schemas/manifest.json"),
         SchemaKind::Doctor => include_str!("../../schemas/status.schema.json"),
         SchemaKind::Status => include_str!("../../schemas/status.schema.json"),
+        SchemaKind::Cache => include_str!("../../schemas/cache.schema.json"),
         SchemaKind::Files => include_str!("../../schemas/files.schema.json"),
         SchemaKind::Ls => include_str!("../../schemas/ls.schema.json"),
         SchemaKind::Cone => include_str!("../../schemas/cone.schema.json"),

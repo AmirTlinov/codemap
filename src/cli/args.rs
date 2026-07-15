@@ -70,6 +70,9 @@ pub(crate) enum CommandKind {
     #[command(about = "Check environment, repo detection, cache path, and safety defaults")]
     Doctor(FormatArgs),
     #[command(hide = true)]
+    #[command(about = "Inspect or explicitly maintain the external cache")]
+    Cache(CacheArgs),
+    #[command(hide = true)]
     #[command(about = "Report structural blast-radius clusters for a diff or explicit files")]
     Impact(ImpactArgs),
     #[command(hide = true)]
@@ -140,6 +143,30 @@ pub(crate) struct FormatArgs {
 }
 
 #[derive(Debug, Args)]
+pub(crate) struct CacheArgs {
+    #[command(subcommand)]
+    pub(crate) action: CacheAction,
+}
+
+#[derive(Debug, Subcommand)]
+pub(crate) enum CacheAction {
+    #[command(about = "Inspect external cache contents, retention, privacy, and failures")]
+    Status(FormatArgs),
+    #[command(about = "Collect expired quarantine, diagnostics, and temporary files")]
+    Gc(FormatArgs),
+    #[command(about = "Delete this repository's external cache")]
+    Clear(CacheClearArgs),
+}
+
+#[derive(Debug, Args)]
+pub(crate) struct CacheClearArgs {
+    #[arg(long, help = "Confirm deletion of this repository's external cache")]
+    pub(crate) yes: bool,
+    #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
+    pub(crate) format: OutputFormat,
+}
+
+#[derive(Debug, Args)]
 pub(crate) struct FilesArgs {
     #[arg(long)]
     pub(crate) path: Option<String>,
@@ -167,6 +194,7 @@ pub(crate) enum SchemaKind {
     Manifest,
     Doctor,
     Status,
+    Cache,
     Files,
     Ls,
     Cone,

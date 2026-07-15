@@ -208,7 +208,7 @@ fn cache_format() -> String {
         .map(|(_, format)| format)
         .unwrap_or("unknown");
     format!(
-        "{surface};fingerprints-v{};lens-artifacts-v{}",
+        "{surface};fingerprints-v{};reverse-imports-v1;lens-artifacts-v{}",
         crate::cache::fingerprint_format_version(),
         crate::cache::lens_artifact_format_version()
     )

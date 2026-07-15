@@ -60,15 +60,37 @@ fn read_lens_artifact_with_fingerprint<T>(
 where
     T: LensArtifact + DeserializeOwned,
 {
-    let text = fs::read_to_string(cache_dir.join(name)).ok()?;
-    let cached: T = serde_json::from_str(&text).ok()?;
+    let path = cache_dir.join(name);
+    let text = match fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return None,
+        Err(error) => {
+            super::io::record_event(cache_dir, "read", name, "failed", &error.to_string());
+            let _ = super::io::quarantine_artifact(cache_dir, &path, "lens artifact read failure");
+            return None;
+        }
+    };
+    let cached: T = match serde_json::from_str(&text) {
+        Ok(cached) => cached,
+        Err(error) => {
+            let _ = super::io::quarantine_artifact(
+                cache_dir,
+                &path,
+                &format!("lens artifact parse failure: {error}"),
+            );
+            return None;
+        }
+    };
     if cached.format_version() != LENS_ARTIFACT_FORMAT_VERSION {
+        let _ = super::io::quarantine_artifact(cache_dir, &path, "lens artifact format mismatch");
         return None;
     }
     if cached.version() != version {
+        let _ = super::io::quarantine_artifact(cache_dir, &path, "lens artifact version mismatch");
         return None;
     }
     if cached.root() != root.to_string_lossy() {
+        let _ = super::io::quarantine_artifact(cache_dir, &path, "lens artifact root mismatch");
         return None;
     }
     if cached.fingerprint() != fingerprint {
@@ -83,7 +105,7 @@ where
 {
     fs::create_dir_all(cache_dir)?;
     let body = serde_json::to_string_pretty(cached)?;
-    fs::write(cache_dir.join(name), format!("{body}\n"))?;
+    super::io::write_cache_path(cache_dir, &cache_dir.join(name), format!("{body}\n"))?;
     Ok(())
 }
 

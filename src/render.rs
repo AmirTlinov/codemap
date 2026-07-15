@@ -2,6 +2,7 @@
 
 mod boundaries_graph_init;
 mod boundary_facts;
+mod cache_admin;
 mod changed;
 mod cone_xray;
 mod coverage;
@@ -17,6 +18,7 @@ mod where_locator;
 
 pub(crate) use boundaries_graph_init::*;
 pub(crate) use boundary_facts::*;
+pub(crate) use cache_admin::*;
 pub(crate) use changed::*;
 pub(crate) use cone_xray::*;
 pub(crate) use coverage::*;

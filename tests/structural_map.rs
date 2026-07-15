@@ -63,6 +63,7 @@ include!("structural_map/boundaries_graph_schema.rs");
 include!("structural_map/schema_rail.rs");
 include!("structural_map/scanner_ignore_generated.rs");
 include!("structural_map/cache_diagnostics.rs");
+include!("structural_map/cache_admin.rs");
 include!("structural_map/cache_lens_helpers.rs");
 include!("structural_map/cache_lens_artifact_format.rs");
 include!("structural_map/cache_lens_artifacts.rs");

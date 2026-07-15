@@ -19,6 +19,8 @@
     "cache_dir",
     "cache_state",
     "cache_strategy",
+    "cache_work",
+    "cache_diagnostics",
     "cache_artifacts",
     "scanner",
     "timings",
@@ -37,7 +39,7 @@
   ],
   "properties": {
     "kind": { "const": "status_report" },
-    "schema_version": { "const": "6" },
+    "schema_version": { "const": "7" },
     "build_identity": { "$ref": "#/$defs/build_identity" },
     "path_identity": { "$ref": "#/$defs/path_executable_identity" },
     "executable_mismatch": { "type": ["boolean", "null"] },
@@ -58,6 +60,11 @@
     "cache_strategy": {
       "type": "string",
       "enum": ["full_scan", "warm_load", "partial_rescan", "disabled"]
+    },
+    "cache_work": { "$ref": "#/$defs/cache_work" },
+    "cache_diagnostics": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/cache_diagnostic" }
     },
     "cache_artifacts": {
       "type": "array",
@@ -163,6 +170,7 @@
             "inventory.json",
             "graph.json",
             "fingerprints.json",
+            "reverse-imports.json",
             "runtime-root.json"
           ]
         },
@@ -242,19 +250,54 @@
       "additionalProperties": false,
       "required": [
         "root_ms",
+        "cache_probe_ms",
         "scan_ms",
         "facts_ms",
+        "reverse_index_ms",
         "cache_artifact_ms",
         "cache_write_ms",
         "total_ms"
       ],
       "properties": {
         "root_ms": { "type": "integer", "minimum": 0 },
+        "cache_probe_ms": { "type": "integer", "minimum": 0 },
         "scan_ms": { "type": "integer", "minimum": 0 },
         "facts_ms": { "type": "integer", "minimum": 0 },
+        "reverse_index_ms": { "type": "integer", "minimum": 0 },
         "cache_artifact_ms": { "type": "integer", "minimum": 0 },
         "cache_write_ms": { "type": "integer", "minimum": 0 },
         "total_ms": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "cache_work": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "per_file_facts_reused",
+        "per_file_facts_rebuilt",
+        "reverse_import_strategy",
+        "reverse_import_targets_rebuilt"
+      ],
+      "properties": {
+        "per_file_facts_reused": { "type": "integer", "minimum": 0 },
+        "per_file_facts_rebuilt": { "type": "integer", "minimum": 0 },
+        "reverse_import_strategy": {
+          "type": "string",
+          "enum": ["full", "affected", "cached"]
+        },
+        "reverse_import_targets_rebuilt": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "cache_diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["unix_seconds", "operation", "artifact", "outcome", "detail"],
+      "properties": {
+        "unix_seconds": { "type": "integer", "minimum": 0 },
+        "operation": { "type": "string" },
+        "artifact": { "type": "string" },
+        "outcome": { "type": "string" },
+        "detail": { "type": "string" }
       }
     }
   }

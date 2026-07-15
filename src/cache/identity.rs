@@ -19,6 +19,7 @@ const CACHE_ARTIFACTS: &[&str] = &[
     "inventory.json",
     "graph.json",
     "fingerprints.json",
+    "reverse-imports.json",
     "runtime-root.json",
 ];
 

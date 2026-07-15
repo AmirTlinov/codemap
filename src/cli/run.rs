@@ -1,14 +1,14 @@
 // Responsibility: cli-run
 use crate::cli::{
-    AnchorAction, Cli, CommandKind, DEFAULT_PROOF_LIMIT, GraphOutputFormat, anchors_markdown,
-    changed_inputs, changed_section_name, command_root_hint, cone_section_name, diff_map_inputs,
-    ensure_graph_lens, ensure_valid_config, files_markdown, files_report, flow_anchor_arg,
-    impact_inputs, init, ls_section_name, maybe_write_changed_lens_cache,
+    AnchorAction, Cli, CommandKind, DEFAULT_PROOF_LIMIT, GraphOutputFormat, accept_depth_compat,
+    anchors_markdown, changed_inputs, changed_section_name, command_root_hint, cone_section_name,
+    diff_map_inputs, ensure_graph_lens, ensure_valid_config, files_markdown, files_report,
+    flow_anchor_arg, impact_inputs, init, ls_section_name, maybe_write_changed_lens_cache,
     maybe_write_cone_lens_cache, maybe_write_ls_lens_cache, maybe_write_place_lens_cache,
     maybe_write_proof_changed_lens_cache_from_changed, maybe_write_proof_map_lens_cache,
     maybe_write_proof_map_lens_cache_from_changed, maybe_write_siblings_lens_cache, output,
     output_format_with_json_alias, output_with_prelude, project_relative_arg, proof,
-    proof_map_inputs, run_runtime, schema_text, try_cached_changed_fast_path,
+    proof_map_inputs, run_runtime, schema_text, try_cache_admin, try_cached_changed_fast_path,
     try_cached_cone_fast_path, try_cached_ls_fast_path, try_cached_place_fast_path,
     try_cached_proof_changed_fast_path, try_cached_proof_map_fast_path,
     try_cached_siblings_fast_path, try_clean_changed_fast_path, try_clean_proof_changed_fast_path,
@@ -45,8 +45,13 @@ pub fn run() -> Result<()> {
     } else {
         repo::RootSelection::Auto
     };
+    if let Some(()) = try_cache_admin(&cli.command, &root_selection)? {
+        return Ok(());
+    }
     render::set_expand_root(cli.root.as_deref());
-    render::set_brief(cli.brief || codemap_brief_env());
+    render::set_brief(
+        cli.brief || env::var("CODEMAP_BRIEF").is_ok_and(|value| !value.is_empty() && value != "0"),
+    );
     if let Some(()) = try_cold_root_ls_fast_path(&cli.command, &root_selection)? {
         return Ok(());
     }
@@ -88,9 +93,10 @@ pub fn run() -> Result<()> {
     }
 
     let cache_write = match &cli.command {
-        CommandKind::Doctor(_) | CommandKind::Status(_) | CommandKind::Teach(_) => {
-            repo::CacheWriteMode::ReadOnly
-        }
+        CommandKind::Doctor(_)
+        | CommandKind::Status(_)
+        | CommandKind::Teach(_)
+        | CommandKind::Cache(_) => repo::CacheWriteMode::ReadOnly,
         _ => repo::CacheWriteMode::Enabled,
     };
     let project = repo::load_project_with_cache(root_selection, cache_write)?;
@@ -176,7 +182,7 @@ pub fn run() -> Result<()> {
             output(format, &report, || render::where_locator(&report))
         }
         CommandKind::Init(args) => init(&project, args),
-        CommandKind::Bootstrap(_) | CommandKind::Schema(_) => Ok(()),
+        CommandKind::Bootstrap(_) | CommandKind::Schema(_) | CommandKind::Cache(_) => Ok(()),
         CommandKind::Impact(args) => {
             ensure_valid_config(&project)?;
             let (changed, selector, notice) = impact_inputs(&project, &args)?;
@@ -383,17 +389,4 @@ pub fn run() -> Result<()> {
             }
         },
     }
-}
-
-fn codemap_brief_env() -> bool {
-    env::var("CODEMAP_BRIEF").is_ok_and(|value| !value.is_empty() && value != "0")
-}
-
-pub(crate) fn accept_depth_compat(depth: usize, command: &str) -> Result<()> {
-    if depth <= 1 {
-        return Ok(());
-    }
-    bail!(
-        "codemap {command} currently keeps depth fixed at 1; use `codemap cone <anchor> --depth {depth}` or `codemap proof <anchor|changed> --depth {depth}` for expanded neighborhoods"
-    );
 }

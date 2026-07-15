@@ -1,5 +1,5 @@
 // Responsibility: repo-constants
-pub const VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), "+surface-cache-v11");
+pub const VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), "+surface-cache-v12");
 
 pub(crate) const ROOT_MARKERS: &[&str] = &[
     ".codemap.yml",

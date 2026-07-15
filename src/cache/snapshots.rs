@@ -82,7 +82,12 @@ pub(crate) fn save(project: &Project, fingerprints: &CachedFingerprints, legacy_
     let body = serde_json::to_string_pretty(&envelope)
         .map(|body| format!("{body}\n"))
         .unwrap_or_else(|_| legacy_body.to_string());
-    if fs::write(snapshot_path(&project.cache_dir, token), body).is_ok()
+    if super::io::write_cache_path(
+        &project.cache_dir,
+        &snapshot_path(&project.cache_dir, token),
+        body,
+    )
+    .is_ok()
         && prune_to(&dir, MAX_SNAPSHOTS)
     {
         prune_unreferenced_blobs(&project.cache_dir);
@@ -112,7 +117,7 @@ pub(crate) fn content(cache_dir: &Path, hash: &str) -> Option<String> {
 pub fn touch(cache_dir: &Path, token: &str) {
     let path = snapshot_path(cache_dir, token);
     if let Ok(body) = fs::read(&path) {
-        let _ = fs::write(&path, body);
+        let _ = super::io::write_cache_path(cache_dir, &path, body);
     }
 }
 
@@ -130,7 +135,7 @@ fn persist_content_blobs(project: &Project) -> usize {
         let Some(text) = project.read_indexed_text(&file.rel) else {
             continue;
         };
-        if fs::write(path, text).is_ok() {
+        if super::io::write_cache_path(&project.cache_dir, &path, text).is_ok() {
             stored += 1;
         }
     }

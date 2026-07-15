@@ -56,9 +56,18 @@ pub struct Project {
     pub cache_state: String,
     pub cache_artifacts: Vec<CacheArtifactStatus>,
     pub cache_strategy: String,
+    pub cache_work: CacheWork,
     pub files_reused: usize,
     pub scan_stats: ScanStats,
     pub timings: ProjectTimings,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct CacheWork {
+    pub per_file_facts_reused: usize,
+    pub per_file_facts_rebuilt: usize,
+    pub reverse_import_strategy: String,
+    pub reverse_import_targets_rebuilt: usize,
 }
 
 impl Project {
@@ -165,8 +174,10 @@ pub struct ScanGroup {
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct ProjectTimings {
     pub root_ms: u128,
+    pub cache_probe_ms: u128,
     pub scan_ms: u128,
     pub facts_ms: u128,
+    pub reverse_index_ms: u128,
     pub cache_artifact_ms: u128,
     pub cache_write_ms: u128,
     pub total_ms: u128,

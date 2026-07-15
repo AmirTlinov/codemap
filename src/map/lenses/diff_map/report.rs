@@ -1,13 +1,13 @@
 // Responsibility: diff-map-report
 use crate::evidence::line_looks_like_import_or_reexport;
 use crate::map::{
-    DiffMapMode, added_runtime_routes_from_diff_line, changed_symbols_from_delta,
-    dedupe_env_surfaces, dedupe_proof_surfaces, dedupe_runtime_routes, diff_base_file_texts,
-    diff_current_file_texts, diff_path_needs_runtime_scan, edge_with_path_location,
-    env_surfaces_from_diff_line, file_summary, git_unified_zero_deltas, missing_file_summary,
-    proof_surfaces_from_diff_line, removed_runtime_routes_from_diff_line, runtime_code_line_lookup,
-    runtime_route_from_path_convention, structural_line_target, surface_from_path,
-    truncate_with_hidden, unknown_from_added_line, unknown_unindexed_anchor,
+    BoundedProjection, DiffMapMode, added_runtime_routes_from_diff_line,
+    changed_symbols_from_delta, dedupe_env_surfaces, dedupe_proof_surfaces, dedupe_runtime_routes,
+    diff_base_file_texts, diff_current_file_texts, diff_path_needs_runtime_scan,
+    edge_with_path_location, env_surfaces_from_diff_line, file_summary, git_unified_zero_deltas,
+    missing_file_summary, proof_surfaces_from_diff_line, removed_runtime_routes_from_diff_line,
+    runtime_code_line_lookup, runtime_route_from_path_convention, structural_line_target,
+    surface_from_path, truncate_with_hidden, unknown_from_added_line, unknown_unindexed_anchor,
     unsupported_framework_route_context,
 };
 use crate::model::{DiffMapReport, EvidenceStrength, Project};
@@ -51,6 +51,17 @@ pub fn diff_map_report(
         new_unknowns.push(crate::cli::snapshot_content_unknown(&snapshot.token));
     }
     let diff_expand = format!("codemap diff-map {selector} --limit <larger-number>");
+    let (summary_paths, summary_hidden) = BoundedProjection::ordered(
+        "changed file summaries hidden by limit",
+        changed.clone(),
+        limit,
+        &diff_expand,
+    )
+    .into_parts();
+    hidden.extend(summary_hidden);
+    let summary_paths = summary_paths
+        .into_iter()
+        .collect::<std::collections::BTreeSet<_>>();
     let deltas = git_unified_zero_deltas(project, &changed, &mode);
     let text_scan_paths = changed
         .iter()
@@ -76,7 +87,9 @@ pub fn diff_map_report(
             .map(unsupported_framework_route_context)
             .unwrap_or_default();
         if let Some(file) = project.files.get(rel) {
-            changed_summaries.push(file_summary(project, file, false, 12));
+            if summary_paths.contains(rel) {
+                changed_summaries.push(file_summary(project, file, false, 12));
+            }
             changed_symbols.extend(changed_symbols_from_delta(
                 rel,
                 file,
@@ -85,7 +98,9 @@ pub fn diff_map_report(
                 &removed_code,
             ));
         } else {
-            changed_summaries.push(missing_file_summary(project, rel));
+            if summary_paths.contains(rel) {
+                changed_summaries.push(missing_file_summary(project, rel));
+            }
             new_unknowns.push(unknown_unindexed_anchor(rel));
         }
         if current_text.is_some()
@@ -192,13 +207,6 @@ pub fn diff_map_report(
     dedupe_env_surfaces(&mut removed_env);
     dedupe_proof_surfaces(&mut added_proof_surfaces);
     dedupe_proof_surfaces(&mut removed_proof_surfaces);
-    truncate_with_hidden(
-        &mut changed_summaries,
-        limit,
-        &mut hidden,
-        "changed file summaries hidden by limit",
-        &diff_expand,
-    );
     truncate_with_hidden(
         &mut added_edges,
         limit,

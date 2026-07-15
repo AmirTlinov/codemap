@@ -1,9 +1,7 @@
 // Responsibility: cache-status-artifacts
-use std::collections::BTreeSet;
-use std::fs;
-
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
 
 use super::runtime_root::write_runtime_root;
 use super::{cache_enabled, cached_project, expected_artifacts, fingerprint, fingerprints};
@@ -18,7 +16,7 @@ pub fn write_status_with_change_sets(
     if !cache_enabled() {
         return Ok(());
     }
-    fs::create_dir_all(&project.cache_dir)?;
+    std::fs::create_dir_all(&project.cache_dir)?;
     let status = CacheStatus {
         version,
         root: project.root.to_string_lossy().to_string(),
@@ -35,12 +33,19 @@ pub fn write_status_with_change_sets(
             .collect(),
         artifacts: expected_artifacts(),
     };
-    let body = serde_json::to_string_pretty(&status)?;
-    fs::write(project.cache_dir.join("status.json"), format!("{body}\n"))?;
     cached_project::write_inventory(project, version)?;
     write_graph(project, version)?;
+    super::reverse_imports::write(project, version)?;
     write_runtime_root(project, version)?;
     fingerprints::write_fingerprints(project, version, git_status_change_sets)?;
+    // status.json is the transaction marker consumed by lens fast paths. Publish it
+    // last so an interrupted refresh can only look cold/stale, never falsely warm.
+    let body = serde_json::to_string_pretty(&status)?;
+    super::io::write_cache_path(
+        &project.cache_dir,
+        &project.cache_dir.join("status.json"),
+        format!("{body}\n"),
+    )?;
     Ok(())
 }
 
@@ -92,7 +97,11 @@ fn write_graph(project: &Project, version: &str) -> Result<()> {
         edges,
     };
     let body = serde_json::to_string_pretty(&graph)?;
-    fs::write(project.cache_dir.join("graph.json"), format!("{body}\n"))?;
+    super::io::write_cache_path(
+        &project.cache_dir,
+        &project.cache_dir.join("graph.json"),
+        format!("{body}\n"),
+    )?;
     Ok(())
 }
 

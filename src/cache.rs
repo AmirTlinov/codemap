@@ -1,15 +1,19 @@
 // Responsibility: cache-module-root
+pub(crate) mod admin;
 pub(crate) mod artifact_status;
 pub(crate) mod cached_project;
 pub(crate) mod fingerprint_delta;
 pub(crate) mod fingerprints;
 pub(crate) mod git_probe;
 pub(crate) mod identity;
+pub(crate) mod io;
 pub(crate) mod lens_artifacts;
+pub(crate) mod reverse_imports;
 pub(crate) mod runtime_root;
 pub(crate) mod snapshots;
 pub(crate) mod status_artifacts;
 
+pub use admin::{CacheAdminAction, CacheAdminReport, run as run_cache_admin};
 pub use artifact_status::{
     artifact_statuses, cache_state, cached_status_fingerprint, stale_lens_artifact_examples,
 };
@@ -26,6 +30,7 @@ pub use identity::{
     runtime_scope_fingerprint, runtime_scope_has_unindexed_entries,
     runtime_scope_is_logically_empty,
 };
+pub use io::{CacheDiagnostic, diagnostics as cache_diagnostics};
 pub(crate) use lens_artifacts::format_version as lens_artifact_format_version;
 pub use lens_artifacts::{
     ConeLensKey, LsLensKey, PlaceLensKey, SiblingsLensKey, read_changed_report, read_cone_report,
@@ -34,6 +39,8 @@ pub use lens_artifacts::{
     write_inventory_ls_report, write_ls_report, write_place_report, write_proof_changed_report,
     write_proof_map_report, write_siblings_report,
 };
+pub use reverse_imports::full as full_reverse_imports;
+pub use reverse_imports::incremental as incremental_reverse_imports;
 pub use runtime_root::read_runtime_root_report;
 pub use snapshots::{SnapshotMetadata, looks_like_snapshot_token, metadata as snapshot_metadata};
 pub(crate) use status_artifacts::CachedDomain;

@@ -27,6 +27,8 @@ pub struct StatusReport {
     pub cache_dir: String,
     pub cache_state: String,
     pub cache_strategy: String,
+    pub cache_work: crate::model::CacheWork,
+    pub cache_diagnostics: Vec<crate::cache::CacheDiagnostic>,
     pub cache_artifacts: Vec<crate::model::CacheArtifactStatus>,
     pub scanner: crate::model::ScanStats,
     pub timings: crate::model::ProjectTimings,
@@ -45,7 +47,7 @@ pub struct StatusReport {
 }
 
 impl StatusReport {
-    pub const SCHEMA_VERSION: &'static str = "6";
+    pub const SCHEMA_VERSION: &'static str = "7";
 }
 
 #[derive(Debug, Serialize)]
@@ -96,6 +98,8 @@ pub fn status_report(
         cache_dir: project.cache_dir.to_string_lossy().to_string(),
         cache_state: project.cache_state.clone(),
         cache_strategy: project.cache_strategy.clone(),
+        cache_work: project.cache_work.clone(),
+        cache_diagnostics: cache::cache_diagnostics(&project.cache_dir),
         cache_artifacts: project.cache_artifacts.clone(),
         scanner: project.scan_stats.clone(),
         timings: project.timings.clone(),

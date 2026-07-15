@@ -133,6 +133,22 @@ pub fn status(report: &StatusReport, doctor: bool) {
                 vec!["Cache state".to_string(), report.cache_state.clone()],
                 vec!["Cache strategy".to_string(), report.cache_strategy.clone()],
                 vec![
+                    "Per-file facts reused".to_string(),
+                    report.cache_work.per_file_facts_reused.to_string(),
+                ],
+                vec![
+                    "Per-file facts rebuilt".to_string(),
+                    report.cache_work.per_file_facts_rebuilt.to_string(),
+                ],
+                vec![
+                    "Reverse import strategy".to_string(),
+                    report.cache_work.reverse_import_strategy.clone(),
+                ],
+                vec![
+                    "Reverse targets rebuilt".to_string(),
+                    report.cache_work.reverse_import_targets_rebuilt.to_string(),
+                ],
+                vec![
                     "Zero repo footprint default".to_string(),
                     report.zero_footprint_default.to_string()
                 ],
@@ -180,8 +196,16 @@ pub fn status(report: &StatusReport, doctor: bool) {
             &["Phase", "ms"],
             vec![
                 vec!["root".to_string(), report.timings.root_ms.to_string()],
+                vec![
+                    "cache_probe".to_string(),
+                    report.timings.cache_probe_ms.to_string(),
+                ],
                 vec!["scan".to_string(), report.timings.scan_ms.to_string()],
                 vec!["facts".to_string(), report.timings.facts_ms.to_string()],
+                vec![
+                    "reverse_index".to_string(),
+                    report.timings.reverse_index_ms.to_string(),
+                ],
                 vec![
                     "cache_artifacts".to_string(),
                     report.timings.cache_artifact_ms.to_string()
@@ -194,6 +218,29 @@ pub fn status(report: &StatusReport, doctor: bool) {
             ],
         )
     );
+    if !report.cache_diagnostics.is_empty() {
+        println!("\n## Cache Diagnostics\n");
+        let rows = report
+            .cache_diagnostics
+            .iter()
+            .map(|event| {
+                vec![
+                    event.unix_seconds.to_string(),
+                    event.operation.clone(),
+                    code(&event.artifact),
+                    event.outcome.clone(),
+                    event.detail.clone(),
+                ]
+            })
+            .collect();
+        println!(
+            "{}",
+            table(
+                &["Unix time", "Operation", "Artifact", "Outcome", "Detail"],
+                rows,
+            )
+        );
+    }
     if !report.domains.is_empty() {
         println!("\n## Domains\n");
         let rows = report

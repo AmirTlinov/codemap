@@ -8,7 +8,7 @@ fn doctor_uses_warm_index_when_cached_fingerprints_match() {
     let doctor = run_json(repo.path(), cache.path(), &["doctor", "--format", "json"]);
     assert_schema("schemas/status.schema.json", &doctor);
     assert_eq!(doctor["kind"], "status_report");
-    assert_eq!(doctor["schema_version"], "6");
+    assert_eq!(doctor["schema_version"], "7");
     assert_eq!(doctor["cache_state"], "warm");
     assert_eq!(doctor["cache_strategy"], "warm_load");
     assert!(

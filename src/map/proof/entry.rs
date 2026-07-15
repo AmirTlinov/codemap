@@ -66,15 +66,14 @@ pub fn proof_report(
     let discovery_limit = usize::MAX;
     let mut coverage = None;
     if target.is_none() && !changed.is_empty() {
-        let impact = impact_report(
-            project,
-            changed.clone(),
-            selector.clone(),
-            depth,
-            limit.max(changed.len()),
-        );
-        for cluster in &impact.clusters {
-            risk = risk.max(impact_level_from_str(&cluster.risk));
+        for anchor in &changed {
+            risk = risk.max(
+                project
+                    .files
+                    .get(anchor)
+                    .map(|_| structural_impact_level_for_file(project, anchor, depth).0)
+                    .unwrap_or(Risk::Medium),
+            );
         }
         let mut proofs_by_anchor = BTreeMap::new();
         for anchor in &changed {

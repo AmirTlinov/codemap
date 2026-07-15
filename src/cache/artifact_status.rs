@@ -21,8 +21,10 @@ pub fn stale_lens_artifact_examples(
             if !path.exists() {
                 return None;
             }
-            stale_lens_artifact_reason(&path, version, root, fingerprint)
-                .map(|reason| format!("{name} ({reason})"))
+            stale_lens_artifact_reason(&path, version, root, fingerprint).map(|reason| {
+                let _ = super::io::quarantine_artifact(cache_dir, &path, &reason);
+                format!("{name} ({reason})")
+            })
         })
         .collect()
 }
@@ -74,12 +76,21 @@ pub fn artifact_statuses(project: &Project, fingerprint: &str) -> Vec<CacheArtif
         .iter()
         .map(|name| {
             let path = project.cache_dir.join(name);
-            let meta = fs::metadata(&path).ok();
-            let fingerprint_match = if meta.is_some() {
+            let mut meta = fs::metadata(&path).ok();
+            let mut fingerprint_match = if meta.is_some() {
                 cached_fingerprint(&path).map(|cached| cached == fingerprint)
             } else {
                 None
             };
+            if meta.is_some() && fingerprint_match.is_none() {
+                let _ = super::io::quarantine_artifact(
+                    &project.cache_dir,
+                    &path,
+                    "core cache artifact is unreadable or invalid",
+                );
+                meta = None;
+                fingerprint_match = None;
+            }
             CacheArtifactStatus {
                 name: (*name).to_string(),
                 path: path.to_string_lossy().to_string(),
@@ -136,5 +147,14 @@ fn cached_fingerprint_from_header(path: &Path) -> Option<String> {
 }
 
 pub fn cached_status_fingerprint(cache_dir: &Path) -> Option<String> {
-    cached_fingerprint(&cache_dir.join("status.json"))
+    let path = cache_dir.join("status.json");
+    let fingerprint = cached_fingerprint(&path);
+    if path.exists() && fingerprint.is_none() {
+        let _ = super::io::quarantine_artifact(
+            cache_dir,
+            &path,
+            "status cache is unreadable or invalid",
+        );
+    }
+    fingerprint
 }

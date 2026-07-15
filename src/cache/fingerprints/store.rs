@@ -66,7 +66,11 @@ pub(crate) fn write_fingerprints(
     };
     let body = serde_json::to_string_pretty(&fingerprints)?;
     let body = format!("{body}\n");
-    fs::write(project.cache_dir.join("fingerprints.json"), &body)?;
+    super::super::io::write_cache_path(
+        &project.cache_dir,
+        &project.cache_dir.join("fingerprints.json"),
+        &body,
+    )?;
     // Persist a token-keyed snapshot so `--since <token>` can diff against the exact
     // state the agent saw. The dirty edit loop always writes fingerprints, so every
     // emitted snapshot token is backed by a snapshot file.
@@ -75,8 +79,34 @@ pub(crate) fn write_fingerprints(
 }
 
 fn read_cached_fingerprints(cache_dir: &Path) -> Option<CachedFingerprints> {
-    let text = fs::read_to_string(cache_dir.join("fingerprints.json")).ok()?;
-    serde_json::from_str(&text).ok()
+    let path = cache_dir.join("fingerprints.json");
+    let text = match fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return None,
+        Err(error) => {
+            super::super::io::record_event(
+                cache_dir,
+                "read",
+                "fingerprints.json",
+                "failed",
+                &error.to_string(),
+            );
+            let _ =
+                super::super::io::quarantine_artifact(cache_dir, &path, "fingerprint read failure");
+            return None;
+        }
+    };
+    match serde_json::from_str(&text) {
+        Ok(cached) => Some(cached),
+        Err(error) => {
+            let _ = super::super::io::quarantine_artifact(
+                cache_dir,
+                &path,
+                &format!("fingerprint parse failure: {error}"),
+            );
+            None
+        }
+    }
 }
 
 pub(crate) fn read_valid_cached_fingerprints(
@@ -86,9 +116,19 @@ pub(crate) fn read_valid_cached_fingerprints(
 ) -> Option<CachedFingerprints> {
     let cached = read_cached_fingerprints(cache_dir)?;
     if cached.format_version != FINGERPRINT_CACHE_FORMAT {
+        let _ = super::super::io::quarantine_artifact(
+            cache_dir,
+            &cache_dir.join("fingerprints.json"),
+            "fingerprint format mismatch",
+        );
         return None;
     }
     if cached.version != version || cached.root != root.to_string_lossy() {
+        let _ = super::super::io::quarantine_artifact(
+            cache_dir,
+            &cache_dir.join("fingerprints.json"),
+            "fingerprint identity mismatch",
+        );
         return None;
     }
     Some(cached)

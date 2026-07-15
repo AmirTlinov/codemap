@@ -308,22 +308,27 @@ pub(crate) fn build_reverse_imports(
 ) -> BTreeMap<String, BTreeSet<String>> {
     let mut reverse: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     for file in files.values() {
-        for target in &file.resolved_imports {
+        for target in reverse_import_targets_for_file(files, file) {
             reverse
                 .entry(target.clone())
                 .or_default()
                 .insert(file.rel.clone());
-            if target.ends_with(".go") {
-                for package_file in go_package_files(files, target) {
-                    reverse
-                        .entry(package_file)
-                        .or_default()
-                        .insert(file.rel.clone());
-                }
-            }
         }
     }
     reverse
+}
+
+pub(crate) fn reverse_import_targets_for_file(
+    files: &BTreeMap<String, FileInfo>,
+    file: &FileInfo,
+) -> BTreeSet<String> {
+    let mut targets = file.resolved_imports.clone();
+    for target in &file.resolved_imports {
+        if target.ends_with(".go") {
+            targets.extend(go_package_files(files, target));
+        }
+    }
+    targets
 }
 
 fn go_package_files(files: &BTreeMap<String, FileInfo>, target: &str) -> Vec<String> {

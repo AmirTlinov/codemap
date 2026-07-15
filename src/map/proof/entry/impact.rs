@@ -1,9 +1,9 @@
 // Responsibility: map-proof-entry-impact-report
 use crate::map::{
-    file_summary, impact_cluster, impact_expand_commands, missing_file_summary, shell_quote,
-    unknown_unindexed_anchor,
+    BoundedProjection, file_summary, impact_cluster, impact_expand_commands, missing_file_summary,
+    shell_quote, unknown_unindexed_anchor,
 };
-use crate::model::{HiddenGroup, ImpactCluster, ImpactReport, Project, Risk};
+use crate::model::{HiddenGroup, ImpactCluster, ImpactReport, Project};
 use crate::repo;
 
 pub fn impact_report(
@@ -25,27 +25,39 @@ pub fn impact_report(
     let mut changed_summaries = Vec::new();
     let mut cluster_reports = Vec::new();
     let changed_count = changed.len();
+    let visible_changed = BoundedProjection::ordered(
+        "changed anchors hidden by limit",
+        changed.clone(),
+        limit,
+        &impact_hidden_changed_expand(&selector, depth, changed_count),
+    )
+    .into_shown()
+    .into_iter()
+    .collect::<std::collections::BTreeSet<_>>();
     for rel in &changed {
         if let Some(file) = project.files.get(rel) {
-            changed_summaries.push(file_summary(project, file, false, 12));
-            let (cluster, cluster_hidden) = impact_cluster(project, rel, depth, limit);
-            cluster_reports.push((cluster, cluster_hidden));
+            if visible_changed.contains(rel) {
+                changed_summaries.push(file_summary(project, file, false, 12));
+                let (cluster, cluster_hidden) = impact_cluster(project, rel, depth, limit);
+                cluster_reports.push((cluster, cluster_hidden));
+            }
         } else {
             unknowns.push(unknown_unindexed_anchor(rel));
-            changed_summaries.push(missing_file_summary(project, rel));
-            cluster_reports.push((
-                ImpactCluster {
-                    id: format!("changed:{rel}"),
-                    risk: Risk::Medium.as_str().to_string(),
-                    changed: vec![rel.clone()],
-                    direct_consumers: Vec::new(),
-                    cross_boundary_consumers: Vec::new(),
-                    contract_links: Vec::new(),
-                    proof: Vec::new(),
-                    reasons: vec!["changed file is not indexed".to_string()],
-                },
-                Vec::new(),
-            ));
+            if visible_changed.contains(rel) {
+                changed_summaries.push(missing_file_summary(project, rel));
+                cluster_reports.push((
+                    ImpactCluster {
+                        id: format!("changed:{rel}"),
+                        changed: vec![rel.clone()],
+                        direct_consumers: Vec::new(),
+                        cross_boundary_consumers: Vec::new(),
+                        contract_links: Vec::new(),
+                        proof: Vec::new(),
+                        reasons: vec!["changed file is not indexed".to_string()],
+                    },
+                    Vec::new(),
+                ));
+            }
         }
     }
     if changed_count > limit {
@@ -56,10 +68,9 @@ pub fn impact_report(
         });
         hidden.push(HiddenGroup {
             reason: "impact clusters hidden by limit".to_string(),
-            count: cluster_reports.len().saturating_sub(limit),
+            count: changed_count - limit,
             expand: impact_hidden_changed_expand(&selector, depth, changed_count),
         });
-        changed_summaries.truncate(limit);
     }
     let mut clusters = Vec::new();
     for (cluster, cluster_hidden) in cluster_reports.into_iter().take(limit) {
@@ -99,14 +110,4 @@ fn impact_hidden_changed_expand(selector: &str, depth: usize, limit: usize) -> S
         return format!("codemap impact --changed --depth {depth} --limit {limit}");
     }
     format!("codemap impact {selector} --depth {depth} --limit {limit}")
-}
-
-pub(crate) fn impact_level_from_str(value: &str) -> Risk {
-    match value {
-        "critical" => Risk::Critical,
-        "high" => Risk::High,
-        "medium-high" => Risk::MediumHigh,
-        "medium" => Risk::Medium,
-        _ => Risk::Low,
-    }
 }

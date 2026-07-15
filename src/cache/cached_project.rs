@@ -15,11 +15,41 @@ pub struct CachedProjectData {
 pub fn read_cached_project(
     cache_dir: &Path,
     version: &str,
+    root: &Path,
     cached_fingerprint: &str,
 ) -> Option<CachedProjectData> {
-    let text = fs::read_to_string(cache_dir.join("inventory.json")).ok()?;
-    let inventory: CachedInventory = serde_json::from_str(&text).ok()?;
-    if inventory.version != version || inventory.fingerprint != cached_fingerprint {
+    let path = cache_dir.join("inventory.json");
+    let text = match fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return None,
+        Err(error) => {
+            super::io::record_event(
+                cache_dir,
+                "read",
+                "inventory.json",
+                "failed",
+                &error.to_string(),
+            );
+            let _ = super::io::quarantine_artifact(cache_dir, &path, "inventory read failure");
+            return None;
+        }
+    };
+    let inventory: CachedInventory = match serde_json::from_str(&text) {
+        Ok(inventory) => inventory,
+        Err(error) => {
+            let _ = super::io::quarantine_artifact(
+                cache_dir,
+                &path,
+                &format!("inventory parse failure: {error}"),
+            );
+            return None;
+        }
+    };
+    if inventory.version != version
+        || inventory.root != root.to_string_lossy()
+        || inventory.fingerprint != cached_fingerprint
+    {
+        let _ = super::io::quarantine_artifact(cache_dir, &path, "inventory identity mismatch");
         return None;
     }
     let files = inventory
@@ -88,8 +118,9 @@ pub(super) fn write_inventory(project: &Project, version: &str) -> Result<()> {
         scan_inventory_boundaries: project.scan_stats.inventory_boundaries.clone(),
     };
     let body = serde_json::to_string_pretty(&inventory)?;
-    fs::write(
-        project.cache_dir.join("inventory.json"),
+    super::io::write_cache_path(
+        &project.cache_dir,
+        &project.cache_dir.join("inventory.json"),
         format!("{body}\n"),
     )?;
     Ok(())

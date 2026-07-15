@@ -17,12 +17,39 @@ pub fn read_runtime_root_report(
     version: &str,
     root: &Path,
 ) -> Option<RuntimeReport> {
-    let text = fs::read_to_string(cache_dir.join("runtime-root.json")).ok()?;
-    let cached: CachedRuntimeRoot = serde_json::from_str(&text).ok()?;
+    let path = cache_dir.join("runtime-root.json");
+    let text = match fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return None,
+        Err(error) => {
+            super::io::record_event(
+                cache_dir,
+                "read",
+                "runtime-root.json",
+                "failed",
+                &error.to_string(),
+            );
+            let _ = super::io::quarantine_artifact(cache_dir, &path, "runtime cache read failure");
+            return None;
+        }
+    };
+    let cached: CachedRuntimeRoot = match serde_json::from_str(&text) {
+        Ok(cached) => cached,
+        Err(error) => {
+            let _ = super::io::quarantine_artifact(
+                cache_dir,
+                &path,
+                &format!("runtime cache parse failure: {error}"),
+            );
+            return None;
+        }
+    };
     if cached.version != version {
+        let _ = super::io::quarantine_artifact(cache_dir, &path, "runtime cache version mismatch");
         return None;
     }
     if cached.root != root.to_string_lossy() {
+        let _ = super::io::quarantine_artifact(cache_dir, &path, "runtime cache root mismatch");
         return None;
     }
     if cached.fingerprint != cached_status_fingerprint(cache_dir)? {
@@ -85,8 +112,9 @@ pub(crate) fn write_runtime_root(project: &Project, version: &str) -> Result<()>
         report,
     };
     let body = serde_json::to_string_pretty(&cached)?;
-    fs::write(
-        project.cache_dir.join("runtime-root.json"),
+    super::io::write_cache_path(
+        &project.cache_dir,
+        &project.cache_dir.join("runtime-root.json"),
         format!("{body}\n"),
     )?;
     Ok(())

@@ -1,15 +1,14 @@
 // Responsibility: repo-project
 use crate::cache;
-use crate::model::{
-    CodemapConfig, ConfigLoadError, FileInfo, Project, ProjectTimings, ScanGroup, ScanStats,
-};
+use crate::model::{FileInfo, Project, ProjectTimings, ScanStats};
 use crate::repo::{
-    VERSION, apply_codemap_config_roles, build_reverse_imports, cache_candidate_files,
-    cached_index_cache_delta, detect_languages, detect_package_edges, detect_package_manager,
-    detect_packages, detect_scripts, detect_ts_path_aliases, discover_domains,
-    enrich_accessible_surfaces_from_component_contracts, git_head_cache_delta, git_remote,
-    git_status_cache_change_sets, git_status_cache_delta, is_git_repo, load_codemap_configs,
-    nearest_agents, resolve_imports, resolve_root, scan_files, scan_selected_files,
+    ProjectBuildInput, VERSION, apply_codemap_config_roles, build_project_from_files,
+    cache_candidate_files, cached_index_cache_delta, cached_scan_stats, detect_languages,
+    detect_package_edges, detect_package_manager, detect_packages, detect_scripts,
+    detect_ts_path_aliases, discover_domains, enrich_accessible_surfaces_from_component_contracts,
+    git_head_cache_delta, git_remote, git_status_cache_change_sets, git_status_cache_delta,
+    is_git_repo, load_codemap_configs, nearest_agents, resolve_imports, resolve_root, scan_files,
+    scan_selected_files,
 };
 use anyhow::Context;
 use anyhow::Result;
@@ -61,12 +60,18 @@ pub fn load_project_with_cache(
 
     'cached_load: {
         if cache::cache_enabled() {
-            let cache_artifact_started = Instant::now();
+            let cache_probe_started = Instant::now();
             if let Some(delta) =
                 incremental_file_delta(&root, &cache_dir, VERSION, config_path.as_deref())
-                && let Some(mut cached) =
-                    cache::read_cached_project(&cache_dir, VERSION, &delta.cached_fingerprint)
+                && let Some(mut cached) = cache::read_cached_project(
+                    &cache_dir,
+                    VERSION,
+                    &root,
+                    &delta.cached_fingerprint,
+                )
             {
+                let cache_probe_ms = cache_probe_started.elapsed().as_millis();
+                let old_cached_files = cached.files.clone();
                 let mut files = BTreeMap::new();
                 let mut scan_candidates = delta.changed_or_added.clone();
                 for rel in &delta.unchanged {
@@ -98,8 +103,15 @@ pub fn load_project_with_cache(
                         !delta.unchanged.contains(*rel) && !delta.changed_or_added.contains(*rel)
                     })
                     .count();
+                let expected_file_count = file_reuse_count + rescanned.len();
                 files.extend(rescanned);
-                if files.len() == delta.current_file_count() + discovered_boundary_count {
+                // The git index also contains tracked files deliberately rejected by
+                // the scanner (for example LICENSE or fixture manifests). They are
+                // valid delta candidates but not indexed facts, so the reconstructed
+                // inventory is complete when every reused or rescanned fact survived,
+                // not when it equals the broader git candidate count.
+                if files.len() == expected_file_count {
+                    let files_rebuilt = rescanned_stats.files_scanned;
                     let scan_stats = cached_scan_stats(&cached.scan_stats, rescanned_stats, &files);
                     let mut project = build_project_from_files(ProjectBuildInput {
                         root,
@@ -121,7 +133,13 @@ pub fn load_project_with_cache(
                             "partial_rescan".to_string()
                         },
                         files_reused: file_reuse_count,
+                        files_rebuilt,
+                        old_cached_files: Some((
+                            delta.cached_fingerprint.clone(),
+                            old_cached_files,
+                        )),
                     });
+                    let cache_artifact_started = Instant::now();
                     let fingerprint = cache::fingerprint(&project, None);
                     let cache_artifacts = cache::artifact_statuses(&project, &fingerprint);
                     project.cache_state = cache::cache_state(&cache_artifacts);
@@ -157,6 +175,7 @@ pub fn load_project_with_cache(
                     }
                     let cache_write_ms = cache_write_started.elapsed().as_millis();
                     project.timings.root_ms = root_ms;
+                    project.timings.cache_probe_ms = cache_probe_ms;
                     project.timings.scan_ms = scan_ms;
                     project.timings.cache_artifact_ms = cache_artifact_ms;
                     project.timings.cache_write_ms = cache_write_ms;
@@ -177,13 +196,16 @@ pub fn load_project_with_cache(
     let ts_path_aliases = detect_ts_path_aliases(&root, &files);
     resolve_imports(&root, &mut files, &packages, &ts_path_aliases);
     enrich_accessible_surfaces_from_component_contracts(&root, &mut files);
-    let reverse_imports = build_reverse_imports(&files);
     let package_edges = detect_package_edges(&root, &files, &packages);
     let scripts = detect_scripts(&root, &files);
     let package_manager = detect_package_manager(&files);
     let languages = detect_languages(&files);
     let domains = discover_domains(&root, &files, &anchors, config_path.as_deref());
     let facts_ms = facts_started.elapsed().as_millis();
+    let reverse_started = Instant::now();
+    let reverse_update = cache::full_reverse_imports(&files);
+    let reverse_index_ms = reverse_started.elapsed().as_millis();
+    let rebuilt_file_facts = files.len();
     let mut project = Project {
         root,
         cwd,
@@ -193,7 +215,7 @@ pub fn load_project_with_cache(
         config_errors,
         nearest_agents,
         files,
-        reverse_imports,
+        reverse_imports: reverse_update.index,
         packages,
         package_edges,
         domains,
@@ -207,6 +229,12 @@ pub fn load_project_with_cache(
             "full_scan".to_string()
         } else {
             "disabled".to_string()
+        },
+        cache_work: crate::model::CacheWork {
+            per_file_facts_reused: 0,
+            per_file_facts_rebuilt: rebuilt_file_facts,
+            reverse_import_strategy: reverse_update.strategy.to_string(),
+            reverse_import_targets_rebuilt: reverse_update.affected_targets,
         },
         files_reused: 0,
         scan_stats,
@@ -233,8 +261,10 @@ pub fn load_project_with_cache(
     let cache_write_ms = cache_write_started.elapsed().as_millis();
     project.timings = ProjectTimings {
         root_ms,
+        cache_probe_ms: 0,
         scan_ms,
         facts_ms,
+        reverse_index_ms,
         cache_artifact_ms,
         cache_write_ms,
         total_ms: total_started.elapsed().as_millis(),
@@ -270,101 +300,4 @@ fn cached_file_facts_match_delta(
         .cached_content_hashes
         .get(rel)
         .is_some_and(|expected| file.content_hash == *expected)
-}
-
-struct ProjectBuildInput {
-    root: PathBuf,
-    cwd: PathBuf,
-    vcs: Option<String>,
-    cache_dir: PathBuf,
-    config_path: Option<String>,
-    config_errors: Vec<ConfigLoadError>,
-    nearest_agents: Option<String>,
-    anchors: CodemapConfig,
-    files: BTreeMap<String, FileInfo>,
-    scan_stats: ScanStats,
-    cache_strategy: String,
-    files_reused: usize,
-}
-
-fn build_project_from_files(input: ProjectBuildInput) -> Project {
-    let facts_started = Instant::now();
-    let mut files = input.files;
-    apply_codemap_config_roles(&mut files, &input.anchors);
-    let packages = detect_packages(&input.root, &files);
-    let ts_path_aliases = detect_ts_path_aliases(&input.root, &files);
-    resolve_imports(&input.root, &mut files, &packages, &ts_path_aliases);
-    enrich_accessible_surfaces_from_component_contracts(&input.root, &mut files);
-    let reverse_imports = build_reverse_imports(&files);
-    let package_edges = detect_package_edges(&input.root, &files, &packages);
-    let scripts = detect_scripts(&input.root, &files);
-    let package_manager = detect_package_manager(&files);
-    let languages = detect_languages(&files);
-    let domains = discover_domains(
-        &input.root,
-        &files,
-        &input.anchors,
-        input.config_path.as_deref(),
-    );
-    let facts_ms = facts_started.elapsed().as_millis();
-    Project {
-        root: input.root,
-        cwd: input.cwd,
-        vcs: input.vcs,
-        cache_dir: input.cache_dir,
-        config_path: input.config_path,
-        config_errors: input.config_errors,
-        nearest_agents: input.nearest_agents,
-        files,
-        reverse_imports,
-        packages,
-        package_edges,
-        domains,
-        package_manager,
-        scripts,
-        languages,
-        anchors: input.anchors,
-        cache_state: String::new(),
-        cache_artifacts: Vec::new(),
-        cache_strategy: input.cache_strategy,
-        files_reused: input.files_reused,
-        scan_stats: input.scan_stats,
-        timings: ProjectTimings {
-            facts_ms,
-            ..ProjectTimings::default()
-        },
-    }
-}
-
-fn cached_scan_stats(
-    cached: &ScanStats,
-    rescanned: ScanStats,
-    files: &BTreeMap<String, FileInfo>,
-) -> ScanStats {
-    ScanStats {
-        files_visited: rescanned.files_visited,
-        files_scanned: rescanned.files_scanned,
-        files_skipped: rescanned.files_skipped,
-        bytes_scanned: rescanned.bytes_scanned,
-        ignored: cached.ignored.clone(),
-        generated: generated_scan_groups(files),
-        inventory_boundaries: rescanned.inventory_boundaries,
-    }
-}
-
-fn generated_scan_groups(files: &BTreeMap<String, FileInfo>) -> Vec<ScanGroup> {
-    let generated = files
-        .values()
-        .filter(|file| file.has_role("generated"))
-        .map(|file| file.rel.clone())
-        .collect::<Vec<_>>();
-    if generated.is_empty() {
-        Vec::new()
-    } else {
-        vec![ScanGroup {
-            reason: "generated_path_or_header".to_string(),
-            count: generated.len(),
-            examples: generated.into_iter().take(5).collect(),
-        }]
-    }
 }

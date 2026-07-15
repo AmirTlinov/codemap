@@ -44,7 +44,7 @@ pub(crate) fn impact_cluster(
     sort_edges(&mut cross_boundary_consumers);
     sort_edges(&mut contract_links);
     sort_edges(&mut proof);
-    let (risk, reasons) = structural_impact_level(
+    let (_, reasons) = structural_impact_level(
         project,
         rel,
         &direct_consumers,
@@ -87,7 +87,6 @@ pub(crate) fn impact_cluster(
     (
         ImpactCluster {
             id: format!("changed:{rel}"),
-            risk: risk.as_str().to_string(),
             changed: vec![rel.to_string()],
             direct_consumers,
             cross_boundary_consumers,

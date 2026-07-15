@@ -46,6 +46,14 @@ jobs:
       - name: Test
         run: cargo test
 
+      - name: Strict cache performance gate
+        run: |
+          cargo build --release --locked
+          python3 scripts/cache-performance-gate.py \
+            --binary target/release/codemap \
+            --strict \
+            --output target/cache-performance.json
+
       - name: Clippy
         run: cargo clippy --all-targets -- -D warnings
 

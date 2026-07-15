@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AmirTlinov/codemap/schemas/cache.schema.json",
+  "title": "codemap cache report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "schema_version",
+    "build_identity",
+    "action",
+    "root",
+    "cache_dir",
+    "outside_repository",
+    "exists",
+    "files",
+    "bytes",
+    "snapshots",
+    "quarantine_receipts",
+    "diagnostic_events",
+    "private_file_permissions",
+    "removed_files",
+    "removed_bytes",
+    "contents",
+    "retention",
+    "privacy"
+  ],
+  "properties": {
+    "kind": {
+      "const": "cache_report"
+    },
+    "schema_version": {
+      "const": "1"
+    },
+    "build_identity": {
+      "$ref": "#/$defs/build_identity"
+    },
+    "action": {
+      "enum": [
+        "status",
+        "gc",
+        "clear"
+      ]
+    },
+    "root": {
+      "type": "string"
+    },
+    "cache_dir": {
+      "type": "string"
+    },
+    "outside_repository": {
+      "type": "boolean"
+    },
+    "exists": {
+      "type": "boolean"
+    },
+    "files": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "bytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "snapshots": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "quarantine_receipts": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "diagnostic_events": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/cache_diagnostic"
+      }
+    },
+    "private_file_permissions": {
+      "type": "boolean"
+    },
+    "removed_files": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "removed_bytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "contents": {
+      "$ref": "#/$defs/string_list"
+    },
+    "retention": {
+      "$ref": "#/$defs/string_list"
+    },
+    "privacy": {
+      "$ref": "#/$defs/string_list"
+    }
+  },
+  "$defs": {
+    "string_list": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "cache_diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unix_seconds",
+        "operation",
+        "artifact",
+        "outcome",
+        "detail"
+      ],
+      "properties": {
+        "unix_seconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "operation": {
+          "type": "string"
+        },
+        "artifact": {
+          "type": "string"
+        },
+        "outcome": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        }
+      }
+    },
+    "build_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "semver",
+        "cache_format",
+        "schema_manifest_version",
+        "executable_path",
+        "binary_sha256",
+        "binary_sha256_state",
+        "source_commit",
+        "dirty_build"
+      ],
+      "properties": {
+        "semver": {
+          "type": "string"
+        },
+        "cache_format": {
+          "type": "string"
+        },
+        "schema_manifest_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "executable_path": {
+          "type": "string"
+        },
+        "binary_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "binary_sha256_state": {
+          "type": "string",
+          "enum": [
+            "computed",
+            "not_requested",
+            "unavailable"
+          ]
+        },
+        "source_commit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dirty_build": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

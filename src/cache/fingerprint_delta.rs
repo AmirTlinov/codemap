@@ -12,8 +12,4 @@ impl CacheFileDelta {
     pub fn is_exact_hit(&self) -> bool {
         self.changed_or_added.is_empty() && self.removed.is_empty()
     }
-
-    pub fn current_file_count(&self) -> usize {
-        self.unchanged.len() + self.changed_or_added.len()
-    }
 }

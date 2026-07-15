@@ -112,6 +112,10 @@ Linux:   ~/.cache/codemap/
 Windows: %LOCALAPPDATA%/codemap/
 ```
 
+Cache contents, privacy, retention, corruption fallback, and explicit
+`cache status|gc|clear` maintenance are documented in
+[`docs/CACHE.md`](docs/CACHE.md).
+
 ## Boundaries
 
 `codemap` does not choose the best file, recommend fixes, judge architecture,

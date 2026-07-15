@@ -2,6 +2,15 @@
 use crate::cli::{OutputFormat, default_output_format, positive_usize};
 use clap::{Args, ValueEnum};
 
+pub(crate) fn accept_depth_compat(depth: usize, command: &str) -> anyhow::Result<()> {
+    if depth <= 1 {
+        return Ok(());
+    }
+    anyhow::bail!(
+        "codemap {command} currently keeps depth fixed at 1; use `codemap cone <anchor> --depth {depth}` or `codemap proof <anchor|changed> --depth {depth}` for expanded neighborhoods"
+    );
+}
+
 #[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
 pub(crate) enum ChangedSection {
     #[value(alias = "overview", alias = "diff")]

@@ -1,5 +1,18 @@
 # Schema Policy
 
+## Cache truth diagnostics
+
+Manifest version 24 adds the hidden `cache_report` v1 contract and advances
+`status_report` to v7. Status now carries per-file fact reuse/rebuild counts,
+the reverse-import refresh strategy and affected-target count, cache failure
+receipts, and explicit cache-probe/reverse-index phase timings. The core artifact
+inventory includes the integrity-checked `reverse-imports.json` owner.
+
+These fields are diagnostic truth, not agent-facing ranking. Cache administration
+is schema-backed but remains outside the primary map-first command surface.
+Malformed or identity-mismatched artifacts are a cache miss plus quarantine
+receipt; schemas never authorize serving a stale map.
+
 `codemap` treats JSON output as an integration contract, not as debug text.
 
 ## Stable Surfaces

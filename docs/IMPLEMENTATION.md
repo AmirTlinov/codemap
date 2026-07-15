@@ -32,6 +32,8 @@ Keep new implementation under the existing owner folders. Do not create a second
 
 - `codemap doctor` and `codemap status`;
 - external cache with `CODEMAP_CACHE_DIR` and `CODEMAP_NO_CACHE`;
+- atomic external cache writes, per-file fact reuse, affected reverse-import
+  refresh, quarantine receipts, and explicit `cache status|gc|clear` diagnostics;
 - git-root-first repo resolution with non-git fallback;
 - fresh local `MapPrelude` from one `git status --porcelain=v2 --branch -z`
   snapshot source over cacheable structural report bodies;

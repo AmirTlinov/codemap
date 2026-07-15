@@ -1,5 +1,5 @@
 {
-  "version": 23,
+  "version": 24,
   "structural_schema_version": "5",
   "anchor_config_version": 1,
   "schemas": [
@@ -7,15 +7,22 @@
       "kind": "doctor",
       "file": "schemas/status.schema.json",
       "contract": "structural_output",
-      "schema_version": "6",
+      "schema_version": "7",
       "json_kind": "status_report"
     },
     {
       "kind": "status",
       "file": "schemas/status.schema.json",
       "contract": "structural_output",
-      "schema_version": "6",
+      "schema_version": "7",
       "json_kind": "status_report"
+    },
+    {
+      "kind": "cache",
+      "file": "schemas/cache.schema.json",
+      "contract": "diagnostic_output",
+      "schema_version": "1",
+      "json_kind": "cache_report"
     },
     {
       "kind": "files",
