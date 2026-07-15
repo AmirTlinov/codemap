@@ -143,6 +143,24 @@ format 18 invalidates exact-file bodies without the required ledger. File
 symbol-catalog visibility and nested-directory reports remain outside this
 propagation boundary.
 
+
+## Flagship draft migration: exact-file symbol-catalog horizon
+
+Manifest version 10 advances `ls` from schema 10 to 11. The exact-file ledger
+adds a `symbols` horizon beside the three relationship horizons. Readable output
+keeps its symbol budget, while JSON serializes the complete indexed symbol
+catalog; both projections resolve one certificate and reconcile
+`observed`/`shown`/`hidden`. The detached `nested symbols hidden by default` and
+`symbols hidden by limit` rows are removed from exact-file reports because the
+new horizon owns that visibility accounting.
+
+Readable supported source files with no indexed symbols can now state
+`proven-zero`; unsupported languages and indexed files without a readable body
+remain unavailable rather than presenting an unqualified empty catalog. Lens
+artifact format 19 renames the exact-file cache projection key and prevents
+pre-migration bounded symbol bodies from being served. Exact-symbol, root,
+nested-directory and cone projections remain outside this propagation boundary.
+
 Semantic anchor config uses:
 
 ```yaml

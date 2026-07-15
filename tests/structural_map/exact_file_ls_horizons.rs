@@ -24,7 +24,7 @@ fn exact_file_ls_readable_and_json_share_relationship_certificates() {
         ],
     );
     assert_schema("schemas/ls.schema.json", &json);
-    assert_eq!(json["schema_version"], "10", "{json:#}");
+    assert_eq!(json["schema_version"], "11", "{json:#}");
     assert_eq!(json["edges"].as_array().expect("file edges").len(), 4);
     assert_eq!(
         json["edges"]
@@ -42,11 +42,12 @@ fn exact_file_ls_readable_and_json_share_relationship_certificates() {
     );
 
     let ledger = &json["observations"];
-    assert_eq!(ledger["horizons"].as_array().expect("horizons").len(), 3);
+    assert_eq!(ledger["horizons"].as_array().expect("horizons").len(), 4);
     for (group, observed, closure) in [
         ("imports", 1, "closed"),
         ("consumers", 2, "open"),
         ("verification", 1, "open"),
+        ("symbols", 1, "closed"),
     ] {
         let item = horizon(ledger, group);
         assert_eq!(item["count"]["observed"], observed, "{group}: {json:#}");
@@ -70,14 +71,17 @@ fn exact_file_ls_readable_and_json_share_relationship_certificates() {
     let rows = readable
         .lines()
         .filter(|line| {
-            ["- imports:", "- consumers:", "- verification:"]
-                .iter()
-                .any(|prefix| line.starts_with(prefix))
+            line.contains("cert=`v1:")
+                && ["- imports:", "- consumers:", "- verification:", "- symbols:"]
+                    .iter()
+                    .any(|prefix| line.starts_with(prefix))
         })
         .collect::<Vec<_>>();
-    assert_eq!(rows.len(), 3, "{readable}");
+    assert_eq!(rows.len(), 4, "{readable}");
     assert_eq!(
-        rows.iter().filter(|line| line.contains("shown=1")).count(),
+        rows.iter()
+            .filter(|line| !line.starts_with("- symbols:") && line.contains("shown=1"))
+            .count(),
         1,
         "the global limit-one projection shows one relationship: {readable}"
     );
@@ -154,7 +158,7 @@ fn unavailable_exact_file_keeps_every_relationship_group_unavailable() {
     );
     assert_eq!(json["mode"], "file", "the indexed path remains an anchor: {json:#}");
     assert!(json["edges"].as_array().expect("edges").is_empty());
-    for group in ["imports", "consumers", "verification"] {
+    for group in ["imports", "consumers", "verification", "symbols"] {
         let item = horizon(&json["observations"], group);
         assert_eq!(item["count"]["observed"], 0, "{group}: {json:#}");
         assert_eq!(
@@ -171,7 +175,7 @@ fn unavailable_exact_file_keeps_every_relationship_group_unavailable() {
 }
 
 #[test]
-fn exact_file_ls_cache_preserves_the_complete_relationship_projection() {
+fn exact_file_ls_cache_preserves_the_complete_projection() {
     let repo = exact_file_ls_fixture();
     let cache = TempDir::new().expect("file ls warm cache");
     let args = [
@@ -195,8 +199,78 @@ fn exact_file_ls_cache_preserves_the_complete_relationship_projection() {
             .as_array()
             .expect("cached horizons")
             .len(),
-        3,
+        4,
         "{artifact:#}"
+    );
+}
+
+#[test]
+fn exact_file_symbol_catalog_is_bounded_in_readable_and_complete_in_json() {
+    let repo = exact_file_ls_fixture();
+    let readable = run_markdown(
+        repo.path(),
+        TempDir::new().expect("catalog readable cache").path(),
+        &["ls", "src/catalog.rs", "--limit", "2"],
+    );
+    let json = run_json(
+        repo.path(),
+        TempDir::new().expect("catalog json cache").path(),
+        &["ls", "src/catalog.rs", "--limit", "2", "--format", "json"],
+    );
+    let symbols = horizon(&json["observations"], "symbols");
+    assert_eq!(symbols["count"]["observed"], 4, "{json:#}");
+    assert_eq!(symbols["count"]["closure"], "closed", "{json:#}");
+    assert_eq!(symbols["shown"], 4, "{json:#}");
+    assert_eq!(
+        json["anchor"]["symbols"].as_array().expect("symbols").len(),
+        4,
+        "machine projection must contain the complete catalog: {json:#}"
+    );
+    assert!(json["hidden"].as_array().expect("hidden").is_empty(), "{json:#}");
+    let digest = symbols["count"]["certificate_id"]
+        .as_str()
+        .expect("symbol certificate")
+        .strip_prefix("coverage-v1:")
+        .expect("coverage certificate");
+    let row = readable
+        .lines()
+        .find(|line| line.starts_with("- symbols:") && line.contains("cert=`v1:"))
+        .expect("readable symbols horizon");
+    assert!(row.contains("counted(4)"), "{readable}");
+    assert!(row.contains("shown=2 hidden=2"), "{readable}");
+    assert!(row.contains(&format!("cert=`v1:{}`", &digest[..12])), "{readable}");
+    assert!(!readable.contains("symbols hidden by limit"), "{readable}");
+}
+
+#[test]
+fn supported_empty_file_proves_an_empty_symbol_catalog() {
+    let repo = exact_file_ls_fixture();
+    let json = run_json(
+        repo.path(),
+        TempDir::new().expect("empty symbol cache").path(),
+        &["ls", "src/empty.ts", "--format", "json"],
+    );
+    let symbols = horizon(&json["observations"], "symbols");
+    assert_eq!(symbols["count"]["observed"], 0, "{json:#}");
+    assert_eq!(symbols["count"]["closure"], "closed", "{json:#}");
+    assert!(json["anchor"]["symbols"].as_array().expect("symbols").is_empty());
+}
+
+#[test]
+fn unsupported_file_keeps_the_symbol_catalog_unavailable() {
+    let repo = exact_file_ls_fixture();
+    let json = run_json(
+        repo.path(),
+        TempDir::new().expect("unsupported symbol cache").path(),
+        &["ls", "README.md", "--format", "json"],
+    );
+    let symbols = horizon(&json["observations"], "symbols");
+    assert_eq!(symbols["count"]["observed"], 0, "{json:#}");
+    assert_eq!(symbols["count"]["closure"], "unavailable", "{json:#}");
+    assert_eq!(
+        symbols["count"]["reasons"],
+        serde_json::json!(["unsupported_language"]),
+        "{json:#}"
     );
 }
 
@@ -226,6 +300,12 @@ fn exact_file_ls_fixture() -> TempDir {
         &repo.path().join("src/dynamic.ts"),
         "import { missing } from './absent';\nconst path = './dependency';\nexport const load = () => import(path);\nvoid missing;\n",
     );
+    write(
+        &repo.path().join("src/catalog.rs"),
+        "pub fn alpha() {}\npub fn beta() {}\npub fn gamma() {}\npub fn delta() {}\n",
+    );
+    write(&repo.path().join("src/empty.ts"), "// deliberately empty\n");
+    write(&repo.path().join("README.md"), "# exact file fixture\n");
     write(
         &repo.path().join("tests/owner.test.ts"),
         "import { owner } from '../src/owner';\ntest('owner', () => owner());\n",

@@ -19,6 +19,9 @@ pub(crate) struct FileLsObservationInput<'a> {
     pub verification_observed: usize,
     pub verification_shown: usize,
     pub verification_expand: Option<String>,
+    pub symbols_observed: usize,
+    pub symbols_shown: usize,
+    pub symbols_expand: Option<String>,
 }
 
 pub(crate) fn file_ls_observations(
@@ -27,7 +30,7 @@ pub(crate) fn file_ls_observations(
 ) -> ObservationLedger {
     let mut ledger = ObservationLedger::default();
     if input.info.content_hash.is_none() {
-        for group in ["imports", "consumers", "verification"] {
+        for group in ["imports", "consumers", "verification", "symbols"] {
             unavailable_observation(
                 project,
                 ObservationProjection {
@@ -45,6 +48,7 @@ pub(crate) fn file_ls_observations(
     }
 
     record_import_observation(project, &input, &mut ledger);
+    record_symbol_observation(project, &input, &mut ledger);
     consumer_observed_count(
         project,
         ConsumerObservationInput {
@@ -70,6 +74,73 @@ pub(crate) fn file_ls_observations(
         &mut ledger,
     );
     ledger
+}
+
+fn record_symbol_observation(
+    project: &Project,
+    input: &FileLsObservationInput<'_>,
+    ledger: &mut ObservationLedger,
+) {
+    let info = input.info;
+    let supported = matches!(
+        info.ext.as_str(),
+        "ts" | "tsx"
+            | "js"
+            | "jsx"
+            | "mjs"
+            | "cjs"
+            | "vue"
+            | "svelte"
+            | "py"
+            | "rs"
+            | "go"
+            | "swift"
+    );
+    let closure = if supported {
+        CoverageClosure::Closed
+    } else {
+        CoverageClosure::Unavailable
+    };
+    let reasons = (!supported)
+        .then_some(CoverageReason::UnsupportedLanguage)
+        .into_iter()
+        .collect();
+    let mut certificate = CoverageCertificate::new(
+        "file_symbol_catalog",
+        &info.rel,
+        crate::cache::fingerprint(project, None),
+        1,
+        u64::from(supported),
+        closure,
+        reasons,
+    );
+    if supported {
+        certificate
+            .extractor_capabilities
+            .push(ExtractorCapability {
+                extractor_id: "codemap.indexed-symbol-table".to_string(),
+                version: env!("CARGO_PKG_VERSION").to_string(),
+                language: info.language.clone(),
+                constructs: vec!["file_symbol_catalog".to_string()],
+            });
+    } else {
+        certificate
+            .excluded_files_by_reason
+            .insert(CoverageReason::UnsupportedLanguage, vec![info.rel.clone()]);
+        certificate.unsupported.push(UnsupportedObservation {
+            file: info.rel.clone(),
+            construct: format!(".{} symbol extraction", info.ext),
+            location: Some(CoverageLocation::path(&info.rel)),
+        });
+    }
+    ledger.record(
+        "symbols",
+        &info.rel,
+        input.symbols_observed as u64,
+        input.symbols_shown as u64,
+        certificate,
+        input.symbols_expand.clone(),
+    );
 }
 
 fn record_import_observation(

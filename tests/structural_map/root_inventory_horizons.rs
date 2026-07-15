@@ -6,7 +6,7 @@ fn root_inventory_horizons_certify_every_group() {
 
     let json = run_json(repo.path(), cache.path(), &["ls", ".", "--format", "json"]);
     assert_schema("schemas/ls.schema.json", &json);
-    assert_eq!(json["schema_version"], "10", "{json:#}");
+    assert_eq!(json["schema_version"], "11", "{json:#}");
     let ledger = &json["observations"];
     assert_eq!(
         ledger["horizons"].as_array().expect("horizons").len(),

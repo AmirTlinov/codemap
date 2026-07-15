@@ -40,17 +40,32 @@ fn symbol_anchor_cone_links_same_file_symbol_body_uses() {
             .as_array()
             .expect("symbols")
             .iter()
-            .all(|symbol| symbol["name"] != "focus"),
-        "default TSX file map should hide local constants inside functions: {file_ls:#}"
+            .any(|symbol| symbol["name"] == "focus" && symbol["kind"] == "const"),
+        "the complete TSX machine catalog should retain local constants: {file_ls:#}"
     );
     assert!(
         file_ls["hidden"]
             .as_array()
             .expect("hidden")
-            .iter()
-            .any(|group| group["reason"] == "nested symbols hidden by default"),
-        "hidden group should distinguish default symbol filtering from limit truncation: {file_ls:#}"
+            .is_empty(),
+        "the symbol horizon should own machine visibility accounting: {file_ls:#}"
     );
+    let symbols = horizon(&file_ls["observations"], "symbols");
+    assert_eq!(symbols["count"]["observed"], 14, "{file_ls:#}");
+    assert_eq!(symbols["shown"], 14, "{file_ls:#}");
+    let readable_file_ls = run_markdown(
+        repo.path(),
+        cache.path(),
+        &["ls", "src/local-flow.tsx"],
+    );
+    assert!(!readable_file_ls.contains("- `focus` [const"), "{readable_file_ls}");
+    assert!(
+        readable_file_ls
+            .lines()
+            .any(|line| line.starts_with("- symbols: counted(14)") && line.contains("hidden=2")),
+        "bounded readable output should account for its filtered local symbols: {readable_file_ls}"
+    );
+    assert!(!readable_file_ls.contains("nested symbols hidden by default"));
     let full_file_ls = run_json(
         repo.path(),
         cache.path(),

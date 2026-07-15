@@ -2,8 +2,8 @@
 use crate::evidence::import_statement_locations;
 use crate::map::{
     FileLsObservationInput, SymbolLsObservationInput, file_ls_observations, file_summary,
-    import_edge, missing_symbol_ls_observations, push_symbol_hidden_groups, shell_quote,
-    sort_edges, strict_test_edges_for_file, structural_edge_with_locations, symbol_anchor_path,
+    import_edge, missing_symbol_ls_observations, shell_quote, sort_edges,
+    strict_test_edges_for_file, structural_edge_with_locations, symbol_anchor_path,
     symbol_file_summary, symbol_ls_observations, symbol_proof_edges, symbol_reference_edges,
 };
 use crate::model::{BoundaryFacts, EvidenceStrength, FileInfo, LsReport, Project};
@@ -95,7 +95,7 @@ pub(crate) fn ls_file_report(
     info: &FileInfo,
     include_hidden: bool,
     limit: usize,
-    complete_relationships: bool,
+    complete_file_projection: bool,
 ) -> LsReport {
     let mut imports = Vec::new();
     let mut consumers = Vec::new();
@@ -154,8 +154,8 @@ pub(crate) fn ls_file_report(
             .then_with(|| a.to.cmp(&b.to))
     });
     edges.dedup_by(|a, b| a.from == b.from && a.to == b.to && a.edge_type == b.edge_type);
-    let mut hidden = Vec::new();
-    if !include_hidden && !complete_relationships {
+    let hidden = Vec::new();
+    if !include_hidden && !complete_file_projection {
         edges.truncate(limit);
     }
     let imports_shown = edges
@@ -171,6 +171,14 @@ pub(crate) fn ls_file_report(
         .filter(|edge| edge.edge_type == "tests")
         .count();
     let expand_all = format!("codemap ls {} --all", shell_quote(&info.rel));
+    let anchor = file_summary(
+        project,
+        info,
+        include_hidden || complete_file_projection,
+        limit,
+    );
+    let symbols_observed = info.symbols.len();
+    let symbols_shown = anchor.symbols.len();
     let observations = file_ls_observations(
         project,
         FileLsObservationInput {
@@ -185,15 +193,10 @@ pub(crate) fn ls_file_report(
             verification_shown,
             verification_expand: (verification_shown < verification_observed)
                 .then(|| expand_all.clone()),
+            symbols_observed,
+            symbols_shown,
+            symbols_expand: (symbols_shown < symbols_observed).then(|| expand_all.clone()),
         },
-    );
-    let anchor = file_summary(project, info, include_hidden, limit);
-    push_symbol_hidden_groups(
-        &mut hidden,
-        info,
-        include_hidden,
-        limit,
-        &format!("codemap ls {} --all", shell_quote(&info.rel)),
     );
     LsReport {
         kind: "ls_report",

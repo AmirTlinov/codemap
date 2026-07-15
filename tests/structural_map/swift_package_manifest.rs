@@ -153,24 +153,39 @@ func hostViewModelRefreshes() {
             .as_array()
             .expect("symbols")
             .iter()
-            .all(|symbol| symbol["name"] != "cacheKey"),
-        "Swift file ls should hide low-signal nested private properties by default: {file:#}"
+            .any(|symbol| symbol["name"] == "cacheKey"),
+        "complete Swift machine catalogs should retain nested private properties: {file:#}"
     );
     assert!(
         anchor["symbols"]
             .as_array()
             .expect("symbols")
             .iter()
-            .all(|symbol| symbol["name"] != "transientState"),
-        "Swift file ls should hide local constants inside functions by default: {file:#}"
+            .any(|symbol| symbol["name"] == "transientState"),
+        "complete Swift machine catalogs should retain local constants: {file:#}"
     );
     assert!(
         file["hidden"]
             .as_array()
             .expect("hidden")
-            .iter()
-            .any(|group| group["reason"] == "nested symbols hidden by default"),
-        "hidden symbol count should explain that deeper member symbols exist: {file:#}"
+            .is_empty(),
+        "the symbol horizon should replace detached machine hidden groups: {file:#}"
+    );
+    let symbols = horizon(&file["observations"], "symbols");
+    assert_eq!(symbols["count"]["observed"], 5, "{file:#}");
+    assert_eq!(symbols["shown"], 5, "{file:#}");
+    let readable_file = run_markdown(
+        repo.path(),
+        cache.path(),
+        &["ls", "Sources/HostApp/main.swift"],
+    );
+    assert!(!readable_file.contains("- `cacheKey` [constant"), "{readable_file}");
+    assert!(!readable_file.contains("- `transientState` [constant"), "{readable_file}");
+    assert!(
+        readable_file
+            .lines()
+            .any(|line| line.starts_with("- symbols: counted(5)") && line.contains("hidden=2")),
+        "bounded readable output should account for both filtered Swift constants: {readable_file}"
     );
     let full_file = run_json(
         repo.path(),
@@ -270,4 +285,3 @@ func hostViewModelRefreshes() {
         "impact proof should prefer the direct changed-anchor edge when a test also proves consumers: {impact:#}"
     );
 }
-

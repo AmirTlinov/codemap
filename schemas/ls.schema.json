@@ -24,7 +24,7 @@
       "const": "ls_report"
     },
     "schema_version": {
-      "const": "10"
+      "const": "11"
     },
     "build_identity": {
       "$ref": "#/$defs/build_identity"

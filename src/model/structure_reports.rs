@@ -23,7 +23,7 @@ pub struct LsReport {
 }
 
 impl LsReport {
-    pub const SCHEMA_VERSION: &'static str = "10";
+    pub const SCHEMA_VERSION: &'static str = "11";
 
     /// Root inventory groups certified by the S03.d observation ledger.
     pub const ROOT_INVENTORY_GROUPS: [&'static str; 4] =
@@ -32,9 +32,8 @@ impl LsReport {
     /// Exact-symbol `ls` groups certified by the S03.e observation ledger.
     pub const SYMBOL_GROUPS: [&'static str; 2] = ["consumers", "verification"];
 
-    /// Exact-file relationship groups certified by the S03.f ledger.
-    pub const FILE_RELATIONSHIP_GROUPS: [&'static str; 3] =
-        ["imports", "consumers", "verification"];
+    /// Exact-file groups certified by the S03.f/g ledger.
+    pub const FILE_GROUPS: [&'static str; 4] = ["imports", "consumers", "verification", "symbols"];
 
     /// Legacy detached hidden reasons whose truth now lives in the horizons.
     const LEGACY_ROOT_HIDDEN_REASONS: [&'static str; 2] = [
@@ -92,8 +91,8 @@ impl LsReport {
     }
 
     fn validate_file_observations(&self) -> Result<(), ObservationLedgerError> {
-        let mut shown_total = 0_u64;
-        for group in Self::FILE_RELATIONSHIP_GROUPS {
+        let mut shown_relationships = 0_u64;
+        for group in Self::FILE_GROUPS {
             let mut horizons = self
                 .observations
                 .horizons
@@ -108,18 +107,24 @@ impl LsReport {
             if horizon.scope != self.path {
                 return Err(ObservationLedgerError::ScopeMismatch);
             }
-            let shown = self.shown_file_relationships(group);
+            let shown = self.shown_file_facts(group);
             if horizon.shown != shown {
                 return Err(ObservationLedgerError::ShownFactCountMismatch);
             }
-            shown_total += shown;
+            if group != "symbols" {
+                shown_relationships += shown;
+            }
         }
-        if self.observations.horizons.len() != Self::FILE_RELATIONSHIP_GROUPS.len()
-            || shown_total != self.edges.len() as u64
-            || self
-                .hidden
-                .iter()
-                .any(|group| group.reason == "edges hidden by limit")
+        if self.observations.horizons.len() != Self::FILE_GROUPS.len()
+            || shown_relationships != self.edges.len() as u64
+            || self.hidden.iter().any(|group| {
+                matches!(
+                    group.reason.as_str(),
+                    "edges hidden by limit"
+                        | "nested symbols hidden by default"
+                        | "symbols hidden by limit"
+                )
+            })
         {
             return Err(ObservationLedgerError::DuplicateVisibilityAccounting);
         }
@@ -177,7 +182,14 @@ impl LsReport {
             .count() as u64
     }
 
-    fn shown_file_relationships(&self, group: &str) -> u64 {
+    fn shown_file_facts(&self, group: &str) -> u64 {
+        if group == "symbols" {
+            return self
+                .anchor
+                .as_ref()
+                .map(|anchor| anchor.symbols.len() as u64)
+                .unwrap_or(0);
+        }
         self.edges
             .iter()
             .filter(|edge| match group {

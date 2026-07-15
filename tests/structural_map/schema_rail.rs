@@ -216,13 +216,13 @@ fn evidence_horizon_schemas_keep_the_same_required_certificate_contract() {
         &fs::read_to_string(root.join("schemas/manifest.json")).expect("manifest"),
     )
     .expect("manifest json");
-    assert_eq!(manifest["version"], 9);
+    assert_eq!(manifest["version"], 10);
 
     for (kind, version) in [
         ("cone", "11"),
         ("where", "5"),
         ("runtime", "5"),
-        ("ls", "10"),
+        ("ls", "11"),
     ] {
         let entry = manifest["schemas"]
             .as_array()
