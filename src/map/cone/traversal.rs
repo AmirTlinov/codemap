@@ -1,11 +1,12 @@
 // Responsibility: map-cone-traversal
 use crate::map::{
-    ConeXrayInput, cone_xray_card, directory_has_files, empty_xray_card, file_summary,
-    files_under_directory, import_edge, is_generic_noise, limit_edge_section,
-    package_name_for_file, push_symbol_hidden_groups, same_package_symbol_reference_consumers,
-    shell_quote, sort_edges, structural_roles_for_ls, symbol_anchor_path, symbol_contract_edges,
+    ConeXrayInput, SymbolConeObservationInput, cone_xray_card, directory_has_files,
+    empty_xray_card, file_summary, files_under_directory, import_edge, is_generic_noise,
+    limit_edge_section, missing_symbol_observations, package_name_for_file,
+    push_symbol_hidden_groups, same_package_symbol_reference_consumers, shell_quote, sort_edges,
+    structural_roles_for_ls, symbol_anchor_path, symbol_cone_observations, symbol_contract_edges,
     symbol_file_summary, symbol_local_incoming_edges, symbol_outgoing_edges,
-    symbol_proof_edges_with_owning_file, symbol_reference_edges, unique, unknown,
+    symbol_reference_edges, symbol_verification_edges_with_owning_file, unique, unknown,
     unknown_missing_symbol_anchor, unknown_symbol_outgoing, unresolved_import_unknowns,
 };
 use crate::model::CountFact;
@@ -30,7 +31,8 @@ pub(crate) fn cone_symbol_report(
     let anchor_path = symbol_anchor_path(file_rel, symbol_name);
     let mut incoming = symbol_reference_edges(project, file_rel, symbol_name, false);
     incoming.extend(symbol_local_incoming_edges(project, info, symbol_name));
-    let mut proof = symbol_proof_edges_with_owning_file(project, file_rel, symbol_name, usize::MAX);
+    let mut proof =
+        symbol_verification_edges_with_owning_file(project, file_rel, symbol_name, usize::MAX);
     let mut outgoing = symbol_outgoing_edges(project, info, symbol_name);
     let contracts = symbol_contract_edges(project, file_rel, symbol_name);
     let boundary = Vec::new();
@@ -38,29 +40,41 @@ pub(crate) fn cone_symbol_report(
     sort_edges(&mut outgoing);
     sort_edges(&mut incoming);
     sort_edges(&mut proof);
+    let incoming_observed = incoming.len();
+    let proof_observed = proof.len();
     limit_edge_section(
         &mut outgoing,
         &mut hidden,
         include_hidden,
-        limit,
+        limit.min(5),
         "symbol outgoing edges hidden by limit",
         &format!("codemap cone {} --all", shell_quote(&anchor_path)),
     );
-    limit_edge_section(
-        &mut incoming,
-        &mut hidden,
-        include_hidden,
-        limit,
-        "symbol incoming edges hidden by limit",
-        &format!("codemap cone {} --all", shell_quote(&anchor_path)),
-    );
-    limit_edge_section(
-        &mut proof,
-        &mut hidden,
-        include_hidden,
-        limit,
-        "symbol verification edges hidden by limit",
-        &format!("codemap cone {} --all", shell_quote(&anchor_path)),
+    let incoming_limit = if include_hidden {
+        incoming_observed
+    } else {
+        limit.min(5)
+    };
+    let proof_limit = if include_hidden {
+        proof_observed
+    } else {
+        limit.min(3)
+    };
+    incoming.truncate(incoming_limit);
+    proof.truncate(proof_limit);
+    let expand_all = format!("codemap cone {} --all", shell_quote(&anchor_path));
+    let observations = symbol_cone_observations(
+        project,
+        SymbolConeObservationInput {
+            file_rel,
+            symbol_name,
+            incoming_observed,
+            incoming_shown: incoming.len(),
+            incoming_expand: (incoming.len() < incoming_observed).then(|| expand_all.clone()),
+            verification_observed: proof_observed,
+            verification_shown: proof.len(),
+            verification_expand: (proof.len() < proof_observed).then_some(expand_all),
+        },
     );
     let mut unknowns = Vec::new();
     if outgoing.is_empty() {
@@ -92,6 +106,7 @@ pub(crate) fn cone_symbol_report(
         proof,
         contracts,
         boundary,
+        observations,
         hidden,
         unknowns,
         expand: vec![
@@ -126,6 +141,7 @@ pub(crate) fn cone_missing_symbol_report(
         imported_by: CountFact::unknown("anchor summary is aggregated at this level"),
     };
     let xray = empty_xray_card(&anchor, &unknowns);
+    let observations = missing_symbol_observations(project, &anchor_path);
     ConeReport {
         kind: "cone_report",
         schema_version: crate::model::ConeReport::SCHEMA_VERSION,
@@ -138,6 +154,7 @@ pub(crate) fn cone_missing_symbol_report(
         proof: Vec::new(),
         contracts: Vec::new(),
         boundary: Vec::new(),
+        observations,
         hidden: Vec::new(),
         unknowns,
         expand: vec![

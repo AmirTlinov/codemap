@@ -19,7 +19,7 @@ fn rust_barrel_reexport_makes_symbol_consumer_count_unknown() {
     );
     write(
         &repo.path().join("src/consumer.rs"),
-        "pub fn make() -> crate::Thing {\n    crate::Thing { id: 1 }\n}\n",
+        "use crate::inner::Thing;\n\npub fn make() -> Thing {\n    Thing { id: 1 }\n}\n",
     );
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["commit", "-qm", "fixture"]);
@@ -33,17 +33,7 @@ fn rust_barrel_reexport_makes_symbol_consumer_count_unknown() {
     assert_eq!(json["total_matches"], 1);
     let definition = &json["definitions"][0];
     assert_eq!(definition["anchor"]["path"], "src/inner.rs#Thing");
-    assert_eq!(
-        definition["consumers_total"]["status"], "unknown",
-        "a `pub use inner::*` barrel hides who consumes Thing: {json:#}"
-    );
-    assert!(
-        definition["consumers_total"]["reason"]
-            .as_str()
-            .expect("unknown reason")
-            .contains("re-export flow"),
-        "the unknown must name the barrel blind spot: {json:#}"
-    );
+    assert_open_count(definition, 0, "reexport_flow", &json);
 }
 
 #[test]
@@ -77,17 +67,7 @@ fn rust_include_flow_makes_symbol_consumer_count_unknown() {
     assert_eq!(json["total_matches"], 1);
     let definition = &json["definitions"][0];
     assert_eq!(definition["anchor"]["path"], "src/part.rs#helper");
-    assert_eq!(
-        definition["consumers_total"]["status"], "unknown",
-        "include! splices part.rs into main.rs, so helper consumers are not countable: {json:#}"
-    );
-    assert!(
-        definition["consumers_total"]["reason"]
-            .as_str()
-            .expect("unknown reason")
-            .contains("include! flow"),
-        "the unknown must name the include! blind spot: {json:#}"
-    );
+    assert_open_count(definition, 0, "rust_include_flow", &json);
 }
 
 #[test]
@@ -121,22 +101,16 @@ fn js_dynamic_import_makes_symbol_consumer_count_unknown() {
     assert_eq!(json["total_matches"], 1);
     let definition = &json["definitions"][0];
     assert_eq!(definition["anchor"]["path"], "src/b.js#greet");
-    for fact in [
-        &definition["anchor"]["imported_by"],
-        &definition["consumers_total"],
-    ] {
-        assert_eq!(
-            fact["status"], "unknown",
-            "which symbols flow through `import('./b.js')` is not countable: {json:#}"
-        );
-        assert!(
-            fact["reason"]
-                .as_str()
-                .expect("unknown reason")
-                .contains("dynamic import"),
-            "the unknown must name the dynamic-import blind spot: {json:#}"
-        );
-    }
+    let legacy_anchor_count = &definition["anchor"]["imported_by"];
+    assert_eq!(legacy_anchor_count["status"], "unknown");
+    assert!(
+        legacy_anchor_count["reason"]
+            .as_str()
+            .expect("unknown reason")
+            .contains("dynamic import"),
+        "the legacy file count must retain its dynamic-import boundary: {json:#}"
+    );
+    assert_open_count(definition, 0, "dynamic_import_flow", &json);
 
     // The literal dynamic specifier is still a resolvable file edge: the
     // file-level cone keeps the counted incoming edge instead of blurring it.
@@ -201,11 +175,10 @@ fn fully_supported_ts_repo_keeps_proven_zero_and_counted() {
         &["where", "orphanHelper", "--format", "json"],
     );
     assert_schema("schemas/where.schema.json", &orphan);
-    assert_eq!(
-        orphan["definitions"][0]["consumers_total"]["status"],
-        "proven_zero"
-    );
-    assert_eq!(orphan["definitions"][0]["consumers_total"]["value"], 0);
+    let orphan_count = &orphan["definitions"][0]["consumers_total"];
+    assert_eq!(orphan_count["closure"], "closed");
+    assert_eq!(orphan_count["observed"], 0);
+    assert_count_certificate_resolves(&orphan["definitions"][0], &orphan);
 
     // Observed consumers stay counted with a real value.
     let used = run_json(
@@ -241,15 +214,32 @@ fn self_map_where_cone_report_is_unknown_via_reexport_flow() {
         definition["anchor"]["path"],
         "src/model/cone_reports.rs#ConeReport"
     );
-    assert_eq!(
-        definition["consumers_total"]["status"], "unknown",
-        "consumers of ConeReport flow through the model barrel: {json:#}"
-    );
+    assert_open_count(definition, 0, "reexport_flow", &json);
+}
+
+fn assert_open_count(definition: &Value, observed: u64, reason: &str, report: &Value) {
+    let count = &definition["consumers_total"];
+    assert_eq!(count["observed"], observed, "lower bound drifted: {report:#}");
+    assert_eq!(count["closure"], "open", "count must stay open: {report:#}");
     assert!(
-        definition["consumers_total"]["reason"]
-            .as_str()
-            .expect("unknown reason")
-            .contains("re-export flow"),
-        "the unknown must name the re-export blind spot: {json:#}"
+        count["reasons"]
+            .as_array()
+            .expect("typed reasons")
+            .iter()
+            .any(|value| value == reason),
+        "count must name {reason}: {report:#}"
+    );
+    assert_count_certificate_resolves(definition, report);
+}
+
+fn assert_count_certificate_resolves(definition: &Value, report: &Value) {
+    let id = definition["consumers_total"]["certificate_id"]
+        .as_str()
+        .expect("certificate id");
+    let certificate = &definition["observations"]["certificates"][id];
+    assert_eq!(certificate["id"], id, "dangling certificate id: {report:#}");
+    assert_eq!(
+        certificate["closure"], definition["consumers_total"]["closure"],
+        "count and certificate closure must agree: {report:#}"
     );
 }

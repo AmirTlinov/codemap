@@ -181,19 +181,25 @@ fn symbol_anchor_cone_filters_javascript_import_bindings() {
             .as_array()
             .expect("limited outgoing")
             .len(),
-        1,
-        "symbol outgoing should honor cone limit: {limited_cone:#}"
+        2,
+        "JSON must keep every observed symbol outgoing edge: {limited_cone:#}"
     );
     assert!(
         limited_cone["hidden"]
             .as_array()
             .expect("limited hidden")
             .iter()
-            .any(
-                |group| group["reason"] == "symbol outgoing edges hidden by limit"
-                    && group["count"] == 1
-            ),
-        "symbol outgoing should report hidden edges when truncated: {limited_cone:#}"
+            .all(|group| group["reason"] != "symbol outgoing edges hidden by limit"),
+        "full JSON must not report serialized outgoing edges as hidden: {limited_cone:#}"
+    );
+    let limited_markdown = run_markdown(
+        repo.path(),
+        cache.path(),
+        &["cone", "src/two-cards.tsx#TwoCards", "--limit", "1"],
+    );
+    assert!(
+        limited_markdown.contains("symbol outgoing edges hidden by limit: 1"),
+        "readable symbol cone should keep its bounded outgoing projection: {limited_markdown}"
     );
 
     let proof = run_json(
@@ -338,4 +344,3 @@ fn symbol_anchor_cone_filters_javascript_import_bindings() {
         "default identifier aliases should become exact symbol proof: {default_const_proof:#}"
     );
 }
-

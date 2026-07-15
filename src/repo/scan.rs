@@ -109,15 +109,34 @@ fn scan_file(root: &Path, rel: &str, stats: &mut ScanStatsBuilder) -> Option<Fil
     let Ok(meta) = fs::symlink_metadata(&path) else {
         return None;
     };
-    if meta.file_type().is_symlink() || !meta.is_file() {
+    let source_symlink = meta.file_type().is_symlink() && source_symlink_keeps_placeholder(&path);
+    let parser_placeholder = !meta.file_type().is_symlink()
+        && meta.is_file()
+        && source_parser_requires_placeholder(&path);
+    if meta.file_type().is_symlink() {
+        stats.record_skipped("source_symlink_not_followed", rel);
+        if !source_symlink {
+            return None;
+        }
+    } else if !meta.is_file() {
         stats.record_skipped("not_regular_file", rel);
         return None;
     }
-    if let Some(reason) = scan_file_rejection(&path, meta.len()) {
-        stats.record_skipped(reason, rel);
-        return None;
+    if parser_placeholder {
+        stats.record_skipped("unsupported_source_parser", rel);
     }
-    stats.bytes_scanned += meta.len();
+    let rejection = (!source_symlink && !parser_placeholder)
+        .then(|| scan_file_rejection(&path, meta.len()))
+        .flatten();
+    if let Some(reason) = rejection {
+        stats.record_skipped(reason, rel);
+        if !scan_rejection_keeps_placeholder(&path, reason) {
+            return None;
+        }
+    }
+    if !source_symlink && !parser_placeholder {
+        stats.bytes_scanned += meta.len();
+    }
     let ext = path
         .extension()
         .and_then(|s| s.to_str())
@@ -148,7 +167,13 @@ fn scan_file(root: &Path, rel: &str, stats: &mut ScanStatsBuilder) -> Option<Fil
         surface_phrases: BTreeSet::new(),
         visited_route_paths: BTreeSet::new(),
     };
+    if source_symlink || parser_placeholder {
+        return Some(info);
+    }
     classify_roles(root, &mut info);
+    if rejection.is_some() {
+        return Some(info);
+    }
     if is_asset_ext(&info.ext) && info.ext != "svg" {
         if let Ok(bytes) = fs::read(&path) {
             info.content_hash = Some(scan_content_hash(&bytes));

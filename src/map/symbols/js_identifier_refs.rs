@@ -109,8 +109,13 @@ pub(crate) fn js_brace_depth_after_line(mut depth: usize, code: &str) -> usize {
 }
 
 pub(crate) fn line_has_value_identifier_reference(line: &str, name: &str) -> bool {
+    line_value_identifier_reference_count(line, name) > 0
+}
+
+pub(crate) fn line_value_identifier_reference_count(line: &str, name: &str) -> usize {
     identifier_ranges(line, name)
-        .any(|(start, end)| identifier_occurrence_is_value_evidence(line, start, end))
+        .filter(|(start, end)| identifier_occurrence_is_value_evidence(line, *start, *end))
+        .count()
 }
 
 pub(crate) fn identifier_ranges<'a>(
@@ -175,7 +180,8 @@ fn identifier_occurrence_is_value_evidence(line: &str, start: usize, end: usize)
     }
     matches!(next, Some(b'('))
         || (matches!(previous, Some(b'(' | b',' | b'=' | b'['))
-            && matches!(next, Some(b')' | b',' | b'.' | b';' | b']' | b'}' | b'?')))
+            && (next.is_none()
+                || matches!(next, Some(b')' | b',' | b'.' | b';' | b']' | b'}' | b'?'))))
 }
 
 pub(crate) fn previous_word_is(before: &str, word: &str) -> bool {

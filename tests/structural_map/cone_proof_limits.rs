@@ -1,5 +1,5 @@
 #[test]
-fn cone_counts_hidden_proof_edges_before_limit() {
+fn cone_json_keeps_all_proof_edges_and_readable_counts_hidden_before_limit() {
     let (repo, cache) = fixture();
     write(
         &repo.path().join("packages/replay/src/multi-proof.ts"),
@@ -27,16 +27,31 @@ fn cone_counts_hidden_proof_edges_before_limit() {
         ],
     );
     assert_schema("schemas/cone.schema.json", &cone);
-    assert_eq!(cone["proof"].as_array().expect("proof").len(), 1);
+    assert_eq!(
+        cone["proof"].as_array().expect("proof").len(),
+        5,
+        "machine output must serialize every observed proof edge: {cone:#}"
+    );
     assert!(
         cone["hidden"]
             .as_array()
             .expect("hidden")
             .iter()
-            .any(|group| group["reason"] == "verification edges hidden by limit"
-                && group["count"] == 4
-                && group["expand"]
-                    == "codemap cone packages/replay/src/multi-proof.ts --depth 1 --all --limit 5"),
-        "cone should count all direct proof edges before truncating the proof section: {cone:#}"
+            .all(|group| group["reason"] != "verification edges hidden by limit"),
+        "full JSON must not claim that serialized proof edges are hidden: {cone:#}"
+    );
+    let markdown = run_markdown(
+        repo.path(),
+        cache.path(),
+        &[
+            "cone",
+            "packages/replay/src/multi-proof.ts",
+            "--limit",
+            "1",
+        ],
+    );
+    assert!(
+        markdown.contains("verification edges hidden by limit: 4"),
+        "bounded readable cone must count all proof edges before projection: {markdown}"
     );
 }

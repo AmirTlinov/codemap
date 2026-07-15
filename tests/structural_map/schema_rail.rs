@@ -209,6 +209,67 @@ fn public_json_reports_validate_against_manifest_schemas() {
     }
 }
 
+#[test]
+fn evidence_horizon_schemas_keep_the_same_required_certificate_contract() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let manifest: Value = serde_json::from_str(
+        &fs::read_to_string(root.join("schemas/manifest.json")).expect("manifest"),
+    )
+    .expect("manifest json");
+    assert_eq!(manifest["version"], 4);
+
+    for (kind, version) in [("cone", "10"), ("where", "4")] {
+        let entry = manifest["schemas"]
+            .as_array()
+            .expect("manifest schemas")
+            .iter()
+            .find(|entry| entry["kind"] == kind)
+            .unwrap_or_else(|| panic!("missing {kind} schema"));
+        assert_eq!(entry["schema_version"], version);
+
+        let schema: Value = serde_json::from_str(
+            &fs::read_to_string(root.join(entry["file"].as_str().expect("schema file")))
+                .expect("schema"),
+        )
+        .expect("schema json");
+        jsonschema::validator_for(&schema).expect("coverage schema should compile");
+        assert!(required_fields(&schema, "observation_ledger").contains("certificates"));
+        assert!(required_fields(&schema, "observation_ledger").contains("horizons"));
+        assert_eq!(
+            required_fields(&schema, "observed_count"),
+            BTreeSet::from(["certificate_id", "closure", "observed", "reasons"])
+        );
+        for field in [
+            "dynamic_stops",
+            "unresolved_stops",
+            "external_stops",
+            "unsupported",
+            "extractor_capabilities",
+        ] {
+            assert!(
+                required_fields(&schema, "coverage_certificate").contains(field),
+                "{kind} certificate must require {field}"
+            );
+        }
+        assert!(
+            schema["$defs"]["coverage_reason"]["enum"]
+                .as_array()
+                .expect("typed coverage reasons")
+                .iter()
+                .any(|reason| reason == "reexport_flow")
+        );
+    }
+}
+
+fn required_fields<'a>(schema: &'a Value, definition: &str) -> BTreeSet<&'a str> {
+    schema["$defs"][definition]["required"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{definition} required fields"))
+        .iter()
+        .map(|field| field.as_str().expect("required field name"))
+        .collect()
+}
+
 struct PublicJsonReport {
     manifest_kind: &'static str,
     args: &'static [&'static str],

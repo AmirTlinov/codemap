@@ -2,10 +2,11 @@ use std::path::Path;
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use crate::model::{
     BoundaryFacts, ConeReport, DirectorySurface, EnvDeclaration, FileSummary, HiddenGroup,
-    LsReport, StructuralEdge, Unknown, XrayCard,
+    LsReport, ObservationLedger, StructuralEdge, Unknown, XrayCard,
 };
 
 use super::{
@@ -68,10 +69,16 @@ pub fn read_cone_report(key: ConeLensKey<'_>) -> Option<ConeReport> {
     {
         return None;
     }
-    Some(cached.report.into_report())
+    if cached.report_sha256 != cone_report_sha256(&cached.report) {
+        return None;
+    }
+    let report = cached.report.into_report();
+    report.validate_observations().ok()?;
+    Some(report)
 }
 
 pub fn write_cone_report(key: ConeLensKey<'_>, report: &ConeReport) -> Result<()> {
+    let report = CachedConeReport::from_report(report);
     let cached = CachedConeLens {
         format_version: format_version(),
         version: key.version.to_string(),
@@ -81,7 +88,8 @@ pub fn write_cone_report(key: ConeLensKey<'_>, report: &ConeReport) -> Result<()
         depth: key.depth,
         include_hidden: key.include_hidden,
         limit: key.limit,
-        report: CachedConeReport::from_report(report),
+        report_sha256: cone_report_sha256(&report),
+        report,
     };
     write_lens_artifact(key.cache_dir, "cone-current.json", &cached)
 }
@@ -126,6 +134,7 @@ struct CachedConeLens {
     depth: usize,
     include_hidden: bool,
     limit: usize,
+    report_sha256: String,
     report: CachedConeReport,
 }
 
@@ -209,6 +218,7 @@ struct CachedConeReport {
     proof: Vec<StructuralEdge>,
     contracts: Vec<StructuralEdge>,
     boundary: Vec<StructuralEdge>,
+    observations: ObservationLedger,
     hidden: Vec<HiddenGroup>,
     unknowns: Vec<Unknown>,
     expand: Vec<String>,
@@ -228,6 +238,7 @@ impl CachedConeReport {
             proof: report.proof.clone(),
             contracts: report.contracts.clone(),
             boundary: report.boundary.clone(),
+            observations: report.observations.clone(),
             hidden: report.hidden.clone(),
             unknowns: report.unknowns.clone(),
             expand: report.expand.clone(),
@@ -247,9 +258,15 @@ impl CachedConeReport {
             proof: self.proof,
             contracts: self.contracts,
             boundary: self.boundary,
+            observations: self.observations,
             hidden: self.hidden,
             unknowns: self.unknowns,
             expand: self.expand,
         }
     }
+}
+
+fn cone_report_sha256(report: &CachedConeReport) -> String {
+    let body = serde_json::to_vec(report).expect("cached cone report should serialize");
+    format!("{:x}", Sha256::digest(body))
 }

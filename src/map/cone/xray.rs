@@ -42,7 +42,11 @@ pub(crate) struct ConeXrayInput<'a> {
 }
 
 pub(crate) fn cone_xray_card(input: ConeXrayInput<'_>) -> XrayCard {
-    let limit = input.limit.clamp(3, 12);
+    let limit = if input.include_hidden {
+        usize::MAX
+    } else {
+        input.limit.clamp(3, 12)
+    };
     let mut hard = Vec::new();
     let mut direct = Vec::new();
     let mut mediated = Vec::new();

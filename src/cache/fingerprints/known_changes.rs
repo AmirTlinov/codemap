@@ -4,7 +4,7 @@ use std::path::Path;
 
 use super::{
     CacheFileDelta, CachedFileFingerprint, CachedFingerprints, cache_file_delta,
-    cached_file_matches, read_valid_cached_fingerprints,
+    cached_file_content_matches, cached_file_matches, read_valid_cached_fingerprints,
 };
 use crate::cache::git_probe::{current_git_head, git_path_is_ignored};
 
@@ -134,7 +134,10 @@ fn file_delta_from_known_changes(
             }
             continue;
         };
-        if cached_file_matches(root, rel, cached) {
+        // Git already identified this path as changed. Its old size and mtime
+        // can be restored deliberately (or collide on a coarse filesystem), so
+        // only the cached content hash may turn it back into an unchanged file.
+        if cached_file_content_matches(root, rel, cached) {
             unchanged.insert(rel.clone());
         } else {
             changed_or_added.insert(rel.clone());

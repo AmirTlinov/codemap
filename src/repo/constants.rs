@@ -43,7 +43,6 @@ pub(crate) const COMMON_IGNORE_DIRS: &[&str] = &[
     ".vite",
     ".cache",
     ".parcel-cache",
-    "coverage",
     "playwright-report",
     "test-results",
     "storybook-static",
@@ -69,8 +68,8 @@ pub(crate) const ASSET_EXTS: &[&str] = &[
 ];
 
 pub(crate) const SOURCE_EXTS: &[&str] = &[
-    "ts", "tsx", "js", "jsx", "mjs", "cjs", "py", "rs", "go", "java", "kt", "kts", "swift", "c",
-    "cc", "cpp", "h", "hpp", "cs", "rb", "php", "vue", "svelte",
+    "ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs", "py", "rs", "go", "java", "kt", "kts",
+    "swift", "c", "cc", "cpp", "h", "hpp", "cs", "rb", "php", "vue", "svelte",
 ];
 
 pub(crate) const SCRIPT_EXTS: &[&str] = &["sh", "bash", "zsh"];

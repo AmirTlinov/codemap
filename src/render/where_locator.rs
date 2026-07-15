@@ -1,12 +1,18 @@
 // Responsibility: render-where-locator
 use crate::model::{ConeReport, WhereDefinition, WhereReport};
 use crate::render::{
-    cone_links_empty, disclaimer, edge_location_summary, grouped_edge_list, hidden_section,
-    public_evidence_label, render_cone_links, render_cone_xray, root_aware_expand, section,
+    AnchorPathDisplay, cone_links_empty, disclaimer, edge_location_summary_with_paths,
+    grouped_edge_list_with_paths, hidden_section, public_evidence_label, readable_certificate_id,
+    render_cone_links, render_cone_xray, render_definition_visibility,
+    render_definition_visibility_compact, render_visibility_section, root_aware_expand, section,
     unknown_section, xray_edge_label,
 };
 
 pub fn where_locator(report: &WhereReport) {
+    if report.total_matches > 1 {
+        render_where_multi(report);
+        return;
+    }
     println!("# Structural Where\n");
     println!("Query: `{}`", report.query);
     println!(
@@ -14,8 +20,21 @@ pub fn where_locator(report: &WhereReport) {
         report.kind_filter.as_deref().unwrap_or("none")
     );
     println!("Matches: `{}`", report.total_matches);
+    if report.total_matches == 1
+        && let Some(definition) = report.definitions.first()
+    {
+        let paths = AnchorPathDisplay::new(&definition.anchor.path);
+        if paths.compact() {
+            println!(
+                "Anchor: `{}`{}",
+                definition.anchor.path,
+                paths.header_suffix()
+            );
+        }
+    }
+    render_visibility_section(&report.observations);
 
-    match report.definitions.len() {
+    match report.total_matches {
         0 => render_where_not_found(report),
         1 => render_where_single(report),
         _ => render_where_multi(report),
@@ -50,48 +69,78 @@ fn render_where_not_found(report: &WhereReport) {
 }
 
 fn render_where_single(report: &WhereReport) {
-    let def = &report.definitions[0];
+    let Some(def) = report.definitions.first() else {
+        unknown_section(&report.unknowns);
+        section("Expand", &report.expand);
+        return;
+    };
+    let paths = AnchorPathDisplay::new(&def.anchor.path);
     println!("\n## Definition\n");
     print_where_definition_facts(def, "- ");
+    if paths.compact() {
+        let detail_has_expand = report
+            .detail
+            .as_ref()
+            .is_some_and(|detail| detail.hidden.iter().any(|group| !group.expand.is_empty()));
+        render_definition_visibility_compact(&def.observations, !detail_has_expand);
+    } else {
+        render_definition_visibility(&def.observations);
+    }
+    render_where_consumer_preview(def);
     if let Some(detail) = &report.detail {
         render_cone_xray(detail);
         render_where_links(detail);
         hidden_section(&detail.hidden);
-        unknown_section(&detail.unknowns);
-        section("Expand", &detail.expand);
+        if !paths.compact() || !has_exact_compact_expand(def, detail) {
+            section("Expand", &detail.expand);
+        }
     } else {
         section("Expand", &def.expand);
     }
 }
 
+fn has_exact_compact_expand(definition: &WhereDefinition, detail: &ConeReport) -> bool {
+    detail.hidden.iter().any(|group| !group.expand.is_empty())
+        || definition
+            .observations
+            .horizons
+            .iter()
+            .any(|horizon| horizon.hidden > 0 && horizon.expand.is_some())
+}
+
 fn render_where_links(report: &ConeReport) {
+    let paths = AnchorPathDisplay::new(&report.anchor.path);
+    if paths.compact() {
+        return;
+    }
     if cone_links_empty(report) {
-        render_cone_links(report);
+        render_cone_links(report, false);
         return;
     }
     if report.outgoing.is_empty() && report.contracts.is_empty() && report.boundary.is_empty() {
         return;
     }
     println!("\n## Links\n");
-    grouped_edge_list("outgoing", &report.outgoing, 8);
-    grouped_edge_list("contracts", &report.contracts, 8);
-    grouped_edge_list("boundary", &report.boundary, 8);
+    grouped_edge_list_with_paths("outgoing", &report.outgoing, 8, &paths);
+    grouped_edge_list_with_paths("contracts", &report.contracts, 8, &paths);
+    grouped_edge_list_with_paths("boundary", &report.boundary, 8, &paths);
 }
 
 fn render_where_multi(report: &WhereReport) {
+    println!("# Structural Where\n");
+    println!("Query: `{}`", report.query);
+    println!(
+        "Kind filter: `{}`",
+        report.kind_filter.as_deref().unwrap_or("none")
+    );
+    println!("Matches: `{}`", report.total_matches);
+    render_visibility_section(&report.observations);
     println!("\n## Definitions\n");
     for def in &report.definitions {
-        println!("### `{}`", def.anchor.path);
-        print_where_definition_facts(def, "- ");
-        render_where_consumer_preview(def);
-        for command in &def.expand {
-            println!("- expand: `{}`", root_aware_expand(command));
-        }
-        println!();
+        render_compact_definition(def);
     }
     hidden_section(&report.hidden);
     unknown_section(&report.unknowns);
-    section("Expand", &report.expand);
 }
 
 fn print_where_definition_facts(def: &WhereDefinition, prefix: &str) {
@@ -103,28 +152,54 @@ fn print_where_definition_facts(def: &WhereDefinition, prefix: &str) {
         anchor.package.as_deref().unwrap_or("none")
     );
     println!("{prefix}lines: `{}`", anchor.lines);
-    println!("{prefix}consumers: `{}`", def.consumers_total.display());
 }
 
 fn render_where_consumer_preview(def: &WhereDefinition) {
-    const PREVIEW: usize = 5;
-    for edge in def.consumers.iter().take(PREVIEW) {
+    if def.consumers.is_empty() {
+        return;
+    }
+    let paths = AnchorPathDisplay::new(&def.anchor.path);
+    println!("Consumers:");
+    for edge in &def.consumers {
         println!(
             "  - [{}] `{}` --{}--> `{}` [{}] {}",
             xray_edge_label(edge),
-            edge.from,
+            paths.path(&edge.from),
             edge.edge_type,
-            edge.to,
+            paths.path(&edge.to),
             public_evidence_label(&edge.evidence),
-            edge_location_summary(edge)
+            edge_location_summary_with_paths(edge, &paths)
         );
     }
-    let shown = def.consumers.len().min(PREVIEW);
-    let more = def.consumers_total.value.unwrap_or(0).saturating_sub(shown);
-    if more > 0 {
+}
+
+fn render_compact_definition(def: &WhereDefinition) {
+    println!("- `{}`", def.anchor.path);
+    let mut expands = std::collections::BTreeSet::new();
+    for group in ["consumers", "incoming", "verification"] {
+        let Some(horizon) = def
+            .observations
+            .horizons
+            .iter()
+            .find(|horizon| horizon.group == group)
+        else {
+            println!("  - {group}: unavailable");
+            continue;
+        };
         println!(
-            "  - {more} more consumers — `codemap cone {} --all`",
-            def.anchor.path
+            "  - {group}: {}; shown={} hidden={}; cert=`{}`",
+            horizon.count.display(),
+            horizon.shown,
+            horizon.hidden,
+            readable_certificate_id(&horizon.count.certificate_id)
         );
+        if horizon.hidden > 0
+            && let Some(expand) = horizon.expand.as_deref()
+        {
+            expands.insert(root_aware_expand(expand));
+        }
+    }
+    for expand in expands {
+        println!("  expand: `{expand}`");
     }
 }

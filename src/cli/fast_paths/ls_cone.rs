@@ -56,6 +56,8 @@ pub(crate) fn try_cached_cone_fast_path(
     let cwd = env::current_dir()?;
     let root = repo::resolve_root(root_selection, &cwd)?;
     let path = root_relative_arg(&root, &args.path)?;
+    let format = output_format_with_json_alias(args.format, args.json);
+    let include_hidden = args.include_hidden || format == crate::cli::OutputFormat::Json;
     let git_state = repo::git_changes(&root, false, None);
     let remote = repo::git_remote(&root);
     let cache_dir = crate::cache::project_cache_dir(&root, remote.as_deref(), repo::VERSION);
@@ -69,18 +71,15 @@ pub(crate) fn try_cached_cone_fast_path(
         root: &root,
         path: &path,
         depth: args.depth,
-        include_hidden: args.include_hidden,
+        include_hidden,
         limit: args.limit,
     }) else {
         return Ok(None);
     };
     let prelude = repo::map_prelude(&root);
-    output_with_prelude(
-        output_format_with_json_alias(args.format, args.json),
-        &report,
-        &prelude,
-        || render::cone(&report, cone_section_name(args.section)),
-    )?;
+    output_with_prelude(format, &report, &prelude, || {
+        render::cone(&report, cone_section_name(args.section))
+    })?;
     Ok(Some(()))
 }
 
@@ -107,6 +106,7 @@ pub(crate) fn maybe_write_cone_lens_cache(
     project: &crate::model::Project,
     path: &str,
     args: &ConeArgs,
+    include_hidden: bool,
     report: &crate::model::ConeReport,
 ) {
     let _ = crate::cache::write_cone_report(
@@ -116,7 +116,7 @@ pub(crate) fn maybe_write_cone_lens_cache(
             root: &project.root,
             path,
             depth: args.depth,
-            include_hidden: args.include_hidden,
+            include_hidden,
             limit: args.limit,
         },
         report,

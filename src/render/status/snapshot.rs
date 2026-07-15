@@ -1,6 +1,5 @@
 // Responsibility: map-snapshot-line
 use std::path::Path;
-use std::process::Command;
 use std::sync::OnceLock;
 
 static MAP_SNAPSHOT: OnceLock<String> = OnceLock::new();
@@ -112,7 +111,7 @@ fn set_map_snapshot_full(
 }
 
 fn map_snapshot_git_head(root: &Path) -> Option<String> {
-    let output = Command::new("git")
+    let output = crate::repo::read_only_git_command()
         .arg("-C")
         .arg(root)
         .args(["rev-parse", "--short=12", "--verify", "HEAD"])
@@ -126,7 +125,7 @@ fn map_snapshot_git_head(root: &Path) -> Option<String> {
 }
 
 fn map_snapshot_git_branch(root: &Path) -> Option<String> {
-    let output = Command::new("git")
+    let output = crate::repo::read_only_git_command()
         .arg("-C")
         .arg(root)
         .args(["rev-parse", "--abbrev-ref", "HEAD"])
@@ -140,7 +139,7 @@ fn map_snapshot_git_branch(root: &Path) -> Option<String> {
 }
 
 fn map_snapshot_dirty_count(root: &Path) -> Option<usize> {
-    let output = Command::new("git")
+    let output = crate::repo::read_only_git_command()
         .arg("-C")
         .arg(root)
         .args(["status", "--porcelain"])

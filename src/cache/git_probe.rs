@@ -1,9 +1,8 @@
 use std::collections::BTreeSet;
 use std::path::Path;
-use std::process::Command;
 
 pub(crate) fn current_git_head(root: &Path) -> Option<String> {
-    let output = Command::new("git")
+    let output = crate::repo::read_only_git_command()
         .arg("-C")
         .arg(root)
         .args(["rev-parse", "--verify", "HEAD"])
@@ -17,7 +16,7 @@ pub(crate) fn current_git_head(root: &Path) -> Option<String> {
 }
 
 pub(crate) fn current_git_status_has_untracked(root: &Path) -> bool {
-    let output = Command::new("git")
+    let output = crate::repo::read_only_git_command()
         .arg("-C")
         .arg(root)
         .args(["status", "--porcelain", "-uall", "--", "."])
@@ -34,7 +33,7 @@ pub(crate) fn current_git_status_has_untracked(root: &Path) -> bool {
 }
 
 pub(crate) fn git_tracked_paths(root: &Path) -> Option<BTreeSet<String>> {
-    let output = Command::new("git")
+    let output = crate::repo::read_only_git_command()
         .arg("-C")
         .arg(root)
         .args(["ls-files", "-c"])
@@ -55,7 +54,7 @@ pub(crate) fn git_tracked_paths(root: &Path) -> Option<BTreeSet<String>> {
 }
 
 pub(crate) fn git_path_is_ignored(root: &Path, rel: &str) -> bool {
-    let output = Command::new("git")
+    let output = crate::repo::read_only_git_command()
         .arg("-C")
         .arg(root)
         .args(["check-ignore", "-q", "--", rel])

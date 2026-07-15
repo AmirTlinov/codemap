@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 use super::FlowStep;
 
 use super::{
-    CountFact, EnvDeclaration, EvidenceStrength, FileSummary, HiddenGroup, StructuralEdge, Unknown,
+    EnvDeclaration, EvidenceStrength, FileSummary, HiddenGroup, ObservationLedger, ObservedCount,
+    StructuralEdge, Unknown,
 };
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -33,13 +34,40 @@ pub struct ConeReport {
     pub proof: Vec<StructuralEdge>,
     pub contracts: Vec<StructuralEdge>,
     pub boundary: Vec<StructuralEdge>,
+    pub observations: ObservationLedger,
     pub hidden: Vec<HiddenGroup>,
     pub unknowns: Vec<Unknown>,
     pub expand: Vec<String>,
 }
 
 impl ConeReport {
-    pub const SCHEMA_VERSION: &'static str = "9";
+    pub const SCHEMA_VERSION: &'static str = "10";
+
+    pub fn validate_observations(&self) -> Result<(), super::ObservationLedgerError> {
+        self.observations.validate()?;
+        if self.anchor.kind.starts_with("symbol") || self.anchor.kind == "missing_symbol" {
+            self.validate_shown_facts("incoming", self.incoming.len())?;
+            self.validate_shown_facts("verification", self.proof.len())?;
+        }
+        Ok(())
+    }
+
+    fn validate_shown_facts(
+        &self,
+        group: &str,
+        fact_count: usize,
+    ) -> Result<(), super::ObservationLedgerError> {
+        let horizon = self
+            .observations
+            .horizons
+            .iter()
+            .find(|horizon| horizon.group == group)
+            .ok_or(super::ObservationLedgerError::MissingRequiredHorizon)?;
+        if horizon.shown != fact_count as u64 {
+            return Err(super::ObservationLedgerError::ShownFactCountMismatch);
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
@@ -67,6 +95,7 @@ pub struct WhereReport {
     pub query: String,
     pub kind_filter: Option<String>,
     pub total_matches: usize,
+    pub observations: ObservationLedger,
     pub definitions: Vec<WhereDefinition>,
     pub soft_suggestions: Vec<WhereSuggestion>,
     pub unknowns: Vec<Unknown>,
@@ -79,11 +108,52 @@ pub struct WhereReport {
     pub detail: Option<Box<ConeReport>>,
 }
 
+impl WhereReport {
+    pub fn validate_observations(&self) -> Result<(), super::ObservationLedgerError> {
+        self.observations.validate()?;
+        validate_horizon_shown(
+            &self.observations,
+            "definition_matches",
+            self.definitions.len(),
+        )?;
+        for definition in &self.definitions {
+            definition.observations.validate()?;
+            for (group, shown) in [
+                ("consumers", definition.consumers.len()),
+                ("incoming", definition.incoming.len()),
+                ("verification", definition.verification.len()),
+            ] {
+                validate_horizon_shown(&definition.observations, group, shown)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+fn validate_horizon_shown(
+    ledger: &ObservationLedger,
+    group: &str,
+    fact_count: usize,
+) -> Result<(), super::ObservationLedgerError> {
+    let horizon = ledger
+        .horizons
+        .iter()
+        .find(|horizon| horizon.group == group)
+        .ok_or(super::ObservationLedgerError::MissingRequiredHorizon)?;
+    if horizon.shown != fact_count as u64 {
+        return Err(super::ObservationLedgerError::ShownFactCountMismatch);
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct WhereDefinition {
     pub anchor: FileSummary,
     pub consumers: Vec<StructuralEdge>,
-    pub consumers_total: CountFact,
+    pub consumers_total: ObservedCount,
+    pub incoming: Vec<StructuralEdge>,
+    pub verification: Vec<StructuralEdge>,
+    pub observations: ObservationLedger,
     pub hidden: Vec<HiddenGroup>,
     pub expand: Vec<String>,
 }

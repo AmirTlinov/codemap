@@ -1,8 +1,11 @@
 // Responsibility: render-cone-xray
 use crate::model::{ConeReport, StructuralEdge};
-use crate::render::{code, edge_location_summary, public_evidence_label, unknown_where};
+use crate::render::{
+    AnchorPathDisplay, code, edge_location_summary_with_paths, public_evidence_label,
+};
 
 pub(crate) fn render_cone_xray(report: &ConeReport) {
+    let paths = AnchorPathDisplay::new(&report.anchor.path);
     let xray = &report.xray;
     if xray.roles.is_empty()
         && xray.inputs.is_empty()
@@ -22,20 +25,28 @@ pub(crate) fn render_cone_xray(report: &ConeReport) {
         return;
     }
     println!("\n## X-Ray Card\n");
-    render_xray_surfaces("Role", &xray.roles);
-    render_xray_edges("Inputs", &xray.inputs);
-    render_xray_surfaces("Outputs", &xray.outputs);
-    render_xray_surfaces("State", &xray.state);
-    render_xray_surfaces("Side Effects", &xray.side_effects);
-    render_xray_edges("Direct Consumers", &xray.direct_consumers);
-    render_xray_edges("Mediated Consumers", &xray.mediated_consumers);
-    render_xray_flow(&xray.flow);
-    render_xray_surfaces("Existing Nearby Surfaces", &xray.nearby);
-    render_xray_proof(xray);
-    render_xray_unknowns(&xray.unknowns);
+    render_xray_surfaces("Role", &xray.roles, &paths);
+    render_xray_edges("Inputs", &xray.inputs, &paths);
+    render_xray_surfaces("Outputs", &xray.outputs, &paths);
+    render_xray_surfaces("State", &xray.state, &paths);
+    render_xray_surfaces("Side Effects", &xray.side_effects, &paths);
+    render_observed_xray_edges("Direct Consumers", &xray.direct_consumers, &paths);
+    render_observed_xray_edges("Mediated Consumers", &xray.mediated_consumers, &paths);
+    render_xray_flow(&xray.flow, &paths);
+    render_xray_surfaces("Existing Nearby Surfaces", &xray.nearby, &paths);
+    render_xray_proof(xray, &paths);
+    render_xray_unknowns(&xray.unknowns, &paths);
 }
 
-fn render_xray_surfaces(title: &str, surfaces: &[crate::model::Surface]) {
+pub(crate) fn render_cone_xray_proof(report: &ConeReport) {
+    render_xray_proof(&report.xray, &AnchorPathDisplay::new(&report.anchor.path));
+}
+
+fn render_xray_surfaces(
+    title: &str,
+    surfaces: &[crate::model::Surface],
+    paths: &AnchorPathDisplay<'_>,
+) {
     if surfaces.is_empty() {
         return;
     }
@@ -45,9 +56,9 @@ fn render_xray_surfaces(title: &str, surfaces: &[crate::model::Surface]) {
         let label = surface
             .path
             .as_ref()
-            .map(|path| code(path))
+            .map(|path| code(&paths.path(path)))
             .unwrap_or_else(|| code(&surface.kind));
-        let examples = if surface.examples.is_empty() {
+        let examples = if surface.examples.is_empty() || paths.compact() {
             String::new()
         } else {
             format!(
@@ -56,7 +67,7 @@ fn render_xray_surfaces(title: &str, surfaces: &[crate::model::Surface]) {
                     .examples
                     .iter()
                     .take(3)
-                    .map(|example| code(example))
+                    .map(|example| code(&paths.path(example)))
                     .collect::<Vec<_>>()
                     .join(", ")
             )
@@ -79,7 +90,7 @@ fn render_xray_surfaces(title: &str, surfaces: &[crate::model::Surface]) {
     }
 }
 
-fn render_xray_edges(title: &str, edges: &[StructuralEdge]) {
+fn render_xray_edges(title: &str, edges: &[StructuralEdge], paths: &AnchorPathDisplay<'_>) {
     if edges.is_empty() {
         return;
     }
@@ -89,11 +100,11 @@ fn render_xray_edges(title: &str, edges: &[StructuralEdge]) {
         println!(
             "- [{}] `{}` --{}--> `{}` [{}] {}",
             xray_edge_label(edge),
-            edge.from,
+            paths.path(&edge.from),
             edge.edge_type,
-            edge.to,
+            paths.path(&edge.to),
             public_evidence_label(&edge.evidence),
-            edge_location_summary(edge)
+            edge_location_summary_with_paths(edge, paths)
         );
     }
     let hidden = edges.len().saturating_sub(XRAY_EDGE_LIMIT);
@@ -102,7 +113,29 @@ fn render_xray_edges(title: &str, edges: &[StructuralEdge]) {
     }
 }
 
-fn render_xray_flow(steps: &[crate::model::FlowStep]) {
+fn render_observed_xray_edges(
+    title: &str,
+    edges: &[StructuralEdge],
+    paths: &AnchorPathDisplay<'_>,
+) {
+    if edges.is_empty() {
+        return;
+    }
+    println!("{title}:");
+    for edge in edges {
+        println!(
+            "- [{}] `{}` --{}--> `{}` [{}] {}",
+            xray_edge_label(edge),
+            paths.path(&edge.from),
+            edge.edge_type,
+            paths.path(&edge.to),
+            public_evidence_label(&edge.evidence),
+            edge_location_summary_with_paths(edge, paths)
+        );
+    }
+}
+
+fn render_xray_flow(steps: &[crate::model::FlowStep], paths: &AnchorPathDisplay<'_>) {
     if steps.is_empty() {
         return;
     }
@@ -114,15 +147,15 @@ fn render_xray_flow(steps: &[crate::model::FlowStep]) {
             .first()
             .map(|location| {
                 if let Some(line) = location.line_start {
-                    code(&format!("{}:{line}", location.path))
+                    code(&format!("{}:{line}", paths.path(&location.path)))
                 } else {
-                    code(&location.path)
+                    code(&paths.path(&location.path))
                 }
             })
             .unwrap_or_else(|| "unknown".to_string());
         println!(
             "- [Direct] `{}` [{}; {}] {}",
-            step.anchor,
+            paths.path(&step.anchor),
             step.kind,
             public_evidence_label(&step.evidence),
             where_hint
@@ -134,7 +167,7 @@ fn render_xray_flow(steps: &[crate::model::FlowStep]) {
     }
 }
 
-fn render_xray_proof(xray: &crate::model::XrayCard) {
+fn render_xray_proof(xray: &crate::model::XrayCard, paths: &AnchorPathDisplay<'_>) {
     if xray.proof_hard.is_empty()
         && xray.proof_direct.is_empty()
         && xray.proof_mediated.is_empty()
@@ -143,10 +176,10 @@ fn render_xray_proof(xray: &crate::model::XrayCard) {
         return;
     }
     println!("Verification Sensors:");
-    render_xray_proof_bucket("Runnable", &xray.proof_hard);
-    render_xray_proof_bucket("Direct", &xray.proof_direct);
-    render_xray_proof_bucket("Mediated", &xray.proof_mediated);
-    render_xray_proof_bucket("Soft", &xray.proof_soft);
+    render_xray_proof_bucket("Runnable", &xray.proof_hard, paths);
+    render_xray_proof_bucket("Direct", &xray.proof_direct, paths);
+    render_xray_proof_bucket("Mediated", &xray.proof_mediated, paths);
+    render_xray_proof_bucket("Soft", &xray.proof_soft, paths);
     if !xray.proof_soft.is_empty() {
         println!(
             "- [Unknown] soft surface matches are name/path/token overlap; they are not runnable command surfaces"
@@ -154,27 +187,20 @@ fn render_xray_proof(xray: &crate::model::XrayCard) {
     }
 }
 
-fn render_xray_proof_bucket(label: &str, edges: &[StructuralEdge]) {
-    const XRAY_PROOF_LIMIT: usize = 3;
-    for edge in edges.iter().take(XRAY_PROOF_LIMIT) {
+fn render_xray_proof_bucket(label: &str, edges: &[StructuralEdge], paths: &AnchorPathDisplay<'_>) {
+    for edge in edges {
         println!(
             "- [{label}] `{}` --{}--> `{}` [{}] {}",
-            edge.from,
+            paths.path(&edge.from),
             edge.edge_type,
-            edge.to,
+            paths.path(&edge.to),
             public_evidence_label(&edge.evidence),
-            edge_location_summary(edge)
-        );
-    }
-    let hidden = edges.len().saturating_sub(XRAY_PROOF_LIMIT);
-    if hidden > 0 {
-        println!(
-            "- [Unknown] {hidden} more {label} verification sensors hidden by compact x-ray limit"
+            edge_location_summary_with_paths(edge, paths)
         );
     }
 }
 
-fn render_xray_unknowns(unknowns: &[crate::model::Unknown]) {
+fn render_xray_unknowns(unknowns: &[crate::model::Unknown], paths: &AnchorPathDisplay<'_>) {
     if unknowns.is_empty() {
         return;
     }
@@ -183,7 +209,7 @@ fn render_xray_unknowns(unknowns: &[crate::model::Unknown]) {
         println!(
             "- [Unknown] `{}` at {} - {}",
             unknown.kind,
-            unknown_where(unknown),
+            compact_unknown_where(unknown, paths),
             unknown.reason
         );
     }
@@ -191,6 +217,21 @@ fn render_xray_unknowns(unknowns: &[crate::model::Unknown]) {
     if hidden > 0 {
         println!("- [Unknown] {hidden} more Unknown entries hidden by compact x-ray limit");
     }
+}
+
+fn compact_unknown_where(unknown: &crate::model::Unknown, paths: &AnchorPathDisplay<'_>) -> String {
+    unknown
+        .path
+        .as_ref()
+        .map(|path| {
+            let path = paths.path(path);
+            if let Some(line) = unknown.line_start {
+                code(&format!("{path}:{line}"))
+            } else {
+                code(&path)
+            }
+        })
+        .unwrap_or_else(|| "none".to_string())
 }
 
 fn xray_surface_label(surface: &crate::model::Surface) -> &'static str {

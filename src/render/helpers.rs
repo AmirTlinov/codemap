@@ -1,6 +1,9 @@
 // Responsibility: render-helpers
 use crate::model::{ProofSurface, StructuralEdge, Surface, Unknown};
-use crate::render::{brief, edge_location_summary, proof_location_summary, root_aware_expand};
+use crate::render::{
+    AnchorPathDisplay, brief, edge_location_summary_with_paths, proof_location_summary,
+    root_aware_expand,
+};
 
 // Repeated provenance/boundary disclaimers. Agents internalize these once, so in
 // `--brief` mode they are suppressed to save tokens; the default keeps them.
@@ -203,6 +206,15 @@ pub(crate) fn unknown_where(unknown: &Unknown) -> String {
 }
 
 pub(crate) fn grouped_edge_list(title: &str, edges: &[StructuralEdge], limit: usize) {
+    grouped_edge_list_with_paths(title, edges, limit, &AnchorPathDisplay::new(""));
+}
+
+pub(crate) fn grouped_edge_list_with_paths(
+    title: &str,
+    edges: &[StructuralEdge],
+    limit: usize,
+    paths: &AnchorPathDisplay<'_>,
+) {
     if edges.is_empty() {
         return;
     }
@@ -214,15 +226,15 @@ pub(crate) fn grouped_edge_list(title: &str, edges: &[StructuralEdge], limit: us
         grouped.entry(edge.from.as_str()).or_default().push(edge);
     }
     for (from, edges) in grouped {
-        println!("- `{from}`");
+        println!("- `{}`", paths.path(from));
         for edge in edges {
             println!(
                 "  - {} -> `{}` [{}; {}] {}",
                 edge.edge_type,
-                edge.to,
+                paths.path(&edge.to),
                 public_evidence_label(&edge.evidence),
                 format!("{:?}", edge.strength).to_ascii_lowercase(),
-                edge_location_summary(edge)
+                edge_location_summary_with_paths(edge, paths)
             );
         }
     }

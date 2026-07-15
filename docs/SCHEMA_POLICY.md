@@ -27,6 +27,24 @@ provenance. Non-diagnostic reports mark `binary_sha256` as `not_requested`;
 diagnostics compute it. Cached structural report bodies do not store this live
 process identity.
 
+## Flagship draft migration: evidence horizon pilot
+
+Manifest version 4 introduces report-local observation ledgers for the S03.a
+consumer-horizon pilot. `where` advances to schema 4 and `cone` advances to
+schema 10. Their observed counts resolve deterministic certificate ids inside
+the same report and keep lower bounds when traversal remains open. A unique
+`where` definition also serializes the incoming and verification relations
+named by its horizons, so machine consumers never receive a count without its
+observed fact list.
+
+The migration is deliberately confined to `where` and `cone`; the legacy
+`FileSummary.imported_by` shape and schemas embedding it do not change. The
+shared lens artifact format advances from 13 to 15, so old artifacts are
+rebuilt; cached symbol-cone report bodies are content-hashed and their ledgers
+are validated before serving, so corrupted facts or certificate/horizon
+registries become a cache miss. Project inventory,
+fingerprint, and non-cone lens report data models are unchanged.
+
 Semantic anchor config uses:
 
 ```yaml

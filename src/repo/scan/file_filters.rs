@@ -64,6 +64,34 @@ pub(crate) fn scan_file_rejection(path: &Path, size: u64) -> Option<&'static str
     }
 }
 
+pub(crate) fn scan_rejection_keeps_placeholder(path: &Path, reason: &str) -> bool {
+    reason == "too_large" && supported_source_path(path)
+}
+
+pub(crate) fn source_symlink_keeps_placeholder(path: &Path) -> bool {
+    supported_source_path(path)
+}
+
+pub(crate) fn source_parser_requires_placeholder(path: &Path) -> bool {
+    matches!(
+        path.extension()
+            .and_then(|value| value.to_str())
+            .unwrap_or("")
+            .to_ascii_lowercase()
+            .as_str(),
+        "mts" | "cts"
+    )
+}
+
+fn supported_source_path(path: &Path) -> bool {
+    let ext = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    SOURCE_EXTS.iter().any(|candidate| candidate == &ext) || is_script_ext(&ext)
+}
+
 pub(crate) fn language_for(path: &Path) -> String {
     let name = path
         .file_name()
@@ -85,7 +113,9 @@ pub(crate) fn language_for(path: &Path) -> String {
         return "config".to_string();
     }
     match ext.as_str() {
-        "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte" => "javascript/typescript",
+        "ts" | "tsx" | "mts" | "cts" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte" => {
+            "javascript/typescript"
+        }
         "py" => "python",
         "rs" => "rust",
         "go" => "go",

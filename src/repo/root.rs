@@ -3,7 +3,6 @@ use crate::repo::{ROOT_MARKERS, RootSelection, normalize_rel_path};
 use anyhow::Result;
 use std::path::Path;
 use std::path::PathBuf;
-use std::process::Command;
 
 pub fn resolve_root(root_selection: &RootSelection, cwd: &Path) -> Result<PathBuf> {
     match root_selection {
@@ -31,7 +30,7 @@ pub fn ambient_root(start: &Path) -> Option<PathBuf> {
 }
 
 pub(crate) fn git_root(start: &Path) -> Option<PathBuf> {
-    let output = Command::new("git")
+    let output = crate::repo::read_only_git_command()
         .arg("-C")
         .arg(start)
         .arg("rev-parse")
@@ -50,7 +49,7 @@ pub(crate) fn git_root(start: &Path) -> Option<PathBuf> {
 }
 
 pub fn git_remote(root: &Path) -> Option<String> {
-    let output = Command::new("git")
+    let output = crate::repo::read_only_git_command()
         .arg("-C")
         .arg(root)
         .arg("remote")

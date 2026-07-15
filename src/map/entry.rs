@@ -10,7 +10,7 @@ use crate::map::{
     owner_env_unknowns_from_facts, parent_anchor_for_missing, shell_quote, sort_edges,
     split_symbol_anchor, unknown_unindexed_anchor,
 };
-use crate::model::{BoundaryFacts, ConeReport, LsReport, Project};
+use crate::model::{BoundaryFacts, ConeReport, LsReport, ObservationLedger, Project};
 use crate::repo;
 
 pub fn ls_report(project: &Project, path: &str, include_hidden: bool, limit: usize) -> LsReport {
@@ -177,6 +177,7 @@ pub fn cone_report(
         proof,
         contracts,
         boundary,
+        observations: ObservationLedger::default(),
         hidden,
         unknowns,
         expand: vec![

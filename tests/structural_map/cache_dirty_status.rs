@@ -205,3 +205,110 @@ fn active_conflict_cache_scans_only_fingerprint_mismatches() {
 
     git(repo.path(), &["merge", "--abort"]);
 }
+
+#[test]
+fn git_known_same_size_same_mtime_change_rebuilds_aliased_consumer_facts() {
+    let repo = TempDir::new().expect("same-metadata repo");
+    let warm_cache = TempDir::new().expect("warm cache");
+    let fresh_cache = TempDir::new().expect("fresh cache");
+    let timestamp_copy = TempDir::new().expect("timestamp copy");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{"name":"same-metadata-consumer","private":true}"#,
+    );
+    write(
+        &repo.path().join("src/target.ts"),
+        "export function target() { return 1; }\n",
+    );
+    let consumer = repo.path().join("src/consumer.ts");
+    let before = "import { target as alias } from './target';\n\
+export function consumer() { return 0      ; }\n";
+    let after = "import { target as alias } from './target';\n\
+export function consumer() { return alias(); }\n";
+    assert_eq!(before.len(), after.len(), "fixture must preserve file size");
+    write(&consumer, before);
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "initial consumer"]);
+
+    let cold = run_json(
+        repo.path(),
+        warm_cache.path(),
+        &["where", "target", "--format", "json"],
+    );
+    let cold_consumers = cold["definitions"][0]["consumers"]
+        .as_array()
+        .expect("cold consumers");
+    assert!(
+        cold_consumers
+            .iter()
+            .all(|edge| edge["from"] != "src/consumer.ts"),
+        "fixture must start without an observed aliased consumer: {cold:#}"
+    );
+
+    let saved_timestamp = timestamp_copy.path().join("consumer.ts");
+    let copied = Command::new("cp")
+        .args(["-p", consumer.to_str().unwrap(), saved_timestamp.to_str().unwrap()])
+        .status()
+        .expect("copy preserved timestamp");
+    assert!(copied.success(), "timestamp copy should succeed");
+    write(&consumer, after);
+    let restored = Command::new("touch")
+        .args(["-r", saved_timestamp.to_str().unwrap(), consumer.to_str().unwrap()])
+        .status()
+        .expect("restore timestamp");
+    assert!(restored.success(), "timestamp restore should succeed");
+    let current_meta = std::fs::metadata(&consumer).expect("consumer metadata");
+    let saved_meta = std::fs::metadata(&saved_timestamp).expect("saved metadata");
+    assert_eq!(current_meta.len(), saved_meta.len(), "size must be unchanged");
+    assert_eq!(
+        current_meta.modified().expect("current mtime"),
+        saved_meta.modified().expect("saved mtime"),
+        "mtime must be restored exactly"
+    );
+
+    let doctor = run_json(
+        repo.path(),
+        warm_cache.path(),
+        &["doctor", "--format", "json"],
+    );
+    assert_eq!(doctor["cache_strategy"], "partial_rescan", "{doctor:#}");
+    assert_eq!(
+        doctor["scanner"]["files_scanned"], 1,
+        "git-known content changes cannot be accepted from size and mtime: {doctor:#}"
+    );
+    let warm = run_json(
+        repo.path(),
+        warm_cache.path(),
+        &["where", "target", "--format", "json"],
+    );
+    let fresh = run_json(
+        repo.path(),
+        fresh_cache.path(),
+        &["where", "target", "--format", "json"],
+    );
+    let consumer_paths = |report: &Value| {
+        report["definitions"][0]["consumers"]
+            .as_array()
+            .expect("consumers")
+            .iter()
+            .map(|edge| edge["from"].as_str().expect("consumer path").to_string())
+            .collect::<std::collections::BTreeSet<_>>()
+    };
+    let warm_paths = consumer_paths(&warm);
+    let fresh_paths = consumer_paths(&fresh);
+    assert_eq!(
+        warm_paths, fresh_paths,
+        "warm cache must reproduce a fresh scan after the metadata collision"
+    );
+    assert!(
+        warm_paths.contains("src/consumer.ts"),
+        "the aliased consumer added by the changed content must be observed: {warm:#}"
+    );
+    assert_eq!(
+        warm["definitions"][0]["consumers_total"], fresh["definitions"][0]["consumers_total"],
+        "warm and fresh consumer evidence must agree"
+    );
+}

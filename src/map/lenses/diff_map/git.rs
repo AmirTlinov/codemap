@@ -33,7 +33,7 @@ pub(crate) fn git_unified_zero_deltas(
     if tracked.is_empty() {
         return deltas;
     }
-    let mut command = std::process::Command::new("git");
+    let mut command = crate::repo::read_only_git_command();
     command.arg("-C").arg(&project.root).arg("diff");
     match mode {
         DiffMapMode::WorkingTree => {
@@ -104,7 +104,7 @@ fn git_unified_zero_delta(project: &Project, rel: &str, mode: &DiffMapMode) -> L
     if matches!(mode, DiffMapMode::WorkingTree) && git_file_is_untracked(project, rel) {
         return file_as_added_delta(project, rel);
     }
-    let mut command = std::process::Command::new("git");
+    let mut command = crate::repo::read_only_git_command();
     command.arg("-C").arg(&project.root).arg("diff");
     match mode {
         DiffMapMode::WorkingTree => {
@@ -190,7 +190,7 @@ pub(crate) fn git_show_files(
     if requests.is_empty() {
         return out;
     }
-    let Ok(mut child) = std::process::Command::new("git")
+    let Ok(mut child) = crate::repo::read_only_git_command()
         .arg("-C")
         .arg(&project.root)
         .args(["cat-file", "--batch"])
@@ -274,7 +274,7 @@ fn git_show_file(project: &Project, revision: &str, rel: &str) -> Option<String>
     } else {
         format!("{revision}:{rel}")
     };
-    let exists = std::process::Command::new("git")
+    let exists = crate::repo::read_only_git_command()
         .arg("-C")
         .arg(&project.root)
         .arg("cat-file")
@@ -285,7 +285,7 @@ fn git_show_file(project: &Project, revision: &str, rel: &str) -> Option<String>
     if !exists.status.success() {
         return None;
     }
-    let output = std::process::Command::new("git")
+    let output = crate::repo::read_only_git_command()
         .arg("-C")
         .arg(&project.root)
         .arg("show")
@@ -302,7 +302,7 @@ fn git_file_is_untracked(project: &Project, rel: &str) -> bool {
     if !project.root.join(rel).is_file() {
         return false;
     }
-    let Ok(output) = std::process::Command::new("git")
+    let Ok(output) = crate::repo::read_only_git_command()
         .arg("-C")
         .arg(&project.root)
         .args(["ls-files", "--error-unmatch", "--"])
@@ -322,7 +322,7 @@ fn git_untracked_files(project: &Project, rels: &[String]) -> BTreeSet<String> {
     if candidates.is_empty() {
         return BTreeSet::new();
     }
-    let Ok(output) = std::process::Command::new("git")
+    let Ok(output) = crate::repo::read_only_git_command()
         .arg("-C")
         .arg(&project.root)
         .args(["ls-files", "-z", "--others", "--exclude-standard", "--"])

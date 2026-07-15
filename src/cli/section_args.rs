@@ -1,5 +1,5 @@
 // Responsibility: cli-section-args
-use crate::cli::{OutputFormat, default_output_format};
+use crate::cli::{OutputFormat, default_output_format, positive_usize};
 use clap::{Args, ValueEnum};
 
 #[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
@@ -57,7 +57,12 @@ pub(crate) struct WhereArgs {
     pub(crate) kind: Option<String>,
     #[arg(long = "all", alias = "include-hidden")]
     pub(crate) include_hidden: bool,
-    #[arg(long, default_value_t = 20, hide = true)]
+    #[arg(
+        long,
+        default_value_t = 20,
+        value_parser = positive_usize,
+        hide = true
+    )]
     pub(crate) limit: usize,
     #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
     pub(crate) format: OutputFormat,

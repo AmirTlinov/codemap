@@ -6,7 +6,6 @@ use crate::repo::{
 };
 use std::collections::BTreeSet;
 use std::path::Path;
-use std::process::Command;
 
 pub(crate) fn git_status_cache_delta(
     root: &Path,
@@ -95,7 +94,7 @@ fn git_head_cache_change_sets(
     current_head: &str,
 ) -> Option<(BTreeSet<String>, BTreeSet<String>)> {
     let root_prefix = git_status_root_prefix(root);
-    let output = Command::new("git")
+    let output = crate::repo::read_only_git_command()
         .arg("-C")
         .arg(root)
         .args([
@@ -202,7 +201,7 @@ fn record_changed_candidate(
 }
 
 pub(crate) fn current_git_head(root: &Path) -> Option<String> {
-    let output = Command::new("git")
+    let output = crate::repo::read_only_git_command()
         .arg("-C")
         .arg(root)
         .args(["rev-parse", "--verify", "HEAD"])

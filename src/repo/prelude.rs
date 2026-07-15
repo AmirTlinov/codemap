@@ -3,7 +3,6 @@ use crate::repo::{git_remote, git_root, git_status_snapshot, normalize_rel_path}
 use std::env;
 use std::fs;
 use std::path::Path;
-use std::process::Command;
 
 pub fn map_prelude(root: &Path) -> crate::model::MapPrelude {
     let root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
@@ -144,7 +143,7 @@ fn remote_display(sanitized_url: &str) -> Option<String> {
 }
 
 fn git_upstream_gone(root: &Path) -> bool {
-    let output = Command::new("git")
+    let output = crate::repo::read_only_git_command()
         .arg("-C")
         .arg(root)
         .args(["rev-parse", "--verify", "--quiet", "@{upstream}"])
@@ -153,7 +152,7 @@ fn git_upstream_gone(root: &Path) -> bool {
 }
 
 fn git_fetch_head_mtime(root: &Path) -> Option<String> {
-    let output = Command::new("git")
+    let output = crate::repo::read_only_git_command()
         .arg("-C")
         .arg(root)
         .args(["rev-parse", "--absolute-git-dir"])

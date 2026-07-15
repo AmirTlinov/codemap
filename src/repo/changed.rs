@@ -3,7 +3,6 @@ use crate::model::GitChange;
 use crate::repo::{git_status_snapshot, normalize_rel_path, should_ignore_rel};
 use std::collections::BTreeSet;
 use std::path::Path;
-use std::process::Command;
 
 pub fn changed_files(root: &Path, staged: bool, since: Option<&str>) -> Vec<String> {
     if let Some(since) = since {
@@ -26,7 +25,7 @@ pub fn changed_files(root: &Path, staged: bool, since: Option<&str>) -> Vec<Stri
 }
 
 pub fn git_ref_exists(root: &Path, reference: &str) -> bool {
-    Command::new("git")
+    crate::repo::read_only_git_command()
         .arg("-C")
         .arg(root)
         .args([
@@ -57,7 +56,11 @@ fn git_status_changes(root: &Path) -> Vec<GitChange> {
 }
 
 fn git_name_status(root: &Path, args: &[&str]) -> Vec<GitChange> {
-    let output = Command::new("git").arg("-C").arg(root).args(args).output();
+    let output = crate::repo::read_only_git_command()
+        .arg("-C")
+        .arg(root)
+        .args(args)
+        .output();
     let Ok(output) = output else {
         return Vec::new();
     };

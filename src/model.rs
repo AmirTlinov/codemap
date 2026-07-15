@@ -11,6 +11,10 @@ mod boundary;
 mod changed_reports;
 mod cone_reports;
 mod config;
+mod coverage;
+mod coverage_ledger;
+#[cfg(test)]
+mod coverage_tests;
 mod lens_reports;
 mod prelude;
 mod proof_reports;
@@ -21,6 +25,8 @@ pub use boundary::*;
 pub use changed_reports::*;
 pub use cone_reports::*;
 pub use config::*;
+pub use coverage::*;
+pub use coverage_ledger::*;
 pub use lens_reports::*;
 pub use prelude::*;
 pub use proof_reports::*;
@@ -127,59 +133,6 @@ pub struct SymbolInfo {
     pub exported: bool,
     pub line_start: usize,
     pub line_end: usize,
-}
-
-#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum CountStatus {
-    Counted,
-    ProvenZero,
-    Unknown,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct CountFact {
-    pub status: CountStatus,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub value: Option<usize>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reason: Option<String>,
-}
-
-impl CountFact {
-    pub fn counted(value: usize) -> Self {
-        Self {
-            status: CountStatus::Counted,
-            value: Some(value),
-            reason: None,
-        }
-    }
-
-    pub fn proven_zero() -> Self {
-        Self {
-            status: CountStatus::ProvenZero,
-            value: Some(0),
-            reason: None,
-        }
-    }
-
-    pub fn unknown(reason: impl Into<String>) -> Self {
-        Self {
-            status: CountStatus::Unknown,
-            value: None,
-            reason: Some(reason.into()),
-        }
-    }
-
-    pub fn display(&self) -> String {
-        match self.status {
-            CountStatus::Unknown => format!(
-                "unknown ({})",
-                self.reason.as_deref().unwrap_or("unclassified flow")
-            ),
-            _ => self.value.unwrap_or(0).to_string(),
-        }
-    }
 }
 
 #[allow(dead_code)]

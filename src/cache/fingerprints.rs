@@ -134,6 +134,17 @@ fn cached_file_matches(root: &Path, rel: &str, cached: &CachedFileFingerprint) -
         .is_some_and(|hash| current_content_hash(root.join(rel)).as_deref() == Some(hash))
 }
 
+fn cached_file_content_matches(root: &Path, rel: &str, cached: &CachedFileFingerprint) -> bool {
+    let Ok(meta) = fs::metadata(root.join(rel)) else {
+        return false;
+    };
+    meta.len() == cached.size
+        && cached
+            .content_hash
+            .as_deref()
+            .is_some_and(|hash| current_content_hash(root.join(rel)).as_deref() == Some(hash))
+}
+
 fn file_modified_parts(project: &Project, file: &crate::model::FileInfo) -> Option<(u64, u32)> {
     let meta = fs::metadata(file.rel_path(project)).ok()?;
     let (secs, nanos) = file_modified_parts_from_meta(&meta);

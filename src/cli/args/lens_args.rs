@@ -1,7 +1,7 @@
 // Responsibility: cli-lens-args
 use crate::cli::{
     ChangedSection, ConeSection, GraphOutputFormat, LsSection, OutputFormat,
-    default_graph_output_format, default_output_format,
+    default_graph_output_format, default_output_format, positive_usize,
 };
 use clap::Args;
 
@@ -34,7 +34,12 @@ pub(crate) struct ConeArgs {
     pub(crate) section: Option<ConeSection>,
     #[arg(long = "all", alias = "include-hidden")]
     pub(crate) include_hidden: bool,
-    #[arg(long, default_value_t = 20, hide = true)]
+    #[arg(
+        long,
+        default_value_t = 20,
+        value_parser = positive_usize,
+        hide = true
+    )]
     pub(crate) limit: usize,
     #[arg(long, value_enum, default_value_t = default_output_format(), hide = true)]
     pub(crate) format: OutputFormat,

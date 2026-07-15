@@ -59,6 +59,68 @@ pub(crate) fn symbol_proof_edges(
     edges
 }
 
+pub(crate) fn symbol_verification_edges_with_owning_file(
+    project: &Project,
+    file_rel: &str,
+    symbol_name: &str,
+    limit: usize,
+) -> Vec<StructuralEdge> {
+    let mut edges = symbol_proof_edges_with_owning_file(project, file_rel, symbol_name, limit);
+    edges.extend(symbol_test_support_edges(project, file_rel, symbol_name));
+    sort_edges(&mut edges);
+    edges.dedup_by(|a, b| {
+        a.from == b.from && a.to == b.to && a.edge_type == b.edge_type && a.evidence == b.evidence
+    });
+    edges
+}
+
+fn symbol_test_support_edges(
+    project: &Project,
+    file_rel: &str,
+    symbol_name: &str,
+) -> Vec<StructuralEdge> {
+    let Some(anchor) = project.files.get(file_rel) else {
+        return Vec::new();
+    };
+    if matching_symbols(anchor, symbol_name).is_empty() {
+        return Vec::new();
+    }
+    let anchor_path = symbol_anchor_path(file_rel, symbol_name);
+    let mut edges = Vec::new();
+    for file in project
+        .files
+        .values()
+        .filter(|file| file.has_role("test_support"))
+    {
+        let evidence = if file_imported_symbol_reference_kind(project, file, file_rel, symbol_name)
+            .is_some()
+        {
+            Some("test_support_import")
+        } else if same_scope_file_references_symbol(anchor, file, symbol_name) {
+            Some("test_support_symbol_reference")
+        } else {
+            None
+        };
+        if let Some(evidence) = evidence {
+            edges.push(structural_edge_with_locations(
+                file.rel.clone(),
+                anchor_path.clone(),
+                "setup_support_surface",
+                evidence,
+                EvidenceStrength::Medium,
+                first_identifier_reference_location(
+                    project,
+                    &file.rel,
+                    symbol_name,
+                    "test_symbol_reference",
+                ),
+            ));
+        }
+    }
+    sort_edges(&mut edges);
+    edges
+}
+
 pub(crate) fn symbol_proof_edges_with_owning_file(
     project: &Project,
     file_rel: &str,

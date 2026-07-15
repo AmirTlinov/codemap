@@ -217,3 +217,13 @@ pub(crate) fn default_graph_output_format() -> GraphOutputFormat {
         _ => GraphOutputFormat::Markdown,
     }
 }
+
+pub(crate) fn positive_usize(value: &str) -> Result<usize, String> {
+    let parsed = value
+        .parse::<usize>()
+        .map_err(|_| format!("`{value}` is not a positive integer"))?;
+    if parsed == 0 {
+        return Err("value must be at least 1".to_string());
+    }
+    Ok(parsed)
+}

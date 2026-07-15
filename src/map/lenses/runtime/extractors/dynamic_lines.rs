@@ -20,7 +20,42 @@ pub(crate) fn dynamic_require_line(line: &str) -> bool {
         return false;
     };
     code_tail.starts_with('(')
-        && quoted_literal_at(tail.trim_start().trim_start_matches('(')).is_none()
+        && (code_tail.contains('+')
+            || quoted_literal_at(tail.trim_start().trim_start_matches('(')).is_none())
+}
+
+/// Returns the opaque runtime-code construct on this line, if JavaScript can
+/// compile a string/value into executable code that the static consumer scan
+/// cannot inspect. This is deliberately query-independent: any symbol use can
+/// be hidden behind these boundaries.
+pub(crate) fn runtime_generated_code_line(line: &str) -> Option<&'static str> {
+    let code = code_shape_without_literal_content(line);
+    let eval_reference = crate::map::identifier_ranges(&code, "eval")
+        .next()
+        .is_some();
+    let computed_eval_call = crate::map::quoted_literal_contents(line)
+        .iter()
+        .any(|literal| literal == "eval")
+        && code.contains('[')
+        && code.contains(']');
+    if eval_reference || computed_eval_call {
+        return Some("eval_generated_code");
+    }
+    if runtime_call_tail(line, &code, "Function")
+        .is_some_and(|(_, code_tail)| code_tail.starts_with('('))
+    {
+        return Some("function_constructor_generated_code");
+    }
+    ["setTimeout", "setInterval"].into_iter().find_map(|name| {
+        let (tail, code_tail) = runtime_call_tail(line, &code, name)?;
+        if code_tail.starts_with('(')
+            && quoted_literal_at(tail.trim_start().trim_start_matches('(')).is_some()
+        {
+            Some("string_timer_generated_code")
+        } else {
+            None
+        }
+    })
 }
 
 fn named_call_tail<'a>(line: &'a str, code: &'a str, name: &str) -> Option<(&'a str, &'a str)> {
@@ -29,6 +64,23 @@ fn named_call_tail<'a>(line: &'a str, code: &'a str, name: &str) -> Option<(&'a 
         let start = offset + found;
         let end = start + name.len();
         if name_has_call_boundary(code, start, end) {
+            return Some((&line[end..], code[end..].trim_start()));
+        }
+        offset = end;
+    }
+    None
+}
+
+fn runtime_call_tail<'a>(line: &'a str, code: &'a str, name: &str) -> Option<(&'a str, &'a str)> {
+    let mut offset = 0;
+    while let Some(found) = code[offset..].find(name) {
+        let start = offset + found;
+        let end = start + name.len();
+        let before = code[..start].chars().next_back();
+        let after = code[end..].chars().next();
+        let valid_before = before.is_none_or(|ch| !is_identifier_char(ch) && ch != '$');
+        let valid_after = after.is_none_or(|ch| !is_identifier_char(ch) && ch != '$');
+        if valid_before && valid_after {
             return Some((&line[end..], code[end..].trim_start()));
         }
         offset = end;

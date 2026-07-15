@@ -49,6 +49,27 @@ fn symbol_anchor_cone_follows_export_star_barrel_consumers() {
                 && edge["evidence"] == "reexported_symbol_reference"),
         "symbol xref should follow explicit export-star barrels to concrete consumers: {cone:#}"
     );
+    let incoming_horizon = horizon(&cone["observations"], "incoming");
+    assert!(
+        incoming_horizon["count"]["observed"]
+            .as_u64()
+            .expect("observed incoming")
+            >= 1,
+        "resolved consumers must remain an observed lower bound: {cone:#}"
+    );
+    assert_eq!(
+        incoming_horizon["count"]["closure"], "open",
+        "a resolved consumer must not hide the remaining re-export gap: {cone:#}"
+    );
+    assert!(
+        incoming_horizon["count"]["reasons"]
+            .as_array()
+            .expect("reasons")
+            .iter()
+            .any(|reason| reason == "reexport_flow"),
+        "positive lower bound must retain its typed re-export gap: {cone:#}"
+    );
+    assert_horizon_certificate_resolves(&cone["observations"], incoming_horizon);
     assert!(
         cone["proof"]
             .as_array()
@@ -287,4 +308,3 @@ fn symbol_anchor_cone_follows_target_local_export_lists() {
         );
     }
 }
-

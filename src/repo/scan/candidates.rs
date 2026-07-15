@@ -1,10 +1,12 @@
 // Responsibility: repo-scan-candidates
-use crate::repo::{COMMON_IGNORE_DIRS, ScanStatsBuilder, normalize_rel_path, scan_file_rejection};
+use super::file_filters::{
+    scan_file_rejection, scan_rejection_keeps_placeholder, source_symlink_keeps_placeholder,
+};
+use crate::repo::{COMMON_IGNORE_DIRS, ScanStatsBuilder, normalize_rel_path};
 use ignore::WalkBuilder;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
-use std::process::Command;
 use std::sync::{Arc, Mutex};
 
 pub(crate) fn cache_candidate_files(root: &Path) -> Vec<String> {
@@ -27,14 +29,22 @@ pub(crate) fn is_cache_candidate_file(root: &Path, rel: &str) -> bool {
         return false;
     }
     let path = root.join(rel);
-    fs::symlink_metadata(&path)
-        .ok()
-        .filter(|meta| !meta.file_type().is_symlink() && meta.is_file())
-        .is_some_and(|meta| scan_file_rejection(&path, meta.len()).is_none())
+    fs::symlink_metadata(&path).ok().is_some_and(|meta| {
+        if meta.file_type().is_symlink() {
+            return source_symlink_keeps_placeholder(&path);
+        }
+        if !meta.is_file() {
+            return false;
+        }
+        match scan_file_rejection(&path, meta.len()) {
+            None => true,
+            Some(reason) => scan_rejection_keeps_placeholder(&path, reason),
+        }
+    })
 }
 
 fn git_cache_candidate_files(root: &Path) -> Option<Vec<String>> {
-    let output = Command::new("git")
+    let output = crate::repo::read_only_git_command()
         .arg("-C")
         .arg(root)
         .args(["ls-files", "-c", "-o", "--exclude-standard"])
@@ -72,7 +82,7 @@ pub(crate) fn list_candidate_files_with_stats(
 }
 
 fn git_list_files(root: &Path, stats: &mut ScanStatsBuilder) -> Option<Vec<String>> {
-    let output = Command::new("git")
+    let output = crate::repo::read_only_git_command()
         .arg("-C")
         .arg(root)
         .args(["ls-files", "-c", "--exclude-standard"])
@@ -122,7 +132,12 @@ fn walk_files(root: &Path, stats: &mut ScanStatsBuilder) -> Vec<String> {
     let out = builder
         .build()
         .filter_map(Result::ok)
-        .filter(|entry| entry.file_type().map(|ft| ft.is_file()).unwrap_or(false))
+        .filter(|entry| {
+            entry
+                .file_type()
+                .map(|kind| kind.is_file() || kind.is_symlink())
+                .unwrap_or(false)
+        })
         .filter_map(|entry| {
             entry
                 .path()

@@ -8,7 +8,9 @@ use crate::map::{
     unknown_directory_aggregate,
 };
 use crate::model::CountFact;
-use crate::model::{ConeReport, EvidenceStrength, FileSummary, Project, StructuralEdge};
+use crate::model::{
+    ConeReport, EvidenceStrength, FileSummary, ObservationLedger, Project, StructuralEdge,
+};
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 
@@ -105,6 +107,7 @@ pub(crate) fn cone_directory_report(
         proof,
         contracts,
         boundary,
+        observations: ObservationLedger::default(),
         hidden,
         unknowns,
         expand: vec![

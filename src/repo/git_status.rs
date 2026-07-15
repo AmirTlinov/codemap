@@ -2,7 +2,6 @@
 use crate::model::GitChange;
 use crate::repo::{git_root, normalize_rel_path, should_ignore_rel};
 use std::path::Path;
-use std::process::Command;
 
 #[derive(Debug, Clone)]
 pub(crate) struct GitStatusSnapshot {
@@ -13,7 +12,7 @@ pub(crate) struct GitStatusSnapshot {
 }
 
 pub(crate) fn git_status_snapshot(root: &Path) -> Option<GitStatusSnapshot> {
-    let output = Command::new("git")
+    let output = crate::repo::read_only_git_command()
         .arg("-C")
         .arg(root)
         .args([
