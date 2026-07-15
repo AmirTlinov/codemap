@@ -142,7 +142,10 @@ pub(crate) fn explicitly_omitted_fields(body: &str) -> Vec<String> {
         .map(|(_, line)| code_shape_without_literal_content(&line))
         .collect::<Vec<_>>()
         .join("\n");
-    let referenced = dotted_fields(&code);
+    let Some(parameter) = primary_parameter_name(&code) else {
+        return Vec::new();
+    };
+    let referenced = owned_dotted_fields(&code, parameter);
     let returned = returned_object_fields(&code);
     if returned.is_empty() {
         return Vec::new();
@@ -165,10 +168,24 @@ fn identifier_followed_by(code: &str, name: &str, expected: char) -> bool {
         .any(|range| code[range.1..].trim_start().starts_with(expected))
 }
 
-fn dotted_fields(code: &str) -> std::collections::BTreeSet<String> {
+fn primary_parameter_name(code: &str) -> Option<&str> {
+    let start = code.find('(')? + 1;
+    let tail = code[start..].trim_start();
+    let parameter_len = tail
+        .chars()
+        .take_while(|ch| ch.is_ascii_alphanumeric() || *ch == '_' || *ch == '$')
+        .count();
+    (parameter_len > 0).then(|| &tail[..parameter_len])
+}
+
+fn owned_dotted_fields(code: &str, owner: &str) -> std::collections::BTreeSet<String> {
     let mut out = std::collections::BTreeSet::new();
-    for part in code.split('.').skip(1) {
-        let field = part
+    for (_, end) in crate::map::identifier_ranges(code, owner) {
+        let tail = code[end..].trim_start();
+        let Some(tail) = tail.strip_prefix("?.").or_else(|| tail.strip_prefix('.')) else {
+            continue;
+        };
+        let field = tail
             .chars()
             .take_while(|ch| ch.is_ascii_alphanumeric() || *ch == '_')
             .collect::<String>();

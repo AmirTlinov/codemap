@@ -32,9 +32,10 @@ function respond(body: unknown) {
 
 function stripInternal(result: { id: string; title: string; internalToken?: string }) {
   if (!result.internalToken) return result;
+  const title = result.title.trim();
   return {
     id: result.id,
-    title: result.title,
+    title,
   };
 }
 "#,
