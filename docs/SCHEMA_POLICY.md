@@ -302,6 +302,16 @@ the shared group-aware projection engine and keep exact shown/hidden counts and
 concrete expansions. Lens artifact format 33 rejects cached cones written with
 the superseded duplicated X-Ray shape.
 
+## Flagship draft migration: diversified LS relationship budgets
+
+Manifest version 23 advances `ls` from schema 13 to 14. Exact file and symbol
+maps now apply the readable limit independently to imports, consumers, and
+verification, so one populous relation cannot erase another populated group.
+Machine JSON remains complete, while each readable group keeps its own
+certificate-backed exact remainder and concrete expansion. Lens artifact
+format 34 rejects cached LS reports produced with the former shared-prefix
+budget.
+
 Semantic anchor config uses:
 
 ```yaml
