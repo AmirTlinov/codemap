@@ -6,6 +6,7 @@ import ctypes
 import json
 import os
 import platform
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -191,3 +192,17 @@ raise SystemExit(main({arm!r}, {benchmark_command!r}))
     shim.write_text(body, encoding="utf-8")
     shim.chmod(0o755)
     return shim
+
+
+def shell_profile_environment(shim_dir: Path) -> dict[str, str]:
+    """Keep the benchmark shim first even when an agent starts a login shell."""
+    profile_dir = shim_dir.parent / "shell-profile"
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    export = f"export PATH={shlex.quote(str(shim_dir))}:\"$PATH\"\n"
+    for name in (".zshenv", ".zprofile", "bash_env"):
+        (profile_dir / name).write_text(export, encoding="utf-8")
+    return {
+        "ZDOTDIR": str(profile_dir),
+        "BASH_ENV": str(profile_dir / "bash_env"),
+        "ENV": str(profile_dir / "bash_env"),
+    }

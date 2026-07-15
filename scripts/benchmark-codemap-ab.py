@@ -31,7 +31,7 @@ from typing import Any
 from benchmark_parallel import run_ordered
 from codemap_identity import CodemapIdentityError, benchmark_binary_identity, command_artifacts, resolve_codemap_command
 from codemap_protocol import codemap_protocol
-from codemap_protocol_shim import write_shim
+from codemap_protocol_shim import shell_profile_environment, write_shim
 
 
 ARM_CONTROL = "control"
@@ -587,6 +587,7 @@ def run_trial(
         stderr_path = artifact_dir / "codex.stderr.log"
         env = os.environ.copy()
         env["PATH"] = str(shim_dir) + os.pathsep + env.get("PATH", "")
+        env.update(shell_profile_environment(shim_dir))
         env["CODEMAP_CACHE_DIR"] = str(cache_dir)
         env["CODEMAP_AB_ARM"] = arm
         env["CODEMAP_AB_INVOCATION_LOG"] = str(invocation_log)

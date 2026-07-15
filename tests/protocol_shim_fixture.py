@@ -15,7 +15,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from codemap_protocol import codemap_protocol  # noqa: E402
-from codemap_protocol_shim import is_agent_direct, write_shim  # noqa: E402
+from codemap_protocol_shim import (  # noqa: E402
+    is_agent_direct,
+    shell_profile_environment,
+    write_shim,
+)
 
 
 def executable(path: Path, body: str) -> Path:
@@ -41,6 +45,17 @@ def main() -> int:
         }
 
         control = write_shim(root / "control", "control", [str(benchmark)])
+        shell_env = {**env, **shell_profile_environment(control.parent)}
+        shell_env["PATH"] = str(control.parent) + os.pathsep + shell_env["PATH"]
+        for shell in ("zsh", "bash"):
+            resolved = subprocess.run(
+                [shell, "-lc", "command -v codemap"],
+                env=shell_env,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            assert Path(resolved.stdout.strip()).resolve() == control.resolve()
         assert is_agent_direct(["/bin/zsh", "/opt/codex-code-mode-host"])
         assert is_agent_direct(["/opt/codex"])
         assert not is_agent_direct(["/tmp/debug/deps/project-tests", "/bin/zsh", "/opt/codex"])
