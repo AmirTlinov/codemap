@@ -3,6 +3,7 @@ mod fail_open_unknowns;
 mod path_helpers;
 mod receipt_events;
 mod report_sections;
+mod session_scope;
 mod structural_events;
 mod truth;
 mod truth_paths;
@@ -11,13 +12,14 @@ pub(crate) use fail_open_unknowns::*;
 pub(crate) use path_helpers::*;
 pub(crate) use receipt_events::*;
 pub(crate) use report_sections::*;
+pub(crate) use session_scope::*;
 pub(crate) use structural_events::*;
 pub(crate) use truth::*;
 pub(crate) use truth_paths::*;
 
 use crate::map::{
-    DiffMapMode, boundary_facts_for_changed, diff_map_report, impact_report, proof_map_report,
-    proof_report, truncate_with_hidden,
+    boundary_facts_for_changed, diff_map_report, impact_report, proof_map_report, proof_report,
+    truncate_with_hidden,
 };
 use crate::model::{
     ChangedMapDelta, ChangedProofCommand, ChangedProofSummary, ChangedReport, GitChange,
@@ -31,11 +33,15 @@ pub fn changed_report(
     project: &Project,
     changed: Vec<String>,
     selector: String,
-    mode: DiffMapMode,
+    context: crate::map::ChangedDiffContext,
     git_state: Vec<GitChange>,
     limit: usize,
     proof_cache_limit: usize,
 ) -> ChangedReport {
+    let crate::map::ChangedDiffContext {
+        mode,
+        mut selection,
+    } = context;
     let limit = limit.max(1);
     let total_changed_count = changed
         .iter()
@@ -43,6 +49,8 @@ pub fn changed_report(
         .filter(|file| file != ".")
         .collect::<BTreeSet<_>>()
         .len();
+    selection.selected_files = total_changed_count;
+    let session_snapshot = current_session_snapshot(project);
     let changed_paths = changed
         .iter()
         .map(|file| repo::normalize_rel_path(file))
@@ -60,6 +68,8 @@ pub fn changed_report(
             kind: "changed_report",
             schema_version: crate::model::ChangedReport::SCHEMA_VERSION,
             selector: selector.clone(),
+            session_snapshot,
+            selection,
             display_limit: limit,
             proof_plan_cache: None,
             proof_map_cache: None,
@@ -161,6 +171,8 @@ pub fn changed_report(
         kind: "changed_report",
         schema_version: crate::model::ChangedReport::SCHEMA_VERSION,
         selector: selector.clone(),
+        session_snapshot,
+        selection,
         display_limit: limit,
         proof_plan_cache,
         proof_map_cache,

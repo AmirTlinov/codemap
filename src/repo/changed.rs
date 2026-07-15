@@ -104,6 +104,7 @@ fn visible_or_degraded_change(change: GitChange) -> Option<GitChange> {
             status: "deleted".to_string(),
             staged: change.staged,
             unstaged: change.unstaged,
+            provenance: change.provenance,
         });
     }
     None
@@ -125,6 +126,7 @@ fn name_status_line(line: &str) -> Option<GitChange> {
         status: name_status_kind(&status).to_string(),
         staged: true,
         unstaged: false,
+        provenance: "git_diff_name_status".to_string(),
     })
 }
 

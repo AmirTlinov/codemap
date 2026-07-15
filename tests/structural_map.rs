@@ -108,6 +108,7 @@ include!("structural_map/coverage_consumer_boundaries.rs");
 include!("structural_map/coverage_verification_gaps.rs");
 include!("structural_map/readable_projection_truth.rs");
 include!("structural_map/snapshot_delta.rs");
+include!("structural_map/snapshot_identity.rs");
 include!("structural_map/prelude_overlay.rs");
 include!("structural_map/build_identity.rs");
 include!("structural_map/boundary_facts.rs");

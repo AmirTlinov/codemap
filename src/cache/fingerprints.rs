@@ -72,24 +72,56 @@ fn file_delta_from_cached(
 // reusing the same per-file delta core. Returns None (fail-open) if the snapshot
 // is missing, malformed, or from a different version/root (cleared cache or other
 // machine).
+pub struct SnapshotDelta {
+    pub files: CacheFileDelta,
+    pub metadata: super::snapshots::SnapshotMetadata,
+    pub base_texts: BTreeMap<String, String>,
+    pub base_files: BTreeMap<String, CachedFileFingerprint>,
+    pub content_complete: bool,
+}
+
 pub fn snapshot_delta(
     root: &Path,
     cache_dir: &Path,
     version: &str,
     token: &str,
     current_files: &[String],
-) -> Option<CacheFileDelta> {
-    let text = fs::read_to_string(super::snapshots::snapshot_path(cache_dir, token)).ok()?;
-    let cached: CachedFingerprints = serde_json::from_str(&text).ok()?;
-    if cached.format_version != FINGERPRINT_CACHE_FORMAT {
-        return None;
-    }
+) -> Option<SnapshotDelta> {
+    let snapshot = super::snapshots::load(cache_dir, token)?;
+    let cached = snapshot.fingerprints;
     if cached.version != version || cached.root != root.to_string_lossy() {
         return None;
     }
-    let delta = file_delta_from_cached(root, &cached, current_files);
+    let files = file_delta_from_cached(root, &cached, current_files);
+    let changed_paths = files
+        .changed_or_added
+        .iter()
+        .chain(files.removed.iter())
+        .collect::<BTreeSet<_>>();
+    let base_files = cached
+        .files
+        .iter()
+        .filter(|file| changed_paths.contains(&file.path))
+        .map(|file| (file.path.clone(), file.clone()))
+        .collect::<BTreeMap<_, _>>();
+    let mut content_complete = true;
+    let base_texts = base_files
+        .values()
+        .filter_map(|file| {
+            let hash = file.content_hash.as_deref()?;
+            let text = super::snapshots::content(cache_dir, hash);
+            content_complete &= text.is_some();
+            text.map(|text| (file.path.clone(), text))
+        })
+        .collect();
     super::snapshots::touch(cache_dir, token);
-    Some(delta)
+    Some(SnapshotDelta {
+        files,
+        metadata: snapshot.metadata,
+        base_texts,
+        base_files,
+        content_complete,
+    })
 }
 
 pub fn cached_git_head(root: &Path, cache_dir: &Path, version: &str) -> Option<String> {
@@ -246,6 +278,7 @@ mod tests {
         let (modified_secs, modified_nanos) = file_modified_parts_from_meta(&meta);
         let readable_cache = CachedFileFingerprint {
             path: rel.to_string(),
+            node_kind: "file".to_string(),
             git_tracked: true,
             size: meta.len(),
             indexed_boundary: None,

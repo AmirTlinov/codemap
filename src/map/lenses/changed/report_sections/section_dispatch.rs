@@ -1,11 +1,11 @@
 // Responsibility: changed-section-dispatch
 use crate::map::{
-    DiffMapMode, boundary_facts_for_changed, changed_coupling, changed_diff_structural_events,
+    boundary_facts_for_changed, changed_coupling, changed_diff_structural_events,
     changed_fail_open_unknowns, changed_map_delta_from_diff, changed_proof_summary,
     changed_report_shell, changed_risks, changed_section_paths, changed_self_selector_suffix,
-    changed_structural_events, dedupe_unknowns, diff_map_report, empty_proof_map_report,
-    file_summary, impact_report, missing_file_summary, prefix_hidden, proof_map_report,
-    sort_changed_structural_events, truncate_with_hidden,
+    changed_structural_events, current_session_snapshot, dedupe_unknowns, diff_map_report,
+    empty_proof_map_report, file_summary, impact_report, missing_file_summary, prefix_hidden,
+    proof_map_report, sort_changed_structural_events, truncate_with_hidden,
 };
 use crate::model::{ChangedReport, FileSummary, GitChange, HiddenGroup, Project};
 use crate::repo;
@@ -15,11 +15,15 @@ pub fn changed_report_for_section(
     project: &Project,
     changed: Vec<String>,
     selector: String,
-    mode: DiffMapMode,
+    context: crate::map::ChangedDiffContext,
     git_state: Vec<GitChange>,
     limit: usize,
     section: &str,
 ) -> ChangedReport {
+    let crate::map::ChangedDiffContext {
+        mode,
+        mut selection,
+    } = context;
     let limit = limit.max(1);
     let total_changed_count = changed
         .iter()
@@ -27,13 +31,21 @@ pub fn changed_report_for_section(
         .filter(|file| file != ".")
         .collect::<BTreeSet<_>>()
         .len();
+    selection.selected_files = total_changed_count;
     let changed_paths = changed
         .iter()
         .map(|file| repo::normalize_rel_path(file))
         .filter(|file| file != ".")
         .collect::<Vec<_>>();
     let section_paths = changed_section_paths(project, &changed_paths, limit);
-    let mut report = changed_report_shell(&selector, limit, total_changed_count, git_state.clone());
+    let mut report = changed_report_shell(
+        &selector,
+        limit,
+        total_changed_count,
+        git_state.clone(),
+        current_session_snapshot(project),
+        selection,
+    );
     report.changed = changed_file_summaries(
         project,
         &changed_paths,

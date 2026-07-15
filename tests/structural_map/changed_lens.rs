@@ -9,7 +9,7 @@ fn changed_combines_delta_impact_and_proof_without_running_commands() {
     let changed = run_json(repo.path(), cache.path(), &["changed", "--format", "json"]);
     assert_schema("schemas/changed.schema.json", &changed);
     assert_eq!(changed["kind"], "changed_report");
-    assert_eq!(changed["schema_version"], "10");
+    assert_eq!(changed["schema_version"], "11");
     assert!(
         changed["changed"]
             .as_array()

@@ -63,6 +63,7 @@ pub(crate) fn git_status_snapshot(root: &Path) -> Option<GitStatusSnapshot> {
                     status: "deleted".to_string(),
                     staged: change.staged,
                     unstaged: change.unstaged,
+                    provenance: "git_status".to_string(),
                 });
             }
             continue;
@@ -124,6 +125,7 @@ where
             status: "untracked".to_string(),
             staged: false,
             unstaged: true,
+            provenance: "git_status".to_string(),
         });
     }
     if record.starts_with("! ") {
@@ -137,6 +139,7 @@ where
             status: porcelain_status_pair(xy).to_string(),
             staged: status_index(xy) != '.',
             unstaged: status_worktree(xy) != '.',
+            provenance: "git_status".to_string(),
         });
     }
     if let Some(rest) = record.strip_prefix("2 ") {
@@ -150,6 +153,7 @@ where
             status: porcelain_status_pair(xy).to_string(),
             staged: status_index(xy) != '.',
             unstaged: status_worktree(xy) != '.',
+            provenance: "git_status".to_string(),
         });
     }
     if let Some(rest) = record.strip_prefix("u ") {
@@ -160,6 +164,7 @@ where
             status: "conflicted".to_string(),
             staged: true,
             unstaged: true,
+            provenance: "git_status_conflict".to_string(),
         });
     }
     None

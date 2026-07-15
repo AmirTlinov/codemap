@@ -4,9 +4,10 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::model::{
-    BoundaryFacts, ChangedCouplingFact, ChangedMapDelta, ChangedProofSummary, ChangedReport,
-    ChangedRisk, ChangedStructuralEvent, FileSummary, GitChange, HiddenGroup, ImpactCluster,
-    ProofCoverageSummary, ProofReport, ProofSurface, ProofWiringFact, Unknown,
+    BoundaryFacts, ChangeSelection, ChangedCouplingFact, ChangedMapDelta, ChangedProofSummary,
+    ChangedReport, ChangedRisk, ChangedStructuralEvent, FileSummary, GitChange, HiddenGroup,
+    ImpactCluster, ProofCoverageSummary, ProofReport, ProofSurface, ProofWiringFact,
+    SessionSnapshot, Unknown,
 };
 
 use super::{
@@ -151,6 +152,8 @@ struct CachedChangedReport {
     kind: String,
     schema_version: String,
     selector: String,
+    session_snapshot: SessionSnapshot,
+    selection: ChangeSelection,
     total_changed_count: usize,
     changed: Vec<FileSummary>,
     git_state: Vec<GitChange>,
@@ -173,6 +176,8 @@ impl CachedChangedReport {
             kind: report.kind.to_string(),
             schema_version: report.schema_version.to_string(),
             selector: report.selector.clone(),
+            session_snapshot: report.session_snapshot.clone(),
+            selection: report.selection.clone(),
             total_changed_count: report.total_changed_count,
             changed: report.changed.clone(),
             git_state: report.git_state.clone(),
@@ -194,6 +199,8 @@ impl CachedChangedReport {
             kind: "changed_report",
             schema_version: ChangedReport::SCHEMA_VERSION,
             selector: self.selector,
+            session_snapshot: self.session_snapshot,
+            selection: self.selection,
             display_limit: limit,
             proof_plan_cache: None,
             proof_map_cache: None,

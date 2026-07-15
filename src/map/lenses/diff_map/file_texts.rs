@@ -50,7 +50,7 @@ pub(crate) fn diff_current_file_texts(
 ) -> BTreeMap<String, String> {
     match mode {
         DiffMapMode::Staged => git_show_files(project, ":", rels),
-        DiffMapMode::WorkingTree | DiffMapMode::Since(_) => rels
+        DiffMapMode::WorkingTree | DiffMapMode::Since(_) | DiffMapMode::Snapshot(_) => rels
             .iter()
             .filter_map(|rel| diff_worktree_blob_text(project, rel).map(|text| (rel.clone(), text)))
             .collect(),
@@ -84,9 +84,21 @@ pub(crate) fn diff_base_file_texts(
     rels: &[String],
     mode: &DiffMapMode,
 ) -> BTreeMap<String, String> {
+    if let DiffMapMode::Snapshot(snapshot) = mode {
+        return rels
+            .iter()
+            .filter_map(|rel| {
+                snapshot
+                    .texts
+                    .get(rel)
+                    .map(|text| (rel.clone(), text.clone()))
+            })
+            .collect();
+    }
     let revision = match mode {
         DiffMapMode::WorkingTree | DiffMapMode::Staged => "HEAD",
         DiffMapMode::Since(base) => base.as_str(),
+        DiffMapMode::Snapshot(_) => unreachable!("snapshot returned above"),
     };
     git_show_files(project, revision, rels)
 }

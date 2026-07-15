@@ -1,16 +1,23 @@
 // Responsibility: cli-proof-selector-inputs
 use crate::cli::{
-    ProofArgs, ProofMapArgs, parse_files, project_relative_arg, proof_since_inputs,
-    shell_quote_arg, since_delta_or_git_ref,
+    ProofArgs, ProofMapArgs, SinceKind, classify_since, parse_files, project_relative_arg,
+    proof_since_inputs, shell_quote_arg, snapshot_not_found_unknown,
 };
 use crate::repo;
 use anyhow::Result;
 use anyhow::bail;
 
+pub(crate) type ProofMapInputs = (
+    Option<String>,
+    Vec<String>,
+    String,
+    Option<crate::model::Unknown>,
+);
+
 pub(crate) fn proof_map_inputs(
     project: &crate::model::Project,
     args: &ProofMapArgs,
-) -> Result<(Option<String>, Vec<String>, String)> {
+) -> Result<ProofMapInputs> {
     let explicit_files = args
         .files
         .as_deref()
@@ -34,13 +41,14 @@ pub(crate) fn proof_map_inputs(
     if let Some(target) = args.target.as_deref() {
         let target = project_relative_arg(project, target)?;
         let selector = shell_quote_arg(&target);
-        return Ok((Some(target), Vec::new(), selector));
+        return Ok((Some(target), Vec::new(), selector, None));
     }
     if args.changed {
         return Ok((
             None,
             repo::changed_files(&project.root, false, None),
             "--changed".to_string(),
+            None,
         ));
     }
     if args.staged {
@@ -48,14 +56,29 @@ pub(crate) fn proof_map_inputs(
             None,
             repo::changed_files(&project.root, true, None),
             "--staged".to_string(),
+            None,
         ));
     }
     if let Some(since) = &args.since {
-        return Ok((
-            None,
-            since_delta_or_git_ref(project, since),
-            format!("--since {}", shell_quote_arg(since)),
-        ));
+        return Ok(match classify_since(project, since) {
+            SinceKind::Snapshot { changed, .. } => (
+                None,
+                changed,
+                format!("--since {}", shell_quote_arg(since)),
+                None,
+            ),
+            SinceKind::GitRef => (
+                None,
+                repo::changed_files(&project.root, false, Some(since)),
+                format!("--since {}", shell_quote_arg(since)),
+                None,
+            ),
+            SinceKind::FailOpen => {
+                let changed = repo::changed_files(&project.root, false, None);
+                let notice = snapshot_not_found_unknown(since, changed.len());
+                (None, changed, "--changed".to_string(), Some(notice))
+            }
+        });
     }
     let files = parse_files(project, args.files.as_deref(), &[])?;
     if files.is_empty() {
@@ -63,6 +86,7 @@ pub(crate) fn proof_map_inputs(
             None,
             repo::changed_files(&project.root, false, None),
             "--changed".to_string(),
+            None,
         ));
     }
     let files_arg = files
@@ -70,7 +94,7 @@ pub(crate) fn proof_map_inputs(
         .map(|file| shell_quote_arg(file))
         .collect::<Vec<_>>()
         .join(",");
-    Ok((None, files, format!("--files {files_arg}")))
+    Ok((None, files, format!("--files {files_arg}"), None))
 }
 
 pub(crate) type ProofInputs = (

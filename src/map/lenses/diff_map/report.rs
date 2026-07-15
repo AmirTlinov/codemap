@@ -45,6 +45,11 @@ pub fn diff_map_report(
     } else {
         selector
     };
+    if let DiffMapMode::Snapshot(snapshot) = &mode
+        && !snapshot.content_complete
+    {
+        new_unknowns.push(crate::cli::snapshot_content_unknown(&snapshot.token));
+    }
     let diff_expand = format!("codemap diff-map {selector} --limit <larger-number>");
     let deltas = git_unified_zero_deltas(project, &changed, &mode);
     let text_scan_paths = changed

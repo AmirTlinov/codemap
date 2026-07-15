@@ -176,18 +176,19 @@ pub fn run() -> Result<()> {
             output(format, &report, || render::where_locator(&report))
         }
         CommandKind::Init(args) => init(&project, args),
-        CommandKind::Bootstrap(_) => Ok(()),
-        CommandKind::Schema(_) => Ok(()),
+        CommandKind::Bootstrap(_) | CommandKind::Schema(_) => Ok(()),
         CommandKind::Impact(args) => {
             ensure_valid_config(&project)?;
-            let (changed, selector) = impact_inputs(&project, &args)?;
-            let report = map::impact_report(&project, changed, selector, args.depth, args.limit);
+            let (changed, selector, notice) = impact_inputs(&project, &args)?;
+            let mut report =
+                map::impact_report(&project, changed, selector, args.depth, args.limit);
+            report.unknowns.extend(notice);
             output(args.format, &report, || render::impact(&report))
         }
         CommandKind::Changed(args) => {
             ensure_valid_config(&project)?;
             accept_depth_compat(args.depth, "changed")?;
-            let (changed, selector, mode, git_state, since_notice) =
+            let (changed, selector, context, git_state, since_notice) =
                 changed_inputs(&project, &args)?;
             let limit = if args.include_hidden {
                 usize::MAX / 2
@@ -200,14 +201,14 @@ pub fn run() -> Result<()> {
                 section.filter(|section| !args.include_hidden && *section != "hidden");
             let mut report = if let Some(section) = section_report {
                 map::changed_report_for_section(
-                    &project, changed, selector, mode, git_state, limit, section,
+                    &project, changed, selector, context, git_state, limit, section,
                 )
             } else {
                 map::changed_report(
                     &project,
                     changed,
                     selector,
-                    mode,
+                    context,
                     git_state,
                     limit,
                     DEFAULT_PROOF_LIMIT,
@@ -218,11 +219,7 @@ pub fn run() -> Result<()> {
             }
             maybe_write_proof_changed_lens_cache_from_changed(&project, &args, &report);
             maybe_write_proof_map_lens_cache_from_changed(&project, &args, limit, &report);
-            // Inject the fail-open snapshot notice after cache writes so it never
-            // pollutes the cached report.
-            if let Some(notice) = since_notice {
-                report.unknowns.push(notice);
-            }
+            report.unknowns.extend(since_notice);
             let prelude = repo::map_prelude(&project.root);
             output_with_prelude(format, &report, &prelude, || {
                 render::changed(&report, section)
@@ -230,8 +227,9 @@ pub fn run() -> Result<()> {
         }
         CommandKind::DiffMap(args) => {
             ensure_valid_config(&project)?;
-            let (changed, selector, mode) = diff_map_inputs(&project, &args)?;
-            let report = map::diff_map_report(&project, changed, selector, args.limit, mode);
+            let (changed, selector, mode, notice) = diff_map_inputs(&project, &args)?;
+            let mut report = map::diff_map_report(&project, changed, selector, args.limit, mode);
+            report.new_unknowns.extend(notice);
             output(args.format, &report, || render::diff_map(&report))
         }
         CommandKind::Contract(args) => {
@@ -244,8 +242,8 @@ pub fn run() -> Result<()> {
         CommandKind::Proof(args) => proof(&project, args),
         CommandKind::ProofMap(args) => {
             ensure_valid_config(&project)?;
-            let (target, changed, proof_selector) = proof_map_inputs(&project, &args)?;
-            let report = map::proof_map_report(
+            let (target, changed, proof_selector, notice) = proof_map_inputs(&project, &args)?;
+            let mut report = map::proof_map_report(
                 &project,
                 target.clone(),
                 changed,
@@ -253,6 +251,7 @@ pub fn run() -> Result<()> {
                 args.limit,
                 args.raw_sensors,
             );
+            report.unknowns.extend(notice);
             maybe_write_proof_map_lens_cache(
                 &project,
                 target.as_deref(),

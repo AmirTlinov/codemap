@@ -1,7 +1,10 @@
 // Responsibility: diff-map-lens-git
+mod line_delta;
+
 use crate::map::{DiffMapMode, diff_worktree_blob_text};
 use crate::model::Project;
 use crate::repo;
+use line_delta::text_line_delta;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 
@@ -16,6 +19,16 @@ pub(crate) fn git_unified_zero_deltas(
     rels: &[String],
     mode: &DiffMapMode,
 ) -> BTreeMap<String, LineDelta> {
+    if let DiffMapMode::Snapshot(snapshot) = mode {
+        return rels
+            .iter()
+            .map(|rel| {
+                let base = snapshot.texts.get(rel).map(String::as_str);
+                let current = diff_worktree_blob_text(project, rel);
+                (rel.clone(), text_line_delta(base, current.as_deref()))
+            })
+            .collect();
+    }
     let mut deltas = BTreeMap::new();
     let mut tracked = Vec::new();
     let untracked = if matches!(mode, DiffMapMode::WorkingTree) {
@@ -45,6 +58,7 @@ pub(crate) fn git_unified_zero_deltas(
         DiffMapMode::Since(base) => {
             command.arg(base);
         }
+        DiffMapMode::Snapshot(_) => unreachable!("snapshot returned above"),
     }
     let Ok(output) = command.args(["--unified=0", "--"]).args(&tracked).output() else {
         return deltas;
@@ -116,6 +130,7 @@ fn git_unified_zero_delta(project: &Project, rel: &str, mode: &DiffMapMode) -> L
         DiffMapMode::Since(base) => {
             command.arg(base);
         }
+        DiffMapMode::Snapshot(_) => unreachable!("snapshot handled by batch path"),
     }
     let Ok(output) = command.args(["--unified=0", "--"]).arg(rel).output() else {
         return LineDelta::default();

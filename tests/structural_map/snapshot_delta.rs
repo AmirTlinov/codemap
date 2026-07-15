@@ -31,6 +31,10 @@ fn changed_markdown(repo: &std::path::Path, cache: &std::path::Path, args: &[&st
     String::from_utf8(output.stdout).expect("utf8 stdout")
 }
 
+fn snapshot_json(repo: &std::path::Path, cache: &std::path::Path, args: &[&str]) -> Value {
+    run_json(repo, cache, args)
+}
+
 #[test]
 fn snapshot_token_appears_in_changed_output() {
     let (repo, cache) = fixture();
@@ -116,9 +120,20 @@ fn snapshot_not_found_is_fail_open() {
     let markdown = String::from_utf8(output.stdout).expect("utf8");
     assert!(
         markdown.contains("snapshot_not_found")
-            && markdown.contains("showing full git worktree changed set"),
+            && markdown.contains("showing full git worktree changed set (1 files)"),
         "missing snapshot should emit a typed fail-open unknown: {markdown}"
     );
+    for lens in ["impact", "diff-map", "proof-map"] {
+        let output = changed_markdown(
+            repo.path(),
+            cache.path(),
+            &[lens, "--since", "deadbeefdeadbeef"],
+        );
+        assert!(
+            output.contains("snapshot_not_found") && output.contains("(1 files)"),
+            "{lens} must report the full fallback scale: {output}"
+        );
+    }
 }
 
 #[test]
@@ -244,4 +259,74 @@ fn impact_and_proof_map_since_snapshot_scope_to_delta() {
             "`{lens:?}` --since should scope to the snapshot delta (imp-b, not imp-a): {out}"
         );
     }
+}
+
+#[test]
+fn snapshot_delta_is_phase_local_and_keeps_downstream_context() {
+    let (repo, cache) = fixture();
+    let producer = repo.path().join("packages/replay/src/session-producer.ts");
+    write(&producer, "export const beforeSession = 1;\n");
+    write(
+        &repo.path().join("packages/replay/src/session-consumer.ts"),
+        "import { beforeSession } from './session-producer';\nexport const consumed = beforeSession;\n",
+    );
+    for index in 0..100 {
+        write(
+            &repo
+                .path()
+                .join(format!("packages/replay/src/pre-session-{index:03}.ts")),
+            &format!("export const preSession{index} = {index};\n"),
+        );
+    }
+    let first = snapshot_json(repo.path(), cache.path(), &["changed", "--format", "json"]);
+    assert!(first["total_changed_count"].as_u64().unwrap_or(0) >= 102);
+    let token = first["session_snapshot"]["token"]
+        .as_str()
+        .expect("session token")
+        .to_string();
+    assert_eq!(first["session_snapshot"]["freshness"], "exact");
+    assert_eq!(first["session_snapshot"]["storage"], "external_cache");
+    assert!(first["session_snapshot"]["created_unix_seconds"].is_u64());
+
+    write(
+        &producer,
+        "export const beforeSession = 1;\nexport const afterSession = 2;\n",
+    );
+    write(
+        &repo.path().join("packages/replay/src/session-runtime.ts"),
+        "export const sessionUrl = process.env.SESSION_URL;\n",
+    );
+    write(
+        &repo.path().join("packages/replay/src/session-proof.spec.ts"),
+        "import { afterSession } from './session-producer';\ntest('session delta', () => expect(afterSession).toBe(2));\n",
+    );
+    let delta = snapshot_json(
+        repo.path(),
+        cache.path(),
+        &["changed", "--since", &token, "--format", "json"],
+    );
+    assert_eq!(delta["selection"]["kind"], "snapshot");
+    assert_eq!(delta["selection"]["resolved"], true);
+    assert_eq!(delta["selection"]["selected_files"], 3);
+    assert_eq!(delta["total_changed_count"], 3);
+    assert_eq!(delta["map_delta"]["added_exports"], 2);
+    let changed = delta["changed"].as_array().expect("changed files");
+    assert_eq!(changed.len(), 3);
+    assert!(changed.iter().any(|file| file["path"] == "packages/replay/src/session-producer.ts"));
+    let impact = delta["impact"].as_array().expect("impact clusters");
+    assert!(
+        impact.iter().any(|cluster| cluster["direct_consumers"]
+            .as_array()
+            .is_some_and(|edges| edges.iter().any(|edge| edge["from"] == "packages/replay/src/session-consumer.ts"))),
+        "the unchanged downstream consumer must remain visible as context: {delta:#}"
+    );
+
+    let proof = snapshot_json(
+        repo.path(),
+        cache.path(),
+        &["proof", "changed", "--since", &token, "--format", "json"],
+    );
+    let proof_changed = proof["changed"].as_array().expect("proof changed");
+    assert_eq!(proof_changed.len(), 3);
+    assert!(proof_changed.iter().any(|path| path == "packages/replay/src/session-producer.ts"));
 }

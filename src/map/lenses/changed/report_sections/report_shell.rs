@@ -4,11 +4,18 @@ use crate::model::{
     BoundaryFacts, ChangedMapDelta, ChangedProofSummary, ChangedReport, GitChange, ProofMapReport,
 };
 
-pub fn clean_changed_report(selector: String, limit: usize) -> ChangedReport {
+pub fn clean_changed_report(
+    selector: String,
+    limit: usize,
+    session_snapshot: crate::model::SessionSnapshot,
+    selection: crate::model::ChangeSelection,
+) -> ChangedReport {
     ChangedReport {
         kind: "changed_report",
         schema_version: crate::model::ChangedReport::SCHEMA_VERSION,
         selector: selector.clone(),
+        session_snapshot,
+        selection,
         display_limit: limit.max(1),
         proof_plan_cache: None,
         proof_map_cache: None,
@@ -56,11 +63,15 @@ pub(crate) fn changed_report_shell(
     limit: usize,
     total_changed_count: usize,
     git_state: Vec<GitChange>,
+    session_snapshot: crate::model::SessionSnapshot,
+    selection: crate::model::ChangeSelection,
 ) -> ChangedReport {
     ChangedReport {
         kind: "changed_report",
         schema_version: crate::model::ChangedReport::SCHEMA_VERSION,
         selector: selector.to_string(),
+        session_snapshot,
+        selection,
         display_limit: limit,
         proof_plan_cache: None,
         proof_map_cache: None,

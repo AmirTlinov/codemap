@@ -61,6 +61,8 @@ pub struct ChangedReport {
     pub kind: &'static str,
     pub schema_version: &'static str,
     pub selector: String,
+    pub session_snapshot: SessionSnapshot,
+    pub selection: ChangeSelection,
     #[serde(skip)]
     pub display_limit: usize,
     #[serde(skip)]
@@ -83,7 +85,29 @@ pub struct ChangedReport {
 }
 
 impl ChangedReport {
-    pub const SCHEMA_VERSION: &'static str = "10";
+    pub const SCHEMA_VERSION: &'static str = "11";
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct SessionSnapshot {
+    pub token: String,
+    pub created_unix_seconds: Option<u64>,
+    pub file_count: usize,
+    pub content_files: usize,
+    pub storage: String,
+    pub freshness: String,
+    pub reuse: String,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct ChangeSelection {
+    pub kind: String,
+    pub requested: Option<String>,
+    pub resolved: bool,
+    pub selected_files: usize,
+    pub fallback_files: usize,
+    pub content_complete: bool,
+    pub baseline_snapshot: Option<SessionSnapshot>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -93,6 +117,12 @@ pub struct GitChange {
     pub status: String,
     pub staged: bool,
     pub unstaged: bool,
+    #[serde(default = "default_git_change_provenance")]
+    pub provenance: String,
+}
+
+fn default_git_change_provenance() -> String {
+    "git_status".to_string()
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

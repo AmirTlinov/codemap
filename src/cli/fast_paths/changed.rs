@@ -38,7 +38,35 @@ pub(crate) fn try_clean_changed_fast_path(
         return Ok(None);
     }
     let limit = changed_limit(args);
-    let report = map::clean_changed_report(selector, limit);
+    let remote = repo::git_remote(&root);
+    let cache_dir = crate::cache::project_cache_dir(&root, remote.as_deref(), repo::VERSION);
+    if !repo::git_status_cache_delta(&root, &cache_dir, repo::VERSION)
+        .is_some_and(|delta| delta.is_exact_hit())
+    {
+        return Ok(None);
+    }
+    let Some(token) = crate::cache::cached_status_fingerprint(&cache_dir) else {
+        return Ok(None);
+    };
+    let Some(metadata) = crate::cache::snapshot_metadata(&cache_dir, &token) else {
+        // A cheap clean report may only advertise a baseline that actually exists.
+        // Fall through to the full project path so it can persist one first.
+        return Ok(None);
+    };
+    let report = map::clean_changed_report(
+        selector,
+        limit,
+        map::session_snapshot_from_metadata(metadata),
+        crate::model::ChangeSelection {
+            kind: "worktree".to_string(),
+            requested: None,
+            resolved: true,
+            selected_files: 0,
+            fallback_files: 0,
+            content_complete: true,
+            baseline_snapshot: None,
+        },
+    );
     set_inventory_map_snapshot(&root);
     let prelude = repo::map_prelude(&root);
     output_with_prelude(

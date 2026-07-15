@@ -16,8 +16,9 @@ pub use artifact_status::{
 pub use cached_project::read_cached_project;
 pub(crate) use fingerprints::format_version as fingerprint_format_version;
 pub use fingerprints::{
-    cached_git_head, cached_git_head_matches, file_delta, file_delta_by_rechecking_cached_files,
-    file_delta_for_head_change, file_delta_for_known_changes, snapshot_delta,
+    SnapshotDelta, cached_git_head, cached_git_head_matches, file_delta,
+    file_delta_by_rechecking_cached_files, file_delta_for_head_change,
+    file_delta_for_known_changes, snapshot_delta,
 };
 pub(crate) use identity::hex_prefix;
 pub use identity::{
@@ -34,6 +35,6 @@ pub use lens_artifacts::{
     write_proof_map_report, write_siblings_report,
 };
 pub use runtime_root::read_runtime_root_report;
-pub use snapshots::looks_like_snapshot_token;
+pub use snapshots::{SnapshotMetadata, looks_like_snapshot_token, metadata as snapshot_metadata};
 pub(crate) use status_artifacts::CachedDomain;
 pub use status_artifacts::write_status_with_change_sets;

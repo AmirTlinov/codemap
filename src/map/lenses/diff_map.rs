@@ -17,8 +17,21 @@ pub(crate) use surface_dedupe::*;
 pub(crate) use symbols::*;
 pub(crate) use unknowns::*;
 
+#[derive(Clone)]
+pub struct SnapshotDiffBase {
+    pub token: String,
+    pub texts: std::collections::BTreeMap<String, String>,
+    pub content_complete: bool,
+}
+
 pub enum DiffMapMode {
     WorkingTree,
     Staged,
     Since(String),
+    Snapshot(SnapshotDiffBase),
+}
+
+pub struct ChangedDiffContext {
+    pub mode: DiffMapMode,
+    pub selection: crate::model::ChangeSelection,
 }

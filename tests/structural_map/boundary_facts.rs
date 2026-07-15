@@ -77,7 +77,7 @@ fn ls_root_and_changed_render_boundary_facts_without_policy_verdicts() {
 
     let changed = run_json(repo.path(), cache.path(), &["changed", "--format", "json"]);
     assert_schema("schemas/changed.schema.json", &changed);
-    assert_eq!(changed["schema_version"], "10");
+    assert_eq!(changed["schema_version"], "11");
     assert!(
         changed["boundary_facts"]["instruction_files"]
             .as_array()

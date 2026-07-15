@@ -383,7 +383,7 @@ fn schema_manifest_has_no_removed_router_contracts_and_schema_command_is_side_ef
     let manifest_text =
         fs::read_to_string(root.join("schemas/manifest.json")).expect("manifest should exist");
     let manifest: Value = serde_json::from_str(&manifest_text).expect("manifest json");
-    assert_eq!(manifest["version"], 19);
+    assert_eq!(manifest["version"], 20);
     let schemas = manifest["schemas"].as_array().expect("schemas");
     let kinds = schemas
         .iter()

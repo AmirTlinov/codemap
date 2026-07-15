@@ -11,7 +11,7 @@ use crate::cache::git_probe::{
 };
 use crate::model::Project;
 
-pub(crate) const FINGERPRINT_CACHE_FORMAT: u32 = 11;
+pub(crate) const FINGERPRINT_CACHE_FORMAT: u32 = 12;
 
 pub(crate) fn format_version() -> u32 {
     FINGERPRINT_CACHE_FORMAT
@@ -51,6 +51,7 @@ pub(crate) fn write_fingerprints(
                 let modified = file_modified_parts(project, file);
                 CachedFileFingerprint {
                     path: file.rel.clone(),
+                    node_kind: snapshot_node_kind(project, &file.rel),
                     git_tracked: tracked_paths
                         .as_ref()
                         .is_some_and(|paths| paths.contains(&file.rel)),
@@ -69,7 +70,7 @@ pub(crate) fn write_fingerprints(
     // Persist a token-keyed snapshot so `--since <token>` can diff against the exact
     // state the agent saw. The dirty edit loop always writes fingerprints, so every
     // emitted snapshot token is backed by a snapshot file.
-    crate::cache::snapshots::save(&project.cache_dir, &fingerprints.fingerprint, &body);
+    crate::cache::snapshots::save(project, &fingerprints, &body);
     Ok(())
 }
 
@@ -93,7 +94,7 @@ pub(crate) fn read_valid_cached_fingerprints(
     Some(cached)
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub(crate) struct CachedFingerprints {
     #[serde(default)]
     pub(crate) format_version: u32,
@@ -113,9 +114,11 @@ pub(crate) struct CachedFingerprints {
     pub(crate) files: Vec<CachedFileFingerprint>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub(crate) struct CachedFileFingerprint {
     pub(crate) path: String,
+    #[serde(default = "default_node_kind")]
+    pub(crate) node_kind: String,
     #[serde(default)]
     pub(crate) git_tracked: bool,
     pub(crate) size: u64,
@@ -125,4 +128,19 @@ pub(crate) struct CachedFileFingerprint {
     pub(crate) content_hash: Option<String>,
     pub(crate) modified_secs: Option<u64>,
     pub(crate) modified_nanos: Option<u32>,
+}
+
+fn snapshot_node_kind(project: &Project, rel: &str) -> String {
+    match fs::symlink_metadata(project.root.join(rel)) {
+        Ok(metadata) if metadata.file_type().is_symlink() => "symlink",
+        Ok(metadata) if metadata.is_file() => "file",
+        Ok(metadata) if metadata.is_dir() => "directory",
+        Ok(_) => "other",
+        Err(_) => "unavailable",
+    }
+    .to_string()
+}
+
+fn default_node_kind() -> String {
+    "unknown".to_string()
 }

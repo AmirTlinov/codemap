@@ -10,6 +10,8 @@
     "build_identity",
     "prelude",
     "selector",
+    "session_snapshot",
+    "selection",
     "total_changed_count",
     "changed",
     "git_state",
@@ -26,10 +28,12 @@
   ],
   "properties": {
     "kind": { "const": "changed_report" },
-    "schema_version": { "const": "10" },
+    "schema_version": { "const": "11" },
     "build_identity": { "$ref": "#/$defs/build_identity" },
     "prelude": { "$ref": "#/$defs/map_prelude" },
     "selector": { "type": "string" },
+    "session_snapshot": { "$ref": "#/$defs/session_snapshot" },
+    "selection": { "$ref": "#/$defs/change_selection" },
     "total_changed_count": { "type": "integer", "minimum": 0 },
     "changed": {
       "type": "array",
@@ -72,6 +76,34 @@
     }
   },
   "$defs": {
+    "session_snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["token", "created_unix_seconds", "file_count", "content_files", "storage", "freshness", "reuse"],
+      "properties": {
+        "token": { "type": "string", "pattern": "^[0-9a-f]{16}$" },
+        "created_unix_seconds": { "anyOf": [{ "type": "integer", "minimum": 0 }, { "type": "null" }] },
+        "file_count": { "type": "integer", "minimum": 0 },
+        "content_files": { "type": "integer", "minimum": 0 },
+        "storage": { "type": "string" },
+        "freshness": { "type": "string", "enum": ["exact", "unavailable"] },
+        "reuse": { "type": "string" }
+      }
+    },
+    "change_selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "requested", "resolved", "selected_files", "fallback_files", "content_complete", "baseline_snapshot"],
+      "properties": {
+        "kind": { "type": "string" },
+        "requested": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "resolved": { "type": "boolean" },
+        "selected_files": { "type": "integer", "minimum": 0 },
+        "fallback_files": { "type": "integer", "minimum": 0 },
+        "content_complete": { "type": "boolean" },
+        "baseline_snapshot": { "anyOf": [{ "$ref": "#/$defs/session_snapshot" }, { "type": "null" }] }
+      }
+    },
     "build_identity": {
       "type": "object",
       "additionalProperties": false,
@@ -260,13 +292,14 @@
     "git_change": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["path", "old_path", "status", "staged", "unstaged"],
+      "required": ["path", "old_path", "status", "staged", "unstaged", "provenance"],
       "properties": {
         "path": { "type": "string" },
         "old_path": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
         "status": { "type": "string" },
         "staged": { "type": "boolean" },
-        "unstaged": { "type": "boolean" }
+        "unstaged": { "type": "boolean" },
+        "provenance": { "type": "string" }
       }
     },
     "changed_structural_event": {

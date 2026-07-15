@@ -58,7 +58,7 @@ fn changed_structural_event(
         kind: kind.to_string(),
         path: change.path.clone(),
         old_path: change.old_path.clone(),
-        evidence: "git_status".to_string(),
+        evidence: change.provenance.clone(),
         effect: effect.to_string(),
         locations: vec![EvidenceLocation::path(&change.path, location_kind)],
         expand,
