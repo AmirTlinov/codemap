@@ -39,7 +39,11 @@ fn snapshot_identity_preserves_rename_delete_typechange_and_conflict_provenance(
     git(repo.path(), &["mv", "rename-old.ts", "rename-new.ts"]);
     std::fs::remove_file(repo.path().join("delete-me.ts")).expect("delete fixture");
     std::fs::remove_file(repo.path().join("type-me.ts")).expect("replace type fixture");
+    #[cfg(unix)]
     std::os::unix::fs::symlink("rename-new.ts", repo.path().join("type-me.ts"))
+        .expect("create symlink typechange");
+    #[cfg(windows)]
+    std::os::windows::fs::symlink_file("rename-new.ts", repo.path().join("type-me.ts"))
         .expect("create symlink typechange");
     let delta = snapshot_json(
         repo.path(),
