@@ -21,8 +21,8 @@ sys.exit(0)
     write(
         &fake_codex,
         r#"import json
+import os
 import pathlib
-import subprocess
 import sys
 
 args = sys.argv[1:]
@@ -34,11 +34,15 @@ last_message = pathlib.Path(args[args.index("-o") + 1])
 prompt = args[-1]
 treatment = "CODEMAP TREATMENT ARM" in prompt
 analysis = "repository-analysis task" in prompt
+codemap_commands = []
 if treatment and analysis:
-    subprocess.run(["codemap", "cone", "README.md"], cwd=worktree, check=True)
+    codemap_commands.append(["cone", "README.md"])
 elif treatment:
-    for command in (["codemap", "ls", "."], ["codemap", "changed"], ["codemap", "proof", "changed"]):
-        subprocess.run(command, cwd=worktree, check=True)
+    codemap_commands.extend((["ls", "."], ["changed"], ["proof", "changed"]))
+for command in codemap_commands:
+    with open(os.environ["CODEMAP_AB_INVOCATION_LOG"], "a") as stream:
+        stream.write(json.dumps({"argv": command, "status": 0, "agent_direct": True}) + "\n")
+    print(json.dumps({"type": "item.completed", "item": {"type": "command_execution", "command": "/bin/zsh -lc 'codemap " + " ".join(command) + "'", "exit_code": 0, "status": "completed"}}))
 if analysis:
     last_message.write_text("Confirmed finding with evidence at README.md:1\n")
 else:

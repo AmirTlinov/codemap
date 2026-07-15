@@ -75,15 +75,27 @@ def main() -> int:
         names = [criterion["name"] for criterion in task["verify"]]
         assert names == ["required", "behavior", "contract", "downstream", "regression", "provenance"]
         receipt = json.loads((draft.parent / "materialization-receipt.json").read_text())
-        benchmark_commit = receipt["repositories"][0]["benchmark_commit"]
+        variants = {row["variant"]: row for row in receipt["repositories"]}
+        benchmark_commit = variants["clean"]["benchmark_commit"]
+        assert benchmark_commit == base
+        assert variants["negative"]["benchmark_commit"] != base
         spec = json.loads((draft.parent / "verification-spec.json").read_text())
         assert spec["tasks"]["fixture-task"]["provenance"]["commit"] == benchmark_commit
         assert git(Path(task["repo"]), "rev-parse", "HEAD") == benchmark_commit
+        assert (Path(task["repo"]) / "README.md").read_text() == "original phrase\n"
+        negative = draft.parent / "repositories/fixture-negative/README.md"
+        assert negative.read_text() == "seeded phrase\n"
         second = materialize(blueprint_path, root / "second-corpus", False)
         second_receipt = json.loads(
             (second.parent / "materialization-receipt.json").read_text()
         )
-        assert second_receipt["repositories"][0]["benchmark_commit"] == benchmark_commit
+        second_variants = {
+            row["variant"]: row["benchmark_commit"]
+            for row in second_receipt["repositories"]
+        }
+        assert second_variants == {
+            variant: row["benchmark_commit"] for variant, row in variants.items()
+        }
     return 0
 
 

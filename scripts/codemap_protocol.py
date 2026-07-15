@@ -93,6 +93,43 @@ def _words(invocation: str) -> list[str]:
         return invocation.split()
 
 
+def _shell_words(script: str) -> list[str]:
+    try:
+        lexer = shlex.shlex(script, posix=True, punctuation_chars=";&|()")
+        lexer.whitespace_split = True
+        return list(lexer)
+    except ValueError:
+        return script.split()
+
+
+def agent_codemap_commands(commands: list[str]) -> list[str]:
+    observed = []
+    separators = {";", "&&", "||", "|", "&", "(", ")"}
+    prefixes = {"command", "exec", "time", "env"}
+    for command in commands:
+        outer = _words(command)
+        script = command
+        if outer and os.path.basename(outer[0]) in {"bash", "dash", "fish", "sh", "zsh"}:
+            for flag in ("-lc", "-c"):
+                if flag in outer and outer.index(flag) + 1 < len(outer):
+                    script = outer[outer.index(flag) + 1]
+                    break
+        words = _shell_words(script)
+        command_start = True
+        for word in words:
+            if word in separators:
+                command_start = True
+                continue
+            if not command_start:
+                continue
+            if word in prefixes or ("=" in word and not word.startswith("/")):
+                continue
+            if os.path.basename(word) == "codemap":
+                observed.append(word)
+            command_start = False
+    return observed
+
+
 def _command_index(args: list[str]) -> int | None:
     index = 0
     while index < len(args):
@@ -177,14 +214,22 @@ def _call(
 
 def _record(raw: str | dict[str, Any]) -> dict[str, Any]:
     if isinstance(raw, str):
-        argv, status = _words(raw), 0
+        argv, status, direct = _words(raw), 0, True
     else:
         argv, status = raw.get("argv"), raw.get("status")
+        direct = raw.get("agent_direct", True)
         if not isinstance(argv, list) or not all(isinstance(arg, str) for arg in argv):
             raise ValueError("codemap invocation argv must be a string array")
         if not isinstance(status, int):
             raise ValueError("codemap invocation status must be an integer")
-    return {"argv": argv, "status": status, "display": shlex.join(argv)}
+        if not isinstance(direct, bool):
+            raise ValueError("codemap invocation agent_direct must be boolean")
+    return {
+        "argv": argv,
+        "status": status,
+        "agent_direct": direct,
+        "display": shlex.join(argv),
+    }
 
 
 def codemap_protocol(
@@ -192,8 +237,11 @@ def codemap_protocol(
     arm: str,
     invocations: list[str | dict[str, Any]],
     worktree: os.PathLike[str] | str | None = None,
+    agent_commands: list[str] | None = None,
 ) -> dict[str, Any]:
-    records = [_record(raw) for raw in invocations]
+    all_records = [_record(raw) for raw in invocations]
+    records = [record for record in all_records if record["agent_direct"]]
+    internal = [record for record in all_records if not record["agent_direct"]]
     calls = [
         call
         for index, record in enumerate(records)
@@ -231,20 +279,27 @@ def codemap_protocol(
             for proof_call in proof_changed_calls
         )
     )
+    observed_commands = agent_codemap_commands(agent_commands or [])
+    trace_matches = agent_commands is None or len(observed_commands) == len(records)
     if arm == "control":
-        compliant = not invocations
+        compliant = not records
     elif mode == "analysis":
         compliant = bool(
             entry_is_first_invocation and (first[1] == "exact" or focused_after_root)
         )
     else:
         compliant = bool(entry_is_first_invocation and ordered_daily)
+    compliant = compliant and trace_matches
     return {
         "invocation_count": len(records),
         "successful_invocation_count": sum(record["status"] == 0 for record in records),
         "failed_invocation_count": sum(record["status"] != 0 for record in records),
         "invocations": [record["display"] for record in records],
         "invocation_results": records,
+        "ignored_internal_invocation_count": len(internal),
+        "internal_invocation_results": internal,
+        "agent_command_invocations": observed_commands,
+        "agent_command_trace_matches": trace_matches,
         "first_entry": records[first[0]]["display"] if first else None,
         "entry_is_first_invocation": entry_is_first_invocation,
         "entry_kind": first[1] if first else "none",

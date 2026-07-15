@@ -132,7 +132,7 @@
       "ecosystem": "rust",
       "task_class": "analysis",
       "split": "calibration",
-      "prompt": "Analyze the frozen codemap repository as an unfamiliar structural-navigation CLI. Identify 8-12 consequential correctness, completeness, cache/provenance, agent-protocol, or release risks supported at this commit. Cover CLI, map extraction, cache, schemas, tests, and documentation. For every finding distinguish defect from risk, give a multi-file causal chain with exact path:line citations, affected behavior, and the existing or missing verification that would expose it. Include at least three cross-owner chains and finish with the three systemic patterns. Use repository evidence only, do not modify files, and write the report in English.",
+      "prompt": "Analyze the frozen codemap repository as an unfamiliar structural-navigation CLI. Identify 8-12 consequential correctness, completeness, cache/provenance, agent-protocol, or release risks supported at this commit. Cover CLI, map extraction, cache, schemas, tests, and documentation. For every finding distinguish defect from risk, give a multi-file causal chain with exact path:line citations, affected behavior, and the existing or missing verification that would expose it. Include at least three cross-owner chains and finish with the three systemic patterns. Use repository evidence only, do not modify files, and write the report in English. This is evidence analysis only: apart from codemap in the treatment arm, use read-only repository-file and VCS inspection; do not run builds, tests, package installs, hooks, or network commands.",
       "criteria": {
         "required": {
           "kind": "analysis",
@@ -191,7 +191,7 @@
       "ecosystem": "rust",
       "task_class": "analysis",
       "split": "holdout",
-      "prompt": "Trace the `proof changed` scenario from CLI parsing through proof planning, changed-scope selection, rendering, cache artifacts, schemas, and structural tests in this frozen codemap commit. Report every confirmed mismatch or plausible failure boundary you can support, including dynamic or unsupported horizons. Give 6-10 findings with exact path:line citations, symbol/config owners, affected consumers, and executable verification. Use only repository evidence, do not modify files, and write in English.",
+      "prompt": "Trace the `proof changed` scenario from CLI parsing through proof planning, changed-scope selection, rendering, cache artifacts, schemas, and structural tests in this frozen codemap commit. Report every confirmed mismatch or plausible failure boundary you can support, including dynamic or unsupported horizons. Give 6-10 findings with exact path:line citations, symbol/config owners, affected consumers, and executable verification. Use only repository evidence, do not modify files, and write in English. This is evidence analysis only: apart from codemap in the treatment arm, use read-only repository-file and VCS inspection; do not run builds, tests, package installs, hooks, or network commands.",
       "criteria": {
         "required": {
           "kind": "analysis",
@@ -250,7 +250,7 @@
       "ecosystem": "typescript",
       "task_class": "analysis",
       "split": "calibration",
-      "prompt": "Analyze this frozen large production monorepo as an unfamiliar connected system. Identify 8-12 consequential architecture, contract, data, deployment, verification, or release risks. Cover at least four owner surfaces among apps, shared packages, CI/release, deployment, data/contracts, and runbooks. Each finding needs defect-versus-risk, a causal chain, exact path:line citations, affected consumers, and verification. Include at least three cross-boundary chains and finish with systemic patterns. No network or live infrastructure; do not modify files; write in English.",
+      "prompt": "Analyze this frozen large production monorepo as an unfamiliar connected system. Identify 8-12 consequential architecture, contract, data, deployment, verification, or release risks. Cover at least four owner surfaces among apps, shared packages, CI/release, deployment, data/contracts, and runbooks. Each finding needs defect-versus-risk, a causal chain, exact path:line citations, affected consumers, and verification. Include at least three cross-boundary chains and finish with systemic patterns. No network or live infrastructure; do not modify files; write in English. This is evidence analysis only: apart from codemap in the treatment arm, use read-only repository-file and VCS inspection; do not run builds, tests, package installs, hooks, or network commands.",
       "criteria": {
         "required": {
           "kind": "analysis",
@@ -309,7 +309,7 @@
       "ecosystem": "typescript",
       "task_class": "analysis",
       "split": "holdout",
-      "prompt": "Trace `.github/workflows/release-prod.yml` and the release path it owns through reusable workflows/scripts, image identity, GitOps manifests, deployment health, rollback, and receipt/runbook surfaces. Identify 6-10 confirmed mismatches or plausible failure boundaries with exact path:line citations and the check that would expose each. Follow consumers across packages and deployment rather than summarizing one YAML file. Do not modify files and write in English.",
+      "prompt": "Trace `.github/workflows/release-prod.yml` and the release path it owns through reusable workflows/scripts, image identity, GitOps manifests, deployment health, rollback, and receipt/runbook surfaces. Identify 6-10 confirmed mismatches or plausible failure boundaries with exact path:line citations and the check that would expose each. Follow consumers across packages and deployment rather than summarizing one YAML file. Do not modify files and write in English. This is evidence analysis only: apart from codemap in the treatment arm, use read-only repository-file and VCS inspection; do not run builds, tests, package installs, hooks, or network commands.",
       "criteria": {
         "required": {
           "kind": "analysis",
@@ -368,7 +368,7 @@
       "ecosystem": "typescript",
       "task_class": "analysis",
       "split": "calibration",
-      "prompt": "Analyze this frozen PABG monorepo as an unfamiliar game system. Identify 8-12 consequential runtime, protocol, replay, data-authority, web/ws integration, verification, or release risks. Connect Rust, TypeScript, Python, schemas/contracts, and tests where evidence supports it. Each finding needs defect-versus-risk, exact path:line evidence, causal consumers/failure mode, and owner-scoped verification. Include three cross-language chains. Do not modify files and write in English.",
+      "prompt": "Analyze this frozen PABG monorepo as an unfamiliar game system. Identify 8-12 consequential runtime, protocol, replay, data-authority, web/ws integration, verification, or release risks. Connect Rust, TypeScript, Python, schemas/contracts, and tests where evidence supports it. Each finding needs defect-versus-risk, exact path:line evidence, causal consumers/failure mode, and owner-scoped verification. Include three cross-language chains. Do not modify files and write in English. This is evidence analysis only: apart from codemap in the treatment arm, use read-only repository-file and VCS inspection; do not run builds, tests, package installs, hooks, or network commands.",
       "criteria": {
         "required": {
           "kind": "analysis",
@@ -427,7 +427,7 @@
       "ecosystem": "typescript",
       "task_class": "analysis",
       "split": "holdout",
-      "prompt": "Trace the replay lifecycle from `crates/sim-core` through replay-format/compiler, platform-api, schemas, and the web Chronicle renderer. Identify 6-10 confirmed mismatches or open failure boundaries with exact path:line citations, symbols/config keys, affected consumers, and checks. Distinguish static proof from dynamic unknowns. Do not modify files and write in English.",
+      "prompt": "Trace the replay lifecycle from `crates/sim-core` through replay-format/compiler, platform-api, schemas, and the web Chronicle renderer. Identify 6-10 confirmed mismatches or open failure boundaries with exact path:line citations, symbols/config keys, affected consumers, and checks. Distinguish static proof from dynamic unknowns. Do not modify files and write in English. This is evidence analysis only: apart from codemap in the treatment arm, use read-only repository-file and VCS inspection; do not run builds, tests, package installs, hooks, or network commands.",
       "criteria": {
         "required": {
           "kind": "analysis",
@@ -486,7 +486,7 @@
       "ecosystem": "python",
       "task_class": "analysis",
       "split": "calibration",
-      "prompt": "Analyze this frozen Browser MCP repository as an unfamiliar browser-control system. Identify 8-12 consequential protocol, extension/native-host, clipboard/canvas, state, security, verification, or packaging risks. Each finding needs defect-versus-risk, exact path:line citations, a connected causal chain, affected callers, and the test or witness that would expose it. Cover server, contracts, extension/vendor, tests, and docs. Do not modify files and write in English.",
+      "prompt": "Analyze this frozen Browser MCP repository as an unfamiliar browser-control system. Identify 8-12 consequential protocol, extension/native-host, clipboard/canvas, state, security, verification, or packaging risks. Each finding needs defect-versus-risk, exact path:line citations, a connected causal chain, affected callers, and the test or witness that would expose it. Cover server, contracts, extension/vendor, tests, and docs. Do not modify files and write in English. This is evidence analysis only: apart from codemap in the treatment arm, use read-only repository-file and VCS inspection; do not run builds, tests, package installs, hooks, or network commands.",
       "criteria": {
         "required": {
           "kind": "analysis",
@@ -545,7 +545,7 @@
       "ecosystem": "python",
       "task_class": "analysis",
       "split": "holdout",
-      "prompt": "Trace the public app insertion/paste operation from MCP tool schema and handler through adapter selection, universal insert/drop/clipboard flows, extension RPC, and receipt/error surfaces. Identify 6-10 confirmed mismatches or plausible failure boundaries with exact path:line citations and executable verification. Include focus, no-op, fallback, and provenance behavior. Do not modify files and write in English.",
+      "prompt": "Trace the public app insertion/paste operation from MCP tool schema and handler through adapter selection, universal insert/drop/clipboard flows, extension RPC, and receipt/error surfaces. Identify 6-10 confirmed mismatches or plausible failure boundaries with exact path:line citations and executable verification. Include focus, no-op, fallback, and provenance behavior. Do not modify files and write in English. This is evidence analysis only: apart from codemap in the treatment arm, use read-only repository-file and VCS inspection; do not run builds, tests, package installs, hooks, or network commands.",
       "criteria": {
         "required": {
           "kind": "analysis",
@@ -604,7 +604,7 @@
       "ecosystem": "swift",
       "task_class": "analysis",
       "split": "calibration",
-      "prompt": "Analyze this frozen OpenSlop workbench repository as an unfamiliar Swift/Rust/Node system. Identify 8-12 consequential daemon transport, session/provider, macOS state/UI, contract, verification, or roadmap-to-runtime risks. Each finding needs defect-versus-risk, exact path:line citations, a cross-owner causal chain, affected behavior, and an executable proof. Cover at least four owner surfaces and three cross-language chains. Do not modify files and write in English.",
+      "prompt": "Analyze this frozen OpenSlop workbench repository as an unfamiliar Swift/Rust/Node system. Identify 8-12 consequential daemon transport, session/provider, macOS state/UI, contract, verification, or roadmap-to-runtime risks. Each finding needs defect-versus-risk, exact path:line citations, a cross-owner causal chain, affected behavior, and an executable proof. Cover at least four owner surfaces and three cross-language chains. Do not modify files and write in English. This is evidence analysis only: apart from codemap in the treatment arm, use read-only repository-file and VCS inspection; do not run builds, tests, package installs, hooks, or network commands.",
       "criteria": {
         "required": {
           "kind": "analysis",
@@ -663,7 +663,7 @@
       "ecosystem": "swift",
       "task_class": "analysis",
       "split": "holdout",
-      "prompt": "Trace `--submit-codex-turn` from core-daemon CLI and stdio dispatch through session/provider storage and transcript events into the Swift Workbench client and UI. Identify 6-10 confirmed mismatches or plausible failure boundaries with exact path:line citations, affected consumers, and runnable verification. Do not modify files and write in English.",
+      "prompt": "Trace `--submit-codex-turn` from core-daemon CLI and stdio dispatch through session/provider storage and transcript events into the Swift Workbench client and UI. Identify 6-10 confirmed mismatches or plausible failure boundaries with exact path:line citations, affected consumers, and runnable verification. Do not modify files and write in English. This is evidence analysis only: apart from codemap in the treatment arm, use read-only repository-file and VCS inspection; do not run builds, tests, package installs, hooks, or network commands.",
       "criteria": {
         "required": {
           "kind": "analysis",
@@ -722,7 +722,7 @@
       "ecosystem": "rust",
       "task_class": "analysis",
       "split": "calibration",
-      "prompt": "Analyze this frozen RatioTissueDB repository as an unfamiliar Rust/Metal causal storage and continuation system. Identify 8-12 consequential storage, mmap/WAL, search, actionwave/world-return, CLI, verification, or portability risks. Each finding needs defect-versus-risk, exact path:line citations, a connected causal chain, affected behavior, and a concrete test. Include at least three storage-to-runtime or CLI-to-tissue chains. Do not modify files and write in English.",
+      "prompt": "Analyze this frozen RatioTissueDB repository as an unfamiliar Rust/Metal causal storage and continuation system. Identify 8-12 consequential storage, mmap/WAL, search, actionwave/world-return, CLI, verification, or portability risks. Each finding needs defect-versus-risk, exact path:line citations, a connected causal chain, affected behavior, and a concrete test. Include at least three storage-to-runtime or CLI-to-tissue chains. Do not modify files and write in English. This is evidence analysis only: apart from codemap in the treatment arm, use read-only repository-file and VCS inspection; do not run builds, tests, package installs, hooks, or network commands.",
       "criteria": {
         "required": {
           "kind": "analysis",
@@ -781,7 +781,7 @@
       "ecosystem": "rust",
       "task_class": "analysis",
       "split": "holdout",
-      "prompt": "Trace the `live` continuation command from CLI parsing through carrier ingestion, actionwave runtime, world return, conductance/storage mutation, receipts, and proof programs. Identify 6-10 confirmed mismatches or open causal boundaries with exact path:line citations and executable verification. Separate actual world-contact evidence from bookkeeping or self-report. Do not modify files and write in English.",
+      "prompt": "Trace the `live` continuation command from CLI parsing through carrier ingestion, actionwave runtime, world return, conductance/storage mutation, receipts, and proof programs. Identify 6-10 confirmed mismatches or open causal boundaries with exact path:line citations and executable verification. Separate actual world-contact evidence from bookkeeping or self-report. Do not modify files and write in English. This is evidence analysis only: apart from codemap in the treatment arm, use read-only repository-file and VCS inspection; do not run builds, tests, package installs, hooks, or network commands.",
       "criteria": {
         "required": {
           "kind": "analysis",
@@ -2008,7 +2008,7 @@
       "ecosystem": "rust",
       "task_class": "negative_control",
       "split": "calibration",
-      "prompt": "In `README.md`, restore the exact product phrase `Read-only project x-ray for AI coding agents.` by fixing only the missing hyphen in that sentence. Do not change behavior or any other wording. Begin by examining only README.md.",
+      "prompt": "In `README.md`, restore the exact product phrase `Read-only project x-ray for AI coding agents.` by fixing only the missing hyphen in that sentence. Do not change behavior or any other wording. Begin by examining only README.md. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
       "criteria": {
         "required": {
           "kind": "files",
@@ -2043,7 +2043,7 @@
       "ecosystem": "typescript",
       "task_class": "negative_control",
       "split": "calibration",
-      "prompt": "In `README.md`, restore the exact opening phrase `GitOps delivery rails.` by fixing only the singular typo in that sentence. Do not change behavior or any other wording. Begin by examining only README.md.",
+      "prompt": "In `README.md`, restore the exact opening phrase `GitOps delivery rails.` by fixing only the singular typo in that sentence. Do not change behavior or any other wording. Begin by examining only README.md. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
       "criteria": {
         "required": {
           "kind": "files",
@@ -2078,7 +2078,7 @@
       "ecosystem": "typescript",
       "task_class": "negative_control",
       "split": "calibration",
-      "prompt": "In `README.md`, restore the exact phrase `настоящий in-memory `platform-api`` by fixing only the missing hyphen. Do not change behavior or any other wording. Begin by examining only README.md.",
+      "prompt": "In `README.md`, restore the exact phrase `настоящий in-memory `platform-api`` by fixing only the missing hyphen. Do not change behavior or any other wording. Begin by examining only README.md. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
       "criteria": {
         "required": {
           "kind": "files",
@@ -2113,7 +2113,7 @@
       "ecosystem": "python",
       "task_class": "negative_control",
       "split": "holdout",
-      "prompt": "In `README.md`, restore the exact phrase `controlled, real-browser automation` by fixing only the missing hyphen. Do not change behavior or any other wording. Begin by examining only README.md.",
+      "prompt": "In `README.md`, restore the exact phrase `controlled, real-browser automation` by fixing only the missing hyphen. Do not change behavior or any other wording. Begin by examining only README.md. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
       "criteria": {
         "required": {
           "kind": "files",
@@ -2148,7 +2148,7 @@
       "ecosystem": "swift",
       "task_class": "negative_control",
       "split": "holdout",
-      "prompt": "In `README.md`, restore the exact phrase `первый load-bearing слой` by fixing only the missing hyphen. Do not change behavior or any other wording. Begin by examining only README.md.",
+      "prompt": "In `README.md`, restore the exact phrase `первый load-bearing слой` by fixing only the missing hyphen. Do not change behavior or any other wording. Begin by examining only README.md. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
       "criteria": {
         "required": {
           "kind": "files",
@@ -2183,7 +2183,7 @@
       "ecosystem": "rust",
       "task_class": "negative_control",
       "split": "holdout",
-      "prompt": "In `README.md`, restore the exact phrase `проект mmap-базы поиска` by fixing only the missing hyphen. Do not change behavior or any other wording. Begin by examining only README.md.",
+      "prompt": "In `README.md`, restore the exact phrase `проект mmap-базы поиска` by fixing only the missing hyphen. Do not change behavior or any other wording. Begin by examining only README.md. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
       "criteria": {
         "required": {
           "kind": "files",

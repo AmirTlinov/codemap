@@ -6,9 +6,10 @@ four ecosystem families: 12 analysis tasks, 12 multi-file implementation tasks, 
 six exact/local negative controls, split evenly into calibration and holdout.
 
 The blueprint is not an accepted result. The materializer creates deterministic,
-history-free task repositories at exact source commits, seeds the negative controls, extracts hidden
-consumer tests outside those repositories, and emits a runnable draft plus a hash
-receipt:
+history-free task repositories at exact source commits, isolates each seeded typo in a
+negative-control variant, extracts hidden consumer tests outside those repositories,
+and emits a runnable draft plus a hash receipt. Analysis and implementation tasks
+always use the clean variant; only the matching exact/local task sees the mutation:
 
 ```bash
 python3 benchmarks/flagship/materialize.py \

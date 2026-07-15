@@ -84,6 +84,21 @@ print(json.dumps([
 }
 
 #[test]
+fn ab_protocol_ignores_project_internal_codemap_consumers() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let output = Command::new("python3")
+        .arg(root.join("tests/protocol_shim_fixture.py"))
+        .output()
+        .expect("protocol shim fixture should run");
+    assert!(
+        output.status.success(),
+        "protocol shim failed: stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
 fn ab_fingerprint_tracks_composed_prompt_timeout_and_order() {
     let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/benchmark-codemap-ab.py");
     let probe = r#"import argparse, json, pathlib, runpy, sys

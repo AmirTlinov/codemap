@@ -235,7 +235,7 @@ def result_row(
         "mode": task["mode"],
         "task_prompt_sha256": hashlib.sha256(task["prompt"].encode()).hexdigest(),
         "repo": task["repo"],
-        "base_commit": manifest["repositories"][repo_id]["commit"],
+        "base_commit": manifest["repositories"][f"{repo_id}:default"]["commit"],
         "repetition": repetition,
         "arm": arm,
         "order": order,

@@ -42,7 +42,7 @@ def _provenance_errors(
     expected_order: int,
 ) -> list[str]:
     meta = _task_meta(task)
-    expected_commit = manifest["repositories"][meta["repo_id"]]["commit"]
+    expected_commit = manifest["repositories"][f"{meta['repo_id']}:{meta.get('repo_variant', 'default')}"]["commit"]
     expected_binary = manifest["codemap_identity"]["build_identity"]["binary_sha256"]
     checks = {
         "mode": row.get("mode") == task.get("mode", "implementation"),

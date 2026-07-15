@@ -40,52 +40,65 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def clone_snapshot(repo: dict[str, Any], target: Path, remote_only: bool) -> dict[str, Any]:
+def clone_snapshot(
+    repo: dict[str, Any],
+    target: Path,
+    remote_only: bool,
+    variant: str,
+    source_override: Path | None = None,
+) -> dict[str, Any]:
     target.mkdir(parents=True)
     run(["git", "init", "-q", "-b", "benchmark", str(target)])
-    source = repo["remote"] if remote_only else repo.get("source", repo["remote"])
+    source = (
+        str(source_override)
+        if source_override is not None
+        else repo["remote"] if remote_only else repo.get("source", repo["remote"])
+    )
     run(["git", "-C", str(target), "remote", "add", "source", source])
     run(["git", "-C", str(target), "fetch", "--depth", "1", "source", repo["base"]], timeout=1800)
     run(["git", "-C", str(target), "checkout", "-q", "--detach", "FETCH_HEAD"])
     actual = run(["git", "-C", str(target), "rev-parse", "HEAD"])
     if actual != repo["base"]:
         raise ValueError(f"{repo['id']}: expected {repo['base']}, got {actual}")
-    for mutation in repo["negative_mutations"]:
+    mutations = repo["negative_mutations"] if variant == "negative" else []
+    for mutation in mutations:
         path = target / mutation["path"]
         body = path.read_text(encoding="utf-8")
         if body.count(mutation["before"]) != 1:
             raise ValueError(f"{repo['id']}: mutation anchor is not unique: {mutation['path']}")
         path.write_text(body.replace(mutation["before"], mutation["after"], 1), encoding="utf-8")
-    run(["git", "-C", str(target), "add", "."])
-    run(
-        [
-            "git",
-            "-C",
-            str(target),
-            "-c",
-            "user.name=codemap flagship corpus",
-            "-c",
-            "user.email=flagship@codemap.invalid",
-            "-c",
-            "commit.gpgsign=false",
-            "commit",
-            "-qm",
-            "benchmark: seed exact local control",
-        ],
-        env={
-            **os.environ,
-            "GIT_AUTHOR_DATE": "2000-01-01T00:00:00Z",
-            "GIT_COMMITTER_DATE": "2000-01-01T00:00:00Z",
-        },
-    )
+    if mutations:
+        run(["git", "-C", str(target), "add", "."])
+        run(
+            [
+                "git",
+                "-C",
+                str(target),
+                "-c",
+                "user.name=codemap flagship corpus",
+                "-c",
+                "user.email=flagship@codemap.invalid",
+                "-c",
+                "commit.gpgsign=false",
+                "commit",
+                "-qm",
+                "benchmark: seed exact local control",
+            ],
+            env={
+                **os.environ,
+                "GIT_AUTHOR_DATE": "2000-01-01T00:00:00Z",
+                "GIT_COMMITTER_DATE": "2000-01-01T00:00:00Z",
+            },
+        )
     run(["git", "-C", str(target), "remote", "remove", "source"])
     run(["git", "-C", str(target), "remote", "add", "origin", repo["remote"]])
     return {
         "repo_id": repo["id"],
+        "variant": variant,
         "remote": repo["remote"],
         "source_commit": repo["base"],
         "benchmark_commit": run(["git", "-C", str(target), "rev-parse", "HEAD"]),
-        "mutation_paths": [row["path"] for row in repo["negative_mutations"]],
+        "mutation_paths": [row["path"] for row in mutations],
     }
 
 
@@ -154,12 +167,15 @@ def materialize(blueprint_path: Path, out_dir: Path, remote_only: bool) -> Path:
     oracles_dir = out_dir / "oracles"
     oracle_sources = out_dir / ".oracle-sources"
     receipts = []
-    repo_paths: dict[str, Path] = {}
+    repo_paths: dict[tuple[str, str], Path] = {}
     all_overlays: dict[str, list[dict[str, str]]] = {}
     for repo in blueprint["repositories"]:
-        repo_path = repos_dir / repo["id"]
-        receipts.append(clone_snapshot(repo, repo_path, remote_only))
-        repo_paths[repo["id"]] = repo_path
+        clean = repos_dir / f"{repo['id']}-clean"
+        negative = repos_dir / f"{repo['id']}-negative"
+        receipts.append(clone_snapshot(repo, clean, remote_only, "clean"))
+        receipts.append(clone_snapshot(repo, negative, remote_only, "negative", clean))
+        repo_paths[(repo["id"], "clean")] = clean
+        repo_paths[(repo["id"], "negative")] = negative
         source = oracle_source(repo, remote_only, oracle_sources)
         all_overlays.update(extract_oracles(repo, blueprint["tasks"], source, oracles_dir))
     if oracle_sources.exists():
@@ -167,10 +183,15 @@ def materialize(blueprint_path: Path, out_dir: Path, remote_only: bool) -> Path:
     spec = {"kind": "codemap_flagship_verification_spec", "version": 1, "tasks": {}}
     spec_path = out_dir / "verification-spec.json"
     for task in blueprint["tasks"]:
+        variant = "negative" if task["task_class"] == "negative_control" else "clean"
         actions = replace_overlays(task["criteria"], all_overlays[task["id"]])
         actions["provenance"] = {
             "kind": "git_head",
-            "commit": next(row["benchmark_commit"] for row in receipts if row["repo_id"] == task["repo_id"]),
+            "commit": next(
+                row["benchmark_commit"]
+                for row in receipts
+                if row["repo_id"] == task["repo_id"] and row["variant"] == variant
+            ),
         }
         spec["tasks"][task["id"]] = actions
     spec_path.write_text(json.dumps(spec, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -183,9 +204,11 @@ def materialize(blueprint_path: Path, out_dir: Path, remote_only: bool) -> Path:
     tasks_path = out_dir / "tasks.jsonl"
     task_rows = []
     for task in blueprint["tasks"]:
+        variant = "negative" if task["task_class"] == "negative_control" else "clean"
         criteria = list(spec["tasks"][task["id"]])
         meta = {
             "repo_id": task["repo_id"],
+            "repo_variant": variant,
             "ecosystem": task["ecosystem"],
             "task_class": task["task_class"],
             "split": task["split"],
@@ -199,7 +222,7 @@ def materialize(blueprint_path: Path, out_dir: Path, remote_only: bool) -> Path:
             {
                 "id": task["id"],
                 "mode": "analysis" if task["task_class"] == "analysis" else "implementation",
-                "repo": str(repo_paths[task["repo_id"]].resolve()),
+                "repo": str(repo_paths[(task["repo_id"], variant)].resolve()),
                 "base_ref": "HEAD",
                 "prompt": task["prompt"],
                 "verify": [verifier_row(spec_path.resolve(), task, name) for name in criteria],

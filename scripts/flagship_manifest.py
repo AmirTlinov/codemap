@@ -37,6 +37,7 @@ EXCLUSION_REASONS = {
 }
 GATE_FILES = (
     "benchmark-codemap-flagship.py",
+    "codemap_protocol_shim.py",
     "flagship_acceptance.py",
     "flagship_artifacts.py",
     "flagship_contract.py",
@@ -119,7 +120,8 @@ def validate_tasks(tasks: list[dict[str, Any]]) -> dict[str, Any]:
     ids: set[str] = set()
     class_counts: Counter[str] = Counter()
     split_counts: dict[str, Counter[str]] = defaultdict(Counter)
-    repos: dict[str, tuple[str, str]] = {}
+    repo_variants: dict[tuple[str, str], tuple[str, str]] = {}
+    repos: dict[str, str] = {}
     ecosystems: set[str] = set()
     split_repos: dict[str, set[str]] = defaultdict(set)
     split_ecosystems: dict[str, set[str]] = defaultdict(set)
@@ -132,6 +134,7 @@ def validate_tasks(tasks: list[dict[str, Any]]) -> dict[str, Any]:
         task_class = meta.get("task_class")
         split = meta.get("split")
         repo_id = meta.get("repo_id")
+        repo_variant = meta.get("repo_variant", "default")
         ecosystem = meta.get("ecosystem")
         if task_class not in TASK_CLASSES or split not in SPLITS:
             raise ValueError(f"task {task_id}: invalid class/split")
@@ -144,9 +147,14 @@ def validate_tasks(tasks: list[dict[str, Any]]) -> dict[str, Any]:
         repo = task.get("repo")
         if not isinstance(repo, str) or not repo:
             raise ValueError(f"task {task_id}: repo path is required")
-        previous = repos.setdefault(repo_id, (repo, ecosystem))
+        if not isinstance(repo_variant, str) or not repo_variant:
+            raise ValueError(f"task {task_id}: repo_variant must be a non-empty string")
+        previous = repo_variants.setdefault((repo_id, repo_variant), (repo, ecosystem))
         if previous != (repo, ecosystem):
-            raise ValueError(f"repo_id {repo_id}: inconsistent repo/ecosystem")
+            raise ValueError(f"repo {repo_id}:{repo_variant}: inconsistent path/ecosystem")
+        previous_ecosystem = repos.setdefault(repo_id, ecosystem)
+        if previous_ecosystem != ecosystem:
+            raise ValueError(f"repo_id {repo_id}: inconsistent ecosystem")
         ecosystems.add(ecosystem)
         split_repos[split].add(repo_id)
         split_ecosystems[split].add(ecosystem)
@@ -310,10 +318,18 @@ def freeze_corpus(
         meta = _benchmark_meta(task)
         repo = Path(task["repo"]).expanduser().resolve()
         commit = git_commit(repo, task.get("base_ref", "HEAD"))
-        entry = {"path": str(repo), "commit": commit, "ecosystem": meta["ecosystem"]}
-        previous = repo_commits.setdefault(meta["repo_id"], entry)
+        variant = meta.get("repo_variant", "default")
+        entry = {
+            "repo_id": meta["repo_id"],
+            "variant": variant,
+            "path": str(repo),
+            "commit": commit,
+            "ecosystem": meta["ecosystem"],
+        }
+        key = f"{meta['repo_id']}:{variant}"
+        previous = repo_commits.setdefault(key, entry)
         if previous != entry:
-            raise ValueError(f"repo {meta['repo_id']}: tasks must share one frozen commit")
+            raise ValueError(f"repo {key}: tasks must share one frozen commit")
     root = Path(__file__).resolve().parents[1]
     codex_command = resolve_command(codex_bin)
     codemap_command, resolution = resolve_codemap_command(codemap_bin, root)

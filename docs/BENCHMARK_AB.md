@@ -103,14 +103,22 @@ for an exact file or directory, `codemap cone <file#symbol>` for an anchored sym
 only when the scope is unknown. In `implementation` mode, either entry is followed by
 `codemap changed` and `codemap proof changed`. In `analysis` mode, an exact entry is
 sufficient; root orientation must be followed by another focused map. Any analytical
-repository change fails the outcome. Control has ordinary tools and a blocking codemap shim.
+repository change fails the outcome. Control has ordinary tools and blocks agent-attributed
+codemap calls.
 
-The harness does not parse task text or choose a command. Its shim records argv and the actual
-exit status for every attempt; only successful calls can satisfy the protocol. The report keeps
+The harness does not parse task text or choose a command. Its shim uses native process ancestry
+(`libproc` on macOS, `/proc` on Linux) to separate an agent navigation call from a codemap
+consumer launched inside the project's own tests. Agent calls are blocked in control and routed
+to the frozen benchmark binary in treatment; internal consumers keep using the project's own
+built binary and do not count as navigation. Completed Codex command events are independently
+matched against attributed shim calls, so invoking the frozen binary by an absolute path cannot
+bypass the arm protocol. The shim records argv and the actual exit status; only successful calls
+can satisfy the protocol. The report keeps
 the raw `invocation_results`, `first_entry`, `entry_is_first_invocation`, `entry_kind` (`none`,
 `exact`, or `root`), `root_entry`, `exact_entry`, `mixed`, `ordered_daily`, and whether a
-focused call followed root orientation. This keeps task understanding in the agent while making
-the published protocol machine-checkable without reimplementing clap in the harness.
+focused call followed root orientation. Ignored internal calls and the event-trace comparison
+remain visible as separate receipts. This keeps task understanding in the agent while making the
+published protocol machine-checkable without reimplementing clap in the harness.
 
 Use `--resume` after interruption. Existing trials are reused only when the task,
 base commit, composed arm prompt, protocol/parser and harness bytes, model, reasoning,

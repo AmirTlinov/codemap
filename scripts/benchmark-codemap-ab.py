@@ -4,7 +4,7 @@
 Each task is executed from the same git commit in two disposable worktrees. The
 model, reasoning effort, task text, sandbox, and deterministic verifier are held
 constant. Only the navigation arm changes: the treatment must use codemap's
-daily workflow, while the control receives a blocking codemap shim.
+daily workflow, while the control blocks agent-attributed codemap calls.
 """
 
 from __future__ import annotations
@@ -30,6 +30,7 @@ from typing import Any
 
 from codemap_identity import CodemapIdentityError, benchmark_binary_identity, command_artifacts, resolve_codemap_command
 from codemap_protocol import codemap_protocol
+from codemap_protocol_shim import write_shim
 
 
 ARM_CONTROL = "control"
@@ -38,7 +39,7 @@ ARMS = (ARM_CONTROL, ARM_TREATMENT)
 MODE_IMPLEMENTATION = "implementation"
 MODE_ANALYSIS = "analysis"
 TASK_MODES = (MODE_IMPLEMENTATION, MODE_ANALYSIS)
-PROMPT_PROTOCOL_VERSION = 3
+PROMPT_PROTOCOL_VERSION = 4
 
 COMMON_PROMPT = """You are completing one benchmark coding task in a disposable git worktree.
 Make the smallest complete implementation that satisfies the task. Work autonomously; do not ask
@@ -305,34 +306,8 @@ def load_tasks(path: Path, default_verifier_timeout: int) -> list[Task]:
     return tasks
 
 
-def write_executable(path: Path, body: str) -> None:
-    path.write_text(body, encoding="utf-8")
-    path.chmod(0o755)
-
-
 def make_codemap_shim(shim_dir: Path, arm: str, codemap_cmd: list[str]) -> Path:
-    shim_dir.mkdir(parents=True, exist_ok=True)
-    shim = shim_dir / "codemap"
-    body = f'''#!/usr/bin/env python3
-import json, os, subprocess, sys
-command = {json.dumps(codemap_cmd)}
-arm = {json.dumps(arm)}
-if arm == "{ARM_CONTROL}":
-    print("codemap is unavailable in the control arm", file=sys.stderr)
-    status = 127
-else:
-    try:
-        status = subprocess.run([*command, *sys.argv[1:]]).returncode
-    except OSError as exc:
-        print(f"codemap launch failed: {{exc}}", file=sys.stderr)
-        status = 127
-record = {{"argv": sys.argv[1:], "status": status}}
-with open(os.environ["CODEMAP_AB_INVOCATION_LOG"], "a", encoding="utf-8") as stream:
-    stream.write(json.dumps(record, separators=(",", ":")) + "\\n")
-raise SystemExit(status)
-'''
-    write_executable(shim, body)
-    return shim
+    return write_shim(shim_dir, arm, codemap_cmd)
 
 
 def task_prompt(task: Task, arm: str) -> str:
@@ -355,6 +330,7 @@ def parse_codex_events(text: str) -> dict[str, Any]:
     thread_ids: list[str] = []
     agent_messages: list[str] = []
     command_items = 0
+    completed_commands: list[str] = []
     invalid_lines = 0
     for line in text.splitlines():
         if not line.strip():
@@ -375,6 +351,10 @@ def parse_codex_events(text: str) -> dict[str, Any]:
         if isinstance(item, dict):
             if item.get("type") == "command_execution":
                 command_items += 1
+                if item.get("status") in {"completed", "failed"} and isinstance(
+                    item.get("command"), str
+                ):
+                    completed_commands.append(item["command"])
             if item.get("type") == "agent_message" and isinstance(item.get("text"), str):
                 agent_messages.append(item["text"])
     return {
@@ -382,6 +362,7 @@ def parse_codex_events(text: str) -> dict[str, Any]:
         "thread_ids": thread_ids,
         "agent_messages": agent_messages,
         "command_execution_items": command_items,
+        "completed_commands": completed_commands,
         "invalid_jsonl_lines": invalid_lines,
     }
 
@@ -607,6 +588,7 @@ def run_trial(
         env["CODEMAP_CACHE_DIR"] = str(cache_dir)
         env["CODEMAP_AB_ARM"] = arm
         env["CODEMAP_AB_INVOCATION_LOG"] = str(invocation_log)
+        env["CODEMAP_AB_WORKTREE"] = str(worktree)
         invocation = [
             *codex_cmd,
             "exec",
@@ -642,7 +624,13 @@ def run_trial(
         events_path.write_text(codex.stdout, encoding="utf-8")
         stderr_path.write_text(codex.stderr, encoding="utf-8")
         event_summary = parse_codex_events(codex.stdout)
-        protocol = codemap_protocol(task.mode, arm, read_invocations(invocation_log), worktree)
+        protocol = codemap_protocol(
+            task.mode,
+            arm,
+            read_invocations(invocation_log),
+            worktree,
+            event_summary["completed_commands"],
+        )
         changed_paths = capture_patch(worktree, base_commit, artifact_dir)
         protected = protected_changes(changed_paths, task.protected_paths)
         # Capture the candidate before trusted verifiers run. Verifiers may compile,
