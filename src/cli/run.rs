@@ -49,10 +49,10 @@ pub fn run() -> Result<()> {
     };
     render::set_expand_root(cli.root.as_deref());
     render::set_brief(cli.brief || codemap_brief_env());
-    if let Some(()) = try_cached_ls_fast_path(&cli.command, &root_selection)? {
+    if let Some(()) = try_cold_root_ls_fast_path(&cli.command, &root_selection)? {
         return Ok(());
     }
-    if let Some(()) = try_cold_root_ls_fast_path(&cli.command, &root_selection)? {
+    if let Some(()) = try_cached_ls_fast_path(&cli.command, &root_selection)? {
         return Ok(());
     }
     if let Some(()) = try_cold_root_graph_fast_path(&cli.command, &root_selection)? {
@@ -118,20 +118,14 @@ pub fn run() -> Result<()> {
             ensure_valid_config(&project)?;
             let path = project_relative_arg(&project, &args.path)?;
             accept_depth_compat(args.depth, "ls")?;
-            let limit = if args.include_hidden {
-                usize::MAX / 2
-            } else {
-                args.limit
-            };
-            let report = map::ls_report(&project, &path, args.include_hidden, limit);
-            maybe_write_ls_lens_cache(&project, &path, &args, &report);
+            let format = output_format_with_json_alias(args.format, args.json);
+            let (include_hidden, limit) = args.effective_projection(&path, format);
+            let report = map::ls_report(&project, &path, include_hidden, limit);
+            maybe_write_ls_lens_cache(&project, &path, include_hidden, limit, &report);
             let prelude = repo::map_prelude(&project.root);
-            output_with_prelude(
-                output_format_with_json_alias(args.format, args.json),
-                &report,
-                &prelude,
-                || render::ls(&report, ls_section_name(args.section)),
-            )
+            output_with_prelude(format, &report, &prelude, || {
+                render::ls(&report, ls_section_name(args.section))
+            })
         }
         CommandKind::Cone(args) => {
             ensure_valid_config(&project)?;

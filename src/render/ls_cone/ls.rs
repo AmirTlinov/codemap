@@ -2,8 +2,8 @@
 use crate::model::LsReport;
 use crate::render::{
     boundary_facts_section, bullet, code, disclaimer, grouped_edge_list, hidden_section,
-    map_prelude_line_or_snapshot_line, public_evidence_label, render_roles, root_aware_expand,
-    section,
+    map_prelude_line_or_snapshot_line, public_evidence_label, render_roles,
+    render_visibility_section, root_aware_expand, section,
 };
 
 pub fn ls(report: &LsReport, section_filter: Option<&str>) {
@@ -20,6 +20,9 @@ pub fn ls(report: &LsReport, section_filter: Option<&str>) {
             }
         }
         _ => {}
+    }
+    if section_filter.is_none() {
+        render_visibility_section(&report.observations);
     }
     if matches!(section_filter, None | Some("links")) && report.mode != "missing" {
         if report.edges.is_empty() {

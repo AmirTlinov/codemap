@@ -42,10 +42,16 @@ pub fn read_ls_report(key: LsLensKey<'_>) -> Option<LsReport> {
     {
         return None;
     }
-    Some(cached.report.into_report())
+    if cached.report_sha256 != ls_report_sha256(&cached.report) {
+        return None;
+    }
+    let report = cached.report.into_report();
+    report.validate_observations().ok()?;
+    Some(report)
 }
 
 pub fn write_ls_report(key: LsLensKey<'_>, report: &LsReport) -> Result<()> {
+    let report = CachedLsReport::from_report(report);
     let cached = CachedLsLens {
         format_version: format_version(),
         version: key.version.to_string(),
@@ -54,7 +60,8 @@ pub fn write_ls_report(key: LsLensKey<'_>, report: &LsReport) -> Result<()> {
         path: key.path.to_string(),
         include_hidden: key.include_hidden,
         limit: key.limit,
-        report: CachedLsReport::from_report(report),
+        report_sha256: ls_report_sha256(&report),
+        report,
     };
     write_lens_artifact(key.cache_dir, "ls-current.json", &cached)
 }
@@ -103,6 +110,7 @@ struct CachedLsLens {
     path: String,
     include_hidden: bool,
     limit: usize,
+    report_sha256: String,
     report: CachedLsReport,
 }
 
@@ -167,6 +175,8 @@ struct CachedLsReport {
     #[serde(default)]
     boundary_facts: BoundaryFacts,
     edges: Vec<StructuralEdge>,
+    #[serde(default)]
+    observations: ObservationLedger,
     hidden: Vec<HiddenGroup>,
     next: Vec<String>,
 }
@@ -182,6 +192,7 @@ impl CachedLsReport {
             directory: report.directory.clone(),
             boundary_facts: report.boundary_facts.clone(),
             edges: report.edges.clone(),
+            observations: report.observations.clone(),
             hidden: report.hidden.clone(),
             next: report.next.clone(),
         }
@@ -197,6 +208,7 @@ impl CachedLsReport {
             directory: self.directory,
             boundary_facts: self.boundary_facts,
             edges: self.edges,
+            observations: self.observations,
             hidden: self.hidden,
             next: self.next,
         }
@@ -268,5 +280,10 @@ impl CachedConeReport {
 
 fn cone_report_sha256(report: &CachedConeReport) -> String {
     let body = serde_json::to_vec(report).expect("cached cone report should serialize");
+    format!("{:x}", Sha256::digest(body))
+}
+
+fn ls_report_sha256(report: &CachedLsReport) -> String {
+    let body = serde_json::to_vec(report).expect("cached ls report should serialize");
     format!("{:x}", Sha256::digest(body))
 }

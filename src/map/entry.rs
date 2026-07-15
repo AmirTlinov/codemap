@@ -38,6 +38,7 @@ pub fn ls_report(project: &Project, path: &str, include_hidden: bool, limit: usi
         directory: Vec::new(),
         boundary_facts: BoundaryFacts::default(),
         edges: Vec::new(),
+        observations: ObservationLedger::default(),
         hidden: Vec::new(),
         next: missing_ls_next(&rel),
     }

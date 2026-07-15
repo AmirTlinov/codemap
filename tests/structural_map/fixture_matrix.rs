@@ -26,11 +26,8 @@ fn named_fixture_matrix_covers_public_lenses() {
             "root ls should carry boundary facts for {}: {root_ls:#}",
             case.name
         );
-        assert!(
-            root_ls["directory"].as_array().expect("root directory").len() <= 20,
-            "root ls for {} must stay bounded: {root_ls:#}",
-            case.name
-        );
+        let root_markdown = run_markdown(repo.path(), cache.path(), &["ls", "."]);
+        assert!(root_markdown.lines().count() <= 120, "root ls readable budget for {}: {root_markdown}", case.name);
         assert_root_ls_has_no_recursive_source_examples(case.name, &root_ls);
 
         let graph = run_json(

@@ -24,6 +24,21 @@ pub(crate) struct LsArgs {
     pub(crate) json: bool,
 }
 
+impl LsArgs {
+    /// S03.d makes only the root inventory machine projection complete.
+    /// Exact file, symbol, and nested-directory anchors keep their normal
+    /// bounded signal filter unless the caller explicitly asks for `--all`.
+    pub(crate) fn effective_projection(&self, path: &str, format: OutputFormat) -> (bool, usize) {
+        let include_hidden = self.include_hidden || (path == "." && format == OutputFormat::Json);
+        let limit = if include_hidden {
+            usize::MAX / 2
+        } else {
+            self.limit
+        };
+        (include_hidden, limit)
+    }
+}
+
 #[derive(Debug, Args)]
 pub(crate) struct ConeArgs {
     /// Exact file, file#symbol, or directory anchor.

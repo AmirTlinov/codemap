@@ -8,6 +8,11 @@ use crate::map::{ConsumerObservationInput, consumer_observed_count};
 
 mod definition_coverage;
 use definition_coverage::definition_extractor_capability;
+mod root_inventory;
+pub(crate) use root_inventory::{
+    RootInventoryGroupVisibility, RootInventoryObservationInput,
+    record_root_inventory_observations, root_script_manifest_partition,
+};
 mod runtime;
 pub(crate) use runtime::{
     RuntimeGroupObservationInput, RuntimeGroupProjection, RuntimeRouteObservationInput,

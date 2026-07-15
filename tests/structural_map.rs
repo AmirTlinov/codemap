@@ -88,6 +88,8 @@ include!("structural_map/runtime_coverage_boundaries.rs");
 include!("structural_map/runtime_coverage_scope_boundaries.rs");
 include!("structural_map/runtime_scope_physical_identity.rs");
 include!("structural_map/runtime_root_nested_ignored_identity.rs");
+include!("structural_map/root_inventory_horizons.rs");
+include!("structural_map/root_inventory_horizon_gaps.rs");
 include!("structural_map/coverage_definition_gaps.rs");
 include!("structural_map/coverage_definition_members.rs");
 include!("structural_map/coverage_scanner_boundaries.rs");

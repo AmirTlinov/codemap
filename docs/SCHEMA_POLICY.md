@@ -83,6 +83,30 @@ this migration: incomplete entrypoint/env grammars, non-exhaustive root-only
 script catalogs, dynamic env lookups, partial verification relations, and
 detector gaps remain typed open coverage rather than false zeroes.
 
+## Flagship draft migration: root inventory horizons
+
+Manifest version 7 extends the observation contract to the root `ls .`
+inventory: `ls` advances from schema 7 to 8 and carries an `observations`
+ledger with exactly one certificate-backed horizon per group —
+`directory_surfaces`, `packages`, `scripts` and `test_surfaces`. Readable and
+JSON projections resolve the same certificates; `shown`/`hidden` belong to the
+projection and converge exactly against visible surface members. JSON ignores
+the readable display limit and serializes every observed member; aggregate
+rows retain all examples and report `hidden_count=0`. The detached
+`directory surfaces hidden by limit` and
+`support packages hidden below support scopes` groups are removed at the root
+scope because the horizons own that accounting. Both root owners certify their
+own extractor truth: the full-index owner may close groups under exact
+candidate-inventory accounting, while the bounded cold inventory fast path
+keeps role-dependent groups typed `open` (`unsupported_construct`) and its
+root-only script catalog keeps nested manifests as exact
+`incomplete_traversal` exclusions. Malformed/unreadable package manifests and
+unavailable test-role candidates remain typed unsupported gaps in their
+certificates instead of disappearing behind a closed zero. Lens artifact
+format 16 stores the four-group ledger and a body checksum; a corrupt warm
+artifact is rebuilt rather than served. File, symbol and nested-directory `ls`
+anchors stay outside this boundary.
+
 Semantic anchor config uses:
 
 ```yaml

@@ -23,7 +23,7 @@ fn ls_root_and_changed_render_boundary_facts_without_policy_verdicts() {
 
     let ls = run_json(repo.path(), cache.path(), &["ls", ".", "--format", "json"]);
     assert_schema("schemas/ls.schema.json", &ls);
-    assert_eq!(ls["schema_version"], "7");
+    assert_eq!(ls["schema_version"], "8");
     assert!(
         ls["boundary_facts"]["instruction_files"]
             .as_array()

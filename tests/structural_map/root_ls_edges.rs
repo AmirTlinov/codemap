@@ -44,39 +44,57 @@ fn root_ls_hides_agent_support_dirs_and_edges_by_default() {
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["commit", "-qm", "fixture"]);
 
+    let observed = run_markdown(
+        repo.path(),
+        cache.path(),
+        &["ls", ".", "--section", "observed"],
+    );
+    assert!(
+        observed
+            .lines()
+            .filter(|line| line.trim_start().starts_with("examples:"))
+            .all(|line| !line.contains("`.agents/`")
+                && !line.contains("`.codex/`")
+                && !line.contains("`.claude/`")),
+        "agent support dirs should not be readable root surfaces: {observed}"
+    );
+    let links = run_markdown(
+        repo.path(),
+        cache.path(),
+        &["ls", ".", "--section", "links"],
+    );
+    assert!(
+        links
+            .lines()
+            .filter(|line| line.contains(" -> `"))
+            .all(|line| !line.contains(".agents/")),
+        "agent support imports should not appear as readable root edges: {links}"
+    );
+    let hidden = run_markdown(
+        repo.path(),
+        cache.path(),
+        &["ls", ".", "--section", "hidden"],
+    );
+    assert!(
+        hidden.contains("support artifacts hidden: 3")
+            && hidden.contains("expand: `codemap ls . --all`"),
+        "hidden support count should make the omission explicit: {hidden}"
+    );
+
     let json = run_json(repo.path(), cache.path(), &["ls", ".", "--format", "json"]);
     assert_schema("schemas/ls.schema.json", &json);
-    let directory = json["directory"].as_array().expect("directory surfaces");
     assert!(
-        directory.iter().all(|surface| surface["examples"]
+        json["directory"]
             .as_array()
-            .expect("examples")
+            .expect("directory surfaces")
             .iter()
-            .all(|example| example != ".agents/" && example != ".codex/" && example != ".claude/")),
-        "agent support dirs should not be default root surfaces: {json:#}"
-    );
-    assert!(
-        json["edges"]
-            .as_array()
-            .expect("edges")
-            .iter()
-            .all(|edge| !edge["from"]
-                .as_str()
-                .unwrap_or_default()
-                .starts_with(".agents/")
-                && !edge["to"]
-                    .as_str()
-                    .unwrap_or_default()
-                    .starts_with(".agents/")),
-        "agent support imports should not appear as default root edges: {json:#}"
-    );
-    assert!(
-        json["hidden"]
-            .as_array()
-            .expect("hidden")
-            .iter()
-            .any(|hidden| hidden["reason"] == "support artifacts hidden"),
-        "hidden support count should make the omission explicit: {json:#}"
+            .any(|surface| surface["kind"] == "agent_support"
+                && surface["examples"]
+                    .as_array()
+                    .expect("examples")
+                    .iter()
+                    .any(|example| example == ".agents/")),
+        "full root JSON should retain the support fact hidden by readable output: {json:#}"
     );
 
     let expanded = run_json(
@@ -231,44 +249,38 @@ fn root_ls_balances_directory_edges_across_structural_sources() {
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["commit", "-qm", "fixture"]);
 
-    let json = run_json(
+    let markdown = run_markdown(
         repo.path(),
         cache.path(),
-        &["ls", ".", "--limit", "8", "--format", "json"],
+        &["ls", ".", "--limit", "8"],
     );
-    assert_schema("schemas/ls.schema.json", &json);
-    let edges = json["edges"].as_array().expect("edges");
-    assert_eq!(edges.len(), 8);
-
-    let froms = edges
-        .iter()
-        .map(|edge| edge["from"].as_str().expect("edge from"))
+    let edge_lines = markdown
+        .lines()
+        .filter(|line| line.contains(" -> `"))
         .collect::<Vec<_>>();
+    assert_eq!(edge_lines.len(), 8, "{markdown}");
+
     assert!(
-        froms.contains(&"apps/control-center/"),
-        "noisy source should still be represented: {json:#}"
+        markdown.contains("`apps/control-center/`"),
+        "noisy source should still be represented: {markdown}"
     );
     assert!(
-        froms.contains(&"services/api/"),
-        "bounded root map should preserve a second structural source instead of letting one source consume the edge budget: {json:#}"
+        markdown.contains("`services/api/`"),
+        "bounded root map should preserve a second structural source instead of letting one source consume the edge budget: {markdown}"
     );
     assert!(
-        froms
+        edge_lines
             .iter()
-            .filter(|from| **from == "apps/control-center/")
+            .filter(|line| line.contains("apps/control-center/"))
             .count()
-            < edges.len(),
-        "default root edge budget must not be monopolized by one noisy source: {json:#}"
+            < edge_lines.len(),
+        "default root edge budget must not be monopolized by one noisy source: {markdown}"
     );
     assert!(
-        json["hidden"]
-            .as_array()
-            .expect("hidden")
-            .iter()
-            .any(|hidden| hidden["reason"] == "directory edges hidden by limit"),
-        "hidden edge count should still make the bounded cut explicit: {json:#}"
+        markdown.contains("directory edges hidden by limit: 23")
+            && markdown.contains("expand: `codemap ls . --all`"),
+        "hidden edge count should still make the bounded cut explicit: {markdown}"
     );
-    assert_eq!(json.get("read_first"), None);
 }
 
 

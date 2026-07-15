@@ -25,6 +25,7 @@ pub(crate) fn ls_symbol_report(
             directory: Vec::new(),
             boundary_facts: BoundaryFacts::default(),
             edges: Vec::new(),
+            observations: crate::model::ObservationLedger::default(),
             hidden: Vec::new(),
             next: vec![format!("codemap ls {}", shell_quote(&info.rel))],
         };
@@ -56,6 +57,7 @@ pub(crate) fn ls_symbol_report(
         directory: Vec::new(),
         boundary_facts: BoundaryFacts::default(),
         edges,
+        observations: crate::model::ObservationLedger::default(),
         hidden,
         next: vec![format!("codemap cone {}", shell_quote(&anchor_path))],
     }
@@ -137,6 +139,7 @@ pub(crate) fn ls_file_report(
         directory: Vec::new(),
         boundary_facts: BoundaryFacts::default(),
         edges,
+        observations: crate::model::ObservationLedger::default(),
         hidden,
         next: vec![format!("codemap cone {}", shell_quote(&info.rel))],
     }

@@ -45,12 +45,18 @@ pub(crate) fn inventory_push(
 pub(crate) fn inventory_surfaces(
     scope: &str,
     grouped: BTreeMap<String, BTreeSet<String>>,
+    include_all_examples: bool,
 ) -> Vec<DirectorySurface> {
     let mut surfaces = grouped
         .into_iter()
         .map(|(kind, files)| {
             let count = files.len();
-            let examples = files.into_iter().take(5).collect::<Vec<_>>();
+            let examples = if include_all_examples {
+                files.into_iter().collect::<Vec<_>>()
+            } else {
+                files.into_iter().take(5).collect::<Vec<_>>()
+            };
+            let shown = examples.len();
             DirectorySurface {
                 id: directory_surface_id(scope, &kind, &examples),
                 // Script examples are `name: command` labels, not paths; the
@@ -66,7 +72,7 @@ pub(crate) fn inventory_surfaces(
                 kind,
                 count,
                 examples,
-                hidden_count: count.saturating_sub(5),
+                hidden_count: count.saturating_sub(shown),
             }
         })
         .collect::<Vec<_>>();

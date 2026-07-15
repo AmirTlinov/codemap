@@ -18,20 +18,14 @@ pub(crate) fn inventory_readable_text(root: &Path, rel: &str) -> Option<String> 
     std::fs::read_to_string(path).ok()
 }
 
-pub(crate) fn inventory_package_kind(root: &Path, rel: &str) -> Option<String> {
-    match manifest_file_name(rel) {
-        "package.json" => Some("package:javascript".to_string()),
-        "Cargo.toml" => inventory_readable_text(root, rel)
-            .filter(|text| text.contains("[package]"))
-            .map(|_| "package:rust".to_string()),
-        "go.mod" => Some("package:go".to_string()),
-        "pyproject.toml" => Some("package:python".to_string()),
-        "Package.swift" => Some("package:swift".to_string()),
-        _ => None,
-    }
-}
-
 pub(crate) fn inventory_recursive_structural_kind(kind: &str, rel: &str) -> bool {
+    let ext = Path::new(rel)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or("");
+    if crate::repo::is_source_ext(ext) {
+        return false;
+    }
     matches!(
         kind,
         "manifest"

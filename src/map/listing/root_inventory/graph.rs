@@ -14,7 +14,7 @@ pub(crate) fn root_inventory_graph_lens(
     limit: usize,
     lens: &str,
 ) -> GraphLens {
-    let report = root_inventory_ls_report(root, files, usize::MAX / 2);
+    let report = root_inventory_ls_report(root, files, false, usize::MAX / 2);
     let mut graph_edges = Vec::new();
     let mut seen_edges = BTreeSet::new();
 

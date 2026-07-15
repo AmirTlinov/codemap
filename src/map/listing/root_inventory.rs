@@ -6,23 +6,49 @@ pub(crate) use classify::*;
 pub(crate) use graph::*;
 
 use crate::map::{
-    boundary_facts_from_paths, directory_next_commands, inventory_package_kind,
-    inventory_recursive_structural_kind, inventory_root_script_edges, inventory_support_unit,
-    inventory_workspace_edges, is_support_artifact_path,
+    RootInventoryObservationInput, boundary_facts_from_paths, directory_next_commands,
+    group_visibility, inventory_recursive_structural_kind, inventory_root_script_edges,
+    inventory_support_unit, inventory_workspace_edges, is_support_artifact_path,
+    package_discovery_gap_observation, record_root_inventory_observations,
+    root_script_manifest_partition, shown_surface_facts,
 };
-use crate::model::{HiddenGroup, LsReport};
+use crate::model::{HiddenGroup, LsReport, ObservationLedger};
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::path::Path;
 
-pub(crate) fn root_inventory_ls_report(root: &Path, files: &[String], limit: usize) -> LsReport {
+pub(crate) fn root_inventory_ls_report(
+    root: &Path,
+    files: &[String],
+    include_hidden: bool,
+    limit: usize,
+) -> LsReport {
     let mut grouped: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    let mut complete_grouped: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     let mut hidden_support = BTreeSet::new();
     let mut recursive_hidden = 0usize;
     let mut source_edge_hidden = 0usize;
+    let package_audit =
+        crate::repo::audit_package_discovery_paths(root, files.iter().map(String::as_str));
+    let package_kinds = package_audit
+        .packages
+        .iter()
+        .map(|package| {
+            (
+                package.manifest.as_str(),
+                format!("package:{}", package.ecosystem),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
 
-    for dir in inventory_top_level_dirs(files) {
-        if is_support_artifact_path(&dir) {
+    let top_level_dirs = inventory_top_level_dirs(files);
+    let top_level_dir_count = top_level_dirs.len();
+    for dir in top_level_dirs {
+        if let Some(role) = inventory_dir_role(&dir) {
+            inventory_push(&mut complete_grouped, &role, &dir);
+        }
+        inventory_push(&mut complete_grouped, "dir", &dir);
+        if is_support_artifact_path(&dir) && !include_hidden {
             hidden_support.insert(dir);
             continue;
         }
@@ -34,26 +60,38 @@ pub(crate) fn root_inventory_ls_report(root: &Path, files: &[String], limit: usi
 
     let (script_labels, mut edges) = inventory_root_script_edges(root, files);
     for label in script_labels {
+        inventory_push(&mut complete_grouped, "script", &label);
         inventory_push(&mut grouped, "script", &label);
     }
 
     for rel in files {
-        if is_support_artifact_path(rel) {
-            hidden_support.insert(inventory_support_unit(rel));
-            continue;
+        let package_kind = package_kinds.get(rel.as_str()).cloned();
+        if let Some(package_kind) = &package_kind {
+            inventory_push(&mut complete_grouped, package_kind, rel);
         }
         let direct = !rel.contains('/');
         let kind = inventory_file_kind(rel);
-        if let Some(package_kind) = inventory_package_kind(root, rel) {
-            inventory_push(&mut grouped, &package_kind, rel);
+        let root_structural = inventory_recursive_structural_kind(&kind, rel);
+        if direct || root_structural {
+            inventory_push(&mut complete_grouped, &kind, rel);
         }
-        if direct || inventory_recursive_structural_kind(&kind, rel) {
-            inventory_push(&mut grouped, &kind, rel);
-        } else {
+
+        if !direct && !root_structural {
             recursive_hidden += 1;
             if kind == "source" {
                 source_edge_hidden += 1;
             }
+        }
+
+        if is_support_artifact_path(rel) && !include_hidden {
+            hidden_support.insert(inventory_support_unit(rel));
+            continue;
+        }
+        if let Some(package_kind) = package_kind {
+            inventory_push(&mut grouped, &package_kind, rel);
+        }
+        if direct || root_structural {
+            inventory_push(&mut grouped, &kind, rel);
         }
     }
 
@@ -70,8 +108,25 @@ pub(crate) fn root_inventory_ls_report(root: &Path, files: &[String], limit: usi
         a.from == b.from && a.to == b.to && a.edge_type == b.edge_type && a.evidence == b.evidence
     });
 
+    let packages_observed = complete_grouped
+        .iter()
+        .filter(|(kind, _)| kind.starts_with("package:"))
+        .map(|(_, files)| files.len())
+        .sum::<usize>();
+    let scripts_observed = complete_grouped.get("script").map_or(0, BTreeSet::len);
+    let tests_observed = complete_grouped
+        .iter()
+        .filter(|(kind, _)| LsReport::TEST_SURFACE_KINDS.contains(&kind.as_str()))
+        .map(|(_, files)| files.len())
+        .sum::<usize>();
     let mut hidden = Vec::new();
-    let mut surfaces = inventory_surfaces(".", grouped);
+    let complete_surfaces = inventory_surfaces(".", complete_grouped, true);
+    let surface_count = complete_surfaces.len();
+    let mut surfaces = if include_hidden {
+        complete_surfaces
+    } else {
+        inventory_surfaces(".", grouped, false)
+    };
     let script_rails = edges
         .iter()
         .filter(|edge| edge.edge_type == "declares_script")
@@ -82,15 +137,7 @@ pub(crate) fn root_inventory_ls_report(root: &Path, files: &[String], limit: usi
     {
         surface.path = script_rails.into_iter().next();
     }
-    let surface_count = surfaces.len();
     surfaces.truncate(limit);
-    if surface_count > surfaces.len() {
-        hidden.push(HiddenGroup {
-            reason: "directory surfaces hidden by limit".to_string(),
-            count: surface_count - surfaces.len(),
-            expand: "codemap ls . --all".to_string(),
-        });
-    }
 
     let edge_count = edges.len();
     if edge_count > limit {
@@ -101,20 +148,24 @@ pub(crate) fn root_inventory_ls_report(root: &Path, files: &[String], limit: usi
             expand: "codemap ls . --all".to_string(),
         });
     }
-    if !hidden_support.is_empty() {
+    if !include_hidden && !hidden_support.is_empty() {
         hidden.push(HiddenGroup {
             reason: "support artifacts hidden".to_string(),
             count: hidden_support.len(),
             expand: "codemap ls . --all".to_string(),
         });
     }
-    if recursive_hidden > 0 {
+    if !include_hidden && recursive_hidden > 0 {
         hidden.push(HiddenGroup {
             reason: "recursive files below this level hidden".to_string(),
             count: recursive_hidden,
             expand: "codemap ls . --all".to_string(),
         });
     }
+    // A full JSON projection serializes every fact observed by this cold
+    // inventory owner, but it cannot manufacture import edges that require
+    // the full index. Keep that capability boundary explicit even when no
+    // observed surface is display-hidden.
     if source_edge_hidden > 0 {
         hidden.push(HiddenGroup {
             reason: "full-index source edges hidden by bounded root inventory".to_string(),
@@ -123,6 +174,43 @@ pub(crate) fn root_inventory_ls_report(root: &Path, files: &[String], limit: usi
         });
     }
 
+    let (script_manifests_visited, script_manifests_excluded) =
+        root_script_manifest_partition(files.iter().map(String::as_str));
+    let direct_file_count = files.iter().filter(|rel| !rel.contains('/')).count();
+    let mut observations = ObservationLedger::default();
+    record_root_inventory_observations(
+        RootInventoryObservationInput {
+            snapshot: crate::cache::inventory_fingerprint(root, files),
+            classified_entries: (top_level_dir_count + files.len()) as u64,
+            current_level_entries: (top_level_dir_count + direct_file_count) as u64,
+            package_manifest_candidates: package_audit
+                .candidates
+                .into_iter()
+                .map(|candidate| candidate.manifest)
+                .collect(),
+            package_manifests_visited: package_audit.visited_manifests,
+            package_manifest_unsupported: package_audit
+                .unsupported
+                .into_iter()
+                .map(package_discovery_gap_observation)
+                .collect(),
+            script_manifests_visited,
+            script_manifests_excluded,
+            full_index: false,
+            directory_surfaces: group_visibility(surface_count, surfaces.len()),
+            packages: group_visibility(
+                packages_observed,
+                shown_surface_facts(&surfaces, "packages"),
+            ),
+            scripts: group_visibility(scripts_observed, shown_surface_facts(&surfaces, "scripts")),
+            tests: group_visibility(
+                tests_observed,
+                shown_surface_facts(&surfaces, "test_surfaces"),
+            ),
+            test_surface_unsupported: Vec::new(),
+        },
+        &mut observations,
+    );
     LsReport {
         kind: "ls_report",
         schema_version: crate::model::LsReport::SCHEMA_VERSION,
@@ -132,6 +220,7 @@ pub(crate) fn root_inventory_ls_report(root: &Path, files: &[String], limit: usi
         directory: surfaces,
         boundary_facts: boundary_facts_from_paths(files.iter().cloned().collect()),
         edges,
+        observations,
         hidden,
         next: directory_next_commands("."),
     }

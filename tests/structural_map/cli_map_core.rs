@@ -130,7 +130,7 @@ fn root_ls_is_a_bounded_domain_and_package_map() {
     let json = run_json(repo.path(), cache.path(), &["ls", ".", "--format", "json"]);
     assert_schema("schemas/ls.schema.json", &json);
     assert_eq!(json["kind"], "ls_report");
-    assert_eq!(json["schema_version"], "7");
+    assert_eq!(json["schema_version"], "8");
     assert_eq!(json["mode"], "directory");
     let surfaces = json["directory"].as_array().expect("directory surfaces");
     assert!(surfaces.iter().any(|surface| surface["kind"] == "domain"));
@@ -150,19 +150,17 @@ fn root_ls_is_a_bounded_domain_and_package_map() {
                 && edge["to"] == "packages/replay/")
     );
     assert!(
-        surfaces.iter().all(|surface| !surface["kind"]
+        surfaces.iter().any(|surface| surface["kind"]
             .as_str()
             .unwrap_or_default()
             .starts_with("support_package:")),
-        "root map should not surface fixture/example package internals by default: {json:#}"
+        "full JSON must serialize support-package facts hidden by readable output: {json:#}"
     );
+    let horizons = json["observations"]["horizons"].as_array().expect("horizons");
+    let packages = horizons.iter().find(|h| h["group"] == "packages");
     assert!(
-        json["hidden"]
-            .as_array()
-            .expect("hidden")
-            .iter()
-            .any(|hidden| hidden["reason"] == "support packages hidden below support scopes"),
-        "root map should expose hidden support package count, not package noise: {json:#}"
+        packages.is_some_and(|h| h["hidden"] == 0 && h["shown"] == h["count"]["observed"]),
+        "full JSON must close the package projection without a hidden remainder: {json:#}"
     );
     assert_eq!(json.get("read_first"), None);
     assert_eq!(json.get("confidence"), None);

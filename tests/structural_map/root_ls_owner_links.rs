@@ -237,41 +237,49 @@ fn root_ls_owner_env_edges_use_report_hidden_accounting() {
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["commit", "-qm", "env edge hidden fixture"]);
 
-    let bounded = run_json(
+    let bounded = run_markdown(
         repo.path(),
         cache.path(),
-        &["ls", ".", "--section", "links", "--format", "json"],
+        &["ls", ".", "--section", "links"],
     );
-    assert_schema("schemas/ls.schema.json", &bounded);
-    let expanded = run_json(
+    let expanded = run_markdown(
         repo.path(),
         cache.path(),
-        &["ls", ".", "--section", "links", "--all", "--format", "json"],
+        &["ls", ".", "--section", "links", "--all"],
     );
-    assert_schema("schemas/ls.schema.json", &expanded);
-    let bounded_env_edges = bounded["edges"]
-        .as_array()
-        .expect("bounded edges")
-        .iter()
-        .filter(|edge| edge["type"] == "declares_env")
+    let bounded_env_edges = bounded
+        .lines()
+        .filter(|line| line.contains("declares_env ->"))
         .count();
-    let expanded_env_edges = expanded["edges"]
-        .as_array()
-        .expect("expanded edges")
-        .iter()
-        .filter(|edge| edge["type"] == "declares_env")
+    let expanded_env_edges = expanded
+        .lines()
+        .filter(|line| line.contains("declares_env ->"))
         .count();
     assert!(
         expanded_env_edges > bounded_env_edges,
-        "fixture should have env edges hidden by normal report limit, not by owner-edge pre-caps: bounded={bounded_env_edges}, expanded={expanded_env_edges}, bounded={bounded:#}, expanded={expanded:#}"
+        "fixture should have env edges hidden by normal report limit, not by owner-edge pre-caps: bounded={bounded_env_edges}, expanded={expanded_env_edges}, bounded={bounded}, expanded={expanded}"
+    );
+    let hidden = run_markdown(
+        repo.path(),
+        cache.path(),
+        &["ls", ".", "--section", "hidden"],
     );
     assert!(
-        bounded["hidden"]
+        hidden.contains("directory edges hidden by limit: 20")
+            && hidden.contains("expand: `codemap ls . --all`"),
+        "bounded report must expose hidden owner edges with exact expand: {hidden}"
+    );
+
+    let json = run_json(repo.path(), cache.path(), &["ls", ".", "--format", "json"]);
+    assert_schema("schemas/ls.schema.json", &json);
+    assert_eq!(
+        json["edges"]
             .as_array()
-            .expect("hidden")
+            .expect("full JSON edges")
             .iter()
-            .any(|hidden| hidden["reason"] == "directory edges hidden by limit"
-                && hidden["expand"] == "codemap ls . --all"),
-        "bounded report must expose hidden owner edges with exact expand: {bounded:#}"
+            .filter(|edge| edge["type"] == "declares_env")
+            .count(),
+        40,
+        "full root JSON must serialize every observed env relation: {json:#}"
     );
 }
