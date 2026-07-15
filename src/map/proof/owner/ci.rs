@@ -10,6 +10,10 @@ pub(crate) struct CiRunStep {
 }
 
 pub(crate) fn ci_run_steps(text: &str) -> Vec<CiRunStep> {
+    ci_run_steps_with_offset(text, 0)
+}
+
+pub(crate) fn ci_run_steps_with_offset(text: &str, line_offset: usize) -> Vec<CiRunStep> {
     let lines = text.lines().collect::<Vec<_>>();
     let mut out = Vec::new();
     let mut index = 0usize;
@@ -42,7 +46,12 @@ pub(crate) fn ci_run_steps(text: &str) -> Vec<CiRunStep> {
                 let command = trim_yaml_scalar(line.trim());
                 if !command.is_empty() && !command.starts_with('#') {
                     let heredoc_delimiter = shell_heredoc_delimiter(&command);
-                    push_ci_logical_command(&mut out, &mut pending, command, index + 1);
+                    push_ci_logical_command(
+                        &mut out,
+                        &mut pending,
+                        command,
+                        index + 1 + line_offset,
+                    );
                     if pending.is_none() {
                         heredoc_until = heredoc_delimiter;
                     }
@@ -54,7 +63,7 @@ pub(crate) fn ci_run_steps(text: &str) -> Vec<CiRunStep> {
         }
         let command = trim_yaml_scalar(&spec.value);
         if !command.is_empty() {
-            push_ci_run_steps(&mut out, command, index + 1);
+            push_ci_run_steps(&mut out, command, index + 1 + line_offset);
         }
         index += 1;
     }
@@ -110,10 +119,20 @@ fn leading_whitespace_count(line: &str) -> usize {
     line.chars().take_while(|ch| ch.is_whitespace()).count()
 }
 
+mod execution;
+mod execution_commands;
+mod execution_projection;
+mod execution_targets;
 mod match_reasons;
 mod package_reference;
 mod shell_tokens;
+mod workflow;
 
+pub(crate) use execution::*;
+pub(crate) use execution_commands::*;
+pub(crate) use execution_projection::*;
+pub(crate) use execution_targets::*;
 pub(crate) use match_reasons::*;
 pub(crate) use package_reference::*;
 pub(crate) use shell_tokens::*;
+pub(crate) use workflow::*;

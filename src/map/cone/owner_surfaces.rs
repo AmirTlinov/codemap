@@ -8,9 +8,10 @@ pub(crate) use manifest_edges::*;
 pub(crate) use schema_edges::*;
 
 use crate::map::{
-    owner_env_edges, owner_env_unknowns, owner_surface_proof_surfaces, proof_runner_neighbor_edges,
-    schema_owner_path, shell_quote, sort_edges, structural_edge_with_locations, unknown,
-    workspace_manifest_file, workspace_manifest_member_packages,
+    ci_execution_unknowns, owner_env_edges, owner_env_unknowns, owner_surface_proof_surfaces,
+    proof_runner_neighbor_edges, schema_owner_path, shell_quote, sort_edges,
+    structural_edge_with_locations, unknown, workspace_manifest_file,
+    workspace_manifest_member_packages,
 };
 use crate::model::{Project, ProofSurface, StructuralEdge, Unknown};
 
@@ -99,6 +100,11 @@ pub(crate) fn cone_owner_unknowns(project: &Project, rel: &str) -> Vec<Unknown> 
     let mut unknowns = Vec::new();
     if file.has_role("env_config") {
         unknowns.extend(owner_env_unknowns(project, rel));
+    }
+    if file.has_role("build_ci")
+        && let Some(text) = project.read_indexed_text(rel)
+    {
+        unknowns.extend(ci_execution_unknowns(rel, &text));
     }
     if file.has_role("manifest") && workspace_manifest_file(rel) {
         if workspace_manifest_member_packages(project, rel).is_empty() {

@@ -2,11 +2,28 @@
 
 pub(crate) fn ci_owner_command_is_shell_syntax_only(command: &str) -> bool {
     let command = command.trim();
+    let first = command.split_whitespace().next().unwrap_or_default();
     matches!(
         command,
         ")" | ";;" | ";&" | ";;&" | "then" | "do" | "else" | "fi" | "done" | "esac"
     ) || command.starts_with("--")
-        || (command.ends_with(')') && !command.chars().any(char::is_whitespace))
+        || command.contains(";;")
+        || first == "[["
+        || first.ends_with(')')
+        || first.starts_with("\"$")
+        || first.starts_with("'$")
+        || (leading_assignment(first)
+            && (command.contains("$(") || !command.contains(char::is_whitespace)))
+}
+
+fn leading_assignment(token: &str) -> bool {
+    let Some((name, _)) = token.split_once('=') else {
+        return false;
+    };
+    !name.is_empty()
+        && name
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
 }
 
 pub(crate) fn ci_owner_command_has_unsupported_shell_control(command: &str) -> bool {

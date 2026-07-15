@@ -1,13 +1,14 @@
 // Responsibility: flow-lens-report
 use crate::map::{
-    RouteAnchorLookup, cone_contract_edges, cone_proof_edges, direct_dependency_edges,
-    file_summary, limit_edge_section, normalize_flow_anchor, route_anchor_label,
-    route_anchor_lookup_with_index, route_like_anchor, route_reference_edges_with_index,
-    runtime_entrypoint_direct_call_steps, runtime_entrypoint_locations,
-    runtime_entrypoint_surface_for_file, runtime_entrypoint_symbol_step, runtime_fact_index,
-    shell_quote, side_effect_surfaces_for_file, split_symbol_anchor, symbol_definition_location,
-    symbol_file_summary, symbol_outgoing_edges, symbol_proof_edges, truncate_with_hidden, unknown,
-    unknown_missing_symbol_anchor, unknown_unindexed_anchor, unknowns_for_file,
+    RouteAnchorLookup, ci_execution_edges, ci_execution_unknowns, cone_contract_edges,
+    cone_proof_edges, direct_dependency_edges, file_summary, limit_ci_execution_projection,
+    limit_edge_section, normalize_flow_anchor, route_anchor_label, route_anchor_lookup_with_index,
+    route_like_anchor, route_reference_edges_with_index, runtime_entrypoint_direct_call_steps,
+    runtime_entrypoint_locations, runtime_entrypoint_surface_for_file,
+    runtime_entrypoint_symbol_step, runtime_fact_index, shell_quote, side_effect_surfaces_for_file,
+    split_symbol_anchor, symbol_definition_location, symbol_file_summary, symbol_outgoing_edges,
+    symbol_proof_edges, truncate_with_hidden, unknown, unknown_missing_symbol_anchor,
+    unknown_unindexed_anchor, unknowns_for_file,
 };
 use crate::model::{EvidenceLocation, FlowReport, FlowStep, Project, RuntimeRoute};
 
@@ -150,55 +151,86 @@ pub fn flow_report(
                     unknown_breaks.push(unknown_unindexed_anchor(&file_rel));
                 }
             } else if let Some(file) = project.files.get(&rel) {
-                if let Some(surface) = runtime_entrypoint_surface_for_file(project, &rel) {
+                if file.has_role("build_ci") {
                     steps.push(FlowStep {
                         index: 0,
-                        anchor: surface
-                            .examples
-                            .first()
-                            .cloned()
-                            .unwrap_or_else(|| rel.clone()),
-                        kind: "runtime_entrypoint".to_string(),
-                        evidence: surface.evidence.clone(),
-                        locations: runtime_entrypoint_locations(project, &rel, &surface),
+                        anchor: rel.clone(),
+                        kind: "workflow_anchor".to_string(),
+                        evidence: "exact_workflow_anchor".to_string(),
+                        locations: vec![EvidenceLocation::path(&rel, "workflow_anchor")],
                     });
-                    if let Some((step, entry_symbol)) =
-                        runtime_entrypoint_symbol_step(project, file)
-                    {
+                    if let Some(text) = project.read_indexed_text(&rel) {
+                        let mut execution = ci_execution_edges(project, &rel, &text);
+                        crate::map::sort_edges(&mut execution);
+                        if !include_hidden {
+                            limit_ci_execution_projection(&mut execution, limit);
+                        }
+                        for edge in execution {
+                            steps.push(FlowStep {
+                                index: steps.len(),
+                                anchor: edge.to,
+                                kind: edge.edge_type,
+                                evidence: edge.evidence,
+                                locations: edge.locations,
+                            });
+                        }
+                        unknown_breaks.extend(ci_execution_unknowns(&rel, &text));
+                    }
+                    proof = cone_proof_edges(project, std::slice::from_ref(&file.rel));
+                    unknown_breaks.extend(unknowns_for_file(project, file));
+                    side_effects = side_effect_surfaces_for_file(project, file);
+                } else {
+                    if let Some(surface) = runtime_entrypoint_surface_for_file(project, &rel) {
                         steps.push(FlowStep {
-                            index: steps.len(),
-                            ..step
+                            index: 0,
+                            anchor: surface
+                                .examples
+                                .first()
+                                .cloned()
+                                .unwrap_or_else(|| rel.clone()),
+                            kind: "runtime_entrypoint".to_string(),
+                            evidence: surface.evidence.clone(),
+                            locations: runtime_entrypoint_locations(project, &rel, &surface),
                         });
-                        for step in
-                            runtime_entrypoint_direct_call_steps(project, file, &entry_symbol)
+                        if let Some((step, entry_symbol)) =
+                            runtime_entrypoint_symbol_step(project, file)
                         {
                             steps.push(FlowStep {
                                 index: steps.len(),
                                 ..step
                             });
+                            for step in
+                                runtime_entrypoint_direct_call_steps(project, file, &entry_symbol)
+                            {
+                                steps.push(FlowStep {
+                                    index: steps.len(),
+                                    ..step
+                                });
+                            }
                         }
                     }
-                }
-                steps.push(FlowStep {
-                    index: steps.len(),
-                    anchor: rel.clone(),
-                    kind: "file_anchor".to_string(),
-                    evidence: "exact_file_anchor".to_string(),
-                    locations: vec![EvidenceLocation::path(&rel, "file_anchor")],
-                });
-                for edge in direct_dependency_edges(project, &rel) {
                     steps.push(FlowStep {
                         index: steps.len(),
-                        anchor: edge.to.clone(),
-                        kind: edge.edge_type.clone(),
-                        evidence: edge.evidence.clone(),
-                        locations: edge.locations.clone(),
+                        anchor: rel.clone(),
+                        kind: "file_anchor".to_string(),
+                        evidence: "exact_file_anchor".to_string(),
+                        locations: vec![EvidenceLocation::path(&rel, "file_anchor")],
                     });
+                    for edge in direct_dependency_edges(project, &rel) {
+                        steps.push(FlowStep {
+                            index: steps.len(),
+                            anchor: edge.to.clone(),
+                            kind: edge.edge_type.clone(),
+                            evidence: edge.evidence.clone(),
+                            locations: edge.locations.clone(),
+                        });
+                    }
+                    contracts =
+                        cone_contract_edges(project, &direct_dependency_edges(project, &rel));
+                    proof = cone_proof_edges(project, std::slice::from_ref(&file.rel));
+                    unknown_breaks.extend(unknowns_for_file(project, file));
+                    side_effects = side_effect_surfaces_for_file(project, file);
                 }
-                contracts = cone_contract_edges(project, &direct_dependency_edges(project, &rel));
-                proof = cone_proof_edges(project, std::slice::from_ref(&file.rel));
-                unknown_breaks.extend(unknowns_for_file(project, file));
-                side_effects = side_effect_surfaces_for_file(project, file);
             } else {
                 unknown_breaks.push(unknown_unindexed_anchor(&rel));
             }

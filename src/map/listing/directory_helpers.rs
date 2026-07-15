@@ -26,15 +26,19 @@ fn edge_type_priority(edge_type: &str) -> usize {
         "outgoing_import" | "incoming_import" | "package_internal" | "package_outgoing"
         | "package_incoming" => 0,
         "workspace_member" | "declares_workspace_pattern" => 1,
-        "uses_lockfile" | "schema_migration" | "env_consumer" => 2,
-        "declares_env" => 3,
-        "ci_calls_script" | "ci_runs_command" | "ci_validation_step" => 4,
-        "ci_release_step" => 5,
-        "ci_setup_step" => 6,
-        "ci_control_step" => 7,
-        "declares_script" => 8,
-        "runs_command" => 9,
-        _ => 10,
+        "deploys" | "smoke_checks" | "produces_receipt" => 2,
+        "invokes_script" | "invokes_workflow" | "invokes_action" => 3,
+        "invokes_process" | "uses_external_action" => 4,
+        "declares_job" | "contains_step" => 5,
+        "uses_lockfile" | "schema_migration" | "env_consumer" => 6,
+        "declares_env" => 7,
+        "ci_calls_script" | "ci_runs_command" | "ci_validation_step" => 8,
+        "ci_release_step" => 9,
+        "ci_setup_step" => 10,
+        "ci_control_step" => 11,
+        "declares_script" => 12,
+        "runs_command" => 13,
+        _ => 14,
     }
 }
 

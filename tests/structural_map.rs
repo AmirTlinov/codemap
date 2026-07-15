@@ -158,6 +158,7 @@ include!("structural_map/ci_owner_cone.rs");
 include!("structural_map/ci_owner_proof.rs");
 include!("structural_map/ci_owner_run_safety.rs");
 include!("structural_map/ci_owner_wrapper_body.rs");
+include!("structural_map/ci_execution_path.rs");
 include!("structural_map/manifest_run_safety.rs");
 include!("structural_map/directory_cone_side_effects.rs");
 include!("structural_map/test_role_mass.rs");

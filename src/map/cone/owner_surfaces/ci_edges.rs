@@ -1,23 +1,10 @@
 // Responsibility: map-cone-owner-ci-edges
-use crate::map::{ci_owner_step_kind_for_project, ci_run_steps, structural_edge_with_locations};
-use crate::model::{EvidenceLocation, EvidenceStrength, Project, StructuralEdge};
+use crate::map::ci_execution_edges;
+use crate::model::{Project, StructuralEdge};
 
 pub(crate) fn owner_ci_edges(project: &Project, rel: &str) -> Vec<StructuralEdge> {
     let Some(text) = project.read_indexed_text(rel) else {
         return Vec::new();
     };
-    ci_run_steps(&text)
-        .into_iter()
-        .filter_map(|step| {
-            let kind = ci_owner_step_kind_for_project(project, &step.command)?;
-            Some(structural_edge_with_locations(
-                rel.to_string(),
-                step.command,
-                kind.edge_type(),
-                kind.evidence(),
-                EvidenceStrength::Hard,
-                vec![EvidenceLocation::line(rel, step.line, "ci_step")],
-            ))
-        })
-        .collect()
+    ci_execution_edges(project, rel, &text)
 }

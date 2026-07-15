@@ -6,10 +6,11 @@ use crate::map::{
     cone_owner_env_proof_edges_from_facts, cone_owner_incoming_edges, cone_owner_outgoing_edges,
     cone_owner_proof_edges, cone_owner_unknowns, cone_proof_edges_with_direct_consumers,
     cone_symbol_report, cone_xray_card, directory_has_files, file_cone_observations,
-    file_is_env_config, file_summary, limit_edge_projection, ls_directory_report, ls_file_report,
-    ls_missing_symbol_report, ls_symbol_report, owner_env_edges_from_facts, owner_env_facts,
-    owner_env_unknowns_from_facts, parent_anchor_for_missing, shell_quote, sort_edges,
-    split_symbol_anchor, unknown_unindexed_anchor,
+    file_is_env_config, file_summary, limit_ci_execution_projection, limit_edge_projection,
+    ls_directory_report, ls_file_report, ls_missing_symbol_report, ls_symbol_report,
+    owner_env_edges_from_facts, owner_env_facts, owner_env_unknowns_from_facts,
+    parent_anchor_for_missing, shell_quote, sort_edges, split_symbol_anchor,
+    unknown_unindexed_anchor,
 };
 use crate::model::{BoundaryFacts, ConeReport, LsReport, ObservationLedger, Project};
 use crate::repo;
@@ -175,7 +176,16 @@ pub fn cone_report(
         limit,
         include_hidden,
     });
-    limit_edge_projection(&mut outgoing, include_hidden, limit);
+    if !include_hidden
+        && project
+            .files
+            .get(&rel)
+            .is_some_and(|file| file.has_role("build_ci"))
+    {
+        limit_ci_execution_projection(&mut outgoing, limit);
+    } else {
+        limit_edge_projection(&mut outgoing, include_hidden, limit);
+    }
     limit_edge_projection(&mut incoming, include_hidden, limit);
     limit_edge_projection(&mut proof, include_hidden, limit);
     limit_edge_projection(&mut contracts, include_hidden, limit);
