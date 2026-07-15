@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -47,15 +48,16 @@ def main() -> int:
         control = write_shim(root / "control", "control", [str(benchmark)])
         shell_env = {**env, **shell_profile_environment(control.parent)}
         shell_env["PATH"] = str(control.parent) + os.pathsep + shell_env["PATH"]
-        for shell in ("zsh", "bash"):
-            resolved = subprocess.run(
-                [shell, "-lc", "command -v codemap"],
-                env=shell_env,
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            assert Path(resolved.stdout.strip()).resolve() == control.resolve()
+        if os.name != "nt":
+            for shell in filter(shutil.which, ("zsh", "bash")):
+                resolved = subprocess.run(
+                    [shell, "-lc", "command -v codemap"],
+                    env=shell_env,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                assert Path(resolved.stdout.strip()).resolve() == control.resolve()
         assert is_agent_direct(["/bin/zsh", "/opt/codex-code-mode-host"])
         assert is_agent_direct(["/opt/codex"])
         assert not is_agent_direct(["/tmp/debug/deps/project-tests", "/bin/zsh", "/opt/codex"])
@@ -70,11 +72,19 @@ def main() -> int:
         assert bypass["compliant"] is False
         assert bypass["agent_command_trace_matches"] is False
 
-        internal = subprocess.run(
-            [str(control), "--version"], env=env, capture_output=True, text=True
-        )
-        assert internal.returncode == 0 and internal.stdout.strip() == "project:--version"
-        internal_rows = rows(log)
+        if os.name == "nt":
+            # The benchmark shim is a POSIX executable; Windows release coverage
+            # exercises the protocol report without pretending the shebang runs.
+            internal_rows = [
+                {"argv": ["--version"], "status": 0, "agent_direct": False}
+            ]
+        else:
+            internal = subprocess.run(
+                [str(control), "--version"], env=env, capture_output=True, text=True
+            )
+            assert internal.returncode == 0
+            assert internal.stdout.strip() == "project:--version"
+            internal_rows = rows(log)
         report = codemap_protocol("analysis", "control", internal_rows)
         assert internal_rows[0]["agent_direct"] is False
         assert report["compliant"] is True
