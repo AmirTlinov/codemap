@@ -27,6 +27,8 @@
     "zero_footprint_default",
     "package_manager",
     "languages",
+    "ecosystem_support_version",
+    "ecosystem_support",
     "files_scanned",
     "files_reused",
     "domains",
@@ -39,7 +41,7 @@
   ],
   "properties": {
     "kind": { "const": "status_report" },
-    "schema_version": { "const": "7" },
+    "schema_version": { "const": "8" },
     "build_identity": { "$ref": "#/$defs/build_identity" },
     "path_identity": { "$ref": "#/$defs/path_executable_identity" },
     "executable_mismatch": { "type": ["boolean", "null"] },
@@ -77,6 +79,11 @@
     "languages": {
       "type": "array",
       "items": { "type": "string" }
+    },
+    "ecosystem_support_version": { "const": 1 },
+    "ecosystem_support": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/project_ecosystem_support" }
     },
     "files_scanned": { "type": "integer", "minimum": 0 },
     "files_reused": { "type": "integer", "minimum": 0 },
@@ -178,6 +185,41 @@
         "exists": { "type": "boolean" },
         "bytes": { "type": ["integer", "null"], "minimum": 0 },
         "fingerprint_match": { "type": ["boolean", "null"] }
+      }
+    },
+    "ecosystem_support_cells": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inventory", "symbols", "imports", "packages", "runtime", "contracts", "data", "verification", "dynamic_unknowns"],
+      "properties": {
+        "inventory": { "$ref": "#/$defs/support_cell_state" },
+        "symbols": { "$ref": "#/$defs/support_cell_state" },
+        "imports": { "$ref": "#/$defs/support_cell_state" },
+        "packages": { "$ref": "#/$defs/support_cell_state" },
+        "runtime": { "$ref": "#/$defs/support_cell_state" },
+        "contracts": { "$ref": "#/$defs/support_cell_state" },
+        "data": { "$ref": "#/$defs/support_cell_state" },
+        "verification": { "$ref": "#/$defs/support_cell_state" },
+        "dynamic_unknowns": { "$ref": "#/$defs/support_cell_state" }
+      }
+    },
+    "support_cell_state": {
+      "type": "string",
+      "enum": ["verified", "structural", "inventory", "unsupported", "not_applicable"]
+    },
+    "project_ecosystem_support": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ecosystem", "tier", "cells", "promise", "limitations", "detected_files", "generated_files", "examples"],
+      "properties": {
+        "ecosystem": { "type": "string" },
+        "tier": { "type": "string", "enum": ["A", "B", "C"] },
+        "cells": { "$ref": "#/$defs/ecosystem_support_cells" },
+        "promise": { "type": "string" },
+        "limitations": { "type": "array", "items": { "type": "string" } },
+        "detected_files": { "type": "integer", "minimum": 1 },
+        "generated_files": { "type": "integer", "minimum": 0 },
+        "examples": { "type": "array", "items": { "type": "string" }, "maxItems": 5 }
       }
     },
     "domain_status": {

@@ -1,5 +1,6 @@
 // Responsibility: status-report-tables
 use crate::map::StatusReport;
+use crate::render::ecosystem_support;
 use crate::render::{bullet, code, table};
 
 pub fn status(report: &StatusReport, doctor: bool) {
@@ -189,6 +190,7 @@ pub fn status(report: &StatusReport, doctor: bool) {
             ],
         )
     );
+    ecosystem_support(report);
     println!("\n## Project Timings\n");
     println!(
         "{}",

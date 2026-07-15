@@ -3,6 +3,7 @@
   "private": true,
   "dependencies": {
     "@codemap-fixture/auth": "workspace:*",
-    "@codemap-fixture/renderer": "workspace:*"
+    "@codemap-fixture/renderer": "workspace:*",
+    "@codemap-fixture/events-api": "workspace:*"
   }
 }

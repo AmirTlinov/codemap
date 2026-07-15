@@ -1,20 +1,232 @@
 {
-  "version": 24,
+  "version": 25,
   "structural_schema_version": "5",
   "anchor_config_version": 1,
+  "ecosystem_support_version": 1,
+  "ecosystem_support": [
+    {
+      "ecosystem": "javascript/typescript",
+      "tier": "A",
+      "cells": {
+        "inventory": "verified",
+        "symbols": "verified",
+        "imports": "verified",
+        "packages": "verified",
+        "runtime": "verified",
+        "contracts": "structural",
+        "data": "structural",
+        "verification": "verified",
+        "dynamic_unknowns": "verified"
+      },
+      "promise": "behaviorally verified structural map for the declared cells",
+      "limitations": [
+        "computed imports, reflection, dependency injection, and runtime-generated code remain typed open boundaries"
+      ]
+    },
+    {
+      "ecosystem": "python",
+      "tier": "A",
+      "cells": {
+        "inventory": "verified",
+        "symbols": "verified",
+        "imports": "verified",
+        "packages": "verified",
+        "runtime": "verified",
+        "contracts": "structural",
+        "data": "unsupported",
+        "verification": "verified",
+        "dynamic_unknowns": "verified"
+      },
+      "promise": "behaviorally verified structural map for the declared cells",
+      "limitations": [
+        "dynamic module loading and computed subprocess argv remain typed open boundaries"
+      ]
+    },
+    {
+      "ecosystem": "rust",
+      "tier": "A",
+      "cells": {
+        "inventory": "verified",
+        "symbols": "verified",
+        "imports": "verified",
+        "packages": "verified",
+        "runtime": "verified",
+        "contracts": "structural",
+        "data": "unsupported",
+        "verification": "verified",
+        "dynamic_unknowns": "verified"
+      },
+      "promise": "behaviorally verified structural map for the declared cells",
+      "limitations": [
+        "macro expansion beyond supported include and route forms is not compiler-equivalent"
+      ]
+    },
+    {
+      "ecosystem": "go",
+      "tier": "A",
+      "cells": {
+        "inventory": "verified",
+        "symbols": "verified",
+        "imports": "verified",
+        "packages": "verified",
+        "runtime": "verified",
+        "contracts": "structural",
+        "data": "unsupported",
+        "verification": "verified",
+        "dynamic_unknowns": "verified"
+      },
+      "promise": "behaviorally verified structural map for the declared cells",
+      "limitations": [
+        "interface dispatch and computed route registration remain typed open boundaries"
+      ]
+    },
+    {
+      "ecosystem": "swift",
+      "tier": "B",
+      "cells": {
+        "inventory": "verified",
+        "symbols": "verified",
+        "imports": "verified",
+        "packages": "verified",
+        "runtime": "unsupported",
+        "contracts": "structural",
+        "data": "unsupported",
+        "verification": "structural",
+        "dynamic_unknowns": "verified"
+      },
+      "promise": "structural orientation for the declared cells without broad runtime-lineage claims",
+      "limitations": [
+        "runtime routes and framework lifecycle wiring are not extracted"
+      ]
+    },
+    {
+      "ecosystem": "shell",
+      "tier": "C",
+      "cells": {
+        "inventory": "verified",
+        "symbols": "unsupported",
+        "imports": "unsupported",
+        "packages": "not_applicable",
+        "runtime": "structural",
+        "contracts": "unsupported",
+        "data": "unsupported",
+        "verification": "structural",
+        "dynamic_unknowns": "verified"
+      },
+      "promise": "inventory and typed boundaries only",
+      "limitations": [
+        "shell expansion and control flow are not interpreted as compiler-equivalent semantics"
+      ]
+    },
+    {
+      "ecosystem": "sql",
+      "tier": "C",
+      "cells": {
+        "inventory": "verified",
+        "symbols": "unsupported",
+        "imports": "unsupported",
+        "packages": "not_applicable",
+        "runtime": "unsupported",
+        "contracts": "structural",
+        "data": "verified",
+        "verification": "structural",
+        "dynamic_unknowns": "verified"
+      },
+      "promise": "inventory and typed boundaries only",
+      "limitations": [
+        "specialized migration lineage does not imply general SQL execution semantics"
+      ]
+    },
+    {
+      "ecosystem": "yaml/config",
+      "tier": "C",
+      "cells": {
+        "inventory": "verified",
+        "symbols": "unsupported",
+        "imports": "unsupported",
+        "packages": "structural",
+        "runtime": "structural",
+        "contracts": "structural",
+        "data": "unsupported",
+        "verification": "structural",
+        "dynamic_unknowns": "verified"
+      },
+      "promise": "inventory and typed boundaries only",
+      "limitations": [
+        "only declared workflow, deployment, workspace, and schema forms are structurally interpreted"
+      ]
+    },
+    {
+      "ecosystem": "schema/protocol",
+      "tier": "C",
+      "cells": {
+        "inventory": "verified",
+        "symbols": "structural",
+        "imports": "unsupported",
+        "packages": "not_applicable",
+        "runtime": "unsupported",
+        "contracts": "verified",
+        "data": "structural",
+        "verification": "structural",
+        "dynamic_unknowns": "verified"
+      },
+      "promise": "inventory and typed boundaries only",
+      "limitations": [
+        "supported OpenAPI, GraphQL, Protobuf, Avro, Prisma, and codegen cells do not imply full protocol semantics"
+      ]
+    },
+    {
+      "ecosystem": "generated clients",
+      "tier": "C",
+      "cells": {
+        "inventory": "verified",
+        "symbols": "structural",
+        "imports": "structural",
+        "packages": "structural",
+        "runtime": "unsupported",
+        "contracts": "structural",
+        "data": "unsupported",
+        "verification": "structural",
+        "dynamic_unknowns": "verified"
+      },
+      "promise": "inventory and typed boundaries only",
+      "limitations": [
+        "generated ownership requires exact source and output paths; resemblance never proves provenance"
+      ]
+    },
+    {
+      "ecosystem": "other source languages",
+      "tier": "C",
+      "cells": {
+        "inventory": "verified",
+        "symbols": "unsupported",
+        "imports": "unsupported",
+        "packages": "unsupported",
+        "runtime": "unsupported",
+        "contracts": "unsupported",
+        "data": "unsupported",
+        "verification": "unsupported",
+        "dynamic_unknowns": "verified"
+      },
+      "promise": "inventory and typed unsupported classification only",
+      "limitations": [
+        "no semantic parser or cross-file completeness is claimed"
+      ]
+    }
+  ],
   "schemas": [
     {
       "kind": "doctor",
       "file": "schemas/status.schema.json",
       "contract": "structural_output",
-      "schema_version": "7",
+      "schema_version": "8",
       "json_kind": "status_report"
     },
     {
       "kind": "status",
       "file": "schemas/status.schema.json",
       "contract": "structural_output",
-      "schema_version": "7",
+      "schema_version": "8",
       "json_kind": "status_report"
     },
     {

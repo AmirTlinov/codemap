@@ -336,7 +336,7 @@ fn topology_horizon(
         reasons.push("bounded_visible_topology".to_string());
     }
     if !topology.unknown_external.is_empty() {
-        reasons.push("unresolved_external_boundary".to_string());
+        reasons.push("external_runtime_boundary".to_string());
     }
     if reasons.is_empty() {
         reasons.push("observed_topology_closed_within_indexed_scope".to_string());

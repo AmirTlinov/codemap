@@ -35,6 +35,8 @@ pub struct StatusReport {
     pub zero_footprint_default: bool,
     pub package_manager: String,
     pub languages: Vec<String>,
+    pub ecosystem_support_version: u32,
+    pub ecosystem_support: Vec<crate::model::ProjectEcosystemSupport>,
     pub files_scanned: usize,
     pub files_reused: usize,
     pub domains: Vec<DomainStatus>,
@@ -47,7 +49,7 @@ pub struct StatusReport {
 }
 
 impl StatusReport {
-    pub const SCHEMA_VERSION: &'static str = "7";
+    pub const SCHEMA_VERSION: &'static str = "8";
 }
 
 #[derive(Debug, Serialize)]
@@ -106,6 +108,8 @@ pub fn status_report(
         zero_footprint_default: true,
         package_manager: project.package_manager.clone(),
         languages: project.languages.iter().cloned().collect(),
+        ecosystem_support_version: repo::release_ecosystem_support_version(),
+        ecosystem_support: repo::project_ecosystem_support(project),
         files_scanned: project.files.len(),
         files_reused: project.files_reused,
         domains: project

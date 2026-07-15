@@ -1028,6 +1028,7 @@
         "dynamic_env_lookup",
         "dynamic_import_flow",
         "dynamic_runtime_registration",
+        "external_runtime_boundary",
         "incomplete_traversal",
         "reexport_flow",
         "rust_include_flow",

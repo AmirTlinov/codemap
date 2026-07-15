@@ -158,7 +158,7 @@ fn render_ls_directory(report: &LsReport, section_filter: Option<&str>) {
         }
     }
     if report.path == "." {
-        boundary_facts_section(&report.boundary_facts, false, false);
+        boundary_facts_section(&report.boundary_facts, false, true);
     }
 }
 

@@ -4,10 +4,12 @@
   "workspaces": [
     "apps/*",
     "domains/*",
-    "services/*"
+    "services/*",
+    "packages/*"
   ],
   "scripts": {
     "test": "echo fixture tests",
-    "typecheck": "echo fixture typecheck"
+    "typecheck": "echo fixture typecheck",
+    "generate:events:check": "node packages/events-api/scripts/generate.mjs && git diff --exit-code packages/events-api/src/events.ts"
   }
 }

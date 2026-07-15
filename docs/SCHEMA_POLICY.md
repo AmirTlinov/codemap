@@ -1,5 +1,18 @@
 # Schema Policy
 
+## Ecosystem support declaration
+
+Manifest version 25 owns `ecosystem_support_version` 1 and the release tier/cell
+matrix. Status schema v8 projects only ecosystems detected in the current
+repository, with file counts, generated counts, examples, cell states, promise,
+and limitations. The shared coverage vocabulary also includes
+`external_runtime_boundary`; `unsupported_language` and `unsupported_construct`
+remain distinct typed stops.
+
+A specialized structural cell does not promote the ecosystem tier. The manifest
+promise is the ceiling exposed by the release, while project status reports the
+observed carrier without claiming compiler-equivalent semantics.
+
 ## Cache truth diagnostics
 
 Manifest version 24 adds the hidden `cache_report` v1 contract and advances

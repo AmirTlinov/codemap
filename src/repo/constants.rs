@@ -70,7 +70,8 @@ pub(crate) const ASSET_EXTS: &[&str] = &[
 
 pub(crate) const SOURCE_EXTS: &[&str] = &[
     "ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs", "py", "rs", "go", "java", "kt", "kts",
-    "swift", "c", "cc", "cpp", "h", "hpp", "cs", "rb", "php", "vue", "svelte",
+    "swift", "c", "cc", "cpp", "h", "hpp", "cs", "rb", "php", "vue", "svelte", "ex", "exs", "dart",
+    "lua", "scala", "clj", "cljs", "erl", "hrl", "fs", "fsx",
 ];
 
 pub(crate) const SCRIPT_EXTS: &[&str] = &["sh", "bash", "zsh"];

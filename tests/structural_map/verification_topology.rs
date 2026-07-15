@@ -110,4 +110,12 @@ fn dynamic_subprocess_target_stays_unknown_external() {
             && topology["horizon"]["status"] == "open",
         "dynamic subprocess targets must open the external verification horizon: {proof:#}"
     );
+    assert!(
+        topology["horizon"]["reasons"]
+            .as_array()
+            .expect("horizon reasons")
+            .iter()
+            .any(|reason| reason == "external_runtime_boundary"),
+        "the shared horizon must name the external runtime boundary: {proof:#}"
+    );
 }

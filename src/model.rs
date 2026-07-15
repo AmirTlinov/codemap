@@ -15,6 +15,7 @@ mod coverage;
 mod coverage_ledger;
 #[cfg(test)]
 mod coverage_tests;
+mod ecosystem_support;
 mod lens_reports;
 mod prelude;
 mod proof_reports;
@@ -28,6 +29,7 @@ pub use cone_reports::*;
 pub use config::*;
 pub use coverage::*;
 pub use coverage_ledger::*;
+pub use ecosystem_support::*;
 pub use lens_reports::*;
 pub use prelude::*;
 pub use proof_reports::*;

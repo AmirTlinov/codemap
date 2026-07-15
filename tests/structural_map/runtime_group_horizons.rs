@@ -48,9 +48,9 @@ fn runtime_flagship_groups_share_one_basis_across_bounded_and_full_projections()
     );
 
     let expected = [
-        ("entrypoints", 6, "open", 3, 3),
-        ("routes", 7, "open", 3, 4),
-        ("paths", 9, "open", 3, 6),
+        ("entrypoints", 8, "open", 3, 5),
+        ("routes", 8, "open", 3, 5),
+        ("paths", 10, "open", 3, 7),
         ("scripts", 0, "open", 0, 0),
         ("env", 0, "open", 0, 0),
         ("workers", 0, "closed", 0, 0),
