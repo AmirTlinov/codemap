@@ -17,13 +17,20 @@ const createSchema = z.object({ title: z.string() });
 export async function POST(req: Request) {
   const parsed = createSchema.safeParse(await req.json());
   return guardTenantMutation(req, async () => {
-    const internal = await createPanel(normalizeInput(parsed.data));
+    const internal = await createPanel(sanitizePayload(normalizeInput(parsed.data)));
     return respond(stripInternal(internal));
   });
 }
 
 function normalizeInput(result: { title: string; ignored?: string }) {
   return { title: result.title };
+}
+
+function sanitizePayload(payload: { title: string; meta?: string[] }) {
+  return {
+    title: payload.title,
+    meta: payload.meta?.map((item) => ({ value: item })),
+  };
 }
 
 function respond(body: unknown) {
@@ -132,9 +139,10 @@ export async function createPanel(input: { title: string }) {
     );
     assert!(
         paths.iter().filter_map(|edge| edge["to"].as_str()).all(|to| {
-            !to.starts_with("response_projection:") || !to.contains("normalizeInput")
+            !to.starts_with("response_projection:")
+                || (!to.contains("normalizeInput") && !to.contains("sanitizePayload"))
         }),
-        "input normalization must not be claimed as an external response projection: {runtime:#}"
+        "input normalization and nested returned fields must not become response omissions: {runtime:#}"
     );
     let post = runtime["routes"]
         .as_array()

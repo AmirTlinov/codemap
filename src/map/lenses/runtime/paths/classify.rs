@@ -200,12 +200,12 @@ fn returned_object_fields(code: &str) -> std::collections::BTreeSet<String> {
     let Some(start) = code.find("return {") else {
         return std::collections::BTreeSet::new();
     };
-    let tail = &code[start + "return {".len()..];
-    let Some(end) = tail.find('}') else {
+    let open = start + "return ".len();
+    let Some(end) = matching_brace(code, open) else {
         return std::collections::BTreeSet::new();
     };
-    tail[..end]
-        .split(',')
+    top_level_comma_segments(&code[open + 1..end])
+        .into_iter()
         .filter_map(|part| {
             let name = part
                 .trim()
@@ -219,4 +219,46 @@ fn returned_object_fields(code: &str) -> std::collections::BTreeSet<String> {
             .then(|| name.to_string())
         })
         .collect()
+}
+
+fn matching_brace(code: &str, open: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    for (offset, ch) in code[open..].char_indices() {
+        match ch {
+            '{' => depth += 1,
+            '}' => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some(open + offset);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn top_level_comma_segments(value: &str) -> Vec<&str> {
+    let mut segments = Vec::new();
+    let mut start = 0usize;
+    let mut round = 0usize;
+    let mut square = 0usize;
+    let mut curly = 0usize;
+    for (offset, ch) in value.char_indices() {
+        match ch {
+            '(' => round += 1,
+            ')' => round = round.saturating_sub(1),
+            '[' => square += 1,
+            ']' => square = square.saturating_sub(1),
+            '{' => curly += 1,
+            '}' => curly = curly.saturating_sub(1),
+            ',' if round == 0 && square == 0 && curly == 0 => {
+                segments.push(&value[start..offset]);
+                start = offset + 1;
+            }
+            _ => {}
+        }
+    }
+    segments.push(&value[start..]);
+    segments
 }
