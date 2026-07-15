@@ -11,46 +11,42 @@ pub(crate) fn go_route_registrations(
     line_number: usize,
 ) -> Vec<RuntimeRoute> {
     let code = code_shape_without_literal_content(line);
-    let Some(start) = code
-        .find("http.HandleFunc(")
-        .or_else(|| code.find(".HandleFunc("))
-    else {
-        return Vec::new();
-    };
-    let Some(path) = quoted_literal_at(
-        line[start..]
-            .split_once('(')
-            .map(|(_, tail)| tail)
-            .unwrap_or(""),
-    ) else {
-        return Vec::new();
-    };
-    let Some(open_paren) = code[start..].find('(').map(|found| start + found) else {
-        return Vec::new();
-    };
-    let Some(close) = matching_close_paren(&code, open_paren) else {
-        return Vec::new();
-    };
-    let method = if let Some(method) = go_route_method_in_chain(line, &code, close + 1) {
-        method
-    } else if go_route_has_methods_chain(&code, close + 1) {
-        return Vec::new();
-    } else {
-        "ANY".to_string()
-    };
-    vec![RuntimeRoute {
-        method: Some(method),
-        path,
-        file: rel.to_string(),
-        handler_symbol: route_call_second_arg_identifier(line, &code, open_paren + 1),
-        evidence: "go_http_route_registration".to_string(),
-        strength: EvidenceStrength::High,
-        locations: vec![EvidenceLocation::line(
-            rel,
-            line_number,
-            "route_registration",
-        )],
-    }]
+    let call = ".HandleFunc(";
+    let mut routes = Vec::new();
+    let mut offset = 0;
+    while let Some(found) = code[offset..].find(call) {
+        let start = offset + found;
+        let open_paren = start + call.len() - 1;
+        let Some(close) = matching_close_paren(&code, open_paren) else {
+            offset = start + call.len();
+            continue;
+        };
+        offset = close + 1;
+        let Some(path) = quoted_literal_at(line[open_paren + 1..close].trim_start()) else {
+            continue;
+        };
+        let method = if let Some(method) = go_route_method_in_chain(line, &code, close + 1) {
+            method
+        } else if go_route_has_methods_chain(&code, close + 1) {
+            continue;
+        } else {
+            "ANY".to_string()
+        };
+        routes.push(RuntimeRoute {
+            method: Some(method),
+            path,
+            file: rel.to_string(),
+            handler_symbol: route_call_second_arg_identifier(line, &code, open_paren + 1),
+            evidence: "go_http_route_registration".to_string(),
+            strength: EvidenceStrength::High,
+            locations: vec![EvidenceLocation::line(
+                rel,
+                line_number,
+                "route_registration",
+            )],
+        });
+    }
+    routes
 }
 
 pub(crate) fn go_route_method_in_chain(

@@ -74,6 +74,7 @@ pub enum CoverageClosure {
 pub enum CoverageReason {
     AnchorNotIndexed,
     DynamicImportFlow,
+    DynamicRuntimeRegistration,
     IncompleteTraversal,
     ReexportFlow,
     RustIncludeFlow,
@@ -88,6 +89,7 @@ impl CoverageReason {
         match self {
             Self::AnchorNotIndexed => "anchor is not indexed",
             Self::DynamicImportFlow => "dynamic import flow",
+            Self::DynamicRuntimeRegistration => "dynamic runtime registration",
             Self::IncompleteTraversal => "incomplete file traversal",
             Self::ReexportFlow => "re-export flow",
             Self::RustIncludeFlow => "rust include! flow",

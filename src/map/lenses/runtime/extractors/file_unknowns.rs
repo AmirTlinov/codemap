@@ -1,13 +1,17 @@
 // Responsibility: file-runtime-unknowns
 use crate::map::{
-    dynamic_env_lookup_line, dynamic_import_line, dynamic_require_line, raw_sql_literal_line,
-    route_dynamic_method_line, route_dynamic_path_line, route_mount_prefix_unknown_kind,
-    route_object_dynamic_line, route_string_concat_line, runtime_code_lines, shell_quote, unknown,
-    unsupported_framework_route_context, unsupported_framework_route_line,
+    RoutePathGapKind, RustAxumRouteGapKind, dynamic_env_lookup_line, dynamic_import_line,
+    dynamic_require_line, raw_sql_literal_line, route_dynamic_method_count,
+    route_mount_unknown_kinds, route_object_dynamic_count, route_path_gaps, runtime_code_lines,
+    rust_axum_route_gaps_from_text, shell_quote, unknown, unsupported_framework_route_context,
+    unsupported_framework_route_line,
 };
 use crate::model::{FileInfo, Project, Unknown};
 
 pub(crate) fn unknowns_for_file(project: &Project, file: &FileInfo) -> Vec<Unknown> {
+    if file.content_hash.is_none() {
+        return Vec::new();
+    }
     let Ok(text) = std::fs::read_to_string(project.root.join(&file.rel)) else {
         return Vec::new();
     };
@@ -50,34 +54,57 @@ pub(crate) fn unknowns_for_file(project: &Project, file: &FileInfo) -> Vec<Unkno
                 Some(format!("codemap runtime {}", shell_quote(&file.rel))),
             ));
         }
-        if route_like && route_string_concat_line(&line) {
-            out.push(unknown(
-                "route_string_concat",
-                Some(&file.rel),
-                Some(line_number),
-                "route path is composed instead of a static literal",
-                "runtime route cannot be mapped to an exact path structurally",
-                Some(format!("codemap runtime {}", shell_quote(&file.rel))),
-            ));
-        } else if route_like && route_dynamic_path_line(&line) {
-            out.push(unknown(
-                "route_dynamic_path",
-                Some(&file.rel),
-                Some(line_number),
-                "route path is not a static literal",
-                "runtime route cannot be mapped to an exact path structurally",
-                Some(format!("codemap runtime {}", shell_quote(&file.rel))),
-            ));
+        if route_like {
+            let path_gaps = route_path_gaps(&line);
+            let multiple = path_gaps.len() > 1;
+            for gap in path_gaps {
+                let (kind, base_reason) = match gap.kind {
+                    RoutePathGapKind::Concatenated => (
+                        "route_string_concat",
+                        "route path is composed instead of a static literal",
+                    ),
+                    RoutePathGapKind::Dynamic => {
+                        ("route_dynamic_path", "route path is not a static literal")
+                    }
+                    RoutePathGapKind::Unsupported => (
+                        "unsupported_framework_route",
+                        "route registration spans lines or uses an unsupported argument shape",
+                    ),
+                };
+                let reason = if multiple {
+                    format!("route registration #{}: {base_reason}", gap.ordinal)
+                } else {
+                    base_reason.to_string()
+                };
+                out.push(unknown(
+                    kind,
+                    Some(&file.rel),
+                    Some(line_number),
+                    reason,
+                    "runtime route cannot be mapped to an exact path structurally",
+                    Some(format!("codemap runtime {}", shell_quote(&file.rel))),
+                ));
+            }
         }
-        if route_like && route_dynamic_method_line(&line) {
-            out.push(unknown(
-                "route_dynamic_method",
-                Some(&file.rel),
-                Some(line_number),
-                "route method is computed instead of a static framework method",
-                "runtime route is not added to the exact method/path map",
-                Some(format!("codemap runtime {}", shell_quote(&file.rel))),
-            ));
+        if route_like {
+            let dynamic_methods = route_dynamic_method_count(&line);
+            for ordinal in 1..=dynamic_methods {
+                let reason = if dynamic_methods > 1 {
+                    format!(
+                        "route registration #{ordinal}: method is computed instead of a static framework method"
+                    )
+                } else {
+                    "route method is computed instead of a static framework method".to_string()
+                };
+                out.push(unknown(
+                    "route_dynamic_method",
+                    Some(&file.rel),
+                    Some(line_number),
+                    reason,
+                    "runtime route is not added to the exact method/path map",
+                    Some(format!("codemap runtime {}", shell_quote(&file.rel))),
+                ));
+            }
         }
         if js_like && unsupported_framework_route_line(&line, &unsupported_route_framework_context)
         {
@@ -90,27 +117,51 @@ pub(crate) fn unknowns_for_file(project: &Project, file: &FileInfo) -> Vec<Unkno
                 Some(format!("codemap runtime {}", shell_quote(&file.rel))),
             ));
         }
-        if route_like && route_object_dynamic_line(&line) {
-            out.push(unknown(
-                "route_object_dynamic",
-                Some(&file.rel),
-                Some(line_number),
-                "route object does not expose static method and path fields",
-                "runtime route cannot be mapped to an exact method/path structurally",
-                Some(format!("codemap runtime {}", shell_quote(&file.rel))),
-            ));
+        if route_like {
+            let dynamic_objects = route_object_dynamic_count(&line);
+            for ordinal in 1..=dynamic_objects {
+                let reason = if dynamic_objects > 1 {
+                    format!(
+                        "route object registration #{ordinal}: static method and path fields are unavailable"
+                    )
+                } else {
+                    "route object does not expose static method and path fields".to_string()
+                };
+                out.push(unknown(
+                    "route_object_dynamic",
+                    Some(&file.rel),
+                    Some(line_number),
+                    reason,
+                    "runtime route cannot be mapped to an exact method/path structurally",
+                    Some(format!("codemap runtime {}", shell_quote(&file.rel))),
+                ));
+            }
         }
-        if route_like && let Some(kind) = route_mount_prefix_unknown_kind(&line) {
-            let (reason, effect) = if kind == "route_mount_prefix" {
-                (
+        let mount_kinds = if route_like {
+            route_mount_unknown_kinds(&line)
+        } else {
+            Vec::new()
+        };
+        let multiple_mounts = mount_kinds.len() > 1;
+        for (index, kind) in mount_kinds.into_iter().enumerate() {
+            let (reason, effect) = match kind {
+                "route_mount_prefix" => (
                     "route prefix mounts middleware or a nested router",
                     "nested endpoints under this prefix are not expanded structurally",
-                )
-            } else {
-                (
+                ),
+                "route_mount_target" => (
+                    "route-like target is mounted without an explicit prefix",
+                    "endpoints contributed by the mounted target are not expanded structurally",
+                ),
+                _ => (
                     "route mount prefix is not a static literal",
                     "nested runtime routes cannot be mapped to exact paths structurally",
-                )
+                ),
+            };
+            let reason = if multiple_mounts {
+                format!("route mount #{}: {reason}", index + 1)
+            } else {
+                reason.to_string()
             };
             out.push(unknown(
                 kind,
@@ -129,6 +180,30 @@ pub(crate) fn unknowns_for_file(project: &Project, file: &FileInfo) -> Vec<Unkno
                 "raw SQL appears in code",
                 "database table/column dependency is not resolved structurally",
                 Some(format!("codemap cone {}", shell_quote(&file.rel))),
+            ));
+        }
+    }
+    if file.ext == "rs" {
+        for gap in rust_axum_route_gaps_from_text(&text) {
+            let (kind, reason, effect) = match gap.kind {
+                RustAxumRouteGapKind::DynamicPath => (
+                    "route_dynamic_path",
+                    "route path is not a static literal",
+                    "runtime route cannot be mapped to an exact path structurally",
+                ),
+                RustAxumRouteGapKind::UnsupportedRegistration => (
+                    "unsupported_framework_route",
+                    "axum route registration is recognized but not resolved by the static adapter",
+                    "runtime route is not added to the exact method/path map",
+                ),
+            };
+            out.push(unknown(
+                kind,
+                Some(&file.rel),
+                Some(gap.line_number),
+                reason,
+                effect,
+                Some(format!("codemap runtime {}", shell_quote(&file.rel))),
             ));
         }
     }

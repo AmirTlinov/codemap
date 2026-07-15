@@ -66,13 +66,19 @@ pub fn fingerprint(project: &Project, domain_path: Option<&str>) -> String {
         if let Some(content_hash) = &file.content_hash {
             hasher.update(b"content");
             hasher.update(content_hash.as_bytes());
-        } else if let Ok(meta) = std::fs::metadata(file.rel_path(project))
-            && let Ok(modified) = meta.modified()
-            && let Ok(duration) = modified.duration_since(std::time::UNIX_EPOCH)
-        {
-            hasher.update(b"metadata");
-            hasher.update(duration.as_secs().to_string().as_bytes());
-            hasher.update(duration.subsec_nanos().to_string().as_bytes());
+        } else if let Ok(meta) = std::fs::symlink_metadata(file.rel_path(project)) {
+            if meta.file_type().is_symlink() {
+                hasher.update(b"symlink");
+                if let Ok(target) = std::fs::read_link(file.rel_path(project)) {
+                    hasher.update(target.to_string_lossy().as_bytes());
+                }
+            } else {
+                // Placeholders are deliberately not parsed, so timestamp-only
+                // changes cannot alter any structural fact. Path and size are
+                // already committed above; keep their snapshot independent of
+                // incidental mtime churn.
+                hasher.update(b"placeholder");
+            }
         }
     }
     if let Some(path) = &project.config_path {

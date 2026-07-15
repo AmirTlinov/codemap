@@ -66,19 +66,17 @@ fn runtime_limit_reports_hidden_worker_surfaces() {
         ],
     );
     assert_schema("schemas/runtime.schema.json", &runtime);
-    assert_eq!(runtime["workers"].as_array().expect("workers").len(), 1);
+    assert_eq!(runtime["workers"].as_array().expect("workers").len(), 3);
+    let readable = run_markdown(
+        repo.path(),
+        cache.path(),
+        &["runtime", "packages/app/src/jobs", "--limit", "1"],
+    );
     assert!(
-        runtime["hidden"]
-            .as_array()
-            .expect("hidden")
-            .iter()
-            .any(|group| group["reason"] == "worker/job surfaces hidden by limit"
-                && group["count"] == 2
-                && group["expand"].as_str().is_some_and(|expand| {
-                    expand.starts_with("codemap runtime packages/app/src/jobs --all --limit ")
-                        && !expand.contains("<larger-number>")
-                })),
-        "runtime lens must not silently drop worker/job surfaces behind --limit: {runtime:#}"
+        readable.contains("worker/job surfaces hidden by limit: 2")
+            && readable.contains("codemap runtime packages/app/src/jobs --all --limit 3")
+            && !readable.contains("<larger-number>"),
+        "bounded readable runtime lens must not silently drop worker/job surfaces behind --limit: {readable}"
     );
 }
 

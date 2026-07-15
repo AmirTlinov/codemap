@@ -1,6 +1,8 @@
 // Responsibility: cli-fast-paths-runtime-root
-use crate::cli::{CommandKind, lens_cache_matches_current, output, set_cached_map_snapshot};
-use crate::{render, repo};
+use crate::cli::{
+    CommandKind, OutputFormat, lens_cache_matches_current, output, set_cached_map_snapshot,
+};
+use crate::{cache, render, repo};
 use anyhow::Result;
 use std::env;
 
@@ -8,10 +10,17 @@ pub(crate) fn try_runtime_root_fast_path(
     command: &CommandKind,
     root_selection: &repo::RootSelection,
 ) -> Result<Option<()>> {
+    if !cache::cache_enabled() {
+        return Ok(None);
+    }
     let CommandKind::Runtime(args) = command else {
         return Ok(None);
     };
-    if args.scope != "." || args.include_hidden || args.limit != 20 {
+    if args.scope != "."
+        || args.include_hidden
+        || args.format == OutputFormat::Json
+        || args.limit != 20
+    {
         return Ok(None);
     }
     let cwd = env::current_dir()?;

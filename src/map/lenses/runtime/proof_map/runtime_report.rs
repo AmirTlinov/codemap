@@ -1,11 +1,12 @@
 // Responsibility: runtime-report-assembly
 use crate::map::{
-    dedupe_runtime_entrypoints, env_surfaces_for_file, extend_root_nested_routes,
-    group_env_surfaces, limit_edge_section, root_runtime_containers,
+    RuntimeRouteObservationInput, dedupe_runtime_entrypoints, directory_has_files,
+    env_surfaces_for_file, expand_with_concrete_limit, extend_root_nested_routes,
+    files_under_directory, group_env_surfaces, limit_edge_section, root_runtime_containers,
     route_reference_edges_with_index, runtime_code_entrypoints, runtime_entrypoint_kind,
     runtime_expand_commands, runtime_fact_index_for_files, runtime_manifest_entrypoints,
-    runtime_scope_files, runtime_worker_or_job_convention, shell_quote, surface_from_path,
-    truncate_with_hidden, unknowns_for_file,
+    runtime_route_observations, runtime_scope_files, runtime_worker_or_job_convention, shell_quote,
+    surface_from_path, truncate_with_hidden, unknowns_for_file,
 };
 use crate::model::{EvidenceStrength, HiddenGroup, Project, RuntimeReport, Surface};
 use crate::repo;
@@ -27,6 +28,25 @@ pub fn runtime_report(
     let mut proof = Vec::new();
     let mut unknowns = Vec::new();
     let (scope_files, hidden_scope_count) = runtime_scope_files(project, &scope, include_hidden);
+    let scope_indexed = scope == "."
+        || project.files.contains_key(&scope)
+        || directory_has_files(project, &scope)
+        || std::fs::symlink_metadata(project.root.join(&scope))
+            .is_ok_and(|metadata| metadata.is_dir());
+    let route_scope_files = if scope == "." && !include_hidden {
+        files_under_directory(project, ".")
+    } else {
+        scope_files.clone()
+    };
+    let route_candidate_files = route_scope_files
+        .iter()
+        .copied()
+        .filter(|file| crate::repo::is_source_ext(&file.ext))
+        .collect::<Vec<_>>();
+    let route_scope_unknowns = route_scope_files
+        .iter()
+        .flat_map(|file| unknowns_for_file(project, file))
+        .collect::<Vec<_>>();
     let runtime_facts = runtime_fact_index_for_files(project, scope_files.iter().copied());
     let root_containers = if scope == "." && !include_hidden {
         root_runtime_containers(project)
@@ -70,7 +90,12 @@ pub fn runtime_report(
         }
         routes.extend(file_routes);
         env.extend(env_surfaces_for_file(project, file));
-        unknowns.extend(unknowns_for_file(project, file));
+        unknowns.extend(
+            route_scope_unknowns
+                .iter()
+                .filter(|unknown| unknown.path.as_deref() == Some(file.rel.as_str()))
+                .cloned(),
+        );
     }
     if scope == "." && !include_hidden && hidden_scope_count > 0 {
         extend_root_nested_routes(project, &scope_files, &mut routes, &mut proof);
@@ -109,12 +134,21 @@ pub fn runtime_report(
         "runtime entrypoints hidden by limit",
         &include_hidden_expand,
     );
-    truncate_with_hidden(
-        &mut routes,
-        limit,
-        &mut hidden,
-        "runtime routes hidden by limit",
-        &include_hidden_expand,
+    let observed_routes = routes.len();
+    let route_expand = (observed_routes > limit)
+        .then(|| expand_with_concrete_limit(&include_hidden_expand, observed_routes));
+    routes.truncate(limit);
+    let observations = runtime_route_observations(
+        project,
+        RuntimeRouteObservationInput {
+            scope: &scope,
+            scope_indexed,
+            candidate_files: &route_candidate_files,
+            observed: observed_routes,
+            shown: routes.len(),
+            route_unknowns: &route_scope_unknowns,
+            expand: route_expand,
+        },
     );
     truncate_with_hidden(
         &mut env,
@@ -175,7 +209,7 @@ pub fn runtime_report(
     let expand = runtime_expand_commands(&scope, &root_containers, &entrypoints);
     RuntimeReport {
         kind: "runtime_report",
-        schema_version: "3",
+        schema_version: RuntimeReport::SCHEMA_VERSION,
         scope: scope.clone(),
         entrypoints,
         routes,
@@ -185,6 +219,7 @@ pub fn runtime_report(
         ci,
         proof,
         unknowns,
+        observations,
         hidden,
         expand,
     }

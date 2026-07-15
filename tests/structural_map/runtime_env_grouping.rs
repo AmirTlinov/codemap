@@ -47,7 +47,7 @@ fn runtime_hidden_expands_use_the_actual_scope() {
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["commit", "-qm", "runtime hidden expand fixture"]);
 
-    let runtime = run_json(
+    let runtime = run_markdown(
         repo.path(),
         cache.path(),
         &[
@@ -55,19 +55,12 @@ fn runtime_hidden_expands_use_the_actual_scope() {
             "packages/app/src",
             "--limit",
             "1",
-            "--format",
-            "json",
         ],
     );
-    assert_schema("schemas/runtime.schema.json", &runtime);
-    let hidden = runtime["hidden"].as_array().expect("hidden");
-    assert!(!hidden.is_empty(), "fixture should create runtime hidden groups: {runtime:#}");
     assert!(
-        hidden.iter().all(|group| group["expand"]
-            .as_str()
-            .is_some_and(|expand| expand.starts_with("codemap runtime packages/app/src --all --limit ")
-                && !expand.contains("<larger-number>"))),
-        "runtime hidden expand should be an executable command for the current scope, not a placeholder: {runtime:#}"
+        runtime.contains("codemap runtime packages/app/src --all --limit 2")
+            && !runtime.contains("<larger-number>"),
+        "runtime hidden expand should be an executable command for the current scope, not a placeholder: {runtime}"
     );
 }
 
@@ -140,16 +133,15 @@ fn runtime_reports_hidden_proof_edges_when_limited() {
             .all(|edge| edge["evidence"] == "e2e_visited_route"),
         "runtime proof should be tied to runtime surfaces, not generic file-level proof: {runtime:#}"
     );
+    let readable = run_markdown(
+        repo.path(),
+        cache.path(),
+        &["runtime", "packages/app/src", "--limit", "1"],
+    );
     assert!(
-        runtime["hidden"]
-            .as_array()
-            .expect("hidden")
-            .iter()
-            .any(|group| group["reason"] == "runtime verification edges hidden by limit"
-                && group["expand"].as_str().is_some_and(|expand| {
-                    expand.starts_with("codemap runtime packages/app/src --all --limit ")
-                        && !expand.contains("<larger-number>")
-                })),
-        "runtime proof truncation must be visible and expandable, not silent: {runtime:#}"
+        readable.contains("runtime verification edges hidden by limit: 1")
+            && readable.contains("codemap runtime packages/app/src --all --limit 2")
+            && !readable.contains("<larger-number>"),
+        "runtime proof truncation must be visible and expandable in bounded readable output, not silent: {readable}"
     );
 }

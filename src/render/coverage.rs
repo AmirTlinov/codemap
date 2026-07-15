@@ -24,6 +24,37 @@ pub(crate) fn render_visibility_section_for_groups(
     }
 }
 
+pub(crate) fn render_runtime_route_visibility(observations: &ObservationLedger) {
+    let Some(horizon) = observations
+        .horizons
+        .iter()
+        .find(|horizon| horizon.group == "routes")
+    else {
+        return;
+    };
+    let unsupported_files = horizon
+        .unsupported
+        .iter()
+        .map(|observation| observation.file.as_str())
+        .collect::<std::collections::BTreeSet<_>>()
+        .len();
+    println!("\n## Visibility\n");
+    println!(
+        "- routes: {}; shown={} hidden={}; dynamic={} unsupported_files={}; cert=`{}`",
+        horizon.count.display(),
+        horizon.shown,
+        horizon.hidden,
+        horizon.dynamic.len(),
+        unsupported_files,
+        readable_certificate_id(&horizon.count.certificate_id)
+    );
+    if horizon.hidden > 0
+        && let Some(expand) = horizon.expand.as_deref()
+    {
+        println!("  expand: `{}`", root_aware_expand(expand));
+    }
+}
+
 pub(crate) fn render_definition_visibility(observations: &ObservationLedger) {
     if observations.horizons.is_empty() {
         return;

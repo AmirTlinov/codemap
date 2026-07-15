@@ -275,15 +275,10 @@ enum AnchorAction {
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["commit", "-qm", "clap command fixture"]);
 
-    let root_runtime = run_json(repo.path(), cache.path(), &["runtime", ".", "--format", "json"]);
-    assert_schema("schemas/runtime.schema.json", &root_runtime);
+    let root_runtime = run_markdown(repo.path(), cache.path(), &["runtime", "."]);
     assert!(
-        root_runtime["entrypoints"]
-            .as_array()
-            .expect("root runtime entrypoints")
-            .iter()
-            .all(|surface| surface["kind"] != "cli_command"),
-        "root runtime should stay current-level and not recursively dump CLI commands: {root_runtime:#}"
+        !root_runtime.contains("src/cli/args.rs#CommandKind"),
+        "bounded readable root runtime should stay current-level and not recursively dump CLI commands: {root_runtime}"
     );
 
     let cli_runtime = run_json(

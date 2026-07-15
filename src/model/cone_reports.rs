@@ -41,7 +41,7 @@ pub struct ConeReport {
 }
 
 impl ConeReport {
-    pub const SCHEMA_VERSION: &'static str = "10";
+    pub const SCHEMA_VERSION: &'static str = "11";
 
     pub fn validate_observations(&self) -> Result<(), super::ObservationLedgerError> {
         self.observations.validate()?;

@@ -8,11 +8,12 @@ use crate::cli::{
     maybe_write_proof_changed_lens_cache_from_changed, maybe_write_proof_map_lens_cache,
     maybe_write_proof_map_lens_cache_from_changed, maybe_write_siblings_lens_cache, output,
     output_format_with_json_alias, output_with_prelude, project_relative_arg, proof,
-    proof_map_inputs, schema_text, try_cached_changed_fast_path, try_cached_cone_fast_path,
-    try_cached_ls_fast_path, try_cached_place_fast_path, try_cached_proof_changed_fast_path,
-    try_cached_proof_map_fast_path, try_cached_siblings_fast_path, try_clean_changed_fast_path,
-    try_clean_proof_changed_fast_path, try_cold_root_graph_fast_path, try_cold_root_ls_fast_path,
-    try_cold_root_proof_map_fast_path, try_runtime_root_fast_path, validate_anchors,
+    proof_map_inputs, run_runtime, schema_text, try_cached_changed_fast_path,
+    try_cached_cone_fast_path, try_cached_ls_fast_path, try_cached_place_fast_path,
+    try_cached_proof_changed_fast_path, try_cached_proof_map_fast_path,
+    try_cached_siblings_fast_path, try_clean_changed_fast_path, try_clean_proof_changed_fast_path,
+    try_cold_root_graph_fast_path, try_cold_root_ls_fast_path, try_cold_root_proof_map_fast_path,
+    try_runtime_root_fast_path, validate_anchors,
 };
 use crate::{map, render, repo};
 use anyhow::Result;
@@ -230,12 +231,7 @@ pub fn run() -> Result<()> {
             let report = map::contract_report(&project, &path, args.include_hidden, args.limit);
             output(args.format, &report, || render::contract(&report))
         }
-        CommandKind::Runtime(args) => {
-            ensure_valid_config(&project)?;
-            let scope = project_relative_arg(&project, &args.scope)?;
-            let report = map::runtime_report(&project, &scope, args.include_hidden, args.limit);
-            output(args.format, &report, || render::runtime(&report))
-        }
+        CommandKind::Runtime(args) => run_runtime(&project, args),
         CommandKind::Proof(args) => proof(&project, args),
         CommandKind::ProofMap(args) => {
             ensure_valid_config(&project)?;

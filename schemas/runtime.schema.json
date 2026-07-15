@@ -17,6 +17,7 @@
     "ci",
     "proof",
     "unknowns",
+    "observations",
     "hidden",
     "expand"
   ],
@@ -24,7 +25,7 @@
     "kind": {
       "const": "runtime_report"
     },
-    "schema_version": { "const": "3" },
+    "schema_version": { "const": "4" },
     "build_identity": { "$ref": "#/$defs/build_identity" },
     "scope": {
       "type": "string"
@@ -77,6 +78,7 @@
         "$ref": "#/$defs/unknown"
       }
     },
+    "observations": { "$ref": "#/$defs/observation_ledger" },
     "hidden": {
       "type": "array",
       "items": {
@@ -91,6 +93,212 @@
     }
   },
   "$defs": {
+    "coverage_reason": {
+      "type": "string",
+      "enum": [
+        "anchor_not_indexed",
+        "dynamic_import_flow",
+        "dynamic_runtime_registration",
+        "incomplete_traversal",
+        "reexport_flow",
+        "rust_include_flow",
+        "unsupported_construct",
+        "unsupported_language",
+        "unclassified_coverage_gap",
+        "verification_relation_flow"
+      ]
+    },
+    "coverage_closure": {
+      "type": "string",
+      "enum": ["closed", "open", "unavailable"]
+    },
+    "coverage_location": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path"],
+      "properties": {
+        "path": { "type": "string" },
+        "line_start": { "type": "integer", "minimum": 1 },
+        "line_end": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "extractor_capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["extractor_id", "version", "language", "constructs"],
+      "properties": {
+        "extractor_id": { "type": "string" },
+        "version": { "type": "string" },
+        "language": { "type": "string" },
+        "constructs": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "unsupported_observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "construct"],
+      "properties": {
+        "file": { "type": "string" },
+        "construct": { "type": "string" },
+        "location": { "$ref": "#/$defs/coverage_location" }
+      }
+    },
+    "coverage_stop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "$ref": "#/$defs/coverage_reason" },
+        "location": { "$ref": "#/$defs/coverage_location" },
+        "missing_surface": { "type": "string" }
+      }
+    },
+    "observed_count": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["observed", "closure", "reasons", "certificate_id"],
+      "properties": {
+        "observed": { "type": "integer", "minimum": 0 },
+        "closure": { "$ref": "#/$defs/coverage_closure" },
+        "reasons": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/coverage_reason" },
+          "uniqueItems": true
+        },
+        "certificate_id": {
+          "type": "string",
+          "pattern": "^coverage-v1:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "coverage_horizon": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "group",
+        "scope",
+        "count",
+        "shown",
+        "hidden",
+        "expand",
+        "unsupported",
+        "dynamic"
+      ],
+      "properties": {
+        "group": { "type": "string" },
+        "scope": { "type": "string" },
+        "count": { "$ref": "#/$defs/observed_count" },
+        "shown": { "type": "integer", "minimum": 0 },
+        "hidden": { "type": "integer", "minimum": 0 },
+        "expand": {
+          "anyOf": [{ "type": "string" }, { "type": "null" }]
+        },
+        "unsupported": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/unsupported_observation" }
+        },
+        "dynamic": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/coverage_stop" }
+        }
+      }
+    },
+    "coverage_certificate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "query_kind",
+        "scope",
+        "snapshot",
+        "observed_facts",
+        "eligible_files",
+        "visited_files",
+        "excluded_files_by_reason",
+        "extractor_capabilities",
+        "unsupported",
+        "dynamic_stops",
+        "unresolved_stops",
+        "external_stops",
+        "closure",
+        "reasons"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^coverage-v1:[0-9a-f]{64}$"
+        },
+        "query_kind": { "type": "string" },
+        "scope": { "type": "string" },
+        "snapshot": { "type": "string" },
+        "observed_facts": { "type": "integer", "minimum": 0 },
+        "eligible_files": { "type": "integer", "minimum": 0 },
+        "visited_files": { "type": "integer", "minimum": 0 },
+        "excluded_files_by_reason": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/coverage_reason" },
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "string" },
+            "uniqueItems": true
+          }
+        },
+        "extractor_capabilities": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/extractor_capability" },
+          "uniqueItems": true
+        },
+        "unsupported": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/unsupported_observation" },
+          "uniqueItems": true
+        },
+        "dynamic_stops": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/coverage_stop" },
+          "uniqueItems": true
+        },
+        "unresolved_stops": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/coverage_stop" },
+          "uniqueItems": true
+        },
+        "external_stops": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/coverage_stop" },
+          "uniqueItems": true
+        },
+        "closure": { "$ref": "#/$defs/coverage_closure" },
+        "reasons": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/coverage_reason" },
+          "uniqueItems": true
+        }
+      }
+    },
+    "observation_ledger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["certificates", "horizons"],
+      "properties": {
+        "certificates": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^coverage-v1:[0-9a-f]{64}$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/coverage_certificate"
+          }
+        },
+        "horizons": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/coverage_horizon" }
+        }
+      }
+    },
     "build_identity": {
       "type": "object",
       "additionalProperties": false,

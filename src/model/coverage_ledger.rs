@@ -33,6 +33,7 @@ pub enum ObservationLedgerError {
     ExcludedFileAccountingMismatch,
     DanglingCertificate,
     DuplicateHorizon,
+    DuplicateVisibilityAccounting,
     MissingRequiredHorizon,
     ShownFactCountMismatch,
     ObservedCountMismatch,

@@ -20,7 +20,7 @@
   ],
   "properties": {
     "kind": { "const": "where_report" },
-    "schema_version": { "const": "4" },
+    "schema_version": { "const": "5" },
     "build_identity": { "$ref": "#/$defs/build_identity" },
     "query": { "type": "string" },
     "kind_filter": {
@@ -55,6 +55,7 @@
       "enum": [
         "anchor_not_indexed",
         "dynamic_import_flow",
+        "dynamic_runtime_registration",
         "incomplete_traversal",
         "reexport_flow",
         "rust_include_flow",

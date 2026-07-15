@@ -6,18 +6,48 @@ use crate::map::{
 use crate::model::{EvidenceLocation, EvidenceStrength, RuntimeRoute};
 
 pub(crate) fn rust_axum_routes_from_text(rel: &str, text: &str) -> Vec<RuntimeRoute> {
+    rust_axum_route_analysis(rel, text).routes
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RustAxumRouteGapKind {
+    DynamicPath,
+    UnsupportedRegistration,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RustAxumRouteGap {
+    pub line_number: usize,
+    pub kind: RustAxumRouteGapKind,
+}
+
+pub(crate) fn rust_axum_route_gaps_from_text(text: &str) -> Vec<RustAxumRouteGap> {
+    rust_axum_route_analysis("", text).gaps
+}
+
+#[derive(Default)]
+struct RustAxumRouteAnalysis {
+    routes: Vec<RuntimeRoute>,
+    gaps: Vec<RustAxumRouteGap>,
+}
+
+fn rust_axum_route_analysis(rel: &str, text: &str) -> RustAxumRouteAnalysis {
     if !rust_axum_route_context(text) {
-        return Vec::new();
+        return RustAxumRouteAnalysis::default();
     }
-    let mut routes = Vec::new();
+    let mut analysis = RustAxumRouteAnalysis::default();
     let mut rust_axum_chain_continuation = false;
     for (line_number, line) in runtime_code_lines(text) {
-        let (line_routes, chain_continues) =
+        let (line_routes, chain_continues, gaps) =
             rust_axum_route_registrations(rel, &line, line_number, rust_axum_chain_continuation);
-        routes.extend(line_routes);
+        analysis.routes.extend(line_routes);
+        analysis.gaps.extend(
+            gaps.into_iter()
+                .map(|kind| RustAxumRouteGap { line_number, kind }),
+        );
         rust_axum_chain_continuation = chain_continues || rust_axum_router_new_on_line(&line);
     }
-    routes
+    analysis
 }
 
 fn rust_axum_route_context(text: &str) -> bool {
@@ -29,9 +59,10 @@ fn rust_axum_route_registrations(
     line: &str,
     line_number: usize,
     allow_leading_continuation: bool,
-) -> (Vec<RuntimeRoute>, bool) {
+) -> (Vec<RuntimeRoute>, bool, Vec<RustAxumRouteGapKind>) {
     let code = code_shape_without_literal_content(line);
     let mut routes = Vec::new();
+    let mut gaps = Vec::new();
     let mut chain_continues = false;
     let mut allow_continuation = allow_leading_continuation;
     let call = ".route(";
@@ -46,21 +77,26 @@ fn rust_axum_route_registrations(
         allow_continuation = true;
         let open_paren = start + call.len() - 1;
         let Some(close_paren) = matching_close_paren(&code, open_paren) else {
+            gaps.push(RustAxumRouteGapKind::UnsupportedRegistration);
             offset = start + call.len();
             continue;
         };
         let arg_start = open_paren + 1;
         let Some(path) = quoted_literal_at(line[arg_start..].trim_start()) else {
+            gaps.push(RustAxumRouteGapKind::DynamicPath);
             offset = close_paren + 1;
             continue;
         };
         let Some(comma) = top_level_comma(&code, arg_start, close_paren) else {
+            gaps.push(RustAxumRouteGapKind::UnsupportedRegistration);
             offset = close_paren + 1;
             continue;
         };
-        for (method, handler_symbol) in
-            rust_axum_method_handlers(line, &code, comma + 1, close_paren)
-        {
+        let handlers = rust_axum_method_handlers(line, &code, comma + 1, close_paren);
+        if handlers.is_empty() {
+            gaps.push(RustAxumRouteGapKind::UnsupportedRegistration);
+        }
+        for (method, handler_symbol) in handlers {
             routes.push(RuntimeRoute {
                 method: Some(method),
                 path: path.clone(),
@@ -77,7 +113,7 @@ fn rust_axum_route_registrations(
         }
         offset = close_paren + 1;
     }
-    (routes, chain_continues)
+    (routes, chain_continues, gaps)
 }
 
 fn rust_axum_route_receiver_allowed(

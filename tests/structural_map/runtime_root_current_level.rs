@@ -1,5 +1,5 @@
 #[test]
-fn runtime_root_scope_is_current_level_until_include_hidden() {
+fn runtime_root_readable_is_current_level_while_json_is_complete() {
     let (repo, cache) = fixture();
     write(
         &repo.path().join("Cargo.toml"),
@@ -27,91 +27,67 @@ fn runtime_root_scope_is_current_level_until_include_hidden() {
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["commit", "-qm", "runtime root fixture"]);
 
-    let runtime = run_json(repo.path(), cache.path(), &["runtime", ".", "--format", "json"]);
-    assert_schema("schemas/runtime.schema.json", &runtime);
+    let runtime = run_markdown(repo.path(), cache.path(), &["runtime", "."]);
     assert!(
-        runtime["entrypoints"]
-            .as_array()
-            .expect("runtime entrypoints")
-            .iter()
-            .any(|surface| surface["kind"] == "cli_entrypoint"
-                && surface["path"] == "src/main.rs"),
-        "root runtime should keep package manifest entrypoints as current-level runtime surfaces: {runtime:#}"
+        runtime.contains("- `src/main.rs` [cli_entrypoint"),
+        "bounded root runtime should keep package manifest entrypoints as current-level runtime surfaces: {runtime}"
     );
     assert!(
-        runtime["entrypoints"]
-            .as_array()
-            .expect("runtime entrypoints")
-            .iter()
-            .any(|surface| surface["kind"] == "runtime_container"
-                && surface["path"] == "crates/worker"
-                && surface["count"] == 1
-                && surface["examples"]
-                    .as_array()
-                    .is_some_and(|examples| examples.iter().any(|example| example
-                        .as_str()
-                        .is_some_and(|value| value.contains("fixture-worker -> crates/worker/src/bin/worker.rs"))))),
-        "root runtime should show package-level runtime containers without dumping recursive entrypoints: {runtime:#}"
+        runtime.contains("- `crates/worker` [runtime_container")
+            && runtime.contains("fixture-worker -> crates/worker/src/bin/worker.rs"),
+        "bounded root runtime should show package-level runtime containers without dumping recursive entrypoints: {runtime}"
     );
     assert!(
-        runtime["entrypoints"]
-            .as_array()
-            .expect("runtime entrypoints")
-            .iter()
-            .all(|surface| surface["path"] != "crates/worker/src/bin/worker.rs"),
-        "root runtime should keep recursive package entrypoints behind the scoped runtime expand: {runtime:#}"
+        !runtime.contains("- `crates/worker/src/bin/worker.rs` ["),
+        "bounded root runtime should keep recursive package entrypoints behind the scoped runtime expand: {runtime}"
     );
     assert!(
-        runtime["expand"]
-            .as_array()
-            .expect("expand")
-            .iter()
-            .any(|command| command == "codemap runtime crates/worker"),
-        "root runtime should expose deterministic expand for runtime containers: {runtime:#}"
+        runtime.contains("codemap runtime crates/worker"),
+        "root runtime should expose deterministic expand for runtime containers: {runtime}"
     );
     assert!(
-        runtime["entrypoints"]
-            .as_array()
-            .expect("runtime entrypoints")
-            .iter()
-            .all(|surface| !surface["path"]
-                .as_str()
-                .unwrap_or_default()
-                .starts_with("fixtures/")),
-        "root runtime must not recursively surface fixture entrypoints by default: {runtime:#}"
+        !runtime.contains("- `fixtures/go-workspace/apps/api/main.go` ["),
+        "bounded root runtime must not recursively surface fixture entrypoints by default: {runtime}"
     );
     assert!(
-        runtime["hidden"]
-            .as_array()
-            .expect("hidden groups")
-            .iter()
-            .any(|group| group["reason"] == "recursive runtime files hidden at root scope"
-                && group["expand"] == "codemap runtime . --all"),
-        "root runtime should expose the explicit expansion command for recursive runtime files: {runtime:#}"
+        runtime.contains("recursive runtime files hidden at root scope")
+            && runtime.contains("codemap runtime . --all"),
+        "bounded root runtime should expose the explicit expansion command for recursive runtime files: {runtime}"
     );
     assert!(
-        runtime["routes"]
-            .as_array()
-            .expect("routes")
-            .iter()
-            .any(|route| route["path"] == "/health"
-                && route["file"] == "services/api/routes.go"),
-        "root runtime should surface nested routes as a high-signal category instead of hiding them: {runtime:#}"
+        runtime.contains("GET /health") && runtime.contains("services/api/routes.go"),
+        "root runtime should surface nested routes as a high-signal category instead of hiding them: {runtime}"
     );
 
     let expanded = run_json(
         repo.path(),
         cache.path(),
-        &["runtime", ".", "--all", "--format", "json"],
+        &["runtime", ".", "--format", "json"],
     );
     assert_schema("schemas/runtime.schema.json", &expanded);
+    assert!(
+        expanded["hidden"]
+            .as_array()
+            .is_some_and(|values| values.is_empty()),
+        "full JSON must not retain readable-only hidden groups: {expanded:#}"
+    );
+    let route_horizon = expanded["observations"]["horizons"]
+        .as_array()
+        .expect("runtime horizons")
+        .iter()
+        .find(|horizon| horizon["group"] == "routes")
+        .expect("route horizon");
+    assert_eq!(
+        route_horizon["shown"], route_horizon["count"]["observed"],
+        "full JSON route list and visibility horizon must agree: {expanded:#}"
+    );
     assert!(
         expanded["entrypoints"]
             .as_array()
             .expect("runtime entrypoints")
             .iter()
             .any(|surface| surface["path"] == "fixtures/go-workspace/apps/api/main.go"),
-        "include-hidden should make recursive runtime entrypoints visible on demand: {expanded:#}"
+        "JSON should imply full visibility and expose recursive runtime entrypoints: {expanded:#}"
     );
     assert_eq!(
         expanded["entrypoints"]

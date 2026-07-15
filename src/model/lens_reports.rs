@@ -5,7 +5,7 @@ use super::Surface;
 
 use super::{
     BoundaryFinding, DomainRef, EvidenceLocation, EvidenceStrength, FileSummary, HiddenGroup,
-    PackageDependency, ProofSurface, ProofWiringFact, StructuralEdge, Unknown,
+    ObservationLedger, PackageDependency, ProofSurface, ProofWiringFact, StructuralEdge, Unknown,
 };
 
 #[derive(Debug, Clone, Serialize)]
@@ -39,8 +39,42 @@ pub struct RuntimeReport {
     pub ci: Vec<Surface>,
     pub proof: Vec<StructuralEdge>,
     pub unknowns: Vec<Unknown>,
+    pub observations: ObservationLedger,
     pub hidden: Vec<HiddenGroup>,
     pub expand: Vec<String>,
+}
+
+impl RuntimeReport {
+    pub const SCHEMA_VERSION: &'static str = "4";
+
+    pub fn validate_observations(&self) -> Result<(), super::ObservationLedgerError> {
+        self.observations.validate()?;
+        let mut routes = self
+            .observations
+            .horizons
+            .iter()
+            .filter(|horizon| horizon.group == "routes");
+        let horizon = routes
+            .next()
+            .ok_or(super::ObservationLedgerError::MissingRequiredHorizon)?;
+        if routes.next().is_some() {
+            return Err(super::ObservationLedgerError::DuplicateHorizon);
+        }
+        if horizon.scope != self.scope {
+            return Err(super::ObservationLedgerError::ScopeMismatch);
+        }
+        if horizon.shown != self.routes.len() as u64 {
+            return Err(super::ObservationLedgerError::ShownFactCountMismatch);
+        }
+        if self
+            .hidden
+            .iter()
+            .any(|group| group.reason == "runtime routes hidden by limit")
+        {
+            return Err(super::ObservationLedgerError::DuplicateVisibilityAccounting);
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

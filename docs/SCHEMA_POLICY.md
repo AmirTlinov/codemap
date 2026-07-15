@@ -45,6 +45,25 @@ are validated before serving, so corrupted facts or certificate/horizon
 registries become a cache miss. Project inventory,
 fingerprint, and non-cone lens report data models are unchanged.
 
+## Flagship draft migration: runtime route horizon
+
+Manifest version 5 extends the same certificate-backed observation contract to
+the `routes` group of `runtime`. Runtime advances from schema 3 to 4 and now
+requires an `observations` ledger. Bounded readable output may show a subset of
+routes, while JSON and `--all` return the complete observed route list; both
+projections resolve the same certificate because presentation limits are not
+part of the observation basis.
+
+The shared coverage vocabulary adds `dynamic_runtime_registration`. Because
+that enum is embedded in the strict `where` and `cone` schemas, those reports
+advance mechanically from 4 to 5 and from 10 to 11 even though their emitted
+horizons and certificate identities do not otherwise change. The root runtime
+cache persists the ledger with a report-body hash and rejects any body or
+ledger/list mismatch before serving it. Other runtime groups retain their
+legacy count semantics until a separately activated S03 propagation slice.
+The adjacent hash is a corruption/stale-body checksum for a trusted local
+cache, not an authenticity or tamper-resistance claim.
+
 Semantic anchor config uses:
 
 ```yaml

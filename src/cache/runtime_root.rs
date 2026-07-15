@@ -2,12 +2,14 @@
 use std::fs;
 use std::path::Path;
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
-use super::{cached_status_fingerprint, fingerprint};
+use super::{cache_enabled, cached_status_fingerprint, fingerprint};
 use crate::model::{
-    EnvSurface, HiddenGroup, Project, RuntimeReport, RuntimeRoute, StructuralEdge, Surface, Unknown,
+    EnvSurface, HiddenGroup, ObservationLedger, Project, RuntimeReport, RuntimeRoute,
+    StructuralEdge, Surface, Unknown,
 };
 
 pub fn read_runtime_root_report(
@@ -26,16 +28,31 @@ pub fn read_runtime_root_report(
     if cached.fingerprint != cached_status_fingerprint(cache_dir)? {
         return None;
     }
-    Some(cached.report.into_report())
+    if cached.report_sha256 != cached_runtime_report_sha256(&cached.report)? {
+        return None;
+    }
+    let report = cached.report.into_report();
+    report.validate_observations().ok()?;
+    Some(report)
 }
 
 pub(crate) fn write_runtime_root(project: &Project, version: &str) -> Result<()> {
+    if !cache_enabled() {
+        return Ok(());
+    }
+    fs::create_dir_all(&project.cache_dir)?;
     let report = crate::map::runtime_report(project, ".", false, 20);
+    report
+        .validate_observations()
+        .map_err(|error| anyhow!("invalid runtime observation ledger: {error:?}"))?;
+    let report = CachedRuntimeReport::from_report(report);
     let cached = CachedRuntimeRoot {
         version: version.to_string(),
         root: project.root.to_string_lossy().to_string(),
         fingerprint: fingerprint(project, None),
-        report: CachedRuntimeReport::from_report(report),
+        report_sha256: cached_runtime_report_sha256(&report)
+            .ok_or_else(|| anyhow!("runtime root report should serialize"))?,
+        report,
     };
     let body = serde_json::to_string_pretty(&cached)?;
     fs::write(
@@ -50,6 +67,7 @@ struct CachedRuntimeRoot {
     version: String,
     root: String,
     fingerprint: String,
+    report_sha256: String,
     report: CachedRuntimeReport,
 }
 
@@ -66,6 +84,7 @@ struct CachedRuntimeReport {
     ci: Vec<Surface>,
     proof: Vec<StructuralEdge>,
     unknowns: Vec<Unknown>,
+    observations: ObservationLedger,
     hidden: Vec<HiddenGroup>,
     expand: Vec<String>,
 }
@@ -84,6 +103,7 @@ impl CachedRuntimeReport {
             ci: report.ci,
             proof: report.proof,
             unknowns: report.unknowns,
+            observations: report.observations,
             hidden: report.hidden,
             expand: report.expand,
         }
@@ -92,7 +112,7 @@ impl CachedRuntimeReport {
     fn into_report(self) -> RuntimeReport {
         RuntimeReport {
             kind: "runtime_report",
-            schema_version: "3",
+            schema_version: RuntimeReport::SCHEMA_VERSION,
             scope: self.scope,
             entrypoints: self.entrypoints,
             routes: self.routes,
@@ -102,8 +122,14 @@ impl CachedRuntimeReport {
             ci: self.ci,
             proof: self.proof,
             unknowns: self.unknowns,
+            observations: self.observations,
             hidden: self.hidden,
             expand: self.expand,
         }
     }
+}
+
+fn cached_runtime_report_sha256(report: &CachedRuntimeReport) -> Option<String> {
+    let body = serde_json::to_vec(report).ok()?;
+    Some(format!("{:x}", Sha256::digest(body)))
 }
