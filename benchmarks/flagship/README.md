@@ -5,8 +5,8 @@ surface. `corpus-blueprint.json` pins 30 tasks across six unrelated repositories
 four ecosystem families: 12 analysis tasks, 12 multi-file implementation tasks, and
 six exact/local negative controls, split evenly into calibration and holdout.
 
-The blueprint is not an accepted result. The materializer creates history-free task
-repositories at exact source commits, seeds the negative controls, extracts hidden
+The blueprint is not an accepted result. The materializer creates deterministic,
+history-free task repositories at exact source commits, seeds the negative controls, extracts hidden
 consumer tests outside those repositories, and emits a runnable draft plus a hash
 receipt:
 

@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -17,8 +18,15 @@ ROOT = Path(__file__).resolve().parents[2]
 VERIFY = ROOT / "benchmarks/flagship/verify.py"
 
 
-def run(argv: list[str], cwd: Path | None = None, timeout: int = 300) -> str:
-    result = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+def run(
+    argv: list[str],
+    cwd: Path | None = None,
+    timeout: int = 300,
+    env: dict[str, str] | None = None,
+) -> str:
+    result = subprocess.run(
+        argv, cwd=cwd, capture_output=True, text=True, timeout=timeout, env=env
+    )
     if result.returncode:
         raise ValueError(f"command failed ({result.returncode}): {' '.join(argv)}\n{result.stderr}")
     return result.stdout.strip()
@@ -58,10 +66,17 @@ def clone_snapshot(repo: dict[str, Any], target: Path, remote_only: bool) -> dic
             "user.name=codemap flagship corpus",
             "-c",
             "user.email=flagship@codemap.invalid",
+            "-c",
+            "commit.gpgsign=false",
             "commit",
             "-qm",
             "benchmark: seed exact local control",
-        ]
+        ],
+        env={
+            **os.environ,
+            "GIT_AUTHOR_DATE": "2000-01-01T00:00:00Z",
+            "GIT_COMMITTER_DATE": "2000-01-01T00:00:00Z",
+        },
     )
     run(["git", "-C", str(target), "remote", "remove", "source"])
     run(["git", "-C", str(target), "remote", "add", "origin", repo["remote"]])

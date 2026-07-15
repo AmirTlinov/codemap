@@ -79,6 +79,11 @@ def main() -> int:
         spec = json.loads((draft.parent / "verification-spec.json").read_text())
         assert spec["tasks"]["fixture-task"]["provenance"]["commit"] == benchmark_commit
         assert git(Path(task["repo"]), "rev-parse", "HEAD") == benchmark_commit
+        second = materialize(blueprint_path, root / "second-corpus", False)
+        second_receipt = json.loads(
+            (second.parent / "materialization-receipt.json").read_text()
+        )
+        assert second_receipt["repositories"][0]["benchmark_commit"] == benchmark_commit
     return 0
 
 
