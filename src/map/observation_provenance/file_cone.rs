@@ -9,6 +9,8 @@ use crate::model::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
+use super::file_ls::record_file_symbol_observation;
+
 pub(crate) struct FileConeObservationInput<'a> {
     pub info: &'a FileInfo,
     pub depth: usize,
@@ -18,6 +20,7 @@ pub(crate) struct FileConeObservationInput<'a> {
     pub verification: ObservationProjection<'a>,
     pub contracts: ObservationProjection<'a>,
     pub boundary: ObservationProjection<'a>,
+    pub symbols: ObservationProjection<'a>,
 }
 
 pub(crate) fn file_cone_observations(
@@ -76,6 +79,7 @@ pub(crate) fn file_cone_observations(
         GroupBasis::Boundary,
         &mut ledger,
     );
+    record_file_symbol_observation(project, input.info, input.symbols.clone(), &mut ledger);
     ledger
 }
 

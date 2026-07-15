@@ -3,11 +3,11 @@ use crate::map::{
     ConeXrayInput, SymbolConeObservationInput, cone_xray_card, directory_has_files,
     empty_xray_card, file_summary, files_under_directory, import_edge, is_generic_noise,
     limit_edge_section, missing_symbol_observations, package_name_for_file,
-    push_symbol_hidden_groups, same_package_symbol_reference_consumers, shell_quote, sort_edges,
-    structural_roles_for_ls, symbol_anchor_path, symbol_cone_observations, symbol_contract_edges,
-    symbol_file_summary, symbol_local_incoming_edges, symbol_outgoing_edges,
-    symbol_reference_edges, symbol_verification_edges_with_owning_file, unique, unknown,
-    unknown_missing_symbol_anchor, unknown_symbol_outgoing, unresolved_import_unknowns,
+    same_package_symbol_reference_consumers, shell_quote, sort_edges, structural_roles_for_ls,
+    symbol_anchor_path, symbol_cone_observations, symbol_contract_edges, symbol_file_summary,
+    symbol_local_incoming_edges, symbol_outgoing_edges, symbol_reference_edges,
+    symbol_verification_edges_with_owning_file, unique, unknown, unknown_missing_symbol_anchor,
+    unknown_symbol_outgoing, unresolved_import_unknowns,
 };
 use crate::model::CountFact;
 use crate::model::{
@@ -172,16 +172,8 @@ pub(crate) fn cone_anchor(
 ) -> (FileSummary, Vec<String>, Vec<Unknown>, Vec<HiddenGroup>) {
     if let Some(info) = project.files.get(rel) {
         let summary = file_summary(project, info, include_hidden, limit);
-        let mut hidden = Vec::new();
         let unknowns = unresolved_import_unknowns(project, info);
-        push_symbol_hidden_groups(
-            &mut hidden,
-            info,
-            include_hidden,
-            limit,
-            &format!("codemap cone {} --all", shell_quote(rel)),
-        );
-        return (summary, vec![info.rel.clone()], unknowns, hidden);
+        return (summary, vec![info.rel.clone()], unknowns, Vec::new());
     }
     if directory_has_files(project, rel) {
         let mut files = files_under_directory(project, rel)

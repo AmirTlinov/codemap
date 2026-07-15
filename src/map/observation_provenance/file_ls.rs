@@ -48,7 +48,18 @@ pub(crate) fn file_ls_observations(
     }
 
     record_import_observation(project, &input, &mut ledger);
-    record_symbol_observation(project, &input, &mut ledger);
+    record_file_symbol_observation(
+        project,
+        input.info,
+        ObservationProjection {
+            group: "symbols",
+            scope: &input.info.rel,
+            observed: input.symbols_observed,
+            shown: input.symbols_shown,
+            expand: input.symbols_expand.clone(),
+        },
+        &mut ledger,
+    );
     consumer_observed_count(
         project,
         ConsumerObservationInput {
@@ -76,12 +87,21 @@ pub(crate) fn file_ls_observations(
     ledger
 }
 
-fn record_symbol_observation(
+pub(super) fn record_file_symbol_observation(
     project: &Project,
-    input: &FileLsObservationInput<'_>,
+    info: &FileInfo,
+    projection: ObservationProjection<'_>,
     ledger: &mut ObservationLedger,
 ) {
-    let info = input.info;
+    if info.content_hash.is_none() {
+        unavailable_observation(
+            project,
+            projection,
+            CoverageReason::UnsupportedConstruct,
+            ledger,
+        );
+        return;
+    }
     let supported = matches!(
         info.ext.as_str(),
         "ts" | "tsx"
@@ -134,12 +154,12 @@ fn record_symbol_observation(
         });
     }
     ledger.record(
-        "symbols",
-        &info.rel,
-        input.symbols_observed as u64,
-        input.symbols_shown as u64,
+        projection.group,
+        projection.scope,
+        projection.observed as u64,
+        projection.shown as u64,
         certificate,
-        input.symbols_expand.clone(),
+        projection.expand,
     );
 }
 

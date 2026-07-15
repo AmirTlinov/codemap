@@ -237,6 +237,21 @@ Lens artifact format 23 rejects cached exact-file cones without the five-group
 ledger. Symbol catalogs, symbol cones and the remaining X-Ray surface groups
 stay outside this migration boundary.
 
+## Flagship draft migration: exact-file cone symbol catalog
+
+Manifest version 15 advances `cone` from schema 13 to 14. An indexed
+exact-file cone adds `symbols` beside its five relationship horizons. Readable
+output keeps the bounded anchor catalog, JSON serializes every indexed symbol,
+and both projections resolve the same catalog certificate. The detached rows
+for nested symbols hidden by default and symbols hidden by limit are removed
+because the catalog horizon now owns that remainder.
+
+The certificate is shared with exact-file `ls`: supported source extractors can
+close an empty catalog, while unsupported languages and unavailable bodies stay
+typed unavailable. Lens artifact format 24 rejects cached exact-file cones
+without the sixth horizon. Symbol anchors and the remaining X-Ray surface
+groups stay outside this migration boundary.
+
 Semantic anchor config uses:
 
 ```yaml

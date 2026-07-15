@@ -186,6 +186,7 @@ pub fn cone_report(
                     verification: projection("verification", observed[2], proof.len()),
                     contracts: projection("contracts", observed[3], contracts.len()),
                     boundary: projection("boundary", observed[4], boundary.len()),
+                    symbols: projection("symbols", info.symbols.len(), anchor.symbols.len()),
                 },
             )
         });

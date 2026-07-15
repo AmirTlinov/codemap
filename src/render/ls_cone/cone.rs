@@ -22,7 +22,7 @@ pub fn cone(report: &ConeReport, section_filter: Option<&str>) {
     let visibility_groups: &[&str] = match (report.anchor.kind.as_str(), section_filter) {
         ("directory", None | Some("observed")) => &ConeReport::RELATIONSHIP_GROUPS,
         ("directory", Some("links")) => &["outgoing", "incoming", "contracts", "boundary"],
-        (_, None | Some("observed")) if is_exact_file => &ConeReport::RELATIONSHIP_GROUPS,
+        (_, None | Some("observed")) if is_exact_file => &ConeReport::EXACT_FILE_GROUPS,
         (_, Some("links")) if is_exact_file => &["outgoing", "incoming", "contracts", "boundary"],
         (_, None | Some("observed")) => &["incoming", "verification"],
         (_, Some("links")) => &["incoming"],

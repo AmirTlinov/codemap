@@ -41,13 +41,21 @@ pub struct ConeReport {
 }
 
 impl ConeReport {
-    pub const SCHEMA_VERSION: &'static str = "13";
+    pub const SCHEMA_VERSION: &'static str = "14";
     pub const RELATIONSHIP_GROUPS: [&'static str; 5] = [
         "outgoing",
         "incoming",
         "verification",
         "contracts",
         "boundary",
+    ];
+    pub const EXACT_FILE_GROUPS: [&'static str; 6] = [
+        "outgoing",
+        "incoming",
+        "verification",
+        "contracts",
+        "boundary",
+        "symbols",
     ];
 
     pub fn validate_observations(&self) -> Result<(), super::ObservationLedgerError> {
@@ -76,7 +84,15 @@ impl ConeReport {
         ] {
             self.validate_shown_facts(group, shown)?;
         }
-        if self.observations.horizons.len() != Self::RELATIONSHIP_GROUPS.len()
+        if !directory {
+            self.validate_shown_facts("symbols", self.anchor.symbols.len())?;
+        }
+        let expected_groups = if directory {
+            Self::RELATIONSHIP_GROUPS.len()
+        } else {
+            Self::EXACT_FILE_GROUPS.len()
+        };
+        if self.observations.horizons.len() != expected_groups
             || self.hidden.iter().any(|hidden| {
                 let reason = hidden.reason.as_str();
                 if directory {
@@ -96,6 +112,8 @@ impl ConeReport {
                             | "verification edges hidden by limit"
                             | "contract edges hidden by limit"
                             | "boundary edges hidden by limit"
+                            | "nested symbols hidden by default"
+                            | "symbols hidden by limit"
                     )
                 }
             })

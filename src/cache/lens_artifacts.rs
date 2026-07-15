@@ -9,7 +9,7 @@ mod navigation;
 mod proof_map;
 mod siblings_place;
 
-const LENS_ARTIFACT_FORMAT_VERSION: u64 = 23;
+const LENS_ARTIFACT_FORMAT_VERSION: u64 = 24;
 const LENS_ARTIFACTS: &[&str] = &[
     "ls-current.json",
     "cone-current.json",

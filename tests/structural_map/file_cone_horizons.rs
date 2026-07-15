@@ -30,7 +30,7 @@ fn exact_file_cone_relationships_are_bounded_in_readable_and_complete_in_json() 
         ],
     );
     assert_schema("schemas/cone.schema.json", &json);
-    assert_eq!(json["schema_version"], "13", "{json:#}");
+    assert_eq!(json["schema_version"], "14", "{json:#}");
     assert_eq!(json["outgoing"].as_array().expect("outgoing").len(), 1);
     assert_eq!(json["incoming"].as_array().expect("incoming").len(), 2);
     assert_eq!(json["proof"].as_array().expect("proof").len(), 1);
@@ -84,6 +84,74 @@ fn supported_isolated_file_proves_zero_relationship_groups() {
 }
 
 #[test]
+fn exact_file_cone_symbol_catalog_is_bounded_and_complete() {
+    let repo = TempDir::new().expect("file cone symbol catalog repo");
+    git(repo.path(), &["init", "-q"]);
+    write(
+        &repo.path().join("src/catalog.ts"),
+        "export const a = 1;\nexport const b = 2;\nexport const c = 3;\nexport const d = 4;\n",
+    );
+    let readable = run_markdown(
+        repo.path(),
+        TempDir::new().expect("cone catalog readable cache").path(),
+        &["cone", "src/catalog.ts", "--limit", "2"],
+    );
+    let json = run_json(
+        repo.path(),
+        TempDir::new().expect("cone catalog json cache").path(),
+        &["cone", "src/catalog.ts", "--limit", "2", "--format", "json"],
+    );
+    let symbols = horizon(&json["observations"], "symbols");
+    assert_eq!(symbols["count"]["observed"], 4, "{json:#}");
+    assert_eq!(symbols["count"]["closure"], "closed", "{json:#}");
+    assert_eq!(symbols["shown"], 4, "{json:#}");
+    assert_eq!(json["anchor"]["symbols"].as_array().unwrap().len(), 4);
+    assert!(
+        readable
+            .lines()
+            .any(|line| line.starts_with("- symbols:") && line.contains("shown=2 hidden=2")),
+        "{readable}"
+    );
+    assert!(!readable.contains("symbols hidden by limit"), "{readable}");
+    assert!(!readable.contains("nested symbols hidden by default"), "{readable}");
+}
+
+#[test]
+fn supported_empty_file_cone_proves_an_empty_symbol_catalog() {
+    let repo = TempDir::new().expect("empty file cone catalog repo");
+    git(repo.path(), &["init", "-q"]);
+    write(&repo.path().join("src/empty.ts"), "");
+    let json = run_json(
+        repo.path(),
+        TempDir::new().expect("empty cone catalog cache").path(),
+        &["cone", "src/empty.ts", "--format", "json"],
+    );
+    let symbols = horizon(&json["observations"], "symbols");
+    assert_eq!(symbols["count"]["observed"], 0, "{json:#}");
+    assert_eq!(symbols["count"]["closure"], "closed", "{json:#}");
+    assert!(json["anchor"]["symbols"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn unsupported_file_cone_keeps_symbol_catalog_unavailable() {
+    let repo = TempDir::new().expect("unsupported file cone catalog repo");
+    git(repo.path(), &["init", "-q"]);
+    write(&repo.path().join("notes.txt"), "plain text\n");
+    let json = run_json(
+        repo.path(),
+        TempDir::new().expect("unsupported cone catalog cache").path(),
+        &["cone", "notes.txt", "--format", "json"],
+    );
+    let symbols = horizon(&json["observations"], "symbols");
+    assert_eq!(symbols["count"]["closure"], "unavailable", "{json:#}");
+    assert_eq!(
+        symbols["count"]["reasons"],
+        serde_json::json!(["unsupported_language"]),
+        "{json:#}"
+    );
+}
+
+#[test]
 fn dynamic_unresolved_and_reexport_flows_keep_file_cone_groups_open() {
     let repo = TempDir::new().expect("open file cone repo");
     git(repo.path(), &["init", "-q"]);
@@ -134,6 +202,9 @@ fn unavailable_body_keeps_every_file_cone_group_open() {
             "{group}: {json:#}"
         );
     }
+    let symbols = horizon(&json["observations"], "symbols");
+    assert_eq!(symbols["count"]["closure"], "unavailable", "{json:#}");
+    assert_eq!(symbols["count"]["observed"], 0, "{json:#}");
 }
 
 #[test]
@@ -161,7 +232,7 @@ fn malformed_manifest_keeps_every_file_cone_candidate_basis_open() {
 }
 
 #[test]
-fn exact_file_cone_cache_preserves_the_five_group_ledger() {
+fn exact_file_cone_cache_preserves_the_six_group_ledger() {
     let repo = file_cone_fixture();
     let cache = TempDir::new().expect("file cone warm cache");
     let args = [
@@ -187,7 +258,7 @@ fn exact_file_cone_cache_preserves_the_five_group_ledger() {
             .as_array()
             .expect("cached horizons")
             .len(),
-        5,
+        6,
         "{artifact:#}"
     );
 }

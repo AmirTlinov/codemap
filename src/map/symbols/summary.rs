@@ -4,7 +4,7 @@ use crate::map::{
     file_kind_for_ls, package_name_for_file, structural_roles_for_ls, symbol_is_exported,
     symbol_reference_edges,
 };
-use crate::model::{FileInfo, FileSummary, HiddenGroup, Project};
+use crate::model::{FileInfo, FileSummary, Project};
 use crate::repo;
 
 pub(crate) fn file_summary(
@@ -13,7 +13,7 @@ pub(crate) fn file_summary(
     include_hidden: bool,
     limit: usize,
 ) -> FileSummary {
-    let symbols = file_symbol_visibility(info, include_hidden, limit).symbols;
+    let symbols = file_symbol_visibility(info, include_hidden, limit);
     FileSummary {
         path: info.rel.clone(),
         kind: file_kind_for_ls(info),
@@ -37,19 +37,13 @@ pub(crate) fn file_summary(
     }
 }
 
-struct SymbolVisibility {
-    symbols: Vec<crate::model::SymbolInfo>,
-    hidden_by_default: usize,
-    hidden_by_limit: usize,
-}
-
-fn file_symbol_visibility(info: &FileInfo, include_hidden: bool, limit: usize) -> SymbolVisibility {
+fn file_symbol_visibility(
+    info: &FileInfo,
+    include_hidden: bool,
+    limit: usize,
+) -> Vec<crate::model::SymbolInfo> {
     if include_hidden {
-        return SymbolVisibility {
-            symbols: info.symbols.clone(),
-            hidden_by_default: 0,
-            hidden_by_limit: 0,
-        };
+        return info.symbols.clone();
     }
     let mut symbols = info
         .symbols
@@ -57,38 +51,8 @@ fn file_symbol_visibility(info: &FileInfo, include_hidden: bool, limit: usize) -
         .filter(|symbol| symbol_is_default_visible(info, symbol))
         .cloned()
         .collect::<Vec<_>>();
-    let hidden_by_default = info.symbols.len().saturating_sub(symbols.len());
-    let before_limit = symbols.len();
     symbols.truncate(limit);
-    SymbolVisibility {
-        hidden_by_default,
-        hidden_by_limit: before_limit.saturating_sub(symbols.len()),
-        symbols,
-    }
-}
-
-pub(crate) fn push_symbol_hidden_groups(
-    hidden: &mut Vec<HiddenGroup>,
-    info: &FileInfo,
-    include_hidden: bool,
-    limit: usize,
-    expand: &str,
-) {
-    let visibility = file_symbol_visibility(info, include_hidden, limit);
-    if visibility.hidden_by_default > 0 {
-        hidden.push(HiddenGroup {
-            reason: "nested symbols hidden by default".to_string(),
-            count: visibility.hidden_by_default,
-            expand: expand.to_string(),
-        });
-    }
-    if visibility.hidden_by_limit > 0 {
-        hidden.push(HiddenGroup {
-            reason: "symbols hidden by limit".to_string(),
-            count: visibility.hidden_by_limit,
-            expand: expand.to_string(),
-        });
-    }
+    symbols
 }
 
 fn symbol_is_default_visible(info: &FileInfo, symbol: &crate::model::SymbolInfo) -> bool {
