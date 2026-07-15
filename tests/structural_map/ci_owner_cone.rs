@@ -40,13 +40,20 @@ fn ci_owner_cone_keeps_step_kind_diversity_under_default_limit() {
         "ci_release_step -> `pnpm release:prod`",
         "ci_setup_step -> `pnpm install --frozen-lockfile`",
         "ci_control_step -> `echo \"done\"`",
-        "outgoing edges hidden by limit",
+        "- outgoing:",
     ] {
         assert!(
             markdown.contains(expected),
             "large CI cone should keep representative step kinds before hidden expansion: {expected}\n{markdown}"
         );
     }
+    assert!(
+        markdown
+            .lines()
+            .any(|line| line.starts_with("- outgoing:") && line.contains("hidden=")),
+        "the outgoing horizon owns the bounded remainder: {markdown}"
+    );
+    assert!(!markdown.contains("outgoing edges hidden by limit"));
 }
 
 #[test]

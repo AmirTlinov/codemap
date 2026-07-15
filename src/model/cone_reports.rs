@@ -41,8 +41,8 @@ pub struct ConeReport {
 }
 
 impl ConeReport {
-    pub const SCHEMA_VERSION: &'static str = "12";
-    pub const DIRECTORY_GROUPS: [&'static str; 5] = [
+    pub const SCHEMA_VERSION: &'static str = "13";
+    pub const RELATIONSHIP_GROUPS: [&'static str; 5] = [
         "outgoing",
         "incoming",
         "verification",
@@ -56,12 +56,17 @@ impl ConeReport {
             self.validate_shown_facts("incoming", self.incoming.len())?;
             self.validate_shown_facts("verification", self.proof.len())?;
         } else if self.anchor.kind == "directory" {
-            self.validate_directory_observations()?;
+            self.validate_relationship_observations(true)?;
+        } else if self.anchor.kind != "missing" {
+            self.validate_relationship_observations(false)?;
         }
         Ok(())
     }
 
-    fn validate_directory_observations(&self) -> Result<(), super::ObservationLedgerError> {
+    fn validate_relationship_observations(
+        &self,
+        directory: bool,
+    ) -> Result<(), super::ObservationLedgerError> {
         for (group, shown) in [
             ("outgoing", self.outgoing.len()),
             ("incoming", self.incoming.len()),
@@ -71,16 +76,28 @@ impl ConeReport {
         ] {
             self.validate_shown_facts(group, shown)?;
         }
-        if self.observations.horizons.len() != Self::DIRECTORY_GROUPS.len()
+        if self.observations.horizons.len() != Self::RELATIONSHIP_GROUPS.len()
             || self.hidden.iter().any(|hidden| {
-                matches!(
-                    hidden.reason.as_str(),
-                    "directory outgoing edges hidden by limit"
-                        | "directory incoming edges hidden by limit"
-                        | "directory verification edges hidden by limit"
-                        | "directory contract edges hidden by limit"
-                        | "directory boundary edges hidden by limit"
-                )
+                let reason = hidden.reason.as_str();
+                if directory {
+                    matches!(
+                        reason,
+                        "directory outgoing edges hidden by limit"
+                            | "directory incoming edges hidden by limit"
+                            | "directory verification edges hidden by limit"
+                            | "directory contract edges hidden by limit"
+                            | "directory boundary edges hidden by limit"
+                    )
+                } else {
+                    matches!(
+                        reason,
+                        "outgoing edges hidden by limit"
+                            | "incoming edges hidden by limit"
+                            | "verification edges hidden by limit"
+                            | "contract edges hidden by limit"
+                            | "boundary edges hidden by limit"
+                    )
+                }
             })
         {
             return Err(super::ObservationLedgerError::DuplicateVisibilityAccounting);

@@ -218,6 +218,25 @@ Lens artifact format 22 rejects cached directory cones without the five-group
 ledger. Symbol/file cone and X-Ray surface projections remain outside this
 migration boundary.
 
+## Flagship draft migration: exact-file cone relationship horizons
+
+Manifest version 14 advances `cone` from schema 12 to 13. Every indexed
+exact-file anchor now carries the same five relationship horizons as a
+directory cone: `outgoing`, `incoming`, `verification`, `contracts` and
+`boundary`. Readable output keeps its per-section edge budget, JSON retains the
+complete relation lists, and the horizon projection alone owns shown/hidden
+accounting; the former detached relationship hidden rows are no longer emitted.
+
+Each group declares the candidate inventory used by its existing collector.
+Static outgoing and contract traversal follow the requested depth, incoming
+relations retain the file-consumer audit, verification includes test and
+consumer carriers, and boundary relations include the parsed semantic config.
+Dynamic and unresolved imports, re-exports, Rust includes, malformed manifests,
+unavailable bodies and config parse failures keep affected certificates open.
+Lens artifact format 23 rejects cached exact-file cones without the five-group
+ledger. Symbol catalogs, symbol cones and the remaining X-Ray surface groups
+stay outside this migration boundary.
+
 Semantic anchor config uses:
 
 ```yaml

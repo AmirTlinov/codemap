@@ -145,13 +145,23 @@ pub(crate) fn limit_edge_section(
         return;
     }
     let count = edges.len();
-    *edges = balanced_edge_prefix_for_limit(edges, limit);
+    limit_edge_projection(edges, false, limit);
     if count > edges.len() {
         hidden.push(HiddenGroup {
             reason: reason.to_string(),
             count: count - edges.len(),
             expand: expand_with_concrete_limit(expand, count),
         });
+    }
+}
+
+pub(crate) fn limit_edge_projection(
+    edges: &mut Vec<StructuralEdge>,
+    include_hidden: bool,
+    limit: usize,
+) {
+    if !include_hidden {
+        *edges = balanced_edge_prefix_for_limit(edges, limit);
     }
 }
 

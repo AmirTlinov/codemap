@@ -51,7 +51,10 @@ fn cone_json_keeps_all_proof_edges_and_readable_counts_hidden_before_limit() {
         ],
     );
     assert!(
-        markdown.contains("verification edges hidden by limit: 4"),
+        markdown
+            .lines()
+            .any(|line| line.starts_with("- verification:") && line.contains("shown=1 hidden=4")),
         "bounded readable cone must count all proof edges before projection: {markdown}"
     );
+    assert!(!markdown.contains("verification edges hidden by limit"));
 }

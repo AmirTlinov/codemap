@@ -1,14 +1,15 @@
 // Responsibility: map-entry
 use crate::map::{
-    ConeXrayInput, cone_anchor, cone_boundary_edges, cone_contract_edges, cone_declared_env,
-    cone_depths, cone_directory_report, cone_incoming_edges, cone_missing_symbol_report,
-    cone_outgoing_edges, cone_owner_env_proof_edges_from_facts, cone_owner_incoming_edges,
-    cone_owner_outgoing_edges, cone_owner_proof_edges, cone_owner_unknowns,
-    cone_proof_edges_with_direct_consumers, cone_symbol_report, cone_xray_card,
-    directory_has_files, file_is_env_config, limit_edge_section, ls_directory_report,
-    ls_file_report, ls_missing_symbol_report, ls_symbol_report, owner_env_edges_from_facts,
-    owner_env_facts, owner_env_unknowns_from_facts, parent_anchor_for_missing, shell_quote,
-    sort_edges, split_symbol_anchor, unknown_unindexed_anchor,
+    ConeXrayInput, FileConeObservationInput, ObservationProjection, cone_anchor,
+    cone_boundary_edges, cone_contract_edges, cone_declared_env, cone_depths,
+    cone_directory_report, cone_incoming_edges, cone_missing_symbol_report, cone_outgoing_edges,
+    cone_owner_env_proof_edges_from_facts, cone_owner_incoming_edges, cone_owner_outgoing_edges,
+    cone_owner_proof_edges, cone_owner_unknowns, cone_proof_edges_with_direct_consumers,
+    cone_symbol_report, cone_xray_card, directory_has_files, file_cone_observations,
+    file_is_env_config, limit_edge_projection, ls_directory_report, ls_file_report,
+    ls_missing_symbol_report, ls_symbol_report, owner_env_edges_from_facts, owner_env_facts,
+    owner_env_unknowns_from_facts, parent_anchor_for_missing, shell_quote, sort_edges,
+    split_symbol_anchor, unknown_unindexed_anchor,
 };
 use crate::model::{BoundaryFacts, ConeReport, LsReport, ObservationLedger, Project};
 use crate::repo;
@@ -104,7 +105,7 @@ pub fn cone_report(
     if directory_has_files(project, &rel) {
         return cone_directory_report(project, &rel, depth, include_hidden, limit);
     }
-    let (anchor, seed_files, mut unknowns, mut hidden) =
+    let (anchor, seed_files, mut unknowns, hidden) =
         cone_anchor(project, &rel, include_hidden, limit);
     let depths = cone_depths(project, &seed_files, depth);
     let mut outgoing = cone_outgoing_edges(project, &depths, depth);
@@ -134,46 +135,18 @@ pub fn cone_report(
     sort_edges(&mut proof);
     sort_edges(&mut contracts);
     sort_edges(&mut boundary);
-    limit_edge_section(
-        &mut outgoing,
-        &mut hidden,
-        include_hidden,
-        limit,
-        "outgoing edges hidden by limit",
-        &format!("codemap cone {} --depth {depth} --all", shell_quote(&rel)),
-    );
-    limit_edge_section(
-        &mut incoming,
-        &mut hidden,
-        include_hidden,
-        limit,
-        "incoming edges hidden by limit",
-        &format!("codemap cone {} --depth {depth} --all", shell_quote(&rel)),
-    );
-    limit_edge_section(
-        &mut proof,
-        &mut hidden,
-        include_hidden,
-        limit,
-        "verification edges hidden by limit",
-        &format!("codemap cone {} --depth {depth} --all", shell_quote(&rel)),
-    );
-    limit_edge_section(
-        &mut contracts,
-        &mut hidden,
-        include_hidden,
-        limit,
-        "contract edges hidden by limit",
-        &format!("codemap cone {} --depth {depth} --all", shell_quote(&rel)),
-    );
-    limit_edge_section(
-        &mut boundary,
-        &mut hidden,
-        include_hidden,
-        limit,
-        "boundary edges hidden by limit",
-        &format!("codemap cone {} --depth {depth} --all", shell_quote(&rel)),
-    );
+    let observed = [
+        outgoing.len(),
+        incoming.len(),
+        proof.len(),
+        contracts.len(),
+        boundary.len(),
+    ];
+    limit_edge_projection(&mut outgoing, include_hidden, limit);
+    limit_edge_projection(&mut incoming, include_hidden, limit);
+    limit_edge_projection(&mut proof, include_hidden, limit);
+    limit_edge_projection(&mut contracts, include_hidden, limit);
+    limit_edge_projection(&mut boundary, include_hidden, limit);
     let declared_env = cone_declared_env(project, &rel);
     if seed_files.is_empty() {
         unknowns.push(unknown_unindexed_anchor(&rel));
@@ -190,6 +163,32 @@ pub fn cone_report(
         limit,
         include_hidden,
     });
+    let observations = project
+        .files
+        .get(&rel)
+        .map_or_else(ObservationLedger::default, |info| {
+            let expand = || format!("codemap cone {} --depth {depth} --all", shell_quote(&rel));
+            let projection = |group, observed, shown| ObservationProjection {
+                group,
+                scope: &rel,
+                observed,
+                shown,
+                expand: (shown < observed).then(expand),
+            };
+            file_cone_observations(
+                project,
+                FileConeObservationInput {
+                    info,
+                    depth,
+                    depths: &depths,
+                    outgoing: projection("outgoing", observed[0], outgoing.len()),
+                    incoming: projection("incoming", observed[1], incoming.len()),
+                    verification: projection("verification", observed[2], proof.len()),
+                    contracts: projection("contracts", observed[3], contracts.len()),
+                    boundary: projection("boundary", observed[4], boundary.len()),
+                },
+            )
+        });
     ConeReport {
         kind: "cone_report",
         schema_version: crate::model::ConeReport::SCHEMA_VERSION,
@@ -202,7 +201,7 @@ pub fn cone_report(
         proof,
         contracts,
         boundary,
-        observations: ObservationLedger::default(),
+        observations,
         hidden,
         unknowns,
         expand: vec![

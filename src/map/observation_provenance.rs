@@ -18,6 +18,8 @@ mod directory_surfaces;
 pub(crate) use directory_surfaces::directory_surface_observations;
 mod file_ls;
 pub(crate) use file_ls::{FileLsObservationInput, file_ls_observations};
+mod file_cone;
+pub(crate) use file_cone::{FileConeObservationInput, file_cone_observations};
 mod root_inventory;
 pub(crate) use root_inventory::{
     RootInventoryGroupVisibility, RootInventoryObservationInput,
@@ -29,6 +31,7 @@ pub(crate) use runtime::{
     runtime_group_observations, runtime_route_observations,
 };
 
+#[derive(Clone)]
 pub(crate) struct ObservationProjection<'a> {
     pub group: &'a str,
     pub scope: &'a str,

@@ -14,9 +14,16 @@ pub fn cone(report: &ConeReport, section_filter: Option<&str>) {
     println!("Anchor: `{}`{}", report.anchor.path, paths.header_suffix());
     println!("Depth: `{}`", report.depth);
     let is_symbol = report.anchor.kind.starts_with("symbol");
+    let is_exact_file = !is_symbol
+        && !matches!(
+            report.anchor.kind.as_str(),
+            "directory" | "missing" | "missing_symbol"
+        );
     let visibility_groups: &[&str] = match (report.anchor.kind.as_str(), section_filter) {
-        ("directory", None | Some("observed")) => &ConeReport::DIRECTORY_GROUPS,
+        ("directory", None | Some("observed")) => &ConeReport::RELATIONSHIP_GROUPS,
         ("directory", Some("links")) => &["outgoing", "incoming", "contracts", "boundary"],
+        (_, None | Some("observed")) if is_exact_file => &ConeReport::RELATIONSHIP_GROUPS,
+        (_, Some("links")) if is_exact_file => &["outgoing", "incoming", "contracts", "boundary"],
         (_, None | Some("observed")) => &["incoming", "verification"],
         (_, Some("links")) => &["incoming"],
         (_, Some("proof")) => &["verification"],

@@ -25,7 +25,7 @@
   ],
   "properties": {
     "kind": { "const": "cone_report" },
-    "schema_version": { "const": "12" },
+    "schema_version": { "const": "13" },
     "build_identity": { "$ref": "#/$defs/build_identity" },
     "prelude": { "$ref": "#/$defs/map_prelude" },
     "anchor": { "$ref": "#/$defs/file_summary" },
