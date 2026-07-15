@@ -35,7 +35,7 @@ pub(crate) fn proof(project: &crate::model::Project, args: ProofArgs) -> Result<
     }
     let prelude = repo::map_prelude(&project.root);
     if args.run {
-        render::set_map_prelude(prelude);
+        render::set_map_prelude(prelude, crate::cli::build_identity(false));
         render::proof(&report, proof_section_name(args.section));
         return run_proof_plan(project, &report);
     }
@@ -198,6 +198,7 @@ pub(crate) fn resolve_run_command(command: &str) -> Result<String> {
     let trimmed = command.trim();
     if trimmed == "codemap" || trimmed.starts_with("codemap ") {
         let exe = env::current_exe()?;
+        let exe = exe.canonicalize().unwrap_or(exe);
         let suffix = trimmed.strip_prefix("codemap").unwrap_or_default();
         return Ok(format!("{}{}", shell_quote_path(&exe), suffix));
     }

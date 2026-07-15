@@ -1,13 +1,15 @@
 // Responsibility: render-prelude
-use crate::model::MapPrelude;
+use crate::model::{BuildIdentity, MapPrelude};
 use crate::render::{brief, map_snapshot_line, rewrite_expand_fields};
 use serde::Serialize;
 use std::sync::OnceLock;
 
 static MAP_PRELUDE: OnceLock<MapPrelude> = OnceLock::new();
+static BUILD_IDENTITY: OnceLock<BuildIdentity> = OnceLock::new();
 
-pub fn set_map_prelude(prelude: MapPrelude) {
+pub fn set_map_prelude(prelude: MapPrelude, build_identity: BuildIdentity) {
     let _ = MAP_PRELUDE.set(prelude);
+    let _ = BUILD_IDENTITY.set(build_identity);
 }
 
 pub(crate) fn current_map_prelude() -> Option<&'static MapPrelude> {
@@ -33,8 +35,9 @@ pub(crate) fn map_prelude_block_or_snapshot_line() {
         println!("Repo:");
         println!("  root: `{}`", prelude.root);
         println!(
-            "  cwd: `{}`",
-            prelude.cwd_rel.as_deref().unwrap_or(&prelude.cwd)
+            "  cwd: `{}`{}",
+            prelude.cwd_rel.as_deref().unwrap_or(&prelude.cwd),
+            compact_build_identity()
         );
         if let Some(git_root) = &prelude.git_root {
             println!("  git_root: `{git_root}`");
@@ -63,9 +66,10 @@ pub(crate) fn map_prelude_block_or_snapshot_line() {
 }
 
 fn compact_prelude_line(prelude: &MapPrelude) -> String {
+    let build = compact_build_identity();
     if prelude.vcs.as_deref() != Some("git") {
         return format!(
-            "Repo: root=`{}` cwd=`{}` vcs=`none` worktree=`not applicable`",
+            "Repo: root=`{}` cwd=`{}` vcs=`none` worktree=`not applicable`{build}",
             prelude.root,
             prelude.cwd_rel.as_deref().unwrap_or(&prelude.cwd)
         );
@@ -77,7 +81,7 @@ fn compact_prelude_line(prelude: &MapPrelude) -> String {
         .map(|remote| format!(" remote=`{remote}`"))
         .unwrap_or_default();
     format!(
-        "Repo: root=`{}` cwd=`{}` branch=`{}` head=`{}` ahead/behind=`{}` worktree=`{}`{} remote_refs=`{}`",
+        "Repo: root=`{}` cwd=`{}` branch=`{}` head=`{}` ahead/behind=`{}` worktree=`{}`{} remote_refs=`{}`{build}",
         prelude.root,
         prelude.cwd_rel.as_deref().unwrap_or(&prelude.cwd),
         prelude_branch(prelude),
@@ -87,6 +91,27 @@ fn compact_prelude_line(prelude: &MapPrelude) -> String {
         remote,
         prelude_remote_refs(prelude)
     )
+}
+
+fn compact_build_identity() -> String {
+    BUILD_IDENTITY
+        .get()
+        .map(|identity| {
+            let source = identity
+                .source_commit
+                .as_deref()
+                .map(|commit| commit.get(..12).unwrap_or(commit))
+                .unwrap_or("unknown");
+            let dirty = identity
+                .dirty_build
+                .map(|dirty| if dirty { "dirty" } else { "clean" })
+                .unwrap_or("unknown");
+            format!(
+                " codemap=`{}` executable=`{}` source=`{};{}`",
+                identity.semver, identity.executable_path, source, dirty
+            )
+        })
+        .unwrap_or_default()
 }
 
 fn prelude_branch(prelude: &MapPrelude) -> String {
@@ -139,11 +164,16 @@ fn prelude_remote_refs(prelude: &MapPrelude) -> String {
 pub fn print_json_with_prelude<T: Serialize>(
     value: &T,
     prelude: &MapPrelude,
+    build_identity: &BuildIdentity,
 ) -> anyhow::Result<()> {
     let mut value = serde_json::to_value(value)?;
     rewrite_expand_fields(&mut value);
     if let serde_json::Value::Object(map) = &mut value {
         map.insert("prelude".to_string(), serde_json::to_value(prelude)?);
+        map.insert(
+            "build_identity".to_string(),
+            serde_json::to_value(build_identity)?,
+        );
     }
     println!("{}", serde_json::to_string_pretty(&value)?);
     Ok(())

@@ -129,7 +129,7 @@ pub fn contract_report(
     );
     ContractReport {
         kind: "contract_report",
-        schema_version: "3",
+        schema_version: "4",
         anchor,
         contract_kind,
         public_surface,

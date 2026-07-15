@@ -71,6 +71,7 @@ include!("structural_map/where_locator.rs");
 include!("structural_map/honest_zero.rs");
 include!("structural_map/snapshot_delta.rs");
 include!("structural_map/prelude_overlay.rs");
+include!("structural_map/build_identity.rs");
 include!("structural_map/boundary_facts.rs");
 include!("structural_map/trust_polish_0216.rs");
 include!("structural_map/unresolved_import_unknowns.rs");

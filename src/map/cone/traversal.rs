@@ -82,7 +82,7 @@ pub(crate) fn cone_symbol_report(
     });
     Some(ConeReport {
         kind: "cone_report",
-        schema_version: "8",
+        schema_version: crate::model::ConeReport::SCHEMA_VERSION,
         anchor,
         depth,
         xray,
@@ -128,7 +128,7 @@ pub(crate) fn cone_missing_symbol_report(
     let xray = empty_xray_card(&anchor, &unknowns);
     ConeReport {
         kind: "cone_report",
-        schema_version: "8",
+        schema_version: crate::model::ConeReport::SCHEMA_VERSION,
         anchor,
         depth,
         xray,

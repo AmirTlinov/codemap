@@ -95,7 +95,7 @@ pub(crate) fn cone_directory_report(
     });
     ConeReport {
         kind: "cone_report",
-        schema_version: "8",
+        schema_version: crate::model::ConeReport::SCHEMA_VERSION,
         anchor,
         depth,
         xray,

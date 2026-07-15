@@ -260,7 +260,7 @@ pub fn proof_report(
     }
     ProofReport {
         kind: "proof_plan",
-        schema_version: "9",
+        schema_version: crate::model::ProofReport::SCHEMA_VERSION,
         target,
         changed,
         selector,
@@ -280,7 +280,7 @@ pub fn proof_report(
 pub fn clean_proof_report(selector: String) -> ProofReport {
     ProofReport {
         kind: "proof_plan",
-        schema_version: "9",
+        schema_version: crate::model::ProofReport::SCHEMA_VERSION,
         target: None,
         changed: Vec::new(),
         selector,

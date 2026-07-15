@@ -36,7 +36,7 @@ pub(crate) fn try_cold_root_graph_fast_path(
 
     let graph = map::root_inventory_graph_lens(&root, &files, args.limit, &args.lens);
     match args.format {
-        GraphOutputFormat::Json => render::print_json(&graph),
+        GraphOutputFormat::Json => render::print_json(&graph, &crate::cli::build_identity(false)),
         GraphOutputFormat::Mermaid => {
             render::graph_mermaid(&graph);
             Ok(())

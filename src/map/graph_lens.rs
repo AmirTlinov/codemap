@@ -39,7 +39,7 @@ pub fn graph_lens(
     let domain = graph_output_domain(project, path, &nodes);
     GraphLens {
         kind: "graph_lens",
-        schema_version: "4",
+        schema_version: "5",
         domain: (&domain).into(),
         lens: lens.to_string(),
         nodes,

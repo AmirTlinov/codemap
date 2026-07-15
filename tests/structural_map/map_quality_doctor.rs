@@ -22,7 +22,7 @@ fn doctor_reports_map_quality_warnings_for_incomplete_owner_surfaces() {
 
     let doctor = run_json(repo.path(), cache.path(), &["doctor", "--format", "json"]);
     assert_schema("schemas/status.schema.json", &doctor);
-    assert_eq!(doctor["schema_version"], "5");
+    assert_eq!(doctor["schema_version"], "6");
     let warnings = doctor["map_quality"].as_array().expect("map_quality");
     for kind in [
         "manifest_without_deterministic_proof",

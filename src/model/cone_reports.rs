@@ -38,6 +38,10 @@ pub struct ConeReport {
     pub expand: Vec<String>,
 }
 
+impl ConeReport {
+    pub const SCHEMA_VERSION: &'static str = "9";
+}
+
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct XrayCard {
     pub roles: Vec<Surface>,

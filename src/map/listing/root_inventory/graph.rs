@@ -79,7 +79,7 @@ pub(crate) fn root_inventory_graph_lens(
 
     GraphLens {
         kind: "graph_lens",
-        schema_version: "4",
+        schema_version: "5",
         domain: (&Domain {
             id: "repo".to_string(),
             path: ".".to_string(),

@@ -7,6 +7,9 @@
   "required": [
     "kind",
     "schema_version",
+    "build_identity",
+    "path_identity",
+    "executable_mismatch",
     "root",
     "cwd",
     "vcs",
@@ -34,7 +37,10 @@
   ],
   "properties": {
     "kind": { "const": "status_report" },
-    "schema_version": { "const": "5" },
+    "schema_version": { "const": "6" },
+    "build_identity": { "$ref": "#/$defs/build_identity" },
+    "path_identity": { "$ref": "#/$defs/path_executable_identity" },
+    "executable_mismatch": { "type": ["boolean", "null"] },
     "root": { "type": "string" },
     "cwd": { "type": "string" },
     "vcs": { "type": ["string", "null"] },
@@ -88,6 +94,63 @@
     "unclassified_count": { "type": "integer", "minimum": 0 }
   },
   "$defs": {
+    "build_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "semver",
+        "cache_format",
+        "schema_manifest_version",
+        "executable_path",
+        "binary_sha256",
+        "binary_sha256_state",
+        "source_commit",
+        "dirty_build"
+      ],
+      "properties": {
+        "semver": { "type": "string" },
+        "cache_format": { "type": "string" },
+        "schema_manifest_version": { "type": "integer", "minimum": 1 },
+        "executable_path": { "type": "string" },
+        "binary_sha256": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "binary_sha256_state": {
+          "type": "string",
+          "enum": ["computed", "not_requested", "unavailable"]
+        },
+        "source_commit": { "type": ["string", "null"] },
+        "dirty_build": { "type": ["boolean", "null"] }
+      }
+    },
+    "path_executable_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "executable_path",
+        "semver",
+        "binary_sha256",
+        "binary_sha256_state",
+        "version_probe"
+      ],
+      "properties": {
+        "executable_path": { "type": ["string", "null"] },
+        "semver": { "type": ["string", "null"] },
+        "binary_sha256": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "binary_sha256_state": {
+          "type": "string",
+          "enum": ["computed", "unavailable"]
+        },
+        "version_probe": {
+          "type": "string",
+          "enum": ["same_executable", "ok", "not_found", "unavailable"]
+        }
+      }
+    },
     "cache_artifact": {
       "type": "object",
       "additionalProperties": false,

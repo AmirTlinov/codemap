@@ -280,7 +280,7 @@ pub fn diff_map_report(
     );
     DiffMapReport {
         kind: "diff_map_report",
-        schema_version: "3",
+        schema_version: "4",
         selector: selector.clone(),
         changed: changed_summaries,
         added_edges,

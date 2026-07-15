@@ -158,7 +158,7 @@ pub fn boundary_map_report(
     );
     BoundaryMapReport {
         kind: "boundary_map_report",
-        schema_version: "3",
+        schema_version: "4",
         scope,
         domains: project
             .domains

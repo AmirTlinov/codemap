@@ -92,7 +92,7 @@ impl CachedRuntimeReport {
     fn into_report(self) -> RuntimeReport {
         RuntimeReport {
             kind: "runtime_report",
-            schema_version: "2",
+            schema_version: "3",
             scope: self.scope,
             entrypoints: self.entrypoints,
             routes: self.routes,

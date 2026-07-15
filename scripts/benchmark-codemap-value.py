@@ -13,13 +13,12 @@ import argparse
 import json
 import os
 import re
-import shlex
-import shutil
 import subprocess
 import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from codemap_identity import CodemapIdentityError, benchmark_binary_identity, resolve_codemap_command
 
 
 CLAIM_BOUNDARY = (
@@ -27,7 +26,6 @@ CLAIM_BOUNDARY = (
     "signal density. It does not prove behavioral model lift; use a paired "
     "model A/B task benchmark for that."
 )
-
 TEXT_EXTS = {
     ".c",
     ".cc",
@@ -67,7 +65,6 @@ TEXT_EXTS = {
     ".yaml",
     ".yml",
 }
-
 TEXT_NAMES = {
     ".env.example",
     ".env.sample",
@@ -95,7 +92,6 @@ TEXT_NAMES = {
     "uv.lock",
     "yarn.lock",
 }
-
 SOURCE_EXTS = {
     ".c",
     ".cc",
@@ -366,6 +362,7 @@ def savings_percent(baseline_tokens: int, codemap_tokens: int) -> float | None:
 def repo_row(
     root: Path,
     codemap_cmd: list[str],
+    codemap_identity: dict,
     out_dir: Path,
     chars_per_token: float,
     max_file_bytes: int,
@@ -393,6 +390,7 @@ def repo_row(
     return {
         "repo": str(root),
         "label": label,
+        "report_prelude": {"codemap": codemap_identity},
         "claim_boundary": CLAIM_BOUNDARY,
         "baseline": baseline,
         "codemap_daily_map": codemap,
@@ -440,6 +438,10 @@ def write_summary(out_dir: Path, rows: list[dict]) -> None:
         "# codemap value benchmark",
         "",
         CLAIM_BOUNDARY,
+        "",
+        f"codemap identity: `{rows[0]['report_prelude']['codemap']['build_identity']['semver']}` "
+        f"at `{rows[0]['report_prelude']['codemap']['build_identity']['executable_path']}` "
+        f"sha256 `{rows[0]['report_prelude']['codemap']['build_identity']['binary_sha256']}`",
         "",
         "| Repo | Status | Baseline tokens | codemap tokens | Saved | Compression | Paths | Expands | Unknown | Proof | Time |",
         "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
@@ -503,8 +505,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("repos", nargs="+", help="Repository roots to benchmark.")
     parser.add_argument(
         "--codemap-bin",
-        default=os.environ.get("CODEMAP_BIN") or shutil.which("codemap"),
-        help="codemap executable or quoted command. Defaults to CODEMAP_BIN or PATH.",
+        help="Explicit executable or quoted Python/POSIX-shell wrapper (then CODEMAP_BIN, local target, PATH).",
     )
     parser.add_argument(
         "--out-dir",
@@ -528,16 +529,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
-    if not args.codemap_bin:
-        print("codemap binary not found; pass --codemap-bin", file=sys.stderr)
+    try:
+        codemap_cmd, resolution = resolve_codemap_command(args.codemap_bin, repo_script_root())
+        identity_root = canonical(Path(args.repos[0]))
+        codemap_identity = benchmark_binary_identity(codemap_cmd, resolution, identity_root)
+    except (OSError, CodemapIdentityError) as exc:
+        print(f"codemap benchmark: {exc}", file=sys.stderr)
         return 2
-    codemap_cmd = shlex.split(args.codemap_bin)
-    if not codemap_cmd:
-        print("empty --codemap-bin", file=sys.stderr)
-        return 2
-    binary = Path(codemap_cmd[0])
-    if not binary.is_absolute() and ("/" in codemap_cmd[0] or "\\" in codemap_cmd[0]):
-        codemap_cmd[0] = str(canonical(Path.cwd() / binary))
     out_dir = canonical(Path(args.out_dir))
     out_dir.mkdir(parents=True, exist_ok=True)
     rows = []
@@ -551,6 +549,7 @@ def main(argv: list[str]) -> int:
             repo_row(
                 root=root,
                 codemap_cmd=codemap_cmd,
+                codemap_identity=codemap_identity,
                 out_dir=out_dir,
                 chars_per_token=args.chars_per_token,
                 max_file_bytes=args.max_file_bytes,

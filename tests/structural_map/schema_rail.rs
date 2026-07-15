@@ -189,6 +189,23 @@ fn public_json_reports_validate_against_manifest_schemas() {
             "{} should report manifest schema_version",
             case.manifest_kind
         );
+        assert_eq!(
+            report["build_identity"]["semver"],
+            env!("CARGO_PKG_VERSION"),
+            "{} should identify the running codemap build",
+            case.manifest_kind
+        );
+        if matches!(case.manifest_kind, "doctor" | "status") {
+            assert_eq!(report["build_identity"]["binary_sha256_state"], "computed");
+        } else {
+            assert_eq!(
+                report["build_identity"]["binary_sha256_state"],
+                "not_requested",
+                "{} must not hash the binary on an ordinary report",
+                case.manifest_kind
+            );
+            assert_eq!(report["build_identity"]["binary_sha256"], Value::Null);
+        }
     }
 }
 

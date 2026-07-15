@@ -16,6 +16,8 @@ use std::path::Path;
 pub struct StatusReport {
     pub kind: &'static str,
     pub schema_version: &'static str,
+    #[serde(flatten)]
+    pub identity: crate::model::ExecutableIdentityDiagnostics,
     pub root: String,
     pub cwd: String,
     pub vcs: Option<String>,
@@ -42,6 +44,10 @@ pub struct StatusReport {
     pub unclassified_count: usize,
 }
 
+impl StatusReport {
+    pub const SCHEMA_VERSION: &'static str = "6";
+}
+
 #[derive(Debug, Serialize)]
 pub struct DomainStatus {
     pub id: String,
@@ -59,7 +65,10 @@ pub struct MapQualityWarning {
     pub expand: Option<String>,
 }
 
-pub fn status_report(project: &Project) -> StatusReport {
+pub fn status_report(
+    project: &Project,
+    identity: crate::model::ExecutableIdentityDiagnostics,
+) -> StatusReport {
     let unclassified: Vec<String> = project
         .files
         .values()
@@ -68,7 +77,8 @@ pub fn status_report(project: &Project) -> StatusReport {
         .collect();
     StatusReport {
         kind: "status_report",
-        schema_version: "5",
+        schema_version: StatusReport::SCHEMA_VERSION,
+        identity,
         root: project.root.to_string_lossy().to_string(),
         cwd: project.cwd.to_string_lossy().to_string(),
         vcs: project.vcs.clone(),

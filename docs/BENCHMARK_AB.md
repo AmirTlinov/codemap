@@ -89,6 +89,14 @@ exec rules, disabled fanout/multi-agent behavior, `workspace-write`, and explici
 model/reasoning settings. The treatment receives an external codemap cache; the
 target worktree stays free of codemap artifacts.
 
+Binary resolution is deterministic: explicit `--codemap-bin`, then `CODEMAP_BIN`,
+then a local debug/release target, then `PATH`. Summary and per-trial JSON preserve
+one shared `report_prelude.codemap` with exact argv, version, executable artifacts,
+and SHA-256. These fields participate in the resume fingerprint, so replacing a
+binary without changing its version invalidates the old trial.
+`--codemap-bin` accepts a direct executable or a quoted Python/POSIX-shell
+wrapper; use a direct executable for other runtime dispatchers.
+
 In `implementation` mode, treatment must run `codemap ls .` before editing and
 `codemap changed` plus `codemap proof changed` after editing. In `analysis` mode,
 treatment must run `codemap ls .` and at least one exact or focused map; any repository

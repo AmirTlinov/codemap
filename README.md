@@ -30,6 +30,14 @@ It compares visible repo text tokens with the daily `codemap` map
 (`ls`, `changed`, `proof changed`, one `cone`) and reports compression,
 path/expand/unknown/proof signals, and captured readable outputs.
 
+Both benchmark harnesses resolve one attributable binary in this order:
+`--codemap-bin`, `CODEMAP_BIN`, the local `target/debug` or `target/release`
+binary, then `PATH`. Their JSON receipts preserve the exact argv, executable,
+version, and SHA-256; an identity disagreement fails the run instead of silently
+benchmarking another installation.
+Quoted wrapper commands are supported for Python and POSIX shells; other runtime
+dispatchers should point `--codemap-bin` at a direct executable.
+
 This proves context compression and navigation-signal density. It does not
 claim that the model became smarter. Run the paired behavioral benchmark for that:
 

@@ -58,7 +58,7 @@ pub fn changed_report(
     if total_changed_count == 0 && git_state.is_empty() {
         return ChangedReport {
             kind: "changed_report",
-            schema_version: "9",
+            schema_version: crate::model::ChangedReport::SCHEMA_VERSION,
             selector: selector.clone(),
             display_limit: limit,
             proof_plan_cache: None,
@@ -159,7 +159,7 @@ pub fn changed_report(
     );
     ChangedReport {
         kind: "changed_report",
-        schema_version: "9",
+        schema_version: crate::model::ChangedReport::SCHEMA_VERSION,
         selector: selector.clone(),
         display_limit: limit,
         proof_plan_cache,

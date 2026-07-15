@@ -15,6 +15,34 @@ pub struct MapPrelude {
     pub unknowns: Vec<PreludeUnknown>,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct BuildIdentity {
+    pub semver: String,
+    pub cache_format: String,
+    pub schema_manifest_version: u64,
+    pub executable_path: String,
+    pub binary_sha256: Option<String>,
+    pub binary_sha256_state: String,
+    pub source_commit: Option<String>,
+    pub dirty_build: Option<bool>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct PathExecutableIdentity {
+    pub executable_path: Option<String>,
+    pub semver: Option<String>,
+    pub binary_sha256: Option<String>,
+    pub binary_sha256_state: String,
+    pub version_probe: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ExecutableIdentityDiagnostics {
+    pub build_identity: BuildIdentity,
+    pub path_identity: PathExecutableIdentity,
+    pub executable_mismatch: Option<bool>,
+}
+
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct HeadPrelude {
     pub oid: Option<String>,

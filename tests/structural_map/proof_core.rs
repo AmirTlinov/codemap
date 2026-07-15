@@ -134,7 +134,7 @@ fn impact_and_proof_are_structural_without_structural_flag() {
     );
     assert_schema("schemas/impact.schema.json", &impact);
     assert_eq!(impact["kind"], "impact_report");
-    assert_eq!(impact["schema_version"], "5");
+    assert_eq!(impact["schema_version"], "6");
     let cluster = &impact["clusters"][0];
     assert_eq!(cluster.get("risk"), None);
     assert!(

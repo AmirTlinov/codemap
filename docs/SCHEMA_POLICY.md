@@ -16,6 +16,17 @@ outputs advance independently when their emitted JSON contract changes.
 The schema manifest is the source of truth for mixed-version surfaces such as
 `ls`, `changed`, `proof`, `proof-map`, `siblings`, and `place`.
 
+## Flagship draft migration: build identity
+
+Manifest version 3 adds a live `build_identity` overlay to every structural JSON
+report. The already-migrated daily surfaces are `ls` 7, `cone` 9, `changed` 10,
+and `proof` 10; every other affected report advances one schema version, while
+`status`/`doctor` 6 embeds the diagnostic form. The overlay identifies the
+running executable, package/cache/schema versions, and compile-time source
+provenance. Non-diagnostic reports mark `binary_sha256` as `not_requested`;
+diagnostics compute it. Cached structural report bodies do not store this live
+process identity.
+
 Semantic anchor config uses:
 
 ```yaml

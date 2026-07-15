@@ -19,9 +19,16 @@ pub fn root_aware_expand(command: &str) -> String {
     prefix_expand_command(&command, root)
 }
 
-pub fn print_json<T: Serialize>(value: &T) -> anyhow::Result<()> {
+pub fn print_json<T: Serialize>(
+    value: &T,
+    build_identity: &crate::model::BuildIdentity,
+) -> anyhow::Result<()> {
     let mut value = serde_json::to_value(value)?;
     rewrite_expand_fields(&mut value);
+    if let serde_json::Value::Object(map) = &mut value {
+        map.entry("build_identity".to_string())
+            .or_insert(serde_json::to_value(build_identity)?);
+    }
     println!("{}", serde_json::to_string_pretty(&value)?);
     Ok(())
 }

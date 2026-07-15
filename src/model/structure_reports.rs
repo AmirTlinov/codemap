@@ -20,6 +20,10 @@ pub struct LsReport {
     pub next: Vec<String>,
 }
 
+impl LsReport {
+    pub const SCHEMA_VERSION: &'static str = "7";
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DirectorySurface {
     pub id: String,

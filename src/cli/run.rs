@@ -98,11 +98,11 @@ pub fn run() -> Result<()> {
     render::set_map_snapshot(&project);
     match cli.command {
         CommandKind::Doctor(args) => {
-            let report = map::status_report(&project);
+            let report = map::status_report(&project, crate::cli::identity_diagnostics());
             output(args.format, &report, || render::status(&report, true))
         }
         CommandKind::Status(args) => {
-            let report = map::status_report(&project);
+            let report = map::status_report(&project, crate::cli::identity_diagnostics());
             output(args.format, &report, || render::status(&report, false))
         }
         CommandKind::Teach(args) => {
@@ -332,7 +332,9 @@ pub fn run() -> Result<()> {
                 args.changed.then_some(changed.as_slice()),
             );
             match args.format {
-                GraphOutputFormat::Json => render::print_json(&graph),
+                GraphOutputFormat::Json => {
+                    render::print_json(&graph, &crate::cli::build_identity(false))
+                }
                 GraphOutputFormat::Mermaid => {
                     render::graph_mermaid(&graph);
                     Ok(())

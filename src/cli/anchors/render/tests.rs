@@ -49,7 +49,7 @@ fn run_plan_rejects_placeholder_before_running_any_command() {
 fn proof_run_uses_fallback_when_only_soft_evidence_exists() {
     let report = ProofReport {
         kind: "proof_plan",
-        schema_version: "9",
+        schema_version: crate::model::ProofReport::SCHEMA_VERSION,
         target: Some("src/routes.ts".to_string()),
         changed: Vec::new(),
         selector: "src/routes.ts".to_string(),
@@ -88,7 +88,7 @@ fn proof_run_uses_fallback_when_only_soft_evidence_exists() {
 fn proof_run_uses_fallback_when_only_setup_surface_exists() {
     let report = ProofReport {
         kind: "proof_plan",
-        schema_version: "9",
+        schema_version: crate::model::ProofReport::SCHEMA_VERSION,
         target: Some("pnpm-workspace.yaml".to_string()),
         changed: Vec::new(),
         selector: "pnpm-workspace.yaml".to_string(),

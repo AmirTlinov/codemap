@@ -106,7 +106,7 @@ pub fn flow_report(
                         unknown_breaks.push(unknown_missing_symbol_anchor(&file_rel, &symbol));
                         return FlowReport {
                             kind: "flow_report",
-                            schema_version: "2",
+                            schema_version: "3",
                             anchor: rel.clone(),
                             flow_kind: "structural".to_string(),
                             precision: "bounded_edges_only".to_string(),
@@ -255,7 +255,7 @@ pub fn flow_report(
     );
     FlowReport {
         kind: "flow_report",
-        schema_version: "2",
+        schema_version: "3",
         anchor: rel.clone(),
         flow_kind: "structural".to_string(),
         precision: "bounded_edges_only".to_string(),

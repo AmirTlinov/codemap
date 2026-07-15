@@ -9,7 +9,7 @@ pub fn teach_report(project: &Project) -> TeachReport {
     let codemap_yml = teach_codemap_yml(&role_patterns, &proof_changed);
     TeachReport {
         kind: "teach_report",
-        schema_version: "1",
+        schema_version: "2",
         config: project.config_path.clone(),
         role_patterns,
         proof_changed,

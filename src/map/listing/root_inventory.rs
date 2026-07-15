@@ -125,7 +125,7 @@ pub(crate) fn root_inventory_ls_report(root: &Path, files: &[String], limit: usi
 
     LsReport {
         kind: "ls_report",
-        schema_version: "6",
+        schema_version: crate::model::LsReport::SCHEMA_VERSION,
         path: ".".to_string(),
         mode: "directory".to_string(),
         anchor: None,

@@ -111,7 +111,7 @@ pub fn where_report(
 
     WhereReport {
         kind: "where_report",
-        schema_version: "2",
+        schema_version: "3",
         query: query.to_string(),
         kind_filter: kind_filter.map(|kind| kind.to_string()),
         total_matches,

@@ -184,7 +184,7 @@ pub(crate) fn ls_directory_report(
     }
     LsReport {
         kind: "ls_report",
-        schema_version: "6",
+        schema_version: crate::model::LsReport::SCHEMA_VERSION,
         path: rel.to_string(),
         mode: "directory".to_string(),
         anchor: None,

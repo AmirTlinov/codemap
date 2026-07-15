@@ -7,6 +7,7 @@
   "required": [
     "kind",
     "schema_version",
+    "build_identity",
     "prelude",
     "target",
     "changed",
@@ -20,7 +21,8 @@
   ],
   "properties": {
     "kind": { "const": "proof_plan" },
-    "schema_version": { "const": "9" },
+    "schema_version": { "const": "10" },
+    "build_identity": { "$ref": "#/$defs/build_identity" },
     "prelude": { "$ref": "#/$defs/map_prelude" },
     "target": {
       "anyOf": [{ "type": "string" }, { "type": "null" }]
@@ -59,6 +61,36 @@
     "run_hint": { "type": "string" }
   },
   "$defs": {
+    "build_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "semver",
+        "cache_format",
+        "schema_manifest_version",
+        "executable_path",
+        "binary_sha256",
+        "binary_sha256_state",
+        "source_commit",
+        "dirty_build"
+      ],
+      "properties": {
+        "semver": { "type": "string" },
+        "cache_format": { "type": "string" },
+        "schema_manifest_version": { "type": "integer", "minimum": 1 },
+        "executable_path": { "type": "string" },
+        "binary_sha256": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "binary_sha256_state": {
+          "type": "string",
+          "enum": ["computed", "not_requested", "unavailable"]
+        },
+        "source_commit": { "type": ["string", "null"] },
+        "dirty_build": { "type": ["boolean", "null"] }
+      }
+    },
     "map_prelude": {
       "type": "object",
       "additionalProperties": false,

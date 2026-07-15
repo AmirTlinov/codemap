@@ -82,6 +82,10 @@ pub struct ChangedReport {
     pub expand: Vec<String>,
 }
 
+impl ChangedReport {
+    pub const SCHEMA_VERSION: &'static str = "10";
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct GitChange {
     pub path: String,

@@ -320,7 +320,7 @@ pub fn proof_map_report(
     expand.extend(scope_expand);
     ProofMapReport {
         kind: "proof_map_report",
-        schema_version: "5",
+        schema_version: "6",
         selector: proof_selector,
         scope,
         changed,

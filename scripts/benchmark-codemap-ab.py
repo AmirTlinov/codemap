@@ -28,6 +28,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from codemap_identity import CodemapIdentityError, benchmark_binary_identity, resolve_codemap_command
+
 
 ARM_CONTROL = "control"
 ARM_TREATMENT = "codemap"
@@ -530,17 +532,6 @@ def command_version(command: list[str]) -> str:
     return text.splitlines()[0] if result.status == 0 and text else "unknown"
 
 
-def command_file_hashes(command: list[str]) -> list[dict[str, str]]:
-    hashes = []
-    for part in command:
-        path = Path(part)
-        if not path.is_absolute() or not path.is_file():
-            continue
-        digest = hashlib.sha256(path.read_bytes()).hexdigest()
-        hashes.append({"path": str(path), "sha256": digest})
-    return hashes
-
-
 def trial_fingerprint(
     task: Task,
     base_commit: str,
@@ -549,6 +540,7 @@ def trial_fingerprint(
     codex_version: str,
     codemap_version: str,
     codemap_hashes: list[dict[str, str]],
+    codemap_identity: dict[str, Any],
 ) -> str:
     return stable_hash(
         {
@@ -566,6 +558,7 @@ def trial_fingerprint(
             "codex_version": codex_version,
             "codemap_version": codemap_version,
             "codemap_hashes": codemap_hashes,
+            "codemap_identity": codemap_identity,
         }
     )
 
@@ -593,6 +586,7 @@ def run_trial(
     codex_version: str,
     codemap_version: str,
     codemap_hashes: list[dict[str, str]],
+    codemap_identity: dict[str, Any],
     out_dir: Path,
     work_root: Path,
 ) -> dict[str, Any]:
@@ -607,6 +601,7 @@ def run_trial(
         codex_version,
         codemap_version,
         codemap_hashes,
+        codemap_identity,
     )
     resumed = existing_trial(artifact_dir, fingerprint, args.resume)
     if resumed is not None:
@@ -702,6 +697,7 @@ def run_trial(
             "codex_version": codex_version,
             "codemap_version": codemap_version,
             "codemap_binary_hashes": codemap_hashes,
+            "report_prelude": {"codemap": codemap_identity},
             "trial_fingerprint": fingerprint,
             "codex": {
                 "status": codex.status,
@@ -965,6 +961,7 @@ def write_summary(
     codex_version: str,
     codemap_version: str,
     codemap_hashes: list[dict[str, str]],
+    codemap_identity: dict[str, Any],
 ) -> dict[str, Any]:
     arms = {arm: arm_summary(results, arm) for arm in ARMS}
     pairs = paired_summary(results)
@@ -978,6 +975,7 @@ def write_summary(
         "codex_version": codex_version,
         "codemap_version": codemap_version,
         "codemap_binary_hashes": codemap_hashes,
+        "report_prelude": {"codemap": codemap_identity},
         "repetitions": args.repetitions,
         "preflight": preflight,
         "scoring_contract": {
@@ -1013,6 +1011,8 @@ def write_summary(
         f"- Reasoning: `{args.reasoning_effort}`",
         f"- Codex: `{codex_version}`",
         f"- codemap: `{codemap_version}`",
+        f"- codemap executable: `{codemap_identity['build_identity']['executable_path']}`",
+        f"- codemap SHA-256: `{codemap_identity['build_identity']['binary_sha256']}`",
         f"- Tasks: `{tasks_path}`",
         f"- Repetitions: `{args.repetitions}`",
         "",
@@ -1124,13 +1124,6 @@ def default_out_dir() -> Path:
     return Path(__file__).resolve().parents[1] / "target" / "codemap-ab" / stamp
 
 
-def default_codemap_bin() -> str | None:
-    local = Path(__file__).resolve().parents[1] / "target" / "debug" / "codemap"
-    if local.is_file():
-        return str(local)
-    return shutil.which("codemap")
-
-
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Paired Codex behavioral A/B: identical tasks with and without codemap."
@@ -1142,9 +1135,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--timeout-seconds", type=int, default=1800)
     parser.add_argument("--verifier-timeout-seconds", type=int, default=600)
     parser.add_argument("--codex-bin", default=os.environ.get("CODEX_BIN") or shutil.which("codex"))
-    parser.add_argument(
-        "--codemap-bin", default=os.environ.get("CODEMAP_BIN") or default_codemap_bin()
-    )
+    parser.add_argument("--codemap-bin", help="Direct binary or Python/POSIX-shell wrapper.")
     parser.add_argument("--out-dir", default=str(default_out_dir()))
     parser.add_argument("--work-dir", help="Parent for disposable git worktrees (default: /tmp).")
     parser.add_argument("--keep-worktrees", action="store_true")
@@ -1183,8 +1174,13 @@ def main(argv: list[str]) -> int:
         tasks_path = canonical(Path(args.tasks))
         tasks = load_tasks(tasks_path, args.verifier_timeout_seconds)
         codex_cmd = split_command(args.codex_bin, "codex_bin")
-        codemap_cmd = split_command(args.codemap_bin, "codemap_bin")
-    except (OSError, ValueError) as exc:
+        codemap_cmd, codemap_resolution = resolve_codemap_command(
+            args.codemap_bin, Path(__file__).resolve().parents[1]
+        )
+        codemap_identity = benchmark_binary_identity(
+            codemap_cmd, codemap_resolution, tasks[0].repo
+        )
+    except (OSError, ValueError, CodemapIdentityError) as exc:
         print(f"codemap A/B: {exc}", file=sys.stderr)
         return 2
     matrix = []
@@ -1228,8 +1224,8 @@ def main(argv: list[str]) -> int:
         work_root = Path(tempfile.mkdtemp(prefix="codemap-ab-worktrees-"))
         remove_work_root = not args.keep_worktrees
     codex_version = command_version(codex_cmd)
-    codemap_version = command_version(codemap_cmd)
-    codemap_hashes = command_file_hashes(codemap_cmd)
+    codemap_version = codemap_identity["version_output"]
+    codemap_hashes = codemap_identity["command_artifacts"]
     results: list[dict[str, Any]] = []
     preflight: list[dict[str, Any]] = []
     try:
@@ -1248,6 +1244,7 @@ def main(argv: list[str]) -> int:
                     codex_version,
                     codemap_version,
                     codemap_hashes,
+                    codemap_identity,
                     out_dir,
                     work_root,
                 )
@@ -1261,6 +1258,7 @@ def main(argv: list[str]) -> int:
             codex_version,
             codemap_version,
             codemap_hashes,
+            codemap_identity,
         )
     except (OSError, ValueError) as exc:
         print(f"codemap A/B: {exc}", file=sys.stderr)

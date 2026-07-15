@@ -28,7 +28,7 @@ pub fn ls_report(project: &Project, path: &str, include_hidden: bool, limit: usi
     }
     LsReport {
         kind: "ls_report",
-        schema_version: "6",
+        schema_version: crate::model::LsReport::SCHEMA_VERSION,
         path: rel.clone(),
         mode: "missing".to_string(),
         anchor: None,
@@ -167,7 +167,7 @@ pub fn cone_report(
     });
     ConeReport {
         kind: "cone_report",
-        schema_version: "8",
+        schema_version: crate::model::ConeReport::SCHEMA_VERSION,
         anchor,
         depth,
         xray,

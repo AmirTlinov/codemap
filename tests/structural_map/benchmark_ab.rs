@@ -174,6 +174,13 @@ raise SystemExit(0 if "README.md:1" in message else 1)
     assert_eq!(summary["arms"]["control"]["passed_trials"], 1);
     assert_eq!(summary["arms"]["codemap"]["passed_trials"], 2);
     assert_eq!(summary["arms"]["codemap"]["mean_completeness_score"], 1.0);
+    let summary_identity = &summary["report_prelude"]["codemap"];
+    assert_eq!(summary_identity["resolution"], "explicit");
+    assert_eq!(summary_identity["diagnostic_state"], "unavailable");
+    assert_eq!(
+        summary_identity["build_identity"]["binary_sha256"],
+        executable_sha256(&fake_codemap)
+    );
     assert_eq!(
         summary["arms"]["control"]["category_coverage"]["behavior"]["score"],
         0.0
@@ -210,6 +217,7 @@ raise SystemExit(0 if "README.md:1" in message else 1)
     assert_eq!(control["codemap_protocol"]["invocation_count"], 0);
     assert_eq!(treatment["codemap_protocol"]["invocation_count"], 3);
     assert_eq!(treatment["codemap_protocol"]["compliant"], true);
+    assert_eq!(treatment["report_prelude"]["codemap"], *summary_identity);
     assert_eq!(treatment["codex"]["usage"]["input_tokens"], 100);
     assert_eq!(control["completeness"]["passed_criteria"], 1);
     assert_eq!(control["completeness"]["criteria"], 2);
@@ -267,4 +275,89 @@ raise SystemExit(0 if "README.md:1" in message else 1)
         String::from_utf8_lossy(&source_status.stdout).trim().is_empty(),
         "benchmark source repository must remain unchanged"
     );
+    use std::io::Write;
+    writeln!(
+        fs::OpenOptions::new()
+            .append(true)
+            .open(&fake_codemap)
+            .expect("open fake codemap"),
+        "# identity-changing bytes"
+    )
+    .expect("change fake codemap bytes");
+    let resumed = Command::new("python3")
+        .arg(repo_root.join("scripts/benchmark-codemap-ab.py"))
+        .arg(&tasks)
+        .args(["--codex-bin", &format!("python3 {}", fake_codex.display())])
+        .args([
+            "--codemap-bin",
+            &format!("python3 {}", fake_codemap.display()),
+        ])
+        .args(["--out-dir", out.path().to_str().unwrap()])
+        .args([
+            "--work-dir",
+            out.path().join("worktrees").to_str().unwrap(),
+        ])
+        .arg("--resume")
+        .output()
+        .expect("resume with changed binary should run");
+    assert!(!resumed.status.success());
+    assert!(
+        String::from_utf8_lossy(&resumed.stderr).contains("different configuration"),
+        "binary bytes must participate in the trial fingerprint: {}",
+        String::from_utf8_lossy(&resumed.stderr)
+    );
+}
+
+#[test]
+fn ab_identity_does_not_treat_config_as_the_executable() {
+    let caller = TempDir::new().expect("A/B identity caller");
+    let target = TempDir::new().expect("A/B identity target");
+    let wrapper = caller.path().join("relative tools/ab codemap.py");
+    let config = target.path().join("benchmark config.json");
+    write(
+        &wrapper,
+        r#"import pathlib
+import sys
+if pathlib.Path(sys.argv[1]).read_text().strip() != "ab-config":
+    raise SystemExit(42)
+if "--version" in sys.argv:
+    print("codemap 8.7.6")
+elif "doctor" in sys.argv:
+    print("{}")
+"#,
+    );
+    write(&config, "ab-config\n");
+    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let explicit = format!(
+        "python3 'relative tools/ab codemap.py' '{}'",
+        config.display()
+    );
+    let probe = r#"import json, pathlib, sys
+sys.path.insert(0, sys.argv[1])
+from codemap_identity import benchmark_binary_identity, resolve_codemap_command
+command, source = resolve_codemap_command(sys.argv[5], pathlib.Path(sys.argv[2]), cwd=pathlib.Path(sys.argv[3]))
+print(json.dumps(benchmark_binary_identity(command, source, pathlib.Path(sys.argv[4]))))
+"#;
+    let output = Command::new("python3")
+        .args([
+            "-c",
+            probe,
+            repo_root.join("scripts").to_str().unwrap(),
+            repo_root.to_str().unwrap(),
+            caller.path().to_str().unwrap(),
+            target.path().to_str().unwrap(),
+            &explicit,
+        ])
+        .output()
+        .expect("A/B wrapper identity probe");
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let identity: Value = serde_json::from_slice(&output.stdout).expect("identity json");
+    let wrapper = wrapper.canonicalize().unwrap();
+    assert_eq!(identity["command_argv"][1], wrapper.to_string_lossy().as_ref());
+    assert_eq!(identity["command_argv"][2], config.to_string_lossy().as_ref());
+    assert_eq!(identity["build_identity"]["executable_path"], wrapper.to_string_lossy().as_ref());
+    assert_eq!(identity["build_identity"]["binary_sha256"], executable_sha256(&wrapper));
+    let artifacts = identity["command_artifacts"].as_array().unwrap();
+    assert_eq!(artifacts.len(), 2, "config must not enter executable artifacts: {identity:#}");
+    assert!(artifacts.iter().all(|artifact| artifact["path"] != config.to_string_lossy().as_ref()));
 }

@@ -24,6 +24,10 @@ pub struct ProofReport {
     pub run_hint: String,
 }
 
+impl ProofReport {
+    pub const SCHEMA_VERSION: &'static str = "10";
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ProofSurface {
     pub command: Option<String>,

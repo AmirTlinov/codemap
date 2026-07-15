@@ -192,7 +192,7 @@ impl CachedChangedReport {
     fn into_report(self, limit: usize) -> ChangedReport {
         ChangedReport {
             kind: "changed_report",
-            schema_version: "9",
+            schema_version: ChangedReport::SCHEMA_VERSION,
             selector: self.selector,
             display_limit: limit,
             proof_plan_cache: None,
@@ -257,7 +257,7 @@ impl CachedProofReport {
     fn into_report(self) -> ProofReport {
         ProofReport {
             kind: "proof_plan",
-            schema_version: "9",
+            schema_version: ProofReport::SCHEMA_VERSION,
             target: self.target,
             changed: self.changed,
             selector: self.selector,

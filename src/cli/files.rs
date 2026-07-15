@@ -9,7 +9,7 @@ pub(crate) fn output<T: serde::Serialize>(
     markdown: impl FnOnce(),
 ) -> Result<()> {
     match format {
-        OutputFormat::Json => render::print_json(value),
+        OutputFormat::Json => render::print_json(value, &crate::cli::build_identity(false)),
         OutputFormat::Markdown => {
             markdown();
             Ok(())
@@ -23,10 +23,11 @@ pub(crate) fn output_with_prelude<T: serde::Serialize>(
     prelude: &crate::model::MapPrelude,
     markdown: impl FnOnce(),
 ) -> Result<()> {
+    let build_identity = crate::cli::build_identity(false);
     match format {
-        OutputFormat::Json => render::print_json_with_prelude(value, prelude),
+        OutputFormat::Json => render::print_json_with_prelude(value, prelude, &build_identity),
         OutputFormat::Markdown => {
-            render::set_map_prelude(prelude.clone());
+            render::set_map_prelude(prelude.clone(), build_identity);
             markdown();
             Ok(())
         }
@@ -58,7 +59,7 @@ pub(crate) fn files_report(
         files.truncate(limit);
         return Ok(FilesReport {
             kind: "files",
-            schema_version: "2",
+            schema_version: "3",
             path: rel.to_string(),
             files,
             count,
@@ -79,7 +80,7 @@ pub(crate) fn files_report(
     files.truncate(limit);
     Ok(FilesReport {
         kind: "files",
-        schema_version: "2",
+        schema_version: "3",
         path: normalized_path.unwrap_or_else(|| ".".to_string()),
         files,
         count,

@@ -7,6 +7,7 @@
   "required": [
     "kind",
     "schema_version",
+    "build_identity",
     "config",
     "role_patterns",
     "proof_changed",
@@ -15,7 +16,8 @@
   ],
   "properties": {
     "kind": { "const": "teach_report" },
-    "schema_version": { "const": "1" },
+    "schema_version": { "const": "2" },
+    "build_identity": { "$ref": "#/$defs/build_identity" },
     "config": { "type": ["string", "null"] },
     "role_patterns": {
       "type": "array",
@@ -35,6 +37,36 @@
     }
   },
   "$defs": {
+    "build_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "semver",
+        "cache_format",
+        "schema_manifest_version",
+        "executable_path",
+        "binary_sha256",
+        "binary_sha256_state",
+        "source_commit",
+        "dirty_build"
+      ],
+      "properties": {
+        "semver": { "type": "string" },
+        "cache_format": { "type": "string" },
+        "schema_manifest_version": { "type": "integer", "minimum": 1 },
+        "executable_path": { "type": "string" },
+        "binary_sha256": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "binary_sha256_state": {
+          "type": "string",
+          "enum": ["computed", "not_requested", "unavailable"]
+        },
+        "source_commit": { "type": ["string", "null"] },
+        "dirty_build": { "type": ["boolean", "null"] }
+      }
+    },
     "role_pattern": {
       "type": "object",
       "additionalProperties": false,

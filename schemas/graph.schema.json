@@ -4,10 +4,11 @@
   "title": "codemap graph lens",
   "type": "object",
   "additionalProperties": false,
-  "required": ["kind", "schema_version", "domain", "lens", "nodes", "edges", "hidden"],
+  "required": ["kind", "schema_version", "build_identity", "domain", "lens", "nodes", "edges", "hidden"],
   "properties": {
     "kind": { "const": "graph_lens" },
-    "schema_version": { "const": "4" },
+    "schema_version": { "const": "5" },
+    "build_identity": { "$ref": "#/$defs/build_identity" },
     "domain": { "$ref": "#/$defs/domain_ref" },
     "lens": { "type": "string" },
     "nodes": {
@@ -24,6 +25,36 @@
     }
   },
   "$defs": {
+    "build_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "semver",
+        "cache_format",
+        "schema_manifest_version",
+        "executable_path",
+        "binary_sha256",
+        "binary_sha256_state",
+        "source_commit",
+        "dirty_build"
+      ],
+      "properties": {
+        "semver": { "type": "string" },
+        "cache_format": { "type": "string" },
+        "schema_manifest_version": { "type": "integer", "minimum": 1 },
+        "executable_path": { "type": "string" },
+        "binary_sha256": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "binary_sha256_state": {
+          "type": "string",
+          "enum": ["computed", "not_requested", "unavailable"]
+        },
+        "source_commit": { "type": ["string", "null"] },
+        "dirty_build": { "type": ["boolean", "null"] }
+      }
+    },
     "evidence_strength": {
       "type": "string",
       "enum": ["low", "medium", "high", "hard"]

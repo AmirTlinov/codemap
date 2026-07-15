@@ -63,6 +63,11 @@ Primary map outputs may include a fresh local-only repo/worktree prelude. The
 prelude is read-only, non-network, non-actionable, and not cached as structural
 map truth.
 
+JSON reports also carry a live top-level `build_identity`. Daily commands record
+the running executable, version, cache/schema formats, and source provenance but
+mark binary hashing as `not_requested`; `doctor` and `status` compute the SHA-256
+and compare the running executable with the `codemap` resolved from `PATH`.
+
 It may say:
 
 - branch/head/upstream/ahead/behind from local git refs;

@@ -13,6 +13,10 @@ use crate::model::Project;
 
 pub(crate) const FINGERPRINT_CACHE_FORMAT: u32 = 8;
 
+pub(crate) fn format_version() -> u32 {
+    FINGERPRINT_CACHE_FORMAT
+}
+
 pub(crate) fn write_fingerprints(
     project: &Project,
     version: &str,

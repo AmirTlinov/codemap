@@ -28,6 +28,16 @@ fn prelude_json_reports_fresh_local_repo_truth_without_network_claims() {
         vec!["proof", "changed", "--format", "json"],
     ] {
         let report = run_json(repo.path(), cache.path(), &args);
+        let identity = &report["build_identity"];
+        assert_eq!(identity["semver"], env!("CARGO_PKG_VERSION"));
+        assert_eq!(identity["binary_sha256"], Value::Null);
+        assert_eq!(identity["binary_sha256_state"], "not_requested");
+        assert!(
+            identity["executable_path"]
+                .as_str()
+                .is_some_and(|path| Path::new(path).is_absolute()),
+            "daily report should identify the running executable: {report:#}"
+        );
         let prelude = &report["prelude"];
         assert!(
             prelude.is_object(),
@@ -98,6 +108,10 @@ fn prelude_is_public_overlay_not_cached_lens_body() {
     assert!(
         artifact.get("prelude").is_none(),
         "lens cache artifact must store structural body only, not live repo prelude: {artifact:#}"
+    );
+    assert!(
+        artifact.get("build_identity").is_none(),
+        "lens cache artifact must not freeze live binary identity: {artifact:#}"
     );
 }
 
