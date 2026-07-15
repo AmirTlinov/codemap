@@ -1,5 +1,5 @@
 {
-  "version": 8,
+  "version": 9,
   "structural_schema_version": "5",
   "anchor_config_version": 1,
   "schemas": [
@@ -28,7 +28,7 @@
       "kind": "ls",
       "file": "schemas/ls.schema.json",
       "contract": "structural_output",
-      "schema_version": "9",
+      "schema_version": "10",
       "json_kind": "ls_report"
     },
     {

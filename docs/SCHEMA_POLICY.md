@@ -124,6 +124,25 @@ closed. Lens artifact format 17 prevents pre-migration exact-symbol LS bodies
 without the required ledgers from being served. Ordinary file and nested
 directory `ls` anchors remain outside this propagation boundary.
 
+## Flagship draft migration: exact-file relationship horizons
+
+Manifest version 9 advances `ls` from schema 9 to 10. An exact file report now
+owns three relationship horizons: `imports`, `consumers`, and `verification`.
+Readable output retains its global edge budget, while complete JSON serializes
+every observed relationship; both projections resolve the same group
+certificates. Test imports are represented by the verification relation rather
+than being duplicated in the consumer group. The detached
+`edges hidden by limit` row is removed because per-group horizons now own the
+remainder and expansion handle.
+
+The import certificate names dynamic and unresolved targets as typed open
+stops. Consumer and verification groups reuse their existing candidate
+universes. An indexed file whose body is unavailable exposes all three groups
+as unavailable instead of presenting an empty relationship map. Lens artifact
+format 18 invalidates exact-file bodies without the required ledger. File
+symbol-catalog visibility and nested-directory reports remain outside this
+propagation boundary.
+
 Semantic anchor config uses:
 
 ```yaml

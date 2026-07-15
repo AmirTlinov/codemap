@@ -20,7 +20,9 @@ pub(crate) fn try_cached_ls_fast_path(
     let root = repo::resolve_root(root_selection, &cwd)?;
     let path = root_relative_arg(&root, &args.path)?;
     let format = output_format_with_json_alias(args.format, args.json);
-    let (include_hidden, limit) = args.effective_projection(&path, format);
+    let exact_file = root.join(&path).is_file();
+    let (include_hidden, limit, complete_file_relationships) =
+        args.effective_projection(&path, format, exact_file);
     let git_state = repo::git_changes(&root, false, None);
     let remote = repo::git_remote(&root);
     let cache_dir = crate::cache::project_cache_dir(&root, remote.as_deref(), repo::VERSION);
@@ -35,6 +37,7 @@ pub(crate) fn try_cached_ls_fast_path(
         path: &path,
         include_hidden,
         limit,
+        complete_file_relationships,
     }) else {
         return Ok(None);
     };
@@ -87,6 +90,7 @@ pub(crate) fn maybe_write_ls_lens_cache(
     path: &str,
     include_hidden: bool,
     limit: usize,
+    complete_file_relationships: bool,
     report: &crate::model::LsReport,
 ) {
     let _ = crate::cache::write_ls_report(
@@ -97,6 +101,7 @@ pub(crate) fn maybe_write_ls_lens_cache(
             path,
             include_hidden,
             limit,
+            complete_file_relationships,
         },
         report,
     );

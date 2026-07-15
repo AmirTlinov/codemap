@@ -13,7 +13,13 @@ use crate::map::{
 use crate::model::{BoundaryFacts, ConeReport, LsReport, ObservationLedger, Project};
 use crate::repo;
 
-pub fn ls_report(project: &Project, path: &str, include_hidden: bool, limit: usize) -> LsReport {
+pub fn ls_report(
+    project: &Project,
+    path: &str,
+    include_hidden: bool,
+    limit: usize,
+    complete_file_relationships: bool,
+) -> LsReport {
     let rel = repo::normalize_rel_path(path);
     if let Some((file_rel, symbol_name)) = split_symbol_anchor(&rel) {
         if let Some(info) = project.files.get(&file_rel)
@@ -26,7 +32,13 @@ pub fn ls_report(project: &Project, path: &str, include_hidden: bool, limit: usi
     if let Some(info) = project.files.get(&rel)
         && info.indexed_boundary != Some(crate::model::IndexedBoundary::UnavailableTrackedFile)
     {
-        return ls_file_report(project, info, include_hidden, limit.max(1));
+        return ls_file_report(
+            project,
+            info,
+            include_hidden,
+            limit.max(1),
+            complete_file_relationships,
+        );
     }
     if directory_has_files(project, &rel) {
         return ls_directory_report(project, &rel, include_hidden, limit.max(1));

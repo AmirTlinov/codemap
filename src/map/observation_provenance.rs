@@ -8,6 +8,8 @@ use crate::map::{ConsumerObservationInput, consumer_observed_count};
 
 mod definition_coverage;
 use definition_coverage::definition_extractor_capability;
+mod file_ls;
+pub(crate) use file_ls::{FileLsObservationInput, file_ls_observations};
 mod root_inventory;
 pub(crate) use root_inventory::{
     RootInventoryGroupVisibility, RootInventoryObservationInput,

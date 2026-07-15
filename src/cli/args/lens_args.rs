@@ -28,16 +28,23 @@ impl LsArgs {
     /// S03.d/e make the root inventory and exact-symbol machine projections
     /// complete. Exact file and nested-directory anchors keep their normal
     /// bounded signal filter unless the caller explicitly asks for `--all`.
-    pub(crate) fn effective_projection(&self, path: &str, format: OutputFormat) -> (bool, usize) {
+    pub(crate) fn effective_projection(
+        &self,
+        path: &str,
+        format: OutputFormat,
+        exact_file: bool,
+    ) -> (bool, usize, bool) {
         let complete_json = format == OutputFormat::Json
             && (path == "." || crate::map::split_symbol_anchor(path).is_some());
+        let complete_file_relationships =
+            self.include_hidden || (format == OutputFormat::Json && exact_file);
         let include_hidden = self.include_hidden || complete_json;
         let limit = if include_hidden {
             usize::MAX / 2
         } else {
             self.limit
         };
-        (include_hidden, limit)
+        (include_hidden, limit, complete_file_relationships)
     }
 }
 

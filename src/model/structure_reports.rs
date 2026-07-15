@@ -23,7 +23,7 @@ pub struct LsReport {
 }
 
 impl LsReport {
-    pub const SCHEMA_VERSION: &'static str = "9";
+    pub const SCHEMA_VERSION: &'static str = "10";
 
     /// Root inventory groups certified by the S03.d observation ledger.
     pub const ROOT_INVENTORY_GROUPS: [&'static str; 4] =
@@ -31,6 +31,10 @@ impl LsReport {
 
     /// Exact-symbol `ls` groups certified by the S03.e observation ledger.
     pub const SYMBOL_GROUPS: [&'static str; 2] = ["consumers", "verification"];
+
+    /// Exact-file relationship groups certified by the S03.f ledger.
+    pub const FILE_RELATIONSHIP_GROUPS: [&'static str; 3] =
+        ["imports", "consumers", "verification"];
 
     /// Legacy detached hidden reasons whose truth now lives in the horizons.
     const LEGACY_ROOT_HIDDEN_REASONS: [&'static str; 2] = [
@@ -45,6 +49,9 @@ impl LsReport {
         self.observations.validate()?;
         if self.is_exact_symbol_scope() {
             return self.validate_symbol_observations();
+        }
+        if self.mode == "file" {
+            return self.validate_file_observations();
         }
         if self.path != "." || self.mode != "directory" {
             if self.observations.horizons.is_empty() {
@@ -78,6 +85,41 @@ impl LsReport {
             .hidden
             .iter()
             .any(|group| Self::LEGACY_ROOT_HIDDEN_REASONS.contains(&group.reason.as_str()))
+        {
+            return Err(ObservationLedgerError::DuplicateVisibilityAccounting);
+        }
+        Ok(())
+    }
+
+    fn validate_file_observations(&self) -> Result<(), ObservationLedgerError> {
+        let mut shown_total = 0_u64;
+        for group in Self::FILE_RELATIONSHIP_GROUPS {
+            let mut horizons = self
+                .observations
+                .horizons
+                .iter()
+                .filter(|horizon| horizon.group == group);
+            let horizon = horizons
+                .next()
+                .ok_or(ObservationLedgerError::MissingRequiredHorizon)?;
+            if horizons.next().is_some() {
+                return Err(ObservationLedgerError::DuplicateHorizon);
+            }
+            if horizon.scope != self.path {
+                return Err(ObservationLedgerError::ScopeMismatch);
+            }
+            let shown = self.shown_file_relationships(group);
+            if horizon.shown != shown {
+                return Err(ObservationLedgerError::ShownFactCountMismatch);
+            }
+            shown_total += shown;
+        }
+        if self.observations.horizons.len() != Self::FILE_RELATIONSHIP_GROUPS.len()
+            || shown_total != self.edges.len() as u64
+            || self
+                .hidden
+                .iter()
+                .any(|group| group.reason == "edges hidden by limit")
         {
             return Err(ObservationLedgerError::DuplicateVisibilityAccounting);
         }
@@ -130,6 +172,17 @@ impl LsReport {
             .iter()
             .filter(|edge| match group {
                 "consumers" => edge.edge_type == "symbol_reference",
+                _ => edge.edge_type == "tests",
+            })
+            .count() as u64
+    }
+
+    fn shown_file_relationships(&self, group: &str) -> u64 {
+        self.edges
+            .iter()
+            .filter(|edge| match group {
+                "imports" => edge.edge_type == "imports",
+                "consumers" => edge.edge_type == "imported_by",
                 _ => edge.edge_type == "tests",
             })
             .count() as u64
