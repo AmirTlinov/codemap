@@ -17,17 +17,8 @@ pub fn cone(report: &ConeReport, section_filter: Option<&str>) {
     if matches!(section_filter, None | Some("roles")) {
         render_roles(&report.anchor);
     }
-    if matches!(section_filter, None | Some("links"))
-        && (!report.outgoing.is_empty()
-            || !report.incoming.is_empty()
-            || !report.contracts.is_empty()
-            || !report.boundary.is_empty())
-    {
-        println!("\n## Links\n");
-        grouped_edge_list("outgoing", &report.outgoing, 12);
-        grouped_edge_list("incoming", &report.incoming, 12);
-        grouped_edge_list("contracts", &report.contracts, 12);
-        grouped_edge_list("boundary", &report.boundary, 12);
+    if matches!(section_filter, None | Some("links")) {
+        render_cone_links(report);
     }
     if matches!(section_filter, None | Some("proof")) {
         render_cone_proof(&report.proof);
@@ -41,6 +32,36 @@ pub fn cone(report: &ConeReport, section_filter: Option<&str>) {
     if section_filter.is_none() {
         section("Expand", &report.expand);
     }
+}
+
+pub(crate) fn render_cone_links(report: &ConeReport) {
+    if cone_links_empty(report) {
+        if !matches!(report.anchor.kind.as_str(), "missing" | "missing_symbol") {
+            println!("\n## Links\n");
+            println!("No indexed structural links observed in this scope.");
+        }
+        return;
+    }
+    if report.outgoing.is_empty()
+        && report.incoming.is_empty()
+        && report.contracts.is_empty()
+        && report.boundary.is_empty()
+    {
+        return;
+    }
+    println!("\n## Links\n");
+    grouped_edge_list("outgoing", &report.outgoing, 12);
+    grouped_edge_list("incoming", &report.incoming, 12);
+    grouped_edge_list("contracts", &report.contracts, 12);
+    grouped_edge_list("boundary", &report.boundary, 12);
+}
+
+pub(crate) fn cone_links_empty(report: &ConeReport) -> bool {
+    report.outgoing.is_empty()
+        && report.incoming.is_empty()
+        && report.proof.is_empty()
+        && report.contracts.is_empty()
+        && report.boundary.is_empty()
 }
 
 pub(crate) fn render_cone_proof(edges: &[StructuralEdge]) {

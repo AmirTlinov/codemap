@@ -21,14 +21,21 @@ pub fn ls(report: &LsReport, section_filter: Option<&str>) {
         }
         _ => {}
     }
-    if matches!(section_filter, None | Some("links")) && !report.edges.is_empty() {
-        println!("\n## Links\n");
-        let limit = if report.hidden.is_empty() {
-            usize::MAX
+    if matches!(section_filter, None | Some("links")) && report.mode != "missing" {
+        if report.edges.is_empty() {
+            render_empty_ls_section(
+                "Links",
+                "No indexed structural links observed in this scope.",
+            );
         } else {
-            20
-        };
-        grouped_edge_list("links", &report.edges, limit);
+            println!("\n## Links\n");
+            let limit = if report.hidden.is_empty() {
+                usize::MAX
+            } else {
+                20
+            };
+            grouped_edge_list("links", &report.edges, limit);
+        }
     }
     if matches!(section_filter, Some("proof")) {
         render_empty_ls_section(

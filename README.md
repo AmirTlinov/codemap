@@ -10,8 +10,10 @@ imports, configs, schemas, scripts, and tests.
 
 | Question | Command | What the agent sees |
 | --- | --- | --- |
-| Where am I? | `codemap ls .` | repo root, branch, dirty state, packages, scripts, configs, tests |
-| What is around this file? | `codemap cone <file> --depth 1` | imports, exports, consumers, state/effects, nearby helpers, verification surfaces, unknowns |
+| Where is this symbol? | `codemap where <symbol>` | every exact definition; one definition opens as a bounded X-Ray |
+| What is around this anchor? | `codemap cone <file-or-file#symbol> --depth 1` | imports, exports, consumers, state/effects, nearby helpers, verification surfaces, unknowns |
+| What exists in this known scope? | `codemap ls <file-or-directory>` | only that file or the current directory level, with structural links and hidden counts |
+| Where am I in an unfamiliar repo? | `codemap ls .` | a bounded root map of packages, scripts, configs, tests, and owner containers |
 | What did I change? | `codemap changed` | staged/unstaged/untracked files, changed surface types, links, risks, verification gaps |
 | How can this be checked? | `codemap proof changed` | tests, build/check commands, linked surfaces, broad fallbacks, missing direct links |
 
@@ -54,17 +56,21 @@ rules, artifacts, and claim boundary.
 
 ## Copy-Paste Workflow
 
-Start in a repo:
+Choose **one** entry proportional to what the task already names:
+
+```bash
+codemap where <exact-symbol>
+codemap cone <file-or-file#symbol> --depth 1
+codemap ls <file-or-directory>
+```
+
+Use root orientation only when the relevant scope is unknown:
 
 ```bash
 codemap ls .
 ```
 
-Before editing a file or folder:
-
-```bash
-codemap cone <path> --depth 1
-```
+Do not pay for root orientation first when an exact anchor is already known.
 
 After edits:
 

@@ -4,11 +4,14 @@ fn help_exposes_only_map_first_commands() {
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("help utf8");
     for expected in [
-        "Primary map workflow:",
-        "codemap ls [scope]",
-        "codemap cone <anchor>",
+        "Choose one proportional map entry:",
+        "known symbol:     codemap where <symbol>",
+        "known anchor:     codemap cone <file-or-file#symbol>",
+        "known scope:      codemap ls <file-or-directory>",
+        "unfamiliar scope: codemap ls .",
+        "root orientation is only for an unknown scope",
         "codemap changed",
-        "codemap proof <anchor|changed>",
+        "codemap proof changed",
         "Focused map lenses:",
         "runtime, contract, flow",
         "Diagnostics:",
@@ -18,7 +21,7 @@ fn help_exposes_only_map_first_commands() {
             "help should make the daily surface and drill-down groups obvious: {stdout}"
         );
     }
-    for command in ["ls", "cone", "changed", "proof", "graph", "boundaries"] {
+    for command in ["ls", "where", "cone", "changed", "proof", "graph", "boundaries"] {
         assert!(stdout.contains(command), "help should expose {command}");
     }
     let commands = stdout
@@ -27,11 +30,11 @@ fn help_exposes_only_map_first_commands() {
         .unwrap_or_default()
         .lines()
         .filter_map(|line| line.split_whitespace().next())
-        .take(5)
+        .take(6)
         .collect::<Vec<_>>();
     assert_eq!(
         commands,
-        vec!["ls", "cone", "changed", "proof", "help"],
+        vec!["ls", "where", "cone", "changed", "proof", "help"],
         "help should put daily commands first: {stdout}"
     );
     for forbidden in ["start", "locate", "find", "verify", "widen", "read_first"] {
@@ -41,7 +44,6 @@ fn help_exposes_only_map_first_commands() {
         );
     }
 }
-
 #[test]
 fn changed_help_exposes_only_stable_rfc_sections() {
     let output = codemap()
@@ -63,7 +65,6 @@ fn changed_help_exposes_only_stable_rfc_sections() {
         );
     }
 }
-
 #[test]
 fn bootstrap_instruction_teaches_map_lenses_not_removed_router_flow() {
     let output = codemap()
@@ -73,7 +74,6 @@ fn bootstrap_instruction_teaches_map_lenses_not_removed_router_flow() {
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("bootstrap utf8");
     assert_map_bootstrap_text(&stdout);
-
     let (repo, cache) = fixture();
     let output = codemap()
         .current_dir(repo.path())
@@ -89,12 +89,13 @@ fn bootstrap_instruction_teaches_map_lenses_not_removed_router_flow() {
     let agents = fs::read_to_string(repo.path().join("AGENTS.md")).expect("bootloader");
     assert_map_bootstrap_text(&agents);
 }
-
 fn assert_map_bootstrap_text(text: &str) {
     for expected in [
         "codemap ls .",
-        "codemap ls <scope-or-file>",
-        "codemap cone <scope-or-file> --depth 1",
+        "codemap ls <file-or-directory>",
+        "codemap cone <file-or-file#symbol> --depth 1",
+        "codemap where <exact-symbol>",
+        "root orientation first when an exact anchor is already known",
         "codemap changed",
         "codemap proof changed",
     ] {
@@ -116,7 +117,6 @@ fn assert_map_bootstrap_text(text: &str) {
         );
     }
 }
-
 #[test]
 fn root_ls_is_a_bounded_domain_and_package_map() {
     let (repo, cache) = fixture();

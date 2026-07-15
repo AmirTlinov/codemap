@@ -7,9 +7,11 @@ Keep the product invariant clear:
 - global binary, project-agnostic;
 - zero repository writes by default;
 - external cache by default;
-- root `codemap ls .` returns a bounded domain/package map, not the whole project;
+- use the narrowest known entry: `codemap where <symbol>`,
+  `codemap cone <file-or-file#symbol>`, or `codemap ls <file-or-directory>`;
+- use root orientation `codemap ls .` only when the relevant scope is unknown; it returns a
+  bounded domain/package map, not the whole project;
 - root `codemap graph --lens causal` is the current-level map lens, not a recursive file dump;
-- exact scopes/files use `codemap ls <anchor>` and `codemap cone <anchor>`;
 - after edits use `codemap changed` first, then `codemap proof changed`;
 - use focused lenses such as `diff-map`, `impact`, and `proof-map` through
   exact `expand` commands when the changed/proof map asks for more detail;

@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Any
 
 from codemap_identity import CodemapIdentityError, benchmark_binary_identity, resolve_codemap_command
+from codemap_protocol import codemap_protocol
 
 
 ARM_CONTROL = "control"
@@ -37,7 +38,7 @@ ARMS = (ARM_CONTROL, ARM_TREATMENT)
 MODE_IMPLEMENTATION = "implementation"
 MODE_ANALYSIS = "analysis"
 TASK_MODES = (MODE_IMPLEMENTATION, MODE_ANALYSIS)
-PROMPT_PROTOCOL_VERSION = 2
+PROMPT_PROTOCOL_VERSION = 3
 
 COMMON_PROMPT = """You are completing one benchmark coding task in a disposable git worktree.
 Make the smallest complete implementation that satisfies the task. Work autonomously; do not ask
@@ -54,10 +55,10 @@ ARM_PROMPTS = {
     ARM_CONTROL: """CONTROL ARM: codemap is unavailable. Do not attempt to use it. Navigate with
 ordinary repository tools only.
 """,
-    ARM_TREATMENT: """CODEMAP TREATMENT ARM: use codemap as the structural navigator. Before
-editing, run `codemap ls .`, then use exact `codemap ls <anchor>` or `codemap cone <anchor>` scopes
-when needed. After editing, run `codemap changed` and then `codemap proof changed`. These three
-daily workflow calls are required for this benchmark arm.
+    ARM_TREATMENT: """CODEMAP TREATMENT ARM: use codemap as the structural navigator. If the task
+names a usable file, directory, file#symbol, or exact symbol, begin with the narrowest applicable
+`codemap ls <scope>`, `codemap cone <file#symbol>`, or `codemap where <symbol>`; do not run root
+orientation first. Use `codemap ls .` only when scope is unknown. After editing, run `codemap changed` and then `codemap proof changed`.
 """,
 }
 
@@ -65,11 +66,11 @@ ANALYSIS_ARM_PROMPTS = {
     ARM_CONTROL: """CONTROL ARM: codemap is unavailable. Do not attempt to use it. Navigate with
 ordinary read-only repository tools only.
 """,
-    ARM_TREATMENT: """CODEMAP TREATMENT ARM: use codemap as the structural navigator. Start with
-`codemap ls .`, then use at least one exact or focused map such as `codemap ls <anchor>`,
-`codemap cone <anchor>`, `codemap graph --lens causal`, `codemap runtime <scope>`, or
-`codemap contract <anchor>`. Follow useful expand commands when they expose evidence. Do not edit
-the repository. Root map plus at least one focused codemap call are required for this arm.
+    ARM_TREATMENT: """CODEMAP TREATMENT ARM: use codemap as the structural navigator. If the task
+names a usable file, directory, file#symbol, or exact symbol, begin with the narrowest applicable
+`codemap ls <scope>`, `codemap cone <file#symbol>`, or `codemap where <symbol>`; do not run root
+orientation first. Use `codemap ls .` only when scope is unknown, then narrow with a focused map.
+Follow useful expand commands when they expose evidence. Do not edit the repository.
 """,
 }
 
@@ -312,17 +313,24 @@ def write_executable(path: Path, body: str) -> None:
 def make_codemap_shim(shim_dir: Path, arm: str, codemap_cmd: list[str]) -> Path:
     shim_dir.mkdir(parents=True, exist_ok=True)
     shim = shim_dir / "codemap"
-    log_line = 'printf "%s\\n" "$*" >> "$CODEMAP_AB_INVOCATION_LOG"\n'
-    if arm == ARM_CONTROL:
-        body = (
-            "#!/bin/sh\n"
-            + log_line
-            + 'echo "codemap is unavailable in the control arm" >&2\n'
-            + "exit 127\n"
-        )
-    else:
-        command = " ".join(shlex.quote(part) for part in codemap_cmd)
-        body = "#!/bin/sh\n" + log_line + f'exec {command} "$@"\n'
+    body = f'''#!/usr/bin/env python3
+import json, os, subprocess, sys
+command = {json.dumps(codemap_cmd)}
+arm = {json.dumps(arm)}
+if arm == "{ARM_CONTROL}":
+    print("codemap is unavailable in the control arm", file=sys.stderr)
+    status = 127
+else:
+    try:
+        status = subprocess.run([*command, *sys.argv[1:]]).returncode
+    except OSError as exc:
+        print(f"codemap launch failed: {{exc}}", file=sys.stderr)
+        status = 127
+record = {{"argv": sys.argv[1:], "status": status}}
+with open(os.environ["CODEMAP_AB_INVOCATION_LOG"], "a", encoding="utf-8") as stream:
+    stream.write(json.dumps(record, separators=(",", ":")) + "\\n")
+raise SystemExit(status)
+'''
     write_executable(shim, body)
     return shim
 
@@ -378,54 +386,13 @@ def parse_codex_events(text: str) -> dict[str, Any]:
     }
 
 
-def read_invocations(path: Path) -> list[str]:
+def read_invocations(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
-    return [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
-
-
-def codemap_protocol(mode: str, arm: str, invocations: list[str]) -> dict[str, Any]:
-    parsed: list[list[str]] = []
-    for invocation in invocations:
-        try:
-            parsed.append(shlex.split(invocation))
-        except ValueError:
-            parsed.append(invocation.split())
-    root_ls = any(
-        any(args[index : index + 2] == ["ls", "."] for index in range(len(args) - 1))
-        for args in parsed
-    )
-    changed = any(
-        any(
-            args[index] == "changed" and (index == 0 or args[index - 1] != "proof")
-            for index in range(len(args))
-        )
-        for args in parsed
-    )
-    proof_changed = any(
-        any(args[index : index + 2] == ["proof", "changed"] for index in range(len(args) - 1))
-        for args in parsed
-    )
-    focused = any(
-        args
-        and not any(args[index : index + 2] == ["ls", "."] for index in range(len(args) - 1))
-        for args in parsed
-    )
-    if arm == ARM_CONTROL:
-        compliant = len(invocations) == 0
-    elif mode == MODE_ANALYSIS:
-        compliant = root_ls and focused
-    else:
-        compliant = root_ls and changed and proof_changed
-    return {
-        "invocation_count": len(invocations),
-        "invocations": invocations,
-        "root_ls": root_ls,
-        "changed": changed,
-        "proof_changed": proof_changed,
-        "focused": focused,
-        "compliant": compliant,
-    }
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
+    if not all(isinstance(row, dict) for row in rows):
+        raise ValueError(f"invalid codemap invocation log: {path}")
+    return rows
 
 
 def expand_command(
@@ -536,6 +503,7 @@ def trial_fingerprint(
     task: Task,
     base_commit: str,
     arm: str,
+    order: int,
     args: argparse.Namespace,
     codex_version: str,
     codemap_version: str,
@@ -552,9 +520,18 @@ def trial_fingerprint(
             "verifiers": [verifier.__dict__ for verifier in task.verifiers],
             "protected_paths": task.protected_paths,
             "arm": arm,
+            "order": order,
             "prompt_protocol_version": PROMPT_PROTOCOL_VERSION,
+            "composed_prompt_sha256": hashlib.sha256(
+                task_prompt(task, arm).encode("utf-8")
+            ).hexdigest(),
+            "harness_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+            "protocol_parser_sha256": hashlib.sha256(
+                Path(__file__).with_name("codemap_protocol.py").read_bytes()
+            ).hexdigest(),
             "model": args.model,
             "reasoning_effort": args.reasoning_effort,
+            "timeout_seconds": args.timeout_seconds,
             "codex_version": codex_version,
             "codemap_version": codemap_version,
             "codemap_hashes": codemap_hashes,
@@ -597,6 +574,7 @@ def run_trial(
         task,
         base_commit,
         arm,
+        order,
         args,
         codex_version,
         codemap_version,
@@ -663,7 +641,7 @@ def run_trial(
         events_path.write_text(codex.stdout, encoding="utf-8")
         stderr_path.write_text(codex.stderr, encoding="utf-8")
         event_summary = parse_codex_events(codex.stdout)
-        protocol = codemap_protocol(task.mode, arm, read_invocations(invocation_log))
+        protocol = codemap_protocol(task.mode, arm, read_invocations(invocation_log), worktree)
         changed_paths = capture_patch(worktree, base_commit, artifact_dir)
         protected = protected_changes(changed_paths, task.protected_paths)
         # Capture the candidate before trusted verifiers run. Verifiers may compile,
@@ -686,6 +664,8 @@ def run_trial(
             "task_id": task.task_id,
             "mode": task.mode,
             "task_prompt_sha256": hashlib.sha256(task.prompt.encode("utf-8")).hexdigest(),
+            "composed_prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+            "prompt_protocol_version": PROMPT_PROTOCOL_VERSION,
             "repo": str(task.repo),
             "base_ref": task.base_ref,
             "base_commit": base_commit,

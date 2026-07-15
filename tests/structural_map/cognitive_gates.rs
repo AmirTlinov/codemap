@@ -7,20 +7,33 @@ fn daily_workflow_markdown_stays_compact_and_non_ritualistic() {
     );
 
     let cases = [
-        ("ls root", vec!["ls", "."], 120),
+        ("ls root", vec!["ls", "."], 120, 1500),
+        (
+            "ls exact file",
+            vec!["ls", "packages/replay/src/session.ts"],
+            90,
+            1100,
+        ),
         (
             "cone anchor",
             vec!["cone", "packages/replay/src/session.ts"],
-            120,
+            90,
+            1100,
         ),
-        ("changed", vec!["changed"], 120),
-        ("proof changed", vec!["proof", "changed"], 120),
+        ("where symbol", vec!["where", "seek"], 60, 700),
+        ("changed", vec!["changed"], 120, 2000),
+        ("proof changed", vec!["proof", "changed"], 90, 1200),
     ];
-    for (name, args, max_lines) in cases {
+    for (name, args, max_lines, max_tokens) in cases {
         let markdown = run_markdown(repo.path(), cache.path(), &args);
         assert!(
             markdown.lines().count() <= max_lines,
             "{name} exceeded the daily markdown line budget of {max_lines}: {markdown}"
+        );
+        let approximate_tokens = markdown.chars().count().div_ceil(4);
+        assert!(
+            approximate_tokens <= max_tokens,
+            "{name} exceeded the approximate token budget of {max_tokens}: {approximate_tokens}\n{markdown}"
         );
         assert_no_daily_table_spam(name, &markdown);
         assert_no_forbidden_product_language(name, &markdown);

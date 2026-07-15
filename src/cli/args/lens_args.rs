@@ -7,6 +7,7 @@ use clap::Args;
 
 #[derive(Debug, Args)]
 pub(crate) struct LsArgs {
+    /// Exact file, file#symbol, or directory scope; use `.` only for root orientation.
     #[arg(default_value = ".")]
     pub(crate) path: String,
     #[arg(long, default_value_t = 1, hide = true)]
@@ -25,6 +26,7 @@ pub(crate) struct LsArgs {
 
 #[derive(Debug, Args)]
 pub(crate) struct ConeArgs {
+    /// Exact file, file#symbol, or directory anchor.
     pub(crate) path: String,
     #[arg(long, default_value_t = 1)]
     pub(crate) depth: usize,

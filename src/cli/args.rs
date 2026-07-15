@@ -16,11 +16,17 @@ pub(crate) const DEFAULT_PROOF_LIMIT: usize = 12;
 #[derive(Debug, Parser)]
 #[command(name = "codemap")]
 #[command(about = "Structural code map CLI for AI coding agents")]
-#[command(before_help = "Primary map workflow:
-  codemap ls [scope]
-  codemap cone <anchor>
+#[command(before_help = "Choose one proportional map entry:
+  known symbol:     codemap where <symbol>
+  known anchor:     codemap cone <file-or-file#symbol>
+  known scope:      codemap ls <file-or-directory>
+  unfamiliar scope: codemap ls .
+
+Use the narrowest known anchor; root orientation is only for an unknown scope.
+
+After edits:
   codemap changed
-  codemap proof <anchor|changed>
+  codemap proof changed
 
 Diagnostics and deeper lenses stay available as exact expand targets.
 ")]
@@ -46,8 +52,10 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub(crate) enum CommandKind {
-    #[command(about = "Show structural surfaces for an exact file or directory anchor")]
+    #[command(about = "Show structural surfaces for an exact file, symbol, or directory anchor")]
     Ls(LsArgs),
+    #[command(about = "Locate every exact definition of a symbol name across the indexed map")]
+    Where(WhereArgs),
     #[command(about = "Show a bounded structural edge cone around an exact anchor")]
     Cone(ConeArgs),
     #[command(
@@ -87,9 +95,6 @@ pub(crate) enum CommandKind {
     #[command(hide = true)]
     #[command(about = "Show a bounded structural flow from an exact anchor")]
     Flow(FlowArgs),
-    #[command(hide = true)]
-    #[command(about = "Locate every exact definition of a symbol name across the indexed map")]
-    Where(WhereArgs),
     #[command(hide = true)]
     #[command(about = "Show same-scope structural siblings and local conventions")]
     Siblings(SiblingsArgs),

@@ -1,8 +1,8 @@
 // Responsibility: render-where-locator
-use crate::model::{WhereDefinition, WhereReport};
+use crate::model::{ConeReport, WhereDefinition, WhereReport};
 use crate::render::{
-    disclaimer, edge_location_summary, grouped_edge_list, hidden_section, public_evidence_label,
-    render_cone_observed, render_cone_proof, render_cone_xray, root_aware_expand, section,
+    cone_links_empty, disclaimer, edge_location_summary, grouped_edge_list, hidden_section,
+    public_evidence_label, render_cone_links, render_cone_xray, root_aware_expand, section,
     unknown_section, xray_edge_label,
 };
 
@@ -55,25 +55,27 @@ fn render_where_single(report: &WhereReport) {
     print_where_definition_facts(def, "- ");
     if let Some(detail) = &report.detail {
         render_cone_xray(detail);
-        render_cone_observed(detail);
-        if !detail.outgoing.is_empty()
-            || !detail.incoming.is_empty()
-            || !detail.contracts.is_empty()
-            || !detail.boundary.is_empty()
-        {
-            println!("\n## Links\n");
-            grouped_edge_list("outgoing", &detail.outgoing, 12);
-            grouped_edge_list("incoming", &detail.incoming, 12);
-            grouped_edge_list("contracts", &detail.contracts, 12);
-            grouped_edge_list("boundary", &detail.boundary, 12);
-        }
-        render_cone_proof(&detail.proof);
+        render_where_links(detail);
         hidden_section(&detail.hidden);
         unknown_section(&detail.unknowns);
         section("Expand", &detail.expand);
     } else {
         section("Expand", &def.expand);
     }
+}
+
+fn render_where_links(report: &ConeReport) {
+    if cone_links_empty(report) {
+        render_cone_links(report);
+        return;
+    }
+    if report.outgoing.is_empty() && report.contracts.is_empty() && report.boundary.is_empty() {
+        return;
+    }
+    println!("\n## Links\n");
+    grouped_edge_list("outgoing", &report.outgoing, 8);
+    grouped_edge_list("contracts", &report.contracts, 8);
+    grouped_edge_list("boundary", &report.boundary, 8);
 }
 
 fn render_where_multi(report: &WhereReport) {

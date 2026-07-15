@@ -31,6 +31,10 @@ fn where_single_definition_is_cone_equivalent() {
             && !markdown.contains("#seek#seek"),
         "symbol anchor must not double the `#sym` suffix: {markdown}"
     );
+    assert!(
+        markdown.contains("useReplay"),
+        "single-def where must preserve the real consumer links: {markdown}"
+    );
 }
 
 #[test]

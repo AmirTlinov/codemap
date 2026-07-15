@@ -24,6 +24,7 @@ codemap = ls + xref + cone + impact + proof for code
 - no project script execution without `--run`;
 - no LLM, embeddings, ranking engine, or task router in the hard path;
 - exact paths are anchors;
+- use the narrowest known anchor; root orientation is only for an unknown scope;
 - root `codemap ls .` shows a bounded domain/package map, not every file;
 - deeper views require an explicit scope, file, depth, or changed-file input;
 - optional `.codemap.yml` supplies only hard semantic anchors code cannot reveal.
@@ -34,10 +35,10 @@ Primary daily commands:
 
 ```bash
 codemap ls [scope]
+codemap where <symbol>
 codemap cone <anchor>
 codemap changed
 codemap proof <anchor|changed>
-codemap where <symbol>
 ```
 
 Global `--brief` (or `CODEMAP_BRIEF=1`) collapses the repo prelude to one line and
@@ -52,7 +53,7 @@ treated as a git ref; an unknown token fails open to the full worktree set.
 
 Focused lenses remain public and supported, but they are deep map targets:
 `runtime`, `contract`, `flow`, `boundary-map`, `siblings`, `place`, `delete`,
-`diff-map`, `impact`, `proof-map`, `where`, and `graph`.
+`diff-map`, `impact`, `proof-map`, and `graph`.
 
 `doctor`, `status`, `files`, `schema`, `bootstrap`, `init`, `anchors`, and
 `boundaries` are diagnostics or setup surfaces, not primary map commands.
@@ -139,17 +140,18 @@ is historical compatibility, not a correctness verdict.
 
 ## Agent Rule
 
-An agent should start wide only at the current level:
+An agent chooses one entry using the narrowest anchor already present in the task:
+
+```bash
+codemap where <exact-symbol>
+codemap cone <file-or-file#symbol> --depth 1
+codemap ls <file-or-directory>
+```
+
+Only when the relevant scope is unknown should it begin at the current level:
 
 ```bash
 codemap ls .
-```
-
-Then it should move to the relevant scope or file:
-
-```bash
-codemap ls <scope-or-file>
-codemap cone <scope-or-file> --depth 1
 ```
 
 After edits:

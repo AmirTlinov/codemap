@@ -35,8 +35,7 @@ prompt = args[-1]
 treatment = "CODEMAP TREATMENT ARM" in prompt
 analysis = "repository-analysis task" in prompt
 if treatment and analysis:
-    for command in (["codemap", "ls", "."], ["codemap", "cone", "README.md"]):
-        subprocess.run(command, cwd=worktree, check=True)
+    subprocess.run(["codemap", "cone", "README.md"], cwd=worktree, check=True)
 elif treatment:
     for command in (["codemap", "ls", "."], ["codemap", "changed"], ["codemap", "proof", "changed"]):
         subprocess.run(command, cwd=worktree, check=True)
@@ -109,7 +108,7 @@ raise SystemExit(0 if "README.md:1" in message else 1)
         "mode": "analysis",
         "repo": repo.path(),
         "base_ref": "HEAD",
-        "prompt": "Identify one repository problem and cite exact evidence.",
+        "prompt": "Inspect README.md, identify one repository problem, and cite exact evidence.",
         "verify": [{
             "name": "evidence-bearing-report",
             "category": "evidence",
@@ -216,6 +215,10 @@ raise SystemExit(0 if "README.md:1" in message else 1)
         .expect("codemap result");
     assert_eq!(control["codemap_protocol"]["invocation_count"], 0);
     assert_eq!(treatment["codemap_protocol"]["invocation_count"], 3);
+    assert_eq!(treatment["codemap_protocol"]["first_entry"], "ls .");
+    assert_eq!(treatment["codemap_protocol"]["entry_kind"], "root");
+    assert_eq!(treatment["codemap_protocol"]["root_entry"], true);
+    assert_eq!(treatment["codemap_protocol"]["exact_entry"], false);
     assert_eq!(treatment["codemap_protocol"]["compliant"], true);
     assert_eq!(treatment["report_prelude"]["codemap"], *summary_identity);
     assert_eq!(treatment["codex"]["usage"]["input_tokens"], 100);
@@ -236,8 +239,12 @@ raise SystemExit(0 if "README.md:1" in message else 1)
     assert_eq!(analysis_control["changed_paths"].as_array().unwrap().len(), 0);
     assert_eq!(analysis_control["verifiers"][0]["passed"], true);
     assert_eq!(analysis_control["codemap_protocol"]["invocation_count"], 0);
-    assert_eq!(analysis_treatment["codemap_protocol"]["invocation_count"], 2);
-    assert_eq!(analysis_treatment["codemap_protocol"]["root_ls"], true);
+    assert_eq!(analysis_treatment["codemap_protocol"]["invocation_count"], 1);
+    assert_eq!(analysis_treatment["codemap_protocol"]["first_entry"], "cone README.md");
+    assert_eq!(analysis_treatment["codemap_protocol"]["entry_kind"], "exact");
+    assert_eq!(analysis_treatment["codemap_protocol"]["root_entry"], false);
+    assert_eq!(analysis_treatment["codemap_protocol"]["exact_entry"], true);
+    assert_eq!(analysis_treatment["codemap_protocol"]["mixed"], false);
     assert_eq!(analysis_treatment["codemap_protocol"]["focused"], true);
     assert_eq!(analysis_treatment["codemap_protocol"]["compliant"], true);
     let markdown = fs::read_to_string(out.path().join("summary.md")).expect("summary markdown");

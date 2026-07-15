@@ -4,7 +4,7 @@
 task twice with Codex:
 
 - `control`: `codemap` is blocked and ordinary repository navigation remains available;
-- `codemap`: the agent must follow the mode-specific codemap navigation protocol.
+- `codemap`: the agent must follow the mode-specific proportional-entry protocol.
 
 Both arms use the same git commit, task text, model, reasoning effort, sandbox, and
 external verifier. Each arm receives a fresh detached worktree. Arm order alternates
@@ -97,15 +97,26 @@ binary without changing its version invalidates the old trial.
 `--codemap-bin` accepts a direct executable or a quoted Python/POSIX-shell
 wrapper; use a direct executable for other runtime dispatchers.
 
-In `implementation` mode, treatment must run `codemap ls .` before editing and
-`codemap changed` plus `codemap proof changed` after editing. In `analysis` mode,
-treatment must run `codemap ls .` and at least one exact or focused map; any repository
-change makes the analytical outcome fail. Control has ordinary repository tools but a
-blocking codemap shim in both modes.
+Treatment starts from the narrowest usable anchor named by the task: `codemap ls <scope>`
+for an exact file or directory, `codemap cone <file#symbol>` for an anchored symbol, or
+`codemap where <symbol>` when only the exact symbol name is known. It uses `codemap ls .`
+only when the scope is unknown. In `implementation` mode, either entry is followed by
+`codemap changed` and `codemap proof changed`. In `analysis` mode, an exact entry is
+sufficient; root orientation must be followed by another focused map. Any analytical
+repository change fails the outcome. Control has ordinary tools and a blocking codemap shim.
+
+The harness does not parse task text or choose a command. Its shim records argv and the actual
+exit status for every attempt; only successful calls can satisfy the protocol. The report keeps
+the raw `invocation_results`, `first_entry`, `entry_is_first_invocation`, `entry_kind` (`none`,
+`exact`, or `root`), `root_entry`, `exact_entry`, `mixed`, `ordered_daily`, and whether a
+focused call followed root orientation. This keeps task understanding in the agent while making
+the published protocol machine-checkable without reimplementing clap in the harness.
 
 Use `--resume` after interruption. Existing trials are reused only when the task,
-base commit, model, reasoning, Codex version, arm, and verifier configuration produce
-the same fingerprint.
+base commit, composed arm prompt, protocol/parser and harness bytes, model, reasoning,
+timeout, trial order, Codex version, arm, and verifier configuration produce the same
+fingerprint. Codemap command artifacts and the full benchmark identity also participate,
+so replacing a wrapper or binary without changing its version invalidates the old trial.
 
 ## Designing a Completeness Benchmark
 
@@ -145,6 +156,13 @@ the effect estimate.
 Because the score is external, it measures the effects of understanding instead of
 trusting an agent's self-description. A strong corpus contains tasks where the direct
 edit is easy but important coupled surfaces are not obvious from the prompt.
+
+Exact/local negative controls should name their usable anchor directly in the identical task
+prompt and pre-register the allowed exact first argv/anchor set together with
+`entry_is_first_invocation=true`, `entry_kind=exact`, `root_entry=false`, and `mixed=false` as
+treatment receipt criteria. Implementation trials also require `ordered_daily=true`. They test
+that codemap preserves the control outcome without charging for root orientation; time and token
+deltas remain visible resource costs rather than a substitute for that check.
 
 ## Artifacts and Scoring
 
