@@ -37,6 +37,7 @@ pub(crate) fn go_route_registrations(
             path,
             file: rel.to_string(),
             handler_symbol: route_call_second_arg_identifier(line, &code, open_paren + 1),
+            middleware_or_guards: Vec::new(),
             evidence: "go_http_route_registration".to_string(),
             strength: EvidenceStrength::High,
             locations: vec![EvidenceLocation::line(

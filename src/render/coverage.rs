@@ -105,9 +105,10 @@ fn xray_group_family(group: &str) -> &str {
 }
 
 pub(crate) fn render_runtime_visibility(observations: &ObservationLedger) {
-    const GROUP_ORDER: [&str; 8] = [
+    const GROUP_ORDER: [&str; 9] = [
         "entrypoints",
         "routes",
+        "paths",
         "scripts",
         "env",
         "workers",

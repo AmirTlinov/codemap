@@ -28,6 +28,7 @@ pub(crate) fn python_route_decorators(
                 path,
                 file: rel.to_string(),
                 handler_symbol: None,
+                middleware_or_guards: Vec::new(),
                 evidence: "python_route_decorator".to_string(),
                 strength: EvidenceStrength::High,
                 locations: vec![EvidenceLocation::line(rel, line_number, "route_decorator")],

@@ -6,7 +6,7 @@ use crate::model::{
 use crate::render::{
     boundaries, code, cone_section, contract_exports_section, env_section, hidden_section,
     lens_proof_sensor_section, map_snapshot_line, plain_section, proof_surface_section,
-    public_evidence_label, render_file_summaries, render_runtime_visibility,
+    public_evidence_label, render_file_summaries, render_runtime_visibility, runtime_paths_section,
     runtime_routes_section, section, surface_section, table, unknown_section,
 };
 
@@ -79,6 +79,7 @@ pub fn runtime(report: &RuntimeReport) {
     println!("Scope: `{}`", report.scope);
     surface_section("Entrypoints", &report.entrypoints);
     runtime_routes_section("Routes", &report.routes);
+    runtime_paths_section("Runtime Paths", &report.paths);
     surface_section("Scripts", &report.scripts);
     env_section("Env", &report.env);
     surface_section("Workers", &report.workers);

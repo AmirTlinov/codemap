@@ -24,7 +24,7 @@ fn runtime_route_horizon_owns_mass_truncation_and_route_gaps() {
         "readable runtime output needs the compact certificate identity: {markdown}"
     );
     assert!(
-        markdown.lines().count() <= 75,
+        markdown.lines().count() <= 90,
         "the 227-route fixture must remain a bounded daily map: {markdown}"
     );
 

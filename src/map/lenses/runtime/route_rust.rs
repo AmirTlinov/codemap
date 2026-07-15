@@ -102,6 +102,7 @@ fn rust_axum_route_registrations(
                 path: path.clone(),
                 file: rel.to_string(),
                 handler_symbol,
+                middleware_or_guards: Vec::new(),
                 evidence: "rust_axum_route_registration".to_string(),
                 strength: EvidenceStrength::High,
                 locations: vec![EvidenceLocation::line(

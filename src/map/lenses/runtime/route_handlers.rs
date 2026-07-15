@@ -15,18 +15,65 @@ pub(crate) fn route_call_second_arg_identifier(
     simple_identifier_argument(line, code, comma + 1, close_paren)
 }
 
-pub(crate) fn route_chain_method_handler_identifier(
+pub(crate) fn route_call_handler_and_middleware_identifiers(
+    line: &str,
+    code: &str,
+    arg_start: usize,
+) -> (Option<String>, Vec<String>) {
+    let Some(open_paren) = code[..arg_start].rfind('(') else {
+        return (None, Vec::new());
+    };
+    let Some(close_paren) = matching_close_paren(code, open_paren) else {
+        return (None, Vec::new());
+    };
+    let Some(first_comma) = top_level_comma(code, arg_start, close_paren) else {
+        return (None, Vec::new());
+    };
+    handler_and_middleware_identifiers(line, code, first_comma + 1, close_paren)
+}
+
+pub(crate) fn route_chain_method_handler_and_middleware_identifiers(
     line: &str,
     code: &str,
     chain_start: usize,
     method: &str,
-) -> Option<String> {
+) -> (Option<String>, Vec<String>) {
     let chain = route_chain_segment(&code[chain_start..]);
     let call = format!(".{method}(");
-    let method_start = top_level_chain_call_offset(chain, &call)?;
+    let Some(method_start) = top_level_chain_call_offset(chain, &call) else {
+        return (None, Vec::new());
+    };
     let open_paren = chain_start + method_start + call.len() - 1;
-    let close_paren = matching_close_paren(code, open_paren)?;
-    simple_identifier_argument(line, code, open_paren + 1, close_paren)
+    let Some(close_paren) = matching_close_paren(code, open_paren) else {
+        return (None, Vec::new());
+    };
+    handler_and_middleware_identifiers(line, code, open_paren + 1, close_paren)
+}
+
+fn handler_and_middleware_identifiers(
+    line: &str,
+    code: &str,
+    start: usize,
+    end: usize,
+) -> (Option<String>, Vec<String>) {
+    let mut arguments = Vec::new();
+    let mut argument_start = start;
+    while argument_start < end {
+        let argument_end = top_level_comma(code, argument_start, end).unwrap_or(end);
+        if let Some(identifier) =
+            simple_identifier_argument(line, code, argument_start, argument_end)
+        {
+            arguments.push(identifier);
+        } else {
+            return (None, Vec::new());
+        }
+        if argument_end == end {
+            break;
+        }
+        argument_start = argument_end + 1;
+    }
+    let handler = arguments.pop();
+    (handler, arguments)
 }
 
 pub(crate) fn object_field_identifier(line: &str, code: &str, field: &str) -> Option<String> {

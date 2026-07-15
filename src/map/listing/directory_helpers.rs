@@ -50,6 +50,16 @@ pub(crate) fn balanced_edge_prefix_by_source(
         return edges.to_vec();
     }
 
+    let mut balanced = balanced_edge_order_by_source(edges);
+    balanced.truncate(limit);
+    balanced
+}
+
+pub(crate) fn balanced_edge_order_by_source(edges: &[StructuralEdge]) -> Vec<StructuralEdge> {
+    if edges.len() <= 1 {
+        return edges.to_vec();
+    }
+
     let mut buckets: BTreeMap<String, VecDeque<StructuralEdge>> = BTreeMap::new();
     for edge in edges {
         buckets
@@ -58,13 +68,13 @@ pub(crate) fn balanced_edge_prefix_by_source(
             .push_back(edge.clone());
     }
 
-    let mut balanced = Vec::with_capacity(limit);
-    while balanced.len() < limit && !buckets.is_empty() {
+    let mut balanced = Vec::with_capacity(edges.len());
+    while balanced.len() < edges.len() && !buckets.is_empty() {
         let keys = buckets.keys().cloned().collect::<Vec<_>>();
         let mut progressed = false;
 
         for key in keys {
-            if balanced.len() == limit {
+            if balanced.len() == edges.len() {
                 break;
             }
 

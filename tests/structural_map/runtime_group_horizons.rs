@@ -1,7 +1,8 @@
 // Responsibility: runtime-group-horizon-contract
-const S03C_RUNTIME_GROUPS: [&str; 8] = [
+const S03C_RUNTIME_GROUPS: [&str; 9] = [
     "entrypoints",
     "routes",
+    "paths",
     "scripts",
     "env",
     "workers",
@@ -26,7 +27,7 @@ fn runtime_flagship_groups_share_one_basis_across_bounded_and_full_projections()
         &["runtime", "fixtures", "--limit", "3", "--format", "json"],
     );
     assert_schema("schemas/runtime.schema.json", &json);
-    assert_eq!(json["schema_version"], "5", "{json:#}");
+    assert_eq!(json["schema_version"], "6", "{json:#}");
 
     let observations = &json["observations"];
     let horizons = observations["horizons"]
@@ -35,8 +36,8 @@ fn runtime_flagship_groups_share_one_basis_across_bounded_and_full_projections()
     let certificates = observations["certificates"]
         .as_object()
         .expect("runtime certificates");
-    assert_eq!(horizons.len(), 8, "{json:#}");
-    assert_eq!(certificates.len(), 8, "{json:#}");
+    assert_eq!(horizons.len(), 9, "{json:#}");
+    assert_eq!(certificates.len(), 9, "{json:#}");
     assert_eq!(
         horizons
             .iter()
@@ -49,6 +50,7 @@ fn runtime_flagship_groups_share_one_basis_across_bounded_and_full_projections()
     let expected = [
         ("entrypoints", 6, "open", 3, 3),
         ("routes", 7, "open", 3, 4),
+        ("paths", 9, "open", 3, 6),
         ("scripts", 0, "open", 0, 0),
         ("env", 0, "open", 0, 0),
         ("workers", 0, "closed", 0, 0),
@@ -95,6 +97,7 @@ fn runtime_flagship_groups_share_one_basis_across_bounded_and_full_projections()
     );
     for legacy in [
         "runtime entrypoints hidden by limit",
+        "runtime path relations hidden by limit",
         "runtime scripts hidden by limit",
         "environment surfaces hidden by limit",
         "worker/job surfaces hidden by limit",

@@ -43,7 +43,13 @@ pub fn runtime_report(
 
     let mut full_groups = runtime_non_route_facts(project, &full_scope_files);
     full_groups.env = group_env_surfaces(full_groups.env);
+    let runtime_facts = runtime_fact_index_for_files(project, full_scope_files.iter().copied());
+    let (mut routes, mut paths, mut proof, path_unknowns) =
+        route_facts(project, &full_scope_files, &runtime_facts);
+    full_groups.unknowns.extend(path_unknowns.clone());
     let observed_entrypoints = surface_fact_count(&full_groups.entrypoints);
+    let observed_routes = routes.len();
+    let observed_paths = paths.len();
     let observed_env = full_groups.env.len();
     let observed_workers = full_groups.workers.len();
     let observed_ci = full_groups.ci.len();
@@ -58,6 +64,21 @@ pub fn runtime_report(
     let (mut entrypoints, mut env, mut workers, mut ci, mut unknowns) =
         if scope == "." && !include_hidden {
             let mut display_groups = runtime_non_route_facts(project, &display_scope_files);
+            let display_paths = display_scope_files
+                .iter()
+                .map(|file| file.rel.as_str())
+                .collect::<std::collections::BTreeSet<_>>();
+            display_groups.unknowns.extend(
+                path_unknowns
+                    .iter()
+                    .filter(|unknown| {
+                        unknown
+                            .path
+                            .as_deref()
+                            .is_some_and(|path| display_paths.contains(path))
+                    })
+                    .cloned(),
+            );
             display_groups.entrypoints.extend(root_containers.clone());
             display_groups.entrypoints = dedupe_runtime_entrypoints(display_groups.entrypoints);
             display_groups.env = group_env_surfaces(display_groups.env);
@@ -86,9 +107,6 @@ pub fn runtime_report(
                 || crate::repo::is_incomplete_indexed_boundary(&project.root, file)
         })
         .collect::<Vec<_>>();
-    let runtime_facts = runtime_fact_index_for_files(project, full_scope_files.iter().copied());
-    let (mut routes, mut proof) = route_facts(project, &full_scope_files, &runtime_facts);
-    let observed_routes = routes.len();
     let observed_proof = proof.len();
 
     let mut scripts = runtime_scripts(project, &scope);
@@ -97,6 +115,7 @@ pub fn runtime_report(
 
     entrypoints.truncate(limit);
     routes.truncate(limit);
+    paths = crate::map::balanced_edge_prefix_by_source(&paths, limit);
     scripts.truncate(limit);
     env.truncate(limit);
     workers.truncate(limit);
@@ -141,6 +160,7 @@ pub fn runtime_report(
                     entrypoints_shown,
                     &include_hidden_expand,
                 ),
+                projection("paths", observed_paths, paths.len(), &include_hidden_expand),
                 projection(
                     "scripts",
                     observed_scripts,
@@ -183,6 +203,7 @@ pub fn runtime_report(
         scope,
         entrypoints,
         routes,
+        paths,
         scripts,
         env,
         workers,
@@ -199,12 +220,21 @@ fn route_facts(
     project: &Project,
     files: &[&crate::model::FileInfo],
     facts: &crate::map::RuntimeFactIndex,
-) -> (Vec<crate::model::RuntimeRoute>, Vec<StructuralEdge>) {
+) -> (
+    Vec<crate::model::RuntimeRoute>,
+    Vec<StructuralEdge>,
+    Vec<StructuralEdge>,
+    Vec<crate::model::Unknown>,
+) {
     let mut routes = Vec::new();
+    let mut paths = Vec::new();
     let mut proof = Vec::new();
+    let mut unknowns = Vec::new();
     for &file in files {
         let file_routes = facts.routes_for_file(&file.rel);
         for route in &file_routes {
+            paths.extend(facts.paths_for_route(route));
+            unknowns.extend(facts.unknowns_for_route(route));
             proof.extend(route_reference_edges_with_index(project, route, facts));
         }
         routes.extend(file_routes);
@@ -222,7 +252,11 @@ fn route_facts(
                     .cmp(&b.locations.first().and_then(|location| location.line_start))
             })
     });
-    (routes, proof)
+    crate::map::sort_edges(&mut paths);
+    paths.dedup_by(|a, b| {
+        a.from == b.from && a.to == b.to && a.edge_type == b.edge_type && a.evidence == b.evidence
+    });
+    (routes, paths, proof, unknowns)
 }
 
 fn runtime_scripts(project: &Project, scope: &str) -> Vec<Surface> {

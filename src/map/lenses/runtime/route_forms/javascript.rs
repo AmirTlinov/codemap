@@ -1,11 +1,13 @@
 // Responsibility: javascript-route-registrations
 use crate::map::{
     code_shape_without_literal_content, object_argument_range, object_field_identifier,
-    object_field_literal, quoted_literal_at, route_call_second_arg_identifier,
-    route_chain_has_top_level_method, route_chain_method_handler_identifier, route_chain_segment,
-    route_like_receiver, static_route_methods,
+    object_field_literal, quoted_literal_at, route_call_handler_and_middleware_identifiers,
+    route_chain_has_top_level_method, route_chain_method_handler_and_middleware_identifiers,
+    route_chain_segment, route_like_receiver, static_route_methods,
 };
-use crate::model::{EvidenceLocation, EvidenceStrength, RuntimeRoute};
+use crate::model::{
+    EvidenceLocation, EvidenceStrength, MiddlewareOrGuard, MiddlewareOrGuardKind, RuntimeRoute,
+};
 
 pub(crate) fn javascript_route_registrations(
     rel: &str,
@@ -21,11 +23,14 @@ pub(crate) fn javascript_route_registrations(
             let Some(path) = quoted_literal_at(line[arg_start..].trim_start()) else {
                 continue;
             };
+            let (handler_symbol, middleware) =
+                route_call_handler_and_middleware_identifiers(line, &code, arg_start);
             routes.push(RuntimeRoute {
                 method: Some(method.to_ascii_uppercase()),
                 path,
                 file: rel.to_string(),
-                handler_symbol: route_call_second_arg_identifier(line, &code, arg_start),
+                handler_symbol,
+                middleware_or_guards: middleware_entities(rel, line_number, middleware),
                 evidence: "javascript_route_registration".to_string(),
                 strength: EvidenceStrength::High,
                 locations: vec![EvidenceLocation::line(
@@ -92,16 +97,19 @@ fn javascript_chained_route_registrations(
         let chain = route_chain_segment(&code[arg_start + close + 1..]);
         for method in static_route_methods() {
             if route_chain_has_top_level_method(chain, method) {
-                routes.push(RuntimeRoute {
-                    method: Some(method.to_ascii_uppercase()),
-                    path: path.clone(),
-                    file: rel.to_string(),
-                    handler_symbol: route_chain_method_handler_identifier(
+                let (handler_symbol, middleware) =
+                    route_chain_method_handler_and_middleware_identifiers(
                         line,
                         &code,
                         arg_start + close + 1,
                         method,
-                    ),
+                    );
+                routes.push(RuntimeRoute {
+                    method: Some(method.to_ascii_uppercase()),
+                    path: path.clone(),
+                    file: rel.to_string(),
+                    handler_symbol,
+                    middleware_or_guards: middleware_entities(rel, line_number, middleware),
                     evidence: "javascript_route_chain_registration".to_string(),
                     strength: EvidenceStrength::High,
                     locations: vec![EvidenceLocation::line(
@@ -139,11 +147,15 @@ fn javascript_object_route_registrations(
         else {
             continue;
         };
+        let middleware = object_field_identifier(object_line, object_code, "preHandler")
+            .into_iter()
+            .collect();
         routes.push(RuntimeRoute {
             method: Some(method.to_ascii_uppercase()),
             path,
             file: rel.to_string(),
             handler_symbol: object_field_identifier(object_line, object_code, "handler"),
+            middleware_or_guards: middleware_entities(rel, line_number, middleware),
             evidence: "javascript_route_object_registration".to_string(),
             strength: EvidenceStrength::High,
             locations: vec![EvidenceLocation::line(
@@ -154,4 +166,22 @@ fn javascript_object_route_registrations(
         });
     }
     routes
+}
+
+fn middleware_entities(
+    rel: &str,
+    line_number: usize,
+    names: Vec<String>,
+) -> Vec<MiddlewareOrGuard> {
+    names
+        .into_iter()
+        .map(|name| MiddlewareOrGuard {
+            owner: format!("{rel}#{name}"),
+            name,
+            kind: MiddlewareOrGuardKind::Middleware,
+            evidence: "javascript_route_middleware_argument".to_string(),
+            strength: EvidenceStrength::High,
+            locations: vec![EvidenceLocation::line(rel, line_number, "route_middleware")],
+        })
+        .collect()
 }

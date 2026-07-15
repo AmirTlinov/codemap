@@ -1,9 +1,10 @@
 // Responsibility: runtime-lens-facts
 use crate::map::{
-    directory_has_files, files_under_directory, package_for_rel, route_visit_locations,
+    directory_has_files, files_under_directory, package_for_rel, route_guard_owner,
+    route_visit_locations, runtime_path_context, runtime_route_path_analysis,
     runtime_routes_for_file,
 };
-use crate::model::{EvidenceLocation, FileInfo, Project, RuntimeRoute};
+use crate::model::{EvidenceLocation, FileInfo, Project, RuntimeRoute, StructuralEdge, Unknown};
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 
@@ -11,6 +12,8 @@ pub(crate) struct RuntimeFactIndex {
     pub(crate) routes: Vec<RuntimeRoute>,
     pub(crate) routes_by_file: BTreeMap<String, Vec<RuntimeRoute>>,
     pub(crate) route_visits: Vec<RouteVisitFact>,
+    route_paths: BTreeMap<String, Vec<StructuralEdge>>,
+    route_unknowns: BTreeMap<String, Vec<Unknown>>,
 }
 
 pub(crate) struct RouteVisitFact {
@@ -74,9 +77,31 @@ where
     let mut routes = Vec::new();
     let mut routes_by_file: BTreeMap<String, Vec<RuntimeRoute>> = BTreeMap::new();
     let mut route_visits = Vec::new();
+    let mut route_paths = BTreeMap::new();
+    let mut route_unknowns = BTreeMap::new();
+    let path_context = runtime_path_context(project);
 
     for file in route_files {
-        let file_routes = runtime_routes_for_file(project, file);
+        let mut file_routes = runtime_routes_for_file(project, file);
+        for route in &mut file_routes {
+            for guard in &mut route.middleware_or_guards {
+                guard.owner = route_guard_owner(project, &route.file, &guard.name);
+            }
+            let analysis = runtime_route_path_analysis(project, route, &path_context);
+            route.middleware_or_guards.extend(analysis.guards);
+            route.middleware_or_guards.sort_by(|a, b| {
+                a.owner
+                    .cmp(&b.owner)
+                    .then_with(|| a.name.cmp(&b.name))
+                    .then_with(|| a.kind.cmp(&b.kind))
+            });
+            route
+                .middleware_or_guards
+                .dedup_by(|a, b| a.owner == b.owner && a.kind == b.kind);
+            let key = runtime_route_key(route);
+            route_paths.insert(key.clone(), analysis.edges);
+            route_unknowns.insert(key, analysis.unknowns);
+        }
         if !file_routes.is_empty() {
             routes_by_file.insert(file.rel.clone(), file_routes.clone());
             routes.extend(file_routes);
@@ -99,6 +124,8 @@ where
         routes,
         routes_by_file,
         route_visits,
+        route_paths,
+        route_unknowns,
     }
 }
 
@@ -112,4 +139,27 @@ impl RuntimeFactIndex {
             .get(rel)
             .is_some_and(|routes| !routes.is_empty())
     }
+
+    pub(crate) fn paths_for_route(&self, route: &RuntimeRoute) -> Vec<StructuralEdge> {
+        self.route_paths
+            .get(&runtime_route_key(route))
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn unknowns_for_route(&self, route: &RuntimeRoute) -> Vec<Unknown> {
+        self.route_unknowns
+            .get(&runtime_route_key(route))
+            .cloned()
+            .unwrap_or_default()
+    }
+}
+
+fn runtime_route_key(route: &RuntimeRoute) -> String {
+    format!(
+        "{}\u{0}{}\u{0}{}",
+        route.file,
+        route.method.as_deref().unwrap_or("ANY"),
+        route.path
+    )
 }

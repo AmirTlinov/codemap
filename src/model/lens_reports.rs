@@ -5,7 +5,8 @@ use super::Surface;
 
 use super::{
     BoundaryFinding, DomainRef, EvidenceLocation, EvidenceStrength, FileSummary, HiddenGroup,
-    ObservationLedger, PackageDependency, ProofSurface, ProofWiringFact, StructuralEdge, Unknown,
+    ObservationLedger, PackageDependency, ProofSurface, ProofWiringFact, RuntimeRoute,
+    StructuralEdge, Unknown,
 };
 
 #[derive(Debug, Clone, Serialize)]
@@ -33,6 +34,7 @@ pub struct RuntimeReport {
     pub scope: String,
     pub entrypoints: Vec<Surface>,
     pub routes: Vec<RuntimeRoute>,
+    pub paths: Vec<StructuralEdge>,
     pub scripts: Vec<Surface>,
     pub env: Vec<EnvSurface>,
     pub workers: Vec<Surface>,
@@ -45,14 +47,15 @@ pub struct RuntimeReport {
 }
 
 impl RuntimeReport {
-    pub const SCHEMA_VERSION: &'static str = "5";
+    pub const SCHEMA_VERSION: &'static str = "6";
     pub(crate) const ROOT_RECURSIVE_HIDDEN_REASON: &'static str =
         "recursive runtime files hidden at root scope";
     pub(crate) const ROOT_RECURSIVE_HIDDEN_EXPAND: &'static str = "codemap runtime . --all";
 
-    pub(crate) const OBSERVATION_GROUPS: [(&'static str, &'static str); 8] = [
+    pub(crate) const OBSERVATION_GROUPS: [(&'static str, &'static str); 9] = [
         ("entrypoints", "runtime_entrypoint_surfaces"),
         ("routes", "supported_static_runtime_routes"),
+        ("paths", "runtime_route_boundary_relations"),
         ("scripts", "runtime_script_catalog"),
         ("env", "static_runtime_environment_references"),
         ("workers", "runtime_worker_job_path_conventions"),
@@ -94,6 +97,7 @@ impl RuntimeReport {
                 .map(|surface| surface.count.unwrap_or(1))
                 .sum(),
             self.routes.len(),
+            self.paths.len(),
             self.scripts.len(),
             self.env.len(),
             self.workers.len(),
@@ -135,9 +139,10 @@ impl RuntimeReport {
                 return Err(super::ObservationLedgerError::ObservedWithoutEligibleCandidate);
             }
         }
-        const LEGACY_VISIBILITY_REASONS: [&str; 8] = [
+        const LEGACY_VISIBILITY_REASONS: [&str; 9] = [
             "runtime entrypoints hidden by limit",
             "runtime routes hidden by limit",
+            "runtime path relations hidden by limit",
             "runtime scripts hidden by limit",
             "environment surfaces hidden by limit",
             "worker/job surfaces hidden by limit",
@@ -163,6 +168,7 @@ impl RuntimeReport {
         let row_counts = [
             self.entrypoints.len(),
             self.routes.len(),
+            self.paths.len(),
             self.scripts.len(),
             self.env.len(),
             self.workers.len(),
@@ -258,17 +264,6 @@ fn runtime_cli_entrypoint_manifest(value: &str) -> Option<&str> {
             let end = value.find(&format!("{name}:"))? + name.len();
             Some(&value[..end])
         })
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct RuntimeRoute {
-    pub method: Option<String>,
-    pub path: String,
-    pub file: String,
-    pub handler_symbol: Option<String>,
-    pub evidence: String,
-    pub strength: EvidenceStrength,
-    pub locations: Vec<EvidenceLocation>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

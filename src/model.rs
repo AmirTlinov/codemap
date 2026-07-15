@@ -18,6 +18,7 @@ mod coverage_tests;
 mod lens_reports;
 mod prelude;
 mod proof_reports;
+mod runtime;
 mod structure_reports;
 mod teach_reports;
 
@@ -30,6 +31,7 @@ pub use coverage_ledger::*;
 pub use lens_reports::*;
 pub use prelude::*;
 pub use proof_reports::*;
+pub use runtime::*;
 pub use structure_reports::*;
 pub use teach_reports::*;
 

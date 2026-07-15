@@ -216,12 +216,12 @@ fn evidence_horizon_schemas_keep_the_same_required_certificate_contract() {
         &fs::read_to_string(root.join("schemas/manifest.json")).expect("manifest"),
     )
     .expect("manifest json");
-    assert_eq!(manifest["version"], 17);
+    assert_eq!(manifest["version"], 18);
 
     for (kind, version) in [
         ("cone", "16"),
         ("where", "5"),
-        ("runtime", "5"),
+        ("runtime", "6"),
         ("ls", "13"),
     ] {
         let entry = manifest["schemas"]
@@ -273,8 +273,8 @@ fn evidence_horizon_schemas_keep_the_same_required_certificate_contract() {
                 .collect::<BTreeSet<_>>();
             assert_eq!(runtime_groups, S03C_RUNTIME_GROUPS.into_iter().collect());
             let horizons = &schema["$defs"]["observation_ledger"]["properties"]["horizons"];
-            assert_eq!(horizons["minItems"], 8);
-            assert_eq!(horizons["maxItems"], 8);
+            assert_eq!(horizons["minItems"], 9);
+            assert_eq!(horizons["maxItems"], 9);
             assert_eq!(
                 schema["$defs"]["coverage_horizon"]["properties"]["hidden"]["const"],
                 0

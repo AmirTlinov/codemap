@@ -91,6 +91,11 @@ fn group_certificate(
             input,
             "entrypoint extractors cover declared path, manifest, and Rust Clap forms only",
         ),
+        "paths" => partial_category_certificate(
+            file_certificate(input, visited, group, source_candidate, relation_capability),
+            input,
+            "runtime boundary paths cover exact static handlers, calls, wrappers, and config references only",
+        ),
         "scripts" => script_certificate(project, input, visited),
         "env" => {
             let mut certificate =

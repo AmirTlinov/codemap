@@ -38,21 +38,32 @@ pub(crate) fn route_anchor_lookup_with_index(
     index: &RuntimeFactIndex,
 ) -> RouteAnchorLookup {
     let (method, path) = parse_route_anchor(anchor).unwrap_or((None, anchor));
-    let mut routes = index
+    let candidates = index
         .routes
         .iter()
         .filter(|route| {
-            route_matches_path(route, path)
-                && method.is_none_or(|method| {
-                    route
-                        .method
-                        .as_deref()
-                        .is_none_or(|route_method| route_method == "ANY" || route_method == method)
-                })
+            method.is_none_or(|method| {
+                route
+                    .method
+                    .as_deref()
+                    .is_none_or(|route_method| route_method == "ANY" || route_method == method)
+            })
         })
-        .take(2)
-        .cloned()
         .collect::<Vec<_>>();
+    let exact = candidates
+        .iter()
+        .copied()
+        .filter(|route| route.path == path)
+        .collect::<Vec<_>>();
+    let matches = if exact.is_empty() {
+        candidates
+            .into_iter()
+            .filter(|route| route_matches_path(route, path))
+            .collect::<Vec<_>>()
+    } else {
+        exact
+    };
+    let mut routes = matches.into_iter().take(2).cloned().collect::<Vec<_>>();
     match routes.len() {
         0 => RouteAnchorLookup::None,
         1 => RouteAnchorLookup::One(routes.remove(0)),

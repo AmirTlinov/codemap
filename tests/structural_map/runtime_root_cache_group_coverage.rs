@@ -4,7 +4,7 @@ fn runtime_root_cache_missing_non_route_horizon_misses_and_repairs() {
     assert_runtime_root_corruption_rebuilds(
         remove_entrypoint_horizon_and_certificate,
         true,
-        "a coherent seven-group ledger must not pass the eight-group runtime contract",
+        "a coherent eight-group ledger must not pass the nine-group runtime contract",
     );
 }
 

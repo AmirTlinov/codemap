@@ -11,6 +11,7 @@
     "scope",
     "entrypoints",
     "routes",
+    "paths",
     "scripts",
     "env",
     "workers",
@@ -25,7 +26,7 @@
     "kind": {
       "const": "runtime_report"
     },
-    "schema_version": { "const": "5" },
+    "schema_version": { "const": "6" },
     "build_identity": { "$ref": "#/$defs/build_identity" },
     "scope": {
       "type": "string"
@@ -40,6 +41,12 @@
       "type": "array",
       "items": {
         "$ref": "#/$defs/runtime_route"
+      }
+    },
+    "paths": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/structural_edge"
       }
     },
     "scripts": {
@@ -190,7 +197,7 @@
       "properties": {
         "group": {
           "type": "string",
-          "enum": ["entrypoints", "routes", "scripts", "env", "workers", "ci", "proof", "unknowns"]
+          "enum": ["entrypoints", "routes", "paths", "scripts", "env", "workers", "ci", "proof", "unknowns"]
         },
         "scope": { "type": "string" },
         "count": { "$ref": "#/$defs/observed_count" },
@@ -287,8 +294,8 @@
       "properties": {
         "certificates": {
           "type": "object",
-          "minProperties": 8,
-          "maxProperties": 8,
+          "minProperties": 9,
+          "maxProperties": 9,
           "propertyNames": {
             "pattern": "^coverage-v1:[0-9a-f]{64}$"
           },
@@ -298,12 +305,13 @@
         },
         "horizons": {
           "type": "array",
-          "minItems": 8,
-          "maxItems": 8,
+          "minItems": 9,
+          "maxItems": 9,
           "items": { "$ref": "#/$defs/coverage_horizon" },
           "allOf": [
             { "contains": { "properties": { "group": { "const": "entrypoints" } }, "required": ["group"] }, "minContains": 1, "maxContains": 1 },
             { "contains": { "properties": { "group": { "const": "routes" } }, "required": ["group"] }, "minContains": 1, "maxContains": 1 },
+            { "contains": { "properties": { "group": { "const": "paths" } }, "required": ["group"] }, "minContains": 1, "maxContains": 1 },
             { "contains": { "properties": { "group": { "const": "scripts" } }, "required": ["group"] }, "minContains": 1, "maxContains": 1 },
             { "contains": { "properties": { "group": { "const": "env" } }, "required": ["group"] }, "minContains": 1, "maxContains": 1 },
             { "contains": { "properties": { "group": { "const": "workers" } }, "required": ["group"] }, "minContains": 1, "maxContains": 1 },
@@ -894,6 +902,7 @@
         "path",
         "file",
         "handler_symbol",
+        "middleware_or_guards",
         "evidence",
         "strength",
         "locations"
@@ -925,6 +934,12 @@
             }
           ]
         },
+        "middleware_or_guards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/middleware_or_guard"
+          }
+        },
         "evidence": {
           "type": "string"
         },
@@ -936,6 +951,32 @@
           "items": {
             "$ref": "#/$defs/evidence_location"
           }
+        }
+      }
+    },
+    "middleware_or_guard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "kind",
+        "owner",
+        "evidence",
+        "strength",
+        "locations"
+      ],
+      "properties": {
+        "name": { "type": "string" },
+        "kind": {
+          "type": "string",
+          "enum": ["middleware", "guard", "validation"]
+        },
+        "owner": { "type": "string" },
+        "evidence": { "type": "string" },
+        "strength": { "$ref": "#/$defs/evidence_strength" },
+        "locations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidence_location" }
         }
       }
     },

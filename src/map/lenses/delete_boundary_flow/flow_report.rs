@@ -1,14 +1,14 @@
 // Responsibility: flow-lens-report
 use crate::map::{
-    RouteAnchorLookup, ci_execution_edges, ci_execution_unknowns, cone_contract_edges,
-    cone_proof_edges, direct_dependency_edges, file_summary, limit_ci_execution_projection,
-    limit_edge_section, normalize_flow_anchor, route_anchor_label, route_anchor_lookup_with_index,
-    route_like_anchor, route_reference_edges_with_index, runtime_entrypoint_direct_call_steps,
-    runtime_entrypoint_locations, runtime_entrypoint_surface_for_file,
-    runtime_entrypoint_symbol_step, runtime_fact_index, shell_quote, side_effect_surfaces_for_file,
-    split_symbol_anchor, symbol_definition_location, symbol_file_summary, symbol_outgoing_edges,
-    symbol_proof_edges, truncate_with_hidden, unknown, unknown_missing_symbol_anchor,
-    unknown_unindexed_anchor, unknowns_for_file,
+    RouteAnchorLookup, balanced_edge_order_by_source, ci_execution_edges, ci_execution_unknowns,
+    cone_contract_edges, cone_proof_edges, direct_dependency_edges, file_summary,
+    limit_ci_execution_projection, limit_edge_section, normalize_flow_anchor, route_anchor_label,
+    route_anchor_lookup_with_index, route_like_anchor, route_reference_edges_with_index,
+    runtime_entrypoint_direct_call_steps, runtime_entrypoint_locations,
+    runtime_entrypoint_surface_for_file, runtime_entrypoint_symbol_step, runtime_fact_index,
+    shell_quote, side_effect_surfaces_for_file, split_symbol_anchor, symbol_definition_location,
+    symbol_file_summary, symbol_outgoing_edges, symbol_proof_edges, truncate_with_hidden, unknown,
+    unknown_missing_symbol_anchor, unknown_unindexed_anchor, unknowns_for_file,
 };
 use crate::model::{EvidenceLocation, FlowReport, FlowStep, Project, RuntimeRoute};
 
@@ -61,6 +61,16 @@ pub fn flow_report(
             if let Some(handler) = route_handler_step(project, &route) {
                 steps.push(handler);
             }
+            for edge in balanced_edge_order_by_source(&runtime_facts.paths_for_route(&route)) {
+                steps.push(FlowStep {
+                    index: steps.len(),
+                    anchor: format!("{} -> {}", edge.from, edge.to),
+                    kind: edge.edge_type,
+                    evidence: edge.evidence,
+                    locations: edge.locations,
+                });
+            }
+            unknown_breaks.extend(runtime_facts.unknowns_for_route(&route));
             for edge in direct_dependency_edges(project, &route_file) {
                 steps.push(FlowStep {
                     index: steps.len(),

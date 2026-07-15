@@ -1,10 +1,12 @@
 // Responsibility: map-cone-owner-surfaces
 mod ci_edges;
 mod manifest_edges;
+mod runtime_edges;
 mod schema_edges;
 
 pub(crate) use ci_edges::*;
 pub(crate) use manifest_edges::*;
+pub(crate) use runtime_edges::*;
 pub(crate) use schema_edges::*;
 
 use crate::map::{
@@ -32,6 +34,7 @@ pub(crate) fn cone_owner_outgoing_edges(project: &Project, rel: &str) -> Vec<Str
     if file.has_role("build_ci") {
         edges.extend(owner_ci_edges(project, rel));
     }
+    edges.extend(owner_runtime_edges(project, rel));
     sort_edges(&mut edges);
     edges
 }
@@ -106,6 +109,7 @@ pub(crate) fn cone_owner_unknowns(project: &Project, rel: &str) -> Vec<Unknown> 
     {
         unknowns.extend(ci_execution_unknowns(rel, &text));
     }
+    unknowns.extend(owner_runtime_unknowns(project, rel));
     if file.has_role("manifest") && workspace_manifest_file(rel) {
         if workspace_manifest_member_packages(project, rel).is_empty() {
             unknowns.push(unknown(

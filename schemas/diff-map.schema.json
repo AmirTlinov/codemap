@@ -29,7 +29,7 @@
     "kind": {
       "const": "diff_map_report"
     },
-    "schema_version": { "const": "4" },
+    "schema_version": { "const": "5" },
     "build_identity": { "$ref": "#/$defs/build_identity" },
     "selector": {
       "type": "string"
@@ -717,6 +717,7 @@
         "path",
         "file",
         "handler_symbol",
+        "middleware_or_guards",
         "evidence",
         "strength",
         "locations"
@@ -748,6 +749,12 @@
             }
           ]
         },
+        "middleware_or_guards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/middleware_or_guard"
+          }
+        },
         "evidence": {
           "type": "string"
         },
@@ -759,6 +766,25 @@
           "items": {
             "$ref": "#/$defs/evidence_location"
           }
+        }
+      }
+    },
+    "middleware_or_guard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "kind", "owner", "evidence", "strength", "locations"],
+      "properties": {
+        "name": { "type": "string" },
+        "kind": {
+          "type": "string",
+          "enum": ["middleware", "guard", "validation"]
+        },
+        "owner": { "type": "string" },
+        "evidence": { "type": "string" },
+        "strength": { "$ref": "#/$defs/evidence_strength" },
+        "locations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidence_location" }
         }
       }
     },

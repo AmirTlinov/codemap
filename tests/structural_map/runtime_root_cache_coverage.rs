@@ -22,7 +22,7 @@ fn runtime_root_cache_preserves_the_cold_route_horizon_on_warm_read() {
             .as_array()
             .expect("runtime group horizons")
             .len(),
-        8,
+        9,
         "the root cache must persist every runtime group horizon"
     );
 }

@@ -1,7 +1,7 @@
 // Responsibility: lens-shared-sections
-use crate::model::{EnvSurface, ProofSurface, RuntimeRoute, Surface};
+use crate::model::{EnvSurface, ProofSurface, RuntimeRoute, StructuralEdge, Surface};
 use crate::render::{
-    code, proof_location_summary, proof_surface_section, public_evidence_label,
+    code, grouped_edge_list, proof_location_summary, proof_surface_section, public_evidence_label,
     public_surface_kind_label,
 };
 
@@ -78,7 +78,30 @@ pub(crate) fn runtime_routes_section(title: &str, routes: &[RuntimeRoute]) {
             format!("{:?}", route.strength).to_ascii_lowercase(),
             proof_location_summary(&route.locations)
         );
+        if !route.middleware_or_guards.is_empty() {
+            let boundaries = route
+                .middleware_or_guards
+                .iter()
+                .map(|item| {
+                    format!(
+                        "{}:{}",
+                        format!("{:?}", item.kind).to_ascii_lowercase(),
+                        code(&item.owner)
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            println!("  middleware/guards: {boundaries}");
+        }
     }
+}
+
+pub(crate) fn runtime_paths_section(title: &str, paths: &[StructuralEdge]) {
+    if paths.is_empty() {
+        return;
+    }
+    println!("\n## {title}\n");
+    grouped_edge_list(&title.to_ascii_lowercase(), paths, 5);
 }
 
 pub(crate) fn env_section(title: &str, env: &[EnvSurface]) {
