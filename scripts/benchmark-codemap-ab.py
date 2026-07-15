@@ -28,7 +28,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from codemap_identity import CodemapIdentityError, benchmark_binary_identity, resolve_codemap_command
+from codemap_identity import CodemapIdentityError, benchmark_binary_identity, command_artifacts, resolve_codemap_command
 from codemap_protocol import codemap_protocol
 
 
@@ -533,6 +533,7 @@ def trial_fingerprint(
             "reasoning_effort": args.reasoning_effort,
             "timeout_seconds": args.timeout_seconds,
             "codex_version": codex_version,
+            "codex_artifacts": getattr(args, "codex_artifacts", []),
             "codemap_version": codemap_version,
             "codemap_hashes": codemap_hashes,
             "codemap_identity": codemap_identity,
@@ -660,6 +661,13 @@ def run_trial(
             and (task.mode != MODE_ANALYSIS or not changed_paths)
         )
         run_valid = codex.status == 0 and not codex.timed_out and protocol["compliant"]
+        invalidation_reason = None
+        if codex.timed_out:
+            invalidation_reason = "codex_timeout"
+        elif codex.status != 0:
+            invalidation_reason = "codex_crash"
+        elif not protocol["compliant"]:
+            invalidation_reason = "protocol_violation"
         result = {
             "task_id": task.task_id,
             "mode": task.mode,
@@ -675,6 +683,7 @@ def run_trial(
             "model": args.model,
             "reasoning_effort": args.reasoning_effort,
             "codex_version": codex_version,
+            "codex_artifacts": getattr(args, "codex_artifacts", []),
             "codemap_version": codemap_version,
             "codemap_binary_hashes": codemap_hashes,
             "report_prelude": {"codemap": codemap_identity},
@@ -697,6 +706,7 @@ def run_trial(
             "verifier_passed": all(verifier["passed"] for verifier in verifiers),
             "outcome_passed": outcome_passed,
             "run_valid": run_valid,
+            "invalidation_reason": invalidation_reason,
             "worktree": str(worktree) if args.keep_worktrees else None,
         }
         (artifact_dir / "result.json").write_text(
@@ -953,6 +963,7 @@ def write_summary(
         "model": args.model,
         "reasoning_effort": args.reasoning_effort,
         "codex_version": codex_version,
+        "codex_artifacts": getattr(args, "codex_artifacts", []),
         "codemap_version": codemap_version,
         "codemap_binary_hashes": codemap_hashes,
         "report_prelude": {"codemap": codemap_identity},
@@ -1160,6 +1171,7 @@ def main(argv: list[str]) -> int:
         codemap_identity = benchmark_binary_identity(
             codemap_cmd, codemap_resolution, tasks[0].repo
         )
+        args.codex_artifacts = command_artifacts(codex_cmd)
     except (OSError, ValueError, CodemapIdentityError) as exc:
         print(f"codemap A/B: {exc}", file=sys.stderr)
         return 2
@@ -1211,7 +1223,16 @@ def main(argv: list[str]) -> int:
     try:
         for task in tasks:
             preflight.append(run_preflight(task, out_dir, work_root))
+        eligible = {
+            row["task_id"] for row in preflight if row.get("baseline_passed") is False
+        }
         for task, repetition, arm, order in matrix:
+            if task.task_id not in eligible:
+                print(
+                    f"[ab] reject {task.task_id}: verifier already passes at frozen baseline",
+                    file=sys.stderr,
+                )
+                continue
             results.append(
                 run_trial(
                     task,

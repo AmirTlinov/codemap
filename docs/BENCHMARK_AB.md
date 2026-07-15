@@ -194,3 +194,118 @@ several repetitions, external deterministic criteria across multiple categories,
 inspection of invalid pairs and patches alongside aggregate completeness. Report time
 and tokens as secondary cost, preferably with cached input visible, not as a proxy for
 quality.
+
+## Frozen Flagship Gate
+
+The exploratory harness above remains the execution owner. The S15 release/nightly gate wraps
+it with `scripts/benchmark-codemap-flagship.py`; it does not introduce another runner or change
+an arm prompt after evidence exists.
+
+### Freeze before model calls
+
+A draft corpus names exactly 12 analysis, 12 multi-file implementation, and 6 exact/local
+negative-control tasks. Every class is split equally between `calibration` and `holdout`.
+Each split must retain at least six repositories and four ecosystem families. The draft also
+fixes model, reasoning effort, timeouts, three-or-more repetitions, bootstrap seed/iterations,
+pair-order algorithm, allowed invalidation reasons, acceptance boundaries, blind-assignment
+seed, and manual-audit sample.
+
+Each task adds executable `benchmark` metadata to the ordinary task manifest:
+
+```json
+{
+  "benchmark": {
+    "repo_id": "billing-service",
+    "ecosystem": "typescript",
+    "task_class": "implementation",
+    "split": "holdout",
+    "ordinal_criteria": [],
+    "exception_criteria": ["secondary-consumer"]
+  }
+}
+```
+
+Every deterministic verifier declares `scoring: "deterministic"` and an external
+`evidence_surface`. Analysis tasks additionally declare ordinal criteria with fixed `id`,
+category, weight, maximum score, evidence surface, and blind-judge protocol. An implementation
+rubric must expose behavior, contract, downstream, and regression separately. All tasks include
+required and provenance criteria. Negative controls pre-register `expected_same_outcome: true`
+and the exact first codemap argv strings allowed by their prompt.
+
+Freeze resolves every repository ref to one commit per repository, hashes task bytes, external
+verifier files, harness/protocol bytes, Codex executable/version, and the attributable codemap
+binary. It materializes immutable split manifests and the counterbalanced arm schedule:
+
+```bash
+cargo build --release --locked
+scripts/benchmark-codemap-flagship.py freeze corpus-draft.json \
+  --out-dir target/codemap-ab/flagship-frozen \
+  --codemap-bin target/release/codemap
+```
+
+Any later prompt, weight, verifier, repository SHA, model, binary, timeout, schedule, harness, or
+protocol change requires a new frozen corpus. A holdout result is never carried across that
+boundary.
+
+### Execute isolated splits
+
+```bash
+scripts/benchmark-codemap-flagship.py run \
+  target/codemap-ab/flagship-frozen/corpus-manifest.json calibration \
+  --out-dir target/codemap-ab/flagship-calibration
+
+scripts/benchmark-codemap-flagship.py run \
+  target/codemap-ab/flagship-frozen/corpus-manifest.json holdout \
+  --out-dir target/codemap-ab/flagship-holdout
+```
+
+The wrapper accepts no model, rubric, repetition, timeout, Codex, or codemap overrides. Both
+arms still run through `benchmark-codemap-ab.py` with fresh detached worktrees and separate
+external caches. A task whose verifier already passes at the frozen baseline is rejected before
+model calls. Rejected, missing, duplicated, crashed, timed-out, protocol-invalid, or provenance-
+ambiguous pairs stay visible in the expected denominator; they cannot silently disappear from
+acceptance. Calibration is development evidence only and is always reported separately.
+
+### Blind analysis judgment
+
+```bash
+scripts/benchmark-codemap-flagship.py prepare-judging MANIFEST \
+  --calibration-dir CALIBRATION --holdout-dir HOLDOUT --out-dir JUDGING
+```
+
+The frozen seed counterbalances anonymous candidates `A/B`; public assignments contain only the
+candidate report, artifact hash, and rubric ids. The sealed key maps candidates back to arms only
+for final aggregation. Ratings are JSONL with `assignment_id`, `candidate_id`, independent
+`judge_id`, `role: "judge"`, and integer criterion scores. Exactly two judges score each
+candidate. A disagreement requires one `role: "adjudicator"` row while identity remains blind.
+The frozen manual-audit sample additionally requires one `role: "auditor"` row with
+`audit_passed: true`. Krippendorff ordinal alpha is published per rubric; alpha below `0.67`
+invalidates acceptance rather than being repaired post hoc.
+
+### Aggregate and verify
+
+```bash
+scripts/benchmark-codemap-flagship.py evaluate MANIFEST \
+  --calibration-dir CALIBRATION --holdout-dir HOLDOUT \
+  --assignments JUDGING/assignments.jsonl \
+  --assignment-key JUDGING/assignment-key.jsonl \
+  --ratings ratings.jsonl --out-dir ACCEPTANCE
+
+scripts/verify-flagship-acceptance.py ACCEPTANCE/acceptance.json
+```
+
+The evaluator combines deterministic and ordinal criteria with their frozen weights, aggregates
+repetitions inside each task, tasks inside each repository, and only then macro-averages
+repositories. Holdout acceptance requires the one-sided 95% paired-bootstrap lower bound above
+zero, no deterministic required regression, positive median task delta, at least 60% complex-task
+wins, non-inferior downstream/contract/regression categories, bounded complex and negative-control
+resource overhead, zero analysis writes, complete provenance, and valid blind agreement.
+Time and input are costs, never the primary winner. A resource exception is possible only for
+pre-registered criteria, after the primary endpoint and negative controls pass, and when at least
+60% of over-budget complex tasks gain those criteria.
+
+`acceptance.json` hashes the frozen manifest, every raw trial/verifier artifact, blind assignment,
+key, and rating. The independent verifier imports none of the scoring implementation; it checks
+artifact immutability, denominator truth, split separation, agreement, primary-bound state, and
+that the final verdict equals every normative check. The synthetic black-box test runs on normal
+CI; the expensive frozen matrix is a release/nightly gate, not a pull-request model-call ritual.
