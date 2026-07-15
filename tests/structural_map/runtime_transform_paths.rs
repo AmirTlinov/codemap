@@ -44,9 +44,11 @@ function stripInternal(result: { id: string; title: string; internalToken?: stri
         r#"import { getSession } from "./session";
 export async function guardTenantMutation(req: Request, handler: () => Promise<unknown>) {
   const key = process.env.SESSION_KEY;
+  recordCsrfFailure();
   await getSession(key);
   return handler();
 }
+function recordCsrfFailure() { return true; }
 "#,
     );
     write(
@@ -146,6 +148,10 @@ export async function createPanel(input: { title: string }) {
             "route must retain `{expected}` as a MiddlewareOrGuard entity: {runtime:#}"
         );
     }
+    assert!(
+        guards.iter().all(|guard| guard["name"] != "recordCsrfFailure"),
+        "a CSRF-related observer name is not by itself a guard: {runtime:#}"
+    );
 
     let flow = run_json(
         repo.path(),

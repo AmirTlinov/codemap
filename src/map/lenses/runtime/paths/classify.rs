@@ -18,7 +18,6 @@ pub(crate) fn middleware_or_guard_kind(body: &str, name: &str) -> Option<Middlew
         return Some(MiddlewareOrGuardKind::Middleware);
     }
     if lower.contains("guard")
-        || lower.contains("csrf")
         || lower.contains("permission")
         || lower.contains("authorize")
         || lower.contains("authenticate")
