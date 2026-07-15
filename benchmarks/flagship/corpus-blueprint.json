@@ -92,8 +92,9 @@
   ],
   "experiment": {
     "model": "gpt-5.6-sol",
-    "reasoning_effort": "xhigh",
+    "reasoning_effort": "high",
     "repetitions": 3,
+    "parallel_pairs": 4,
     "timeout_seconds": 1800,
     "verifier_timeout_seconds": 1200,
     "bootstrap_iterations": 50000,
@@ -122,7 +123,11 @@
       "manual_audit_seed": 151503,
       "manual_audit_sample_size": 6,
       "judges_per_candidate": 2,
-      "blind_adjudication": true
+      "blind_adjudication": true,
+      "model": "gpt-5.6-sol",
+      "reasoning_effort": "high",
+      "timeout_seconds": 1800,
+      "parallel_jobs": 4
     }
   },
   "tasks": [

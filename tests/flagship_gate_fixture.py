@@ -148,6 +148,7 @@ def freeze(root: Path, tasks: list[dict], codex: Path, codemap: Path) -> tuple[P
         "model": "gpt-5.6-sol",
         "reasoning_effort": "xhigh",
         "repetitions": 3,
+        "parallel_pairs": 2,
         "timeout_seconds": 30,
         "verifier_timeout_seconds": 30,
         "bootstrap_iterations": 10_000,
@@ -169,6 +170,10 @@ def freeze(root: Path, tasks: list[dict], codex: Path, codemap: Path) -> tuple[P
             "manual_audit_sample_size": 6,
             "judges_per_candidate": 2,
             "blind_adjudication": True,
+            "model": "gpt-5.6-sol",
+            "reasoning_effort": "high",
+            "timeout_seconds": 30,
+            "parallel_jobs": 2,
         },
     }
     draft_path = root / "corpus-draft.json"

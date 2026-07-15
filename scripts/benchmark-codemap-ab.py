@@ -28,6 +28,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from benchmark_parallel import run_ordered
 from codemap_identity import CodemapIdentityError, benchmark_binary_identity, command_artifacts, resolve_codemap_command
 from codemap_protocol import codemap_protocol
 from codemap_protocol_shim import write_shim
@@ -39,7 +40,7 @@ ARMS = (ARM_CONTROL, ARM_TREATMENT)
 MODE_IMPLEMENTATION = "implementation"
 MODE_ANALYSIS = "analysis"
 TASK_MODES = (MODE_IMPLEMENTATION, MODE_ANALYSIS)
-PROMPT_PROTOCOL_VERSION = 4
+PROMPT_PROTOCOL_VERSION = 5
 
 COMMON_PROMPT = """You are completing one benchmark coding task in a disposable git worktree.
 Make the smallest complete implementation that satisfies the task. Work autonomously; do not ask
@@ -49,7 +50,8 @@ questions. Do not weaken or rewrite tests to manufacture a pass. Finish with a c
 ANALYSIS_COMMON_PROMPT = """You are completing one benchmark repository-analysis task in a
 disposable git worktree. Investigate autonomously and report only claims supported by repository
 evidence. Cite concrete paths and line numbers or symbols. Distinguish confirmed problems from
-hypotheses. Do not modify any repository file. Finish with a concise, self-contained report.
+hypotheses. Do not modify any repository file. In the final report, cite relative `path:line`
+evidence and do not mention navigation commands or tools. Finish with a concise, self-contained report.
 """
 
 ARM_PROMPTS = {
@@ -1121,8 +1123,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--preflight-only", action="store_true")
+    parser.add_argument("--parallel-pairs", type=int, default=1)
     args = parser.parse_args(argv)
-    for name in ["repetitions", "timeout_seconds", "verifier_timeout_seconds"]:
+    for name in ["repetitions", "timeout_seconds", "verifier_timeout_seconds", "parallel_pairs"]:
         if getattr(args, name) <= 0:
             parser.error(f"--{name.replace('_', '-')} must be positive")
     if args.reasoning_effort not in {"minimal", "low", "medium", "high", "xhigh"}:
@@ -1162,11 +1165,16 @@ def main(argv: list[str]) -> int:
     except (OSError, ValueError, CodemapIdentityError) as exc:
         print(f"codemap A/B: {exc}", file=sys.stderr)
         return 2
-    matrix = []
+    pairs = []
     for task_index, task in enumerate(tasks):
         for repetition in range(1, args.repetitions + 1):
             order = list(ARMS) if (task_index + repetition) % 2 else list(reversed(ARMS))
-            matrix.extend((task, repetition, arm, index + 1) for index, arm in enumerate(order))
+            pairs.append((task, repetition, [(arm, index + 1) for index, arm in enumerate(order)]))
+    matrix = [
+        (task, repetition, arm, order)
+        for task, repetition, arms in pairs
+        for arm, order in arms
+    ]
     if args.dry_run:
         print(
             json.dumps(
@@ -1208,38 +1216,30 @@ def main(argv: list[str]) -> int:
     results: list[dict[str, Any]] = []
     preflight: list[dict[str, Any]] = []
     try:
-        for task in tasks:
-            preflight.append(run_preflight(task, out_dir, work_root))
+        preflight = run_ordered(
+            tasks, lambda task: run_preflight(task, out_dir, work_root), args.parallel_pairs
+        )
         if args.preflight_only:
             print(f"A/B preflight: {out_dir / 'preflight'}")
             return 0
         eligible = {
             row["task_id"] for row in preflight if row.get("baseline_passed") is False
         }
-        for task, repetition, arm, order in matrix:
-            if task.task_id not in eligible:
-                print(
-                    f"[ab] reject {task.task_id}: verifier already passes at frozen baseline",
-                    file=sys.stderr,
-                )
-                continue
-            results.append(
+        eligible_pairs = [pair for pair in pairs if pair[0].task_id in eligible]
+
+        def run_pair(pair: tuple[Task, int, list[tuple[str, int]]]) -> list[dict[str, Any]]:
+            task, repetition, arms = pair
+            return [
                 run_trial(
-                    task,
-                    repetition,
-                    arm,
-                    order,
-                    args,
-                    codex_cmd,
-                    codemap_cmd,
-                    codex_version,
-                    codemap_version,
-                    codemap_hashes,
-                    codemap_identity,
-                    out_dir,
-                    work_root,
+                    task, repetition, arm, order, args, codex_cmd, codemap_cmd,
+                    codex_version, codemap_version, codemap_hashes, codemap_identity,
+                    out_dir, work_root,
                 )
-            )
+                for arm, order in arms
+            ]
+
+        for pair_results in run_ordered(eligible_pairs, run_pair, args.parallel_pairs):
+            results.extend(pair_results)
         summary = write_summary(
             out_dir,
             tasks_path,

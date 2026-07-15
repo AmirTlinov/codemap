@@ -12,42 +12,17 @@ from pathlib import Path
 
 from codemap_identity import benchmark_binary_identity, command_artifacts
 from flagship_acceptance import evaluate
+from flagship_judge_runner import merge_audits, run_judging
 from flagship_judging import prepare_assignments
-from flagship_manifest import (
-    command_version,
-    file_sha256,
-    freeze_corpus,
-    load_frozen,
-    resolve_command,
-)
+from flagship_manifest import command_version, freeze_corpus, load_frozen
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def require_current_contract(manifest: dict, manifest_path: Path) -> None:
-    expected = {
-        "harness_sha256": ROOT / "scripts/benchmark-codemap-ab.py",
-        "protocol_sha256": ROOT / "scripts/codemap_protocol.py",
-        "manifest_owner_sha256": ROOT / "scripts/flagship_manifest.py",
-    }
-    for field, path in expected.items():
-        if file_sha256(path) != manifest.get(field):
-            raise ValueError(f"frozen contract changed: {path.name}; freeze a new corpus")
-    for artifact in manifest.get("gate_artifacts", []):
-        path = ROOT / artifact["path"]
-        if not path.is_file() or file_sha256(path) != artifact["sha256"]:
-            raise ValueError(f"frozen gate changed: {artifact['path']}; freeze a new corpus")
-    split_paths = [manifest_path.parent / f"{split}.tasks.jsonl" for split in ("calibration", "holdout")]
-    for split, path in zip(("calibration", "holdout"), split_paths):
-        if not path.is_file() or file_sha256(path) != manifest[f"{split}_tasks_sha256"]:
-            raise ValueError(f"frozen {split} task bytes changed")
-
-
 def run_split(args: argparse.Namespace) -> int:
     manifest_path = Path(args.manifest).resolve()
     manifest, _ = load_frozen(manifest_path)
-    require_current_contract(manifest, manifest_path)
     codex = manifest["codex_command"]
     if command_version(codex) != manifest["codex_version"]:
         raise ValueError("Codex version differs from the frozen manifest")
@@ -78,6 +53,8 @@ def run_split(args: argparse.Namespace) -> int:
         shlex.join(codemap),
         "--out-dir",
         str(Path(args.out_dir).resolve()),
+        "--parallel-pairs",
+        str(manifest["parallel_pairs"]),
     ]
     if args.work_dir:
         command.extend(["--work-dir", str(Path(args.work_dir).resolve())])
@@ -105,6 +82,15 @@ def parser() -> argparse.ArgumentParser:
     blind.add_argument("--calibration-dir", required=True)
     blind.add_argument("--holdout-dir", required=True)
     blind.add_argument("--out-dir", required=True)
+    judge = commands.add_parser("judge", help="run two frozen arm-blind judges and adjudication")
+    judge.add_argument("manifest")
+    judge.add_argument("--assignments", required=True)
+    judge.add_argument("--out-dir", required=True)
+    audits = commands.add_parser("merge-audits", help="merge separately reviewed manual audit rows")
+    audits.add_argument("--assignments", required=True)
+    audits.add_argument("--ratings", required=True)
+    audits.add_argument("--decisions", required=True)
+    audits.add_argument("--output", required=True)
     score = commands.add_parser("evaluate", help="score calibration separately and gate holdout")
     score.add_argument("manifest")
     score.add_argument("--calibration-dir", required=True)
@@ -127,9 +113,15 @@ def main(argv: list[str]) -> int:
             return 0
         if args.command == "run":
             return run_split(args)
+        if args.command == "merge-audits":
+            print(
+                merge_audits(
+                    Path(args.assignments), Path(args.ratings), Path(args.decisions), Path(args.output)
+                )
+            )
+            return 0
         manifest_path = Path(args.manifest).resolve()
         manifest, tasks = load_frozen(manifest_path)
-        require_current_contract(manifest, manifest_path)
         if args.command == "prepare-judging":
             public, key = prepare_assignments(
                 manifest_path,
@@ -138,6 +130,9 @@ def main(argv: list[str]) -> int:
                 Path(args.out_dir),
             )
             print(json.dumps({"assignments": str(public), "assignment_key": str(key)}))
+            return 0
+        if args.command == "judge":
+            print(run_judging(manifest_path, Path(args.assignments), Path(args.out_dir)))
             return 0
         output = evaluate(
             manifest_path,

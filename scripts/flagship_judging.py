@@ -4,13 +4,22 @@ from __future__ import annotations
 
 import hashlib
 import json
-import shutil
+import re
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
 from flagship_manifest import file_sha256
 from flagship_stats import ordinal_alpha
+
+
+MARKDOWN_CITATION = re.compile(r"\[([^\]\n]+):(\d+)\]\([^\n)]+\)")
+
+
+def blind_candidate_text(source: Path) -> str:
+    """Keep visible evidence while removing worktree URLs that disclose the arm."""
+    body = source.read_text(encoding="utf-8")
+    return MARKDOWN_CITATION.sub(lambda match: f"{match.group(1)}:{match.group(2)}", body)
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -57,7 +66,7 @@ def prepare_assignments(
                 if not source.is_file():
                     raise ValueError(f"missing candidate artifact: {source}")
                 target = candidates_dir / f"{assignment_id}-{candidate_id}.md"
-                shutil.copyfile(source, target)
+                target.write_text(blind_candidate_text(source), encoding="utf-8")
                 public.append(
                     {
                         "assignment_id": assignment_id,
@@ -76,6 +85,7 @@ def prepare_assignments(
                         "candidate_id": candidate_id,
                         "arm": arm,
                         "result_key": f"{task_id}|{repetition}|{arm}",
+                        "source_artifact_sha256": file_sha256(source),
                     }
                 )
     audit_ids: set[str] = set()

@@ -14,9 +14,17 @@ from pathlib import Path
 from typing import Any
 
 
-CITATION = re.compile(
-    r"(?<![A-Za-z0-9_.-])((?:[A-Za-z0-9_.@()\[\] -]+/)+[A-Za-z0-9_.@()\[\] -]+):(\d+)"
+MARKDOWN_CITATION = re.compile(r"\[([^\]\n]+):(\d+)\]\([^\n)]+\)")
+PLAIN_CITATION = re.compile(
+    r"(?<![A-Za-z0-9_.-])((?:[A-Za-z0-9_.@()+\[\]-]+/)+[A-Za-z0-9_.@()+\[\]-]+):(\d+)"
 )
+
+
+def citations(text: str) -> list[tuple[str, str]]:
+    """Extract visible repository citations without treating Markdown URLs as evidence."""
+    visible = [(path.strip(" `"), line) for path, line in MARKDOWN_CITATION.findall(text)]
+    without_links = MARKDOWN_CITATION.sub("", text)
+    return [*visible, *PLAIN_CITATION.findall(without_links)]
 
 
 def fail(message: str, receipt: dict[str, Any] | None = None) -> int:
@@ -29,7 +37,7 @@ def citation_receipt(message: Path, worktree: Path) -> dict[str, Any]:
     text = message.read_text(encoding="utf-8") if message.is_file() else ""
     valid: list[tuple[str, int]] = []
     invalid: list[tuple[str, int]] = []
-    for raw_path, raw_line in CITATION.findall(text):
+    for raw_path, raw_line in citations(text):
         path = raw_path.strip()
         candidate = worktree / path
         line = int(raw_line)

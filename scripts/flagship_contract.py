@@ -7,6 +7,20 @@ from typing import Any
 
 REASONING_LEVELS = {"minimal", "low", "medium", "high", "xhigh"}
 PAIR_ORDER = "split_task_index_plus_repetition_v1"
+GATE_FILES = (
+    "benchmark-codemap-flagship.py",
+    "benchmark_parallel.py",
+    "codemap_protocol_shim.py",
+    "flagship_acceptance.py",
+    "flagship_artifacts.py",
+    "flagship_contract.py",
+    "flagship_judge_runner.py",
+    "flagship_judging.py",
+    "flagship_manifest.py",
+    "flagship_receipts.py",
+    "flagship_stats.py",
+    "verify-flagship-acceptance.py",
+)
 REQUIRED_ACCEPTANCE = {
     "primary_alpha": 0.05,
     "min_task_win_rate": 0.60,
@@ -24,6 +38,8 @@ def validate_draft(draft: dict[str, Any]) -> None:
         raise ValueError("invalid reasoning_effort")
     if not isinstance(draft.get("repetitions"), int) or draft["repetitions"] < 3:
         raise ValueError("flagship requires at least 3 repetitions")
+    if not isinstance(draft.get("parallel_pairs"), int) or not 1 <= draft["parallel_pairs"] <= 8:
+        raise ValueError("parallel_pairs must be between 1 and 8")
     for field in ("timeout_seconds", "verifier_timeout_seconds", "bootstrap_iterations"):
         if not isinstance(draft.get(field), int) or draft[field] <= 0:
             raise ValueError(f"{field} must be a positive integer")
@@ -52,3 +68,13 @@ def validate_draft(draft: dict[str, Any]) -> None:
         raise ValueError("manual audit sample must contain at least 6 analysis pairs")
     if judging.get("judges_per_candidate") != 2 or judging.get("blind_adjudication") is not True:
         raise ValueError("judging requires two blind judges and blind adjudication")
+    if judging.get("model") != draft["model"]:
+        raise ValueError("blind judges must use the frozen experiment model")
+    if judging.get("reasoning_effort") not in REASONING_LEVELS:
+        raise ValueError("invalid judging.reasoning_effort")
+    timeout = judging.get("timeout_seconds")
+    if not isinstance(timeout, int) or timeout <= 0:
+        raise ValueError("judging.timeout_seconds must be positive")
+    workers = judging.get("parallel_jobs")
+    if not isinstance(workers, int) or not 1 <= workers <= 8:
+        raise ValueError("judging.parallel_jobs must be between 1 and 8")

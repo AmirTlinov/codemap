@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from codemap_identity import benchmark_binary_identity, command_artifacts, resolve_codemap_command
-from flagship_contract import PAIR_ORDER, validate_draft
+from flagship_contract import GATE_FILES, PAIR_ORDER, validate_draft
 
 
 TASK_CLASSES = {"analysis": 12, "implementation": 12, "negative_control": 6}
@@ -35,20 +35,6 @@ EXCLUSION_REASONS = {
     "verifier_infrastructure_failure",
     "preflight_no_gap",
 }
-GATE_FILES = (
-    "benchmark-codemap-flagship.py",
-    "codemap_protocol_shim.py",
-    "flagship_acceptance.py",
-    "flagship_artifacts.py",
-    "flagship_contract.py",
-    "flagship_judging.py",
-    "flagship_manifest.py",
-    "flagship_receipts.py",
-    "flagship_stats.py",
-    "verify-flagship-acceptance.py",
-)
-
-
 def file_sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -382,10 +368,29 @@ def load_frozen(path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     tasks = read_jsonl(tasks_path)
     validate_tasks(tasks)
     validate_draft(manifest)
+    for split in sorted(SPLITS):
+        split_path = path.parent / f"{split}.tasks.jsonl"
+        if not split_path.is_file() or file_sha256(split_path) != manifest.get(
+            f"{split}_tasks_sha256"
+        ):
+            raise ValueError(f"frozen {split} task bytes changed")
     if pair_schedule(tasks, manifest["repetitions"]) != manifest.get("pair_schedule"):
         raise ValueError("frozen pair schedule mismatch")
     for artifact in manifest.get("verifier_artifacts", []):
         artifact_path = Path(artifact["path"])
         if not artifact_path.is_file() or file_sha256(artifact_path) != artifact["sha256"]:
             raise ValueError(f"verifier artifact changed: {artifact_path}")
+    root = Path(__file__).resolve().parents[1]
+    current = {
+        "harness_sha256": root / "scripts/benchmark-codemap-ab.py",
+        "protocol_sha256": root / "scripts/codemap_protocol.py",
+        "manifest_owner_sha256": Path(__file__),
+    }
+    for field, current_path in current.items():
+        if manifest.get(field) != file_sha256(current_path):
+            raise ValueError(f"frozen contract changed: {current_path.name}; freeze a new corpus")
+    for artifact in manifest.get("gate_artifacts", []):
+        current_path = root / artifact["path"]
+        if not current_path.is_file() or artifact["sha256"] != file_sha256(current_path):
+            raise ValueError(f"frozen gate changed: {artifact['path']}; freeze a new corpus")
     return manifest, tasks

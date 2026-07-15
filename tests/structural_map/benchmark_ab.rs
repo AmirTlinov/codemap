@@ -145,6 +145,7 @@ raise SystemExit(0 if "README.md:1" in message else 1)
             "--work-dir",
             out.path().join("worktrees").to_str().unwrap(),
         ])
+        .args(["--parallel-pairs", "2"])
         .output()
         .expect("A/B harness should run");
     assert!(
