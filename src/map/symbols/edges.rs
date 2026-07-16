@@ -25,6 +25,40 @@ pub(crate) struct ImportedSymbolReference {
     pub(crate) expression: String,
 }
 
+pub(crate) struct SymbolReferenceEdgeSet {
+    all: Vec<StructuralEdge>,
+    production: Vec<StructuralEdge>,
+}
+
+impl SymbolReferenceEdgeSet {
+    pub(crate) fn all(&self) -> &[StructuralEdge] {
+        &self.all
+    }
+
+    pub(crate) fn production(&self) -> &[StructuralEdge] {
+        &self.production
+    }
+}
+
+pub(crate) fn symbol_reference_edge_set(
+    project: &Project,
+    file_rel: &str,
+    symbol_name: &str,
+) -> SymbolReferenceEdgeSet {
+    let all = symbol_reference_edges(project, file_rel, symbol_name, true);
+    let production = all
+        .iter()
+        .filter(|edge| {
+            !project
+                .files
+                .get(&edge.from)
+                .is_some_and(|file| file.has_role("test") || file.has_role("test_support"))
+        })
+        .cloned()
+        .collect();
+    SymbolReferenceEdgeSet { all, production }
+}
+
 pub(crate) fn symbol_reference_edges(
     project: &Project,
     file_rel: &str,

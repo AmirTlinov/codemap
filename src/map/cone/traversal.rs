@@ -1,4 +1,5 @@
 // Responsibility: map-cone-traversal
+use crate::map::SymbolReferenceEdgeSet;
 use crate::map::{
     ConeXrayInput, SymbolConeObservationInput, cone_xray_card, directory_has_files,
     empty_xray_card, file_summary, files_under_directory, import_edge, is_generic_noise,
@@ -6,7 +7,7 @@ use crate::map::{
     same_package_symbol_reference_consumers, shell_quote, sort_edges, structural_roles_for_ls,
     symbol_anchor_path, symbol_cone_observations, symbol_contract_edges,
     symbol_file_summary_with_observed_consumers, symbol_local_incoming_edges,
-    symbol_outgoing_edges, symbol_reference_edges, symbol_verification_edges_with_owning_file,
+    symbol_outgoing_edges, symbol_reference_edge_set, symbol_verification_edges_with_owning_file,
     unique, unknown, unknown_missing_symbol_anchor, unknown_symbol_outgoing,
     unresolved_import_unknowns,
 };
@@ -27,24 +28,36 @@ pub(crate) fn cone_symbol_report(
     include_hidden: bool,
     limit: usize,
 ) -> Option<ConeReport> {
+    let references = symbol_reference_edge_set(project, file_rel, symbol_name);
+    cone_symbol_report_with_references(
+        project,
+        file_rel,
+        symbol_name,
+        depth,
+        include_hidden,
+        limit,
+        &references,
+    )
+}
+
+pub(crate) fn cone_symbol_report_with_references(
+    project: &Project,
+    file_rel: &str,
+    symbol_name: &str,
+    depth: usize,
+    include_hidden: bool,
+    limit: usize,
+    references: &SymbolReferenceEdgeSet,
+) -> Option<ConeReport> {
     let info = project.files.get(file_rel)?;
-    let all_references = symbol_reference_edges(project, file_rel, symbol_name, true);
     let anchor = symbol_file_summary_with_observed_consumers(
         project,
         info,
         symbol_name,
-        all_references.len(),
+        references.all().len(),
     )?;
     let anchor_path = symbol_anchor_path(file_rel, symbol_name);
-    let mut incoming = all_references
-        .into_iter()
-        .filter(|edge| {
-            !project
-                .files
-                .get(&edge.from)
-                .is_some_and(|file| file.has_role("test") || file.has_role("test_support"))
-        })
-        .collect::<Vec<_>>();
+    let mut incoming = references.production().to_vec();
     incoming.extend(symbol_local_incoming_edges(project, info, symbol_name));
     let mut proof =
         symbol_verification_edges_with_owning_file(project, file_rel, symbol_name, usize::MAX);

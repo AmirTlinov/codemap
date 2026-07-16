@@ -1,8 +1,9 @@
 // Responsibility: map-symbols-where-locator
 use crate::map::{ConsumerObservationInput, ObservationProjection};
 use crate::map::{
-    cone_symbol_report, consumer_observed_count, definition_match_observation, shell_quote,
-    symbol_anchor_path, symbol_local_incoming_edges, symbol_reference_edges, unknown,
+    cone_symbol_report_with_references, consumer_observed_count, definition_match_observation,
+    shell_quote, symbol_anchor_path, symbol_local_incoming_edges, symbol_reference_edge_set,
+    unknown,
 };
 use crate::model::{
     FileInfo, ObservationLedger, Project, WhereDefinition, WhereReport, WhereSuggestion,
@@ -72,14 +73,21 @@ pub fn where_report(
         let Some(info) = project.files.get(file_rel) else {
             continue;
         };
-        let Some(mut cone_report) =
-            cone_symbol_report(project, file_rel, query, 1, include_hidden, limit)
-        else {
+        let references = symbol_reference_edge_set(project, file_rel, query);
+        let Some(mut cone_report) = cone_symbol_report_with_references(
+            project,
+            file_rel,
+            query,
+            1,
+            include_hidden,
+            limit,
+            &references,
+        ) else {
             continue;
         };
         let anchor = cone_report.anchor.clone();
         let anchor_path = symbol_anchor_path(file_rel, query);
-        let all_consumers = symbol_reference_edges(project, file_rel, query, false);
+        let all_consumers = references.production();
         let consumers_raw = all_consumers.len();
         let consumer_limit = if include_hidden {
             consumers_raw

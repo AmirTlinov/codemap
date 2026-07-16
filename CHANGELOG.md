@@ -29,6 +29,8 @@ public JSON compatibility is governed separately by `docs/SCHEMA_POLICY.md`.
   intentionally excludes, avoiding repeated runtime-report rebuilds on unchanged worktrees.
 - Made the content-only cache regression fixture explicitly Git-known across filesystems,
   preserving the same full Windows gate without platform skips.
+- Reused the cone's complete symbol-reference set in exact `where`, removing a second
+  consumer-universe traversal without changing its machine evidence.
 
 ## 0.2.33 - 2026-05-04
 
