@@ -5,6 +5,8 @@ public JSON compatibility is governed separately by `docs/SCHEMA_POLICY.md`.
 
 ## Unreleased
 
+- Made exact `ls` and `cone` hydrate explicitly named tracked files inside bounded common-ignore
+  directories without widening root inventory or following symlink and oversized bodies.
 - Replaced the unfinished flagship ceremony with one frozen 18-task, 72-run A/B:
   deterministic investigation facts, hidden implementation checks, exact controls, one
   infrastructure retry, fixed cost bounds, and no subjective scoring or exclusions.

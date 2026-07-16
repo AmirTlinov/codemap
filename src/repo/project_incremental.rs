@@ -1,14 +1,15 @@
 // Responsibility: incremental-project-fact-and-index-reconstruction
 use crate::cache;
 use crate::model::{
-    CodemapConfig, ConfigLoadError, FileInfo, Project, ProjectTimings, ScanGroup, ScanStats,
+    CodemapConfig, ConfigLoadError, Domain, FileInfo, PackageDependency, PackageInfo, Project,
+    ProjectTimings, ScanGroup, ScanStats, ScriptInfo,
 };
 use crate::repo::{
     VERSION, apply_codemap_config_roles, detect_languages, detect_package_edges,
     detect_package_manager, detect_packages, detect_scripts, detect_ts_path_aliases,
     discover_domains, enrich_accessible_surfaces_from_component_contracts, resolve_imports,
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -31,19 +32,9 @@ pub(crate) struct ProjectBuildInput {
 
 pub(crate) fn build_project_from_files(input: ProjectBuildInput) -> Project {
     let facts_started = Instant::now();
-    let mut files = input.files;
-    apply_codemap_config_roles(&mut files, &input.anchors);
-    let packages = detect_packages(&input.root, &files);
-    let ts_path_aliases = detect_ts_path_aliases(&input.root, &files);
-    resolve_imports(&input.root, &mut files, &packages, &ts_path_aliases);
-    enrich_accessible_surfaces_from_component_contracts(&input.root, &mut files);
-    let package_edges = detect_package_edges(&input.root, &files, &packages);
-    let scripts = detect_scripts(&input.root, &files);
-    let package_manager = detect_package_manager(&files);
-    let languages = detect_languages(&files);
-    let domains = discover_domains(
+    let derived = derive_project_facts(
         &input.root,
-        &files,
+        input.files,
         &input.anchors,
         input.config_path.as_deref(),
     );
@@ -56,10 +47,10 @@ pub(crate) fn build_project_from_files(input: ProjectBuildInput) -> Project {
             &input.root,
             fingerprint,
             old_files,
-            &files,
+            &derived.files,
         )
     } else {
-        cache::full_reverse_imports(&files)
+        cache::full_reverse_imports(&derived.files)
     };
     let reverse_index_ms = reverse_started.elapsed().as_millis();
     Project {
@@ -70,14 +61,14 @@ pub(crate) fn build_project_from_files(input: ProjectBuildInput) -> Project {
         config_path: input.config_path,
         config_errors: input.config_errors,
         nearest_agents: input.nearest_agents,
-        files,
+        files: derived.files,
         reverse_imports: reverse_update.index,
-        packages,
-        package_edges,
-        domains,
-        package_manager,
-        scripts,
-        languages,
+        packages: derived.packages,
+        package_edges: derived.package_edges,
+        domains: derived.domains,
+        package_manager: derived.package_manager,
+        scripts: derived.scripts,
+        languages: derived.languages,
         anchors: input.anchors,
         cache_state: String::new(),
         cache_artifacts: Vec::new(),
@@ -96,6 +87,61 @@ pub(crate) fn build_project_from_files(input: ProjectBuildInput) -> Project {
             ..ProjectTimings::default()
         },
         structural_fingerprint: std::sync::OnceLock::new(),
+    }
+}
+
+pub(crate) fn rebuild_project_facts(project: &mut Project) {
+    let derived = derive_project_facts(
+        &project.root,
+        std::mem::take(&mut project.files),
+        &project.anchors,
+        project.config_path.as_deref(),
+    );
+    project.files = derived.files;
+    project.packages = derived.packages;
+    project.package_edges = derived.package_edges;
+    project.domains = derived.domains;
+    project.package_manager = derived.package_manager;
+    project.scripts = derived.scripts;
+    project.languages = derived.languages;
+    project.reverse_imports = cache::full_reverse_imports(&project.files).index;
+    project.structural_fingerprint = std::sync::OnceLock::new();
+}
+
+struct DerivedProjectFacts {
+    files: BTreeMap<String, FileInfo>,
+    packages: Vec<PackageInfo>,
+    package_edges: Vec<PackageDependency>,
+    domains: Vec<Domain>,
+    package_manager: String,
+    scripts: Vec<ScriptInfo>,
+    languages: BTreeSet<String>,
+}
+
+fn derive_project_facts(
+    root: &std::path::Path,
+    mut files: BTreeMap<String, FileInfo>,
+    anchors: &CodemapConfig,
+    config_path: Option<&str>,
+) -> DerivedProjectFacts {
+    apply_codemap_config_roles(&mut files, anchors);
+    let packages = detect_packages(root, &files);
+    let ts_path_aliases = detect_ts_path_aliases(root, &files);
+    resolve_imports(root, &mut files, &packages, &ts_path_aliases);
+    enrich_accessible_surfaces_from_component_contracts(root, &mut files);
+    let package_edges = detect_package_edges(root, &files, &packages);
+    let scripts = detect_scripts(root, &files);
+    let package_manager = detect_package_manager(&files);
+    let languages = detect_languages(&files);
+    let domains = discover_domains(root, &files, anchors, config_path);
+    DerivedProjectFacts {
+        files,
+        packages,
+        package_edges,
+        domains,
+        package_manager,
+        scripts,
+        languages,
     }
 }
 

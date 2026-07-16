@@ -144,10 +144,27 @@ fn scan_file(
     boundary_override: Option<IndexedBoundary>,
     stats: &mut ScanStatsBuilder,
 ) -> Option<FileInfo> {
-    stats.files_visited += 1;
-    let path = root.join(rel);
     let indexed_boundary =
         boundary_override.or_else(|| indexed_boundary_for_path(root, rel, index_kind));
+    scan_file_with_boundary(root, rel, indexed_boundary, stats)
+}
+
+pub(crate) fn scan_regular_file(
+    root: &Path,
+    rel: &str,
+    stats: &mut ScanStatsBuilder,
+) -> Option<FileInfo> {
+    scan_file_with_boundary(root, rel, None, stats)
+}
+
+fn scan_file_with_boundary(
+    root: &Path,
+    rel: &str,
+    indexed_boundary: Option<IndexedBoundary>,
+    stats: &mut ScanStatsBuilder,
+) -> Option<FileInfo> {
+    stats.files_visited += 1;
+    let path = root.join(rel);
     let meta = fs::symlink_metadata(&path).ok();
     if meta.is_none() && indexed_boundary.is_none() {
         return None;

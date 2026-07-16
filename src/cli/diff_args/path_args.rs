@@ -35,22 +35,41 @@ pub(crate) fn files_selector(files: &[String]) -> String {
 }
 
 pub(crate) fn project_relative_arg(project: &crate::model::Project, value: &str) -> Result<String> {
+    repository_relative_arg(&project.root, value)
+        .ok_or_else(|| crate::cli::invalid_input(format!("path is outside project root: {value}")))
+}
+
+pub(crate) fn repository_relative_arg(root: &Path, value: &str) -> Option<String> {
     let portable_value = if cfg!(windows) || !value.contains('\\') {
         value.to_string()
     } else {
         value.replace('\\', "/")
     };
     let path = Path::new(&portable_value);
-    let root = normalize_absolute_arg(&project.root);
-    let absolute = if path.is_absolute() {
-        normalize_absolute_arg(path)
+    let root = normalize_absolute_arg(root);
+    let joined = if path.is_absolute() {
+        path.to_path_buf()
     } else {
-        normalize_absolute_arg(&root.join(path))
+        root.join(path)
     };
+    if joined.is_dir() && normalize_absolute_arg(&joined) == root {
+        return Some(".".to_string());
+    }
+    let absolute = normalize_anchor_path(&joined);
     absolute
         .strip_prefix(root)
         .map(|rel| repo::normalize_rel_path(&rel.to_string_lossy()))
-        .map_err(|_| crate::cli::invalid_input(format!("path is outside project root: {value}")))
+        .ok()
+}
+
+fn normalize_anchor_path(path: &Path) -> PathBuf {
+    let Some(name) = path.file_name() else {
+        return normalize_absolute_arg(path);
+    };
+    let Some(parent) = path.parent() else {
+        return lexical_normalize_absolute(path);
+    };
+    lexical_normalize_absolute(&normalize_absolute_arg(parent).join(name))
 }
 
 pub(crate) fn flow_anchor_arg(project: &crate::model::Project, value: &str) -> Result<String> {

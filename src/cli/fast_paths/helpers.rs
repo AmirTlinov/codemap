@@ -1,6 +1,6 @@
 // Responsibility: cli-fast-paths-helpers
 use crate::cli::{
-    ChangedArgs, ProofArgs, changed_section_name, normalize_absolute_arg, shell_quote_arg,
+    ChangedArgs, ProofArgs, changed_section_name, repository_relative_arg, shell_quote_arg,
 };
 use crate::{render, repo};
 use anyhow::Result;
@@ -50,17 +50,8 @@ pub(crate) fn root_inventory_has_codemap_config(root: &Path, files: &[String]) -
 }
 
 pub(crate) fn root_relative_arg(root: &Path, value: &str) -> Result<String> {
-    let path = Path::new(value);
-    let normalized_root = normalize_absolute_arg(root);
-    let absolute = if path.is_absolute() {
-        normalize_absolute_arg(path)
-    } else {
-        normalize_absolute_arg(&normalized_root.join(path))
-    };
-    absolute
-        .strip_prefix(normalized_root)
-        .map(|rel| repo::normalize_rel_path(&rel.to_string_lossy()))
-        .map_err(|_| anyhow::anyhow!("path is outside project root: {value}"))
+    repository_relative_arg(root, value)
+        .ok_or_else(|| anyhow::anyhow!("path is outside project root: {value}"))
 }
 
 pub(crate) fn changed_selector_state(

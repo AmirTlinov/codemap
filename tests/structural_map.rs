@@ -64,6 +64,7 @@ include!("structural_map/boundaries_graph_schema.rs");
 include!("structural_map/schema_rail.rs");
 include!("structural_map/agent_contract.rs");
 include!("structural_map/scanner_ignore_generated.rs");
+include!("structural_map/exact_ignored_anchors.rs");
 include!("structural_map/cache_diagnostics.rs");
 include!("structural_map/cache_admin.rs");
 include!("structural_map/cache_lens_helpers.rs");

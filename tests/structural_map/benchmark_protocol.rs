@@ -107,7 +107,7 @@ fn ab_fingerprint_tracks_composed_prompt_timeout_and_order() {
     let probe = r#"import argparse, json, pathlib, runpy, sys
 sys.path.insert(0, str(pathlib.Path(sys.argv[1]).parent))
 m = runpy.run_path(sys.argv[1])
-task = m["Task"]("t", "implementation", pathlib.Path("."), "HEAD", "abc", "edit", [], [])
+task = m["Task"]("t", "implementation", pathlib.Path("."), "HEAD", "abc", "edit", [])
 args = argparse.Namespace(model="m", reasoning_effort="high", timeout_seconds=10)
 def fingerprint(order=0):
     return m["trial_fingerprint"](task, "abc", "codemap", order, args, "codex", "codemap", [], {})
