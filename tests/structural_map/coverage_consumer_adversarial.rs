@@ -130,25 +130,27 @@ fn computed_commonjs_require_is_a_typed_dynamic_stop() {
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["commit", "-qm", "computed require"]);
 
-    let json = run_json(
-        repo.path(),
-        cache.path(),
-        &["where", "target", "--format", "json"],
-    );
-    let definition = &json["definitions"][0];
-    let id = definition["consumers_total"]["certificate_id"]
-        .as_str()
-        .expect("consumer certificate");
-    let certificate = &definition["observations"]["certificates"][id];
-    assert_eq!(definition["consumers_total"]["closure"], "open", "{json:#}");
-    assert!(
-        certificate["dynamic_stops"]
-            .as_array()
-            .expect("dynamic stops")
-            .iter()
-            .any(|stop| stop["kind"] == "dynamic_import_flow"),
-        "computed require must be visible as a dynamic boundary: {json:#}"
-    );
+    for _ in 0..2 {
+        let json = run_json(
+            repo.path(),
+            cache.path(),
+            &["where", "target", "--format", "json"],
+        );
+        let definition = &json["definitions"][0];
+        let id = definition["consumers_total"]["certificate_id"]
+            .as_str()
+            .expect("consumer certificate");
+        let certificate = &definition["observations"]["certificates"][id];
+        assert_eq!(definition["consumers_total"]["closure"], "open", "{json:#}");
+        assert!(
+            certificate["dynamic_stops"]
+                .as_array()
+                .expect("dynamic stops")
+                .iter()
+                .any(|stop| stop["kind"] == "dynamic_import_flow"),
+            "computed require must survive cold and warm indexes: {json:#}"
+        );
+    }
 }
 
 #[test]

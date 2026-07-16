@@ -1,16 +1,11 @@
 // Responsibility: map-symbols-where-locator
+use crate::map::{ConsumerObservationInput, ObservationProjection};
 use crate::map::{
-    ConeXrayInput, ConsumerObservationInput, ObservationProjection, SymbolConeObservationInput,
-    cone_xray_card, consumer_observed_count, definition_match_observation,
-    symbol_cone_observations,
-};
-use crate::map::{
-    cone_symbol_report, shell_quote, sort_edges, symbol_anchor_path, symbol_file_summary,
-    symbol_local_incoming_edges, symbol_reference_edges, unknown,
+    cone_symbol_report, consumer_observed_count, definition_match_observation, shell_quote,
+    symbol_anchor_path, symbol_local_incoming_edges, symbol_reference_edges, unknown,
 };
 use crate::model::{
-    FileInfo, ObservationLedger, Project, StructuralEdge, WhereDefinition, WhereReport,
-    WhereSuggestion,
+    FileInfo, ObservationLedger, Project, WhereDefinition, WhereReport, WhereSuggestion,
 };
 use std::collections::BTreeMap;
 
@@ -77,12 +72,14 @@ pub fn where_report(
         let Some(info) = project.files.get(file_rel) else {
             continue;
         };
-        let Some(anchor) = symbol_file_summary(project, info, query) else {
+        let Some(mut cone_report) =
+            cone_symbol_report(project, file_rel, query, 1, include_hidden, limit)
+        else {
             continue;
         };
+        let anchor = cone_report.anchor.clone();
         let anchor_path = symbol_anchor_path(file_rel, query);
-        let mut all_consumers = symbol_reference_edges(project, file_rel, query, false);
-        sort_edges(&mut all_consumers);
+        let all_consumers = symbol_reference_edges(project, file_rel, query, false);
         let consumers_raw = all_consumers.len();
         let consumer_limit = if include_hidden {
             consumers_raw
@@ -115,63 +112,46 @@ pub fn where_report(
         let mut incoming = Vec::new();
         let mut verification = Vec::new();
         if total_matches == 1 {
-            detail = cone_symbol_report(project, file_rel, query, 1, include_hidden, limit).map(
-                |mut report| {
-                    let mut all_incoming = all_consumers.clone();
-                    all_incoming.extend(symbol_local_incoming_edges(project, info, query));
-                    sort_edges(&mut all_incoming);
-                    let remaining_limit = if include_hidden {
-                        all_incoming.len()
-                    } else {
-                        limit.min(2)
-                    };
-                    let all_remaining_incoming = all_incoming
-                        .iter()
-                        .filter(|edge| !contains_edge(&all_consumers, edge))
-                        .cloned()
-                        .collect::<Vec<_>>();
-                    let remaining_incoming = all_remaining_incoming
-                        .iter()
-                        .take(remaining_limit)
-                        .cloned()
-                        .collect::<Vec<_>>();
-                    let verification_observed = report
-                        .observations
-                        .horizons
-                        .iter()
-                        .find(|horizon| horizon.group == "verification")
-                        .map(|horizon| horizon.count.observed as usize)
-                        .unwrap_or(report.proof.len());
-                    let expand = || format!("codemap cone {} --all", shell_quote(&anchor_path));
-                    report.observations = symbol_cone_observations(
-                        project,
-                        SymbolConeObservationInput {
-                            file_rel,
-                            symbol_name: query,
-                            incoming_observed: all_remaining_incoming.len(),
-                            incoming_shown: remaining_incoming.len(),
-                            incoming_expand: (remaining_incoming.len()
-                                < all_remaining_incoming.len())
+            detail = Some({
+                let mut report = cone_report;
+                let all_remaining_incoming = symbol_local_incoming_edges(project, info, query);
+                let remaining_limit = if include_hidden {
+                    all_remaining_incoming.len()
+                } else {
+                    limit.min(2)
+                };
+                let remaining_incoming = all_remaining_incoming
+                    .iter()
+                    .take(remaining_limit)
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let expand = || format!("codemap cone {} --all", shell_quote(&anchor_path));
+                let mut incoming_observations = ObservationLedger::default();
+                consumer_observed_count(
+                    project,
+                    ConsumerObservationInput {
+                        rel: file_rel,
+                        symbol: Some(query),
+                        raw: all_remaining_incoming.len(),
+                        shown: remaining_incoming.len(),
+                        group: "incoming",
+                        expand: (remaining_incoming.len() < all_remaining_incoming.len())
                             .then(expand),
-                            verification_observed,
-                            verification_shown: report.proof.len(),
-                            verification_expand: (report.proof.len() < verification_observed)
-                                .then(expand),
-                        },
-                    );
-                    rebuild_where_xray(project, file_rel, &mut report, limit, include_hidden);
-                    report.incoming.clone_from(&remaining_incoming);
-                    incoming = remaining_incoming;
-                    verification.clone_from(&report.proof);
-                    Box::new(report)
-                },
-            );
+                        include_local: true,
+                    },
+                    &mut incoming_observations,
+                );
+                report.observations.merge(&incoming_observations);
+                report.incoming.clone_from(&remaining_incoming);
+                incoming = remaining_incoming;
+                verification.clone_from(&report.proof);
+                Box::new(report)
+            });
             if let Some(report) = detail.as_deref() {
                 definition_observations.merge(&report.observations);
             }
-        } else if let Some(mut report) =
-            cone_symbol_report(project, file_rel, query, 1, include_hidden, limit)
-        {
+        } else {
+            let report = &mut cone_report;
             if include_hidden {
                 incoming.clone_from(&report.incoming);
                 verification.clone_from(&report.proof);
@@ -248,15 +228,6 @@ fn definition_expand_command(query: &str, kind_filter: Option<&str>) -> String {
     command
 }
 
-fn contains_edge(edges: &[StructuralEdge], candidate: &StructuralEdge) -> bool {
-    edges.iter().any(|edge| {
-        edge.from == candidate.from
-            && edge.to == candidate.to
-            && edge.edge_type == candidate.edge_type
-            && edge.evidence == candidate.evidence
-    })
-}
-
 fn reproject_horizon(
     observations: &mut ObservationLedger,
     group: &str,
@@ -275,25 +246,6 @@ fn reproject_horizon(
     horizon.hidden = horizon.count.observed - shown;
     horizon.expand =
         (horizon.hidden > 0).then(|| format!("codemap cone {} --all", shell_quote(anchor_path)));
-}
-
-fn rebuild_where_xray(
-    project: &Project,
-    file_rel: &str,
-    report: &mut crate::model::ConeReport,
-    limit: usize,
-    include_hidden: bool,
-) {
-    let seed_files = [file_rel.to_string()];
-    report.xray = cone_xray_card(ConeXrayInput {
-        project,
-        anchor: &report.anchor,
-        seed_files: &seed_files,
-        declared_env: &report.declared_env,
-        unknowns: &report.unknowns,
-        limit,
-        include_hidden,
-    });
 }
 
 fn file_defines_symbol(info: &FileInfo, name: &str, kind_filter: Option<&str>) -> bool {

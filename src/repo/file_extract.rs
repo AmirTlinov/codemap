@@ -64,6 +64,7 @@ pub(crate) fn extract_imports_exports(root: &Path, info: &mut FileInfo) {
             info.imports.extend(extract_js_import_specs(&text));
             info.import_bindings = extract_js_import_bindings(&text);
             info.has_dynamic_import = js_has_dynamic_import(cleaned_text);
+            info.has_dynamic_require = text.lines().any(crate::map::dynamic_require_line);
             let export_re = js_export_re();
             for cap in export_re.captures_iter(cleaned_text) {
                 if let Some(m) = cap.get(1) {

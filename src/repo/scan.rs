@@ -211,6 +211,7 @@ fn scan_file(
         content_hash: None,
         line_count: 0,
         has_dynamic_import: false,
+        has_dynamic_require: false,
         language,
         roles: BTreeSet::new(),
         imports: BTreeSet::new(),

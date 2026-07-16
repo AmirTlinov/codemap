@@ -263,11 +263,7 @@ fn dynamic_import_neighbors(project: &Project, rel: &str) -> Vec<String> {
 fn dynamic_require_neighbors(project: &Project, rel: &str) -> Vec<String> {
     consumer_universe(project, rel)
         .into_iter()
-        .filter(|file| {
-            project
-                .read_indexed_text(&file.rel)
-                .is_some_and(|text| text.lines().any(crate::map::dynamic_require_line))
-        })
+        .filter(|file| file.has_dynamic_require)
         .map(|file| file.rel.clone())
         .collect()
 }

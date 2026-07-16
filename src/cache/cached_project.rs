@@ -99,6 +99,7 @@ pub(super) fn write_inventory(project: &Project, version: &str) -> Result<()> {
                     surface_phrases: file.surface_phrases.iter().cloned().collect(),
                     visited_route_paths: file.visited_route_paths.iter().cloned().collect(),
                     has_dynamic_import: file.has_dynamic_import,
+                    has_dynamic_require: file.has_dynamic_require,
                 }
             })
             .collect(),
@@ -185,6 +186,8 @@ struct CachedFile {
     visited_route_paths: Vec<String>,
     #[serde(default)]
     has_dynamic_import: bool,
+    #[serde(default)]
+    has_dynamic_require: bool,
 }
 
 impl CachedFile {
@@ -213,6 +216,7 @@ impl CachedFile {
             surface_phrases: self.surface_phrases.into_iter().collect(),
             visited_route_paths: self.visited_route_paths.into_iter().collect(),
             has_dynamic_import: self.has_dynamic_import,
+            has_dynamic_require: self.has_dynamic_require,
         }
     }
 }

@@ -101,6 +101,16 @@ pub(crate) fn symbol_file_summary(
     info: &FileInfo,
     symbol_name: &str,
 ) -> Option<FileSummary> {
+    let observed_consumers = symbol_reference_edges(project, &info.rel, symbol_name, true).len();
+    symbol_file_summary_with_observed_consumers(project, info, symbol_name, observed_consumers)
+}
+
+pub(crate) fn symbol_file_summary_with_observed_consumers(
+    project: &Project,
+    info: &FileInfo,
+    symbol_name: &str,
+    observed_consumers: usize,
+) -> Option<FileSummary> {
     let symbols = matching_symbols(info, symbol_name);
     if symbols.is_empty() {
         return None;
@@ -134,12 +144,7 @@ pub(crate) fn symbol_file_summary(
             .into_iter()
             .collect(),
         imports: Vec::new(),
-        imported_by: consumer_count_fact(
-            project,
-            &info.rel,
-            Some(symbol_name),
-            symbol_reference_edges(project, &info.rel, symbol_name, true).len(),
-        ),
+        imported_by: consumer_count_fact(project, &info.rel, Some(symbol_name), observed_consumers),
     })
 }
 

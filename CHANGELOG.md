@@ -21,6 +21,8 @@ public JSON compatibility is governed separately by `docs/SCHEMA_POLICY.md`.
   binary, criteria, thresholds, and counterbalanced 72-run experiment are frozen.
 - Made interrupted benchmark resumes discard partial receipts and terminate active process
   trees, and corrected the corpus proof-engine oracle to the concrete implementation owner.
+- Reused one complete symbol-reference basis for cone summaries and production incoming edges,
+  and persisted computed-require gaps in file facts instead of rereading the consumer universe.
 
 ## 0.2.33 - 2026-05-04
 

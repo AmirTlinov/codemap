@@ -114,6 +114,8 @@ pub struct FileInfo {
     pub imports: BTreeSet<String>,
     #[serde(default)]
     pub has_dynamic_import: bool,
+    #[serde(default)]
+    pub has_dynamic_require: bool,
     pub import_bindings: ImportBindingsBySpec,
     pub resolved_imports: BTreeSet<String>,
     pub unresolved_imports: BTreeSet<String>,
