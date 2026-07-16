@@ -95,6 +95,7 @@ pub(crate) fn build_project_from_files(input: ProjectBuildInput) -> Project {
             reverse_index_ms,
             ..ProjectTimings::default()
         },
+        structural_fingerprint: std::sync::OnceLock::new(),
     }
 }
 

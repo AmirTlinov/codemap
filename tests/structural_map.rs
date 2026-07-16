@@ -69,6 +69,7 @@ include!("structural_map/cache_admin.rs");
 include!("structural_map/cache_lens_helpers.rs");
 include!("structural_map/cache_lens_artifact_format.rs");
 include!("structural_map/cache_lens_artifacts.rs");
+include!("structural_map/cache_navigation_lens_artifacts.rs");
 include!("structural_map/cache_coverage_validation.rs");
 include!("structural_map/runtime_root_cache_coverage.rs");
 include!("structural_map/runtime_root_cache_group_coverage.rs");

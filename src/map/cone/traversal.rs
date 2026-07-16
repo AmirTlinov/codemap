@@ -105,6 +105,7 @@ pub(crate) fn cone_symbol_report_with_references(
             verification_observed: proof_observed,
             verification_shown: proof.len(),
             verification_expand: (proof.len() < proof_observed).then_some(expand_all),
+            observed_sources: references.production_sources(),
         },
     );
     let mut unknowns = Vec::new();

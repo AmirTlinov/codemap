@@ -239,6 +239,7 @@ pub fn load_project_with_cache(
         files_reused: 0,
         scan_stats,
         timings: ProjectTimings::default(),
+        structural_fingerprint: std::sync::OnceLock::new(),
     };
     let cache_artifact_started = Instant::now();
     let fingerprint = cache::fingerprint(&project, None);

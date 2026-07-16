@@ -31,6 +31,8 @@ public JSON compatibility is governed separately by `docs/SCHEMA_POLICY.md`.
   preserving the same full Windows gate without platform skips.
 - Reused the cone's complete symbol-reference set in exact `where`, removing a second
   consumer-universe traversal without changing its machine evidence.
+- Persisted exact `where` reports in the external lens cache, reducing the local strict
+  warm probe from a full map rebuild to 109 ms without changing Markdown or JSON output.
 
 ## 0.2.33 - 2026-05-04
 

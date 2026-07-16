@@ -2,7 +2,7 @@
 mod cache_gate;
 mod changed;
 mod helpers;
-mod ls_cone;
+mod navigation;
 mod proof_changed;
 mod proof_map;
 mod root_graph;
@@ -14,7 +14,7 @@ mod siblings_place;
 pub(crate) use cache_gate::*;
 pub(crate) use changed::*;
 pub(crate) use helpers::*;
-pub(crate) use ls_cone::*;
+pub(crate) use navigation::*;
 pub(crate) use proof_changed::*;
 pub(crate) use proof_map::*;
 pub(crate) use root_graph::*;

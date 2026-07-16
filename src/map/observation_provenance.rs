@@ -51,6 +51,7 @@ pub(crate) struct SymbolConeObservationInput<'a> {
     pub verification_observed: usize,
     pub verification_shown: usize,
     pub verification_expand: Option<String>,
+    pub observed_sources: &'a std::collections::BTreeSet<String>,
 }
 
 pub(crate) struct SymbolLsObservationInput<'a> {
@@ -80,6 +81,7 @@ pub(crate) fn symbol_ls_observations(
             group: "consumers",
             expand: input.consumers_expand,
             include_local: false,
+            observed_sources: None,
         },
         &mut ledger,
     );
@@ -113,6 +115,7 @@ pub(crate) fn symbol_cone_observations(
             group: "incoming",
             expand: input.incoming_expand,
             include_local: true,
+            observed_sources: Some(input.observed_sources),
         },
         &mut ledger,
     );

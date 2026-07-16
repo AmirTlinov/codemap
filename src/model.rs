@@ -1,6 +1,7 @@
 // Responsibility: project-inventory-and-fact-primitives
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
+use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
 
@@ -62,6 +63,8 @@ pub struct Project {
     pub files_reused: usize,
     pub scan_stats: ScanStats,
     pub timings: ProjectTimings,
+    #[serde(skip)]
+    pub(crate) structural_fingerprint: OnceLock<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]

@@ -26,9 +26,11 @@ pub(super) fn consumer_blind_spots(
     rel: &str,
     symbol: Option<&str>,
     include_local: bool,
+    observed_sources: Option<&BTreeSet<String>>,
 ) -> Vec<ConsumerBlindSpot> {
     let mut blind_spots = Vec::new();
-    let observed_sources = symbol
+    let computed_observed_sources = symbol
+        .filter(|_| observed_sources.is_none())
         .map(|name| {
             crate::map::symbol_reference_edges(project, rel, name, false)
                 .into_iter()
@@ -36,6 +38,7 @@ pub(super) fn consumer_blind_spots(
                 .collect::<BTreeSet<_>>()
         })
         .unwrap_or_default();
+    let observed_sources = observed_sources.unwrap_or(&computed_observed_sources);
     collect_language_closure_gap(project, rel, &mut blind_spots);
     if include_local && let Some(anchor) = project.files.get(rel) {
         push_unsupported_binding_gap(
@@ -59,7 +62,7 @@ pub(super) fn consumer_blind_spots(
                 rel,
                 symbol,
                 importer_info,
-                &observed_sources,
+                observed_sources,
                 &mut blind_spots,
             );
         }
@@ -82,7 +85,7 @@ pub(super) fn consumer_blind_spots(
             rel,
             candidate,
             symbol,
-            &observed_sources,
+            observed_sources,
             &mut blind_spots,
         );
     }

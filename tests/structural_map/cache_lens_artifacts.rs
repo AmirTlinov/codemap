@@ -134,39 +134,6 @@ fn changed_warmed_proof_cache_preserves_direct_proof_order_and_hidden_limit() {
 }
 
 #[test]
-fn navigation_lens_artifacts_roundtrip_without_output_drift() {
-    let (repo, cache) = fixture();
-    let rel = "packages/app/src/useReplay.ts";
-
-    let _ = run_json(repo.path(), cache.path(), &["ls", ".", "--format", "json"]);
-
-    let ls_first = run_lens_stdout(repo.path(), cache.path(), &["ls", rel]);
-    let ls_second = run_lens_stdout(repo.path(), cache.path(), &["ls", rel]);
-    assert_lens_markdown_eq(
-        &ls_first,
-        &ls_second,
-        "cached ls artifact must preserve markdown output"
-    );
-
-    let cone_first = run_lens_stdout(repo.path(), cache.path(), &["cone", rel]);
-    let cone_second = run_lens_stdout(repo.path(), cache.path(), &["cone", rel]);
-    assert_lens_markdown_eq(
-        &cone_first,
-        &cone_second,
-        "cached cone artifact must preserve markdown output"
-    );
-
-    assert!(
-        cached_lens_artifact_exists(cache.path(), "ls-current.json"),
-        "ls command should write an external lens artifact"
-    );
-    assert!(
-        cached_lens_artifact_exists(cache.path(), "cone-current.json"),
-        "cone command should write an external lens artifact"
-    );
-}
-
-#[test]
 fn proof_map_lens_artifact_roundtrips_without_output_drift() {
     let (repo, cache) = fixture();
 

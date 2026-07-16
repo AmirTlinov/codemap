@@ -70,6 +70,7 @@ pub(crate) fn file_ls_observations(
             group: "consumers",
             expand: input.consumers_expand,
             include_local: false,
+            observed_sources: None,
         },
         &mut ledger,
     );

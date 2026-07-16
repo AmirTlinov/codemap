@@ -6,14 +6,15 @@ use crate::cli::{
     flow_anchor_arg, impact_inputs, init, ls_section_name, maybe_write_changed_lens_cache,
     maybe_write_cone_lens_cache, maybe_write_ls_lens_cache, maybe_write_place_lens_cache,
     maybe_write_proof_changed_lens_cache_from_changed, maybe_write_proof_map_lens_cache,
-    maybe_write_proof_map_lens_cache_from_changed, maybe_write_siblings_lens_cache, output,
-    output_format_with_json_alias, output_with_prelude, project_relative_arg, proof,
-    proof_map_inputs, run_runtime, try_cache_admin, try_cached_changed_fast_path,
-    try_cached_cone_fast_path, try_cached_ls_fast_path, try_cached_place_fast_path,
-    try_cached_proof_changed_fast_path, try_cached_proof_map_fast_path,
-    try_cached_siblings_fast_path, try_clean_changed_fast_path, try_clean_proof_changed_fast_path,
-    try_cold_root_graph_fast_path, try_cold_root_ls_fast_path, try_cold_root_proof_map_fast_path,
-    try_project_free_command, try_runtime_root_fast_path, validate_anchors,
+    maybe_write_proof_map_lens_cache_from_changed, maybe_write_siblings_lens_cache,
+    maybe_write_where_lens_cache, output, output_format_with_json_alias, output_with_prelude,
+    project_relative_arg, proof, proof_map_inputs, run_runtime, try_cache_admin,
+    try_cached_changed_fast_path, try_cached_cone_fast_path, try_cached_ls_fast_path,
+    try_cached_place_fast_path, try_cached_proof_changed_fast_path, try_cached_proof_map_fast_path,
+    try_cached_siblings_fast_path, try_cached_where_fast_path, try_clean_changed_fast_path,
+    try_clean_proof_changed_fast_path, try_cold_root_graph_fast_path, try_cold_root_ls_fast_path,
+    try_cold_root_proof_map_fast_path, try_project_free_command, try_runtime_root_fast_path,
+    validate_anchors,
 };
 use crate::{map, render, repo};
 use anyhow::{Result, bail};
@@ -58,13 +59,13 @@ pub fn run() -> Result<()> {
     if let Some(()) = try_cold_root_ls_fast_path(&cli.command, &root_selection)? {
         return Ok(());
     }
-    if let Some(()) = try_cached_ls_fast_path(&cli.command, &root_selection)? {
+    if try_cached_ls_fast_path(&cli.command, &root_selection)?.is_some()
+        || try_cached_cone_fast_path(&cli.command, &root_selection)?.is_some()
+        || try_cached_where_fast_path(&cli.command, &root_selection)?.is_some()
+    {
         return Ok(());
     }
     if let Some(()) = try_cold_root_graph_fast_path(&cli.command, &root_selection)? {
-        return Ok(());
-    }
-    if let Some(()) = try_cached_cone_fast_path(&cli.command, &root_selection)? {
         return Ok(());
     }
     if let Some(()) = try_clean_changed_fast_path(&cli.command, &root_selection)? {
@@ -182,6 +183,7 @@ pub fn run() -> Result<()> {
             if let Err(error) = report.validate_observations() {
                 bail!("invalid where observation ledger: {error:?}");
             }
+            maybe_write_where_lens_cache(&project, include_hidden, limit, &report);
             output(format, &report, || render::where_locator(&report))
         }
         CommandKind::Init(args) => init(&project, args),

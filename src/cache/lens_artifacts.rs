@@ -8,11 +8,13 @@ mod changed_proof;
 mod navigation;
 mod proof_map;
 mod siblings_place;
+mod where_report;
 
-const LENS_ARTIFACT_FORMAT_VERSION: u64 = 34;
+const LENS_ARTIFACT_FORMAT_VERSION: u64 = 35;
 const LENS_ARTIFACTS: &[&str] = &[
     "ls-current.json",
     "cone-current.json",
+    "where-current.json",
     "changed-current.json",
     "proof-changed.json",
     "proof-map-current.json",
@@ -33,6 +35,7 @@ pub use siblings_place::{
     PlaceLensKey, SiblingsLensKey, read_place_report, read_siblings_report, write_place_report,
     write_siblings_report,
 };
+pub use where_report::{WhereLensKey, read_where_report, write_where_report};
 
 pub fn format_version() -> u64 {
     LENS_ARTIFACT_FORMAT_VERSION

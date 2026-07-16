@@ -33,11 +33,12 @@ pub use identity::{
 pub use io::{CacheDiagnostic, diagnostics as cache_diagnostics};
 pub(crate) use lens_artifacts::format_version as lens_artifact_format_version;
 pub use lens_artifacts::{
-    ConeLensKey, LsLensKey, PlaceLensKey, SiblingsLensKey, read_changed_report, read_cone_report,
-    read_inventory_ls_report, read_ls_report, read_place_report, read_proof_changed_report,
-    read_proof_map_report, read_siblings_report, write_changed_report, write_cone_report,
-    write_inventory_ls_report, write_ls_report, write_place_report, write_proof_changed_report,
-    write_proof_map_report, write_siblings_report,
+    ConeLensKey, LsLensKey, PlaceLensKey, SiblingsLensKey, WhereLensKey, read_changed_report,
+    read_cone_report, read_inventory_ls_report, read_ls_report, read_place_report,
+    read_proof_changed_report, read_proof_map_report, read_siblings_report, read_where_report,
+    write_changed_report, write_cone_report, write_inventory_ls_report, write_ls_report,
+    write_place_report, write_proof_changed_report, write_proof_map_report, write_siblings_report,
+    write_where_report,
 };
 pub use reverse_imports::full as full_reverse_imports;
 pub use reverse_imports::incremental as incremental_reverse_imports;

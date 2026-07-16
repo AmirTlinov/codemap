@@ -6,6 +6,7 @@ use crate::map::{
     symbol_anchor_path,
 };
 use crate::model::{EvidenceStrength, Project, StructuralEdge};
+use std::collections::BTreeSet;
 
 mod proof_edges;
 pub(crate) use proof_edges::*;
@@ -28,6 +29,7 @@ pub(crate) struct ImportedSymbolReference {
 pub(crate) struct SymbolReferenceEdgeSet {
     all: Vec<StructuralEdge>,
     production: Vec<StructuralEdge>,
+    production_sources: BTreeSet<String>,
 }
 
 impl SymbolReferenceEdgeSet {
@@ -37,6 +39,10 @@ impl SymbolReferenceEdgeSet {
 
     pub(crate) fn production(&self) -> &[StructuralEdge] {
         &self.production
+    }
+
+    pub(crate) fn production_sources(&self) -> &BTreeSet<String> {
+        &self.production_sources
     }
 }
 
@@ -55,8 +61,13 @@ pub(crate) fn symbol_reference_edge_set(
                 .is_some_and(|file| file.has_role("test") || file.has_role("test_support"))
         })
         .cloned()
-        .collect();
-    SymbolReferenceEdgeSet { all, production }
+        .collect::<Vec<_>>();
+    let production_sources = production.iter().map(|edge| edge.from.clone()).collect();
+    SymbolReferenceEdgeSet {
+        all,
+        production,
+        production_sources,
+    }
 }
 
 pub(crate) fn symbol_reference_edges(

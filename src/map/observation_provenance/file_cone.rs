@@ -50,6 +50,7 @@ pub(crate) fn file_cone_observations(
                 group: "incoming",
                 expand: input.incoming.expand.clone(),
                 include_local: false,
+                observed_sources: None,
             },
             &mut ledger,
         );

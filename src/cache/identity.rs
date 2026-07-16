@@ -58,6 +58,16 @@ pub fn repo_key(root: &Path, remote: Option<&str>, version: &str) -> String {
 }
 
 pub fn fingerprint(project: &Project, domain_path: Option<&str>) -> String {
+    if domain_path.is_none() || domain_path == Some(".") {
+        return project
+            .structural_fingerprint
+            .get_or_init(|| compute_fingerprint(project, None))
+            .clone();
+    }
+    compute_fingerprint(project, domain_path)
+}
+
+fn compute_fingerprint(project: &Project, domain_path: Option<&str>) -> String {
     let mut hasher = Sha256::new();
     let domain_prefix = domain_path
         .filter(|p| *p != ".")

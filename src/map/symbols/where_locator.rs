@@ -114,6 +114,7 @@ pub fn where_report(
                 group: "consumers",
                 expand: consumer_expand,
                 include_local: false,
+                observed_sources: Some(references.production_sources()),
             },
             &mut definition_observations,
         );
@@ -146,6 +147,7 @@ pub fn where_report(
                         expand: (remaining_incoming.len() < all_remaining_incoming.len())
                             .then(expand),
                         include_local: true,
+                        observed_sources: Some(references.production_sources()),
                     },
                     &mut incoming_observations,
                 );
@@ -206,7 +208,7 @@ pub fn where_report(
 
     WhereReport {
         kind: "where_report",
-        schema_version: "6",
+        schema_version: WhereReport::SCHEMA_VERSION,
         query: query.to_string(),
         kind_filter: kind_filter.map(|kind| kind.to_string()),
         total_matches,

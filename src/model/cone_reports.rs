@@ -257,6 +257,8 @@ pub struct WhereReport {
 }
 
 impl WhereReport {
+    pub const SCHEMA_VERSION: &'static str = "6";
+
     pub fn validate_observations(&self) -> Result<(), super::ObservationLedgerError> {
         self.observations.validate()?;
         validate_horizon_shown(
@@ -294,7 +296,7 @@ fn validate_horizon_shown(
     Ok(())
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct WhereDefinition {
     pub anchor: FileSummary,
     pub consumers: Vec<StructuralEdge>,
@@ -306,7 +308,7 @@ pub struct WhereDefinition {
     pub expand: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct WhereSuggestion {
     pub name: String,
     pub defined_in: String,

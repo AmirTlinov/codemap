@@ -40,6 +40,7 @@ pub(crate) struct ConsumerObservationInput<'a> {
     pub group: &'a str,
     pub expand: Option<String>,
     pub include_local: bool,
+    pub observed_sources: Option<&'a std::collections::BTreeSet<String>>,
 }
 
 pub(crate) fn consumer_observed_count(
@@ -55,6 +56,7 @@ pub(crate) fn consumer_observed_count(
         group,
         expand,
         include_local,
+        observed_sources,
     } = input;
     let scope = symbol
         .map(|name| format!("{rel}#{name}"))
@@ -98,7 +100,9 @@ pub(crate) fn consumer_observed_count(
             CoverageClosure::Unavailable
         }
         Some(_) => {
-            for blind_spot in consumer_blind_spots(project, rel, symbol, include_local) {
+            for blind_spot in
+                consumer_blind_spots(project, rel, symbol, include_local, observed_sources)
+            {
                 let stop = blind_spot.stop;
                 reasons.push(stop.kind);
                 if let Some(observation) = blind_spot.unsupported {
@@ -194,7 +198,7 @@ fn consumer_zero_blind_spot(project: &Project, rel: &str, symbol: Option<&str>) 
     if !supports_import_language(&info.language) {
         return Some(format!("{} import flow is not indexed", info.language));
     }
-    consumer_blind_spots(project, rel, symbol, false)
+    consumer_blind_spots(project, rel, symbol, false, None)
         .into_iter()
         .next()
         .map(|blind_spot| {

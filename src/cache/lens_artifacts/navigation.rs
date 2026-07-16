@@ -263,7 +263,7 @@ impl CachedLsReport {
 }
 
 #[derive(Deserialize, Serialize)]
-struct CachedConeReport {
+pub(super) struct CachedConeReport {
     kind: String,
     schema_version: String,
     anchor: FileSummary,
@@ -284,7 +284,7 @@ struct CachedConeReport {
 }
 
 impl CachedConeReport {
-    fn from_report(report: &ConeReport) -> Self {
+    pub(super) fn from_report(report: &ConeReport) -> Self {
         Self {
             kind: report.kind.to_string(),
             schema_version: report.schema_version.to_string(),
@@ -304,7 +304,7 @@ impl CachedConeReport {
         }
     }
 
-    fn into_report(self) -> ConeReport {
+    pub(super) fn into_report(self) -> ConeReport {
         ConeReport {
             kind: "cone_report",
             schema_version: crate::model::ConeReport::SCHEMA_VERSION,
