@@ -66,7 +66,7 @@ explicit clear or OS cache cleanup.
 
 `scripts/cache-performance-gate.py` creates a deterministic 1,200-file fixture,
 changes 100 files, checks snapshot-output parity, verifies exactly 100 rebuilt
-file-fact records and only affected reverse targets, and enforces the S12 cold
+file-fact records and only affected reverse targets, and enforces the cold
 and warm latency budgets. CI runs the gate in release mode with `--strict`; an
 over-budget path is a failing check rather than advisory telemetry. The JSON
 receipt records OS/hardware, binary SHA-256, repo scale, cold/warm state, project

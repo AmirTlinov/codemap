@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic S12 cache truth and warm-latency gate."""
+"""Deterministic cache truth and warm-latency gate."""
 
 from __future__ import annotations
 

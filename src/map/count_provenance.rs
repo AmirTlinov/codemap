@@ -28,7 +28,7 @@ pub(crate) fn consumer_count_fact(
     }
 }
 
-/// The S03 count path. Unlike the compatibility `CountFact` above, this keeps
+/// The observation-backed count path. Unlike `CountFact` above, this keeps
 /// an observed lower bound even when a static blind spot leaves traversal open.
 /// Registration and count creation are one ledger operation, so the returned
 /// certificate id cannot dangle in its owning report.

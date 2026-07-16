@@ -25,17 +25,17 @@ pub struct LsReport {
 impl LsReport {
     pub const SCHEMA_VERSION: &'static str = "15";
 
-    /// Root inventory groups certified by the S03.d observation ledger.
+    /// Root inventory groups certified by the report observation ledger.
     pub const ROOT_INVENTORY_GROUPS: [&'static str; 4] =
         ["directory_surfaces", "packages", "scripts", "test_surfaces"];
 
-    /// Exact-symbol `ls` groups certified by the S03.e observation ledger.
+    /// Exact-symbol `ls` groups certified by the report observation ledger.
     pub const SYMBOL_GROUPS: [&'static str; 2] = ["consumers", "verification"];
 
-    /// Exact-file groups certified by the S03.f/g ledger.
+    /// Exact-file groups certified by the report observation ledger.
     pub const FILE_GROUPS: [&'static str; 4] = ["imports", "consumers", "verification", "symbols"];
 
-    /// Nested-directory groups certified by the S03.h/i ledger.
+    /// Nested-directory groups certified by the report observation ledger.
     pub const NESTED_DIRECTORY_GROUPS: [&'static str; 3] =
         ["relations", "surface_groups", "surface_members"];
 

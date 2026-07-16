@@ -71,7 +71,7 @@ process identity.
 
 ## Flagship draft migration: evidence horizon pilot
 
-Manifest version 4 introduces report-local observation ledgers for the S03.a
+Manifest version 4 introduces report-local observation ledgers for the initial
 consumer-horizon pilot. `where` advances to schema 4 and `cone` advances to
 schema 10. Their observed counts resolve deterministic certificate ids inside
 the same report and keep lower bounds when traversal remains open. A unique
@@ -102,7 +102,7 @@ advance mechanically from 4 to 5 and from 10 to 11 even though their emitted
 horizons and certificate identities do not otherwise change. The root runtime
 cache persists the ledger with a report-body hash and rejects any body or
 ledger/list mismatch before serving it. Other runtime groups retain their
-legacy count semantics until a separately activated S03 propagation slice.
+legacy count semantics until their observation-ledger migration.
 The adjacent hash is a corruption/stale-body checksum for a trusted local
 cache, not an authenticity or tamper-resistance claim.
 

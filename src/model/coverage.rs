@@ -6,7 +6,7 @@ use sha2::{Digest, Sha256};
 
 pub type CoverageCertificateId = String;
 
-/// Legacy count shape embedded in report kinds outside the S03 propagation boundary.
+/// Count shape embedded in report kinds that do not carry observation certificates.
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum CountStatus {

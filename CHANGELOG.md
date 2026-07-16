@@ -33,6 +33,8 @@ public JSON compatibility is governed separately by `docs/SCHEMA_POLICY.md`.
   consumer-universe traversal without changing its machine evidence.
 - Persisted exact `where` reports in the external lens cache, reducing the local strict
   warm probe from a full map rebuild to 109 ms without changing Markdown or JSON output.
+- Removed the unused baseline capture path; the 18-task external-verifier A/B is now
+  the only owner of flagship evidence.
 
 ## 0.2.33 - 2026-05-04
 
