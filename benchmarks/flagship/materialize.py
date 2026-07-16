@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Materialize history-free S15 task repositories and a runnable frozen-corpus draft."""
+"""Materialize six pinned repositories and the 18-task flagship corpus draft."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ def run(
         argv, cwd=cwd, capture_output=True, text=True, timeout=timeout, env=env
     )
     if result.returncode:
-        raise ValueError(f"command failed ({result.returncode}): {' '.join(argv)}\n{result.stderr}")
+        raise ValueError(f"command failed ({result.returncode}): {argv!r}\n{result.stderr}")
     return result.stdout.strip()
 
 
@@ -46,7 +46,7 @@ def clone_snapshot(
     remote_only: bool,
     variant: str,
     source_override: Path | None = None,
-) -> dict[str, Any]:
+) -> dict[str, str]:
     target.mkdir(parents=True)
     run(["git", "init", "-q", "-b", "benchmark", str(target)])
     source = (
@@ -55,12 +55,15 @@ def clone_snapshot(
         else repo["remote"] if remote_only else repo.get("source", repo["remote"])
     )
     run(["git", "-C", str(target), "remote", "add", "source", source])
-    run(["git", "-C", str(target), "fetch", "--depth", "1", "source", repo["base"]], timeout=1800)
+    run(
+        ["git", "-C", str(target), "fetch", "--depth", "1", "source", repo["base"]],
+        timeout=1800,
+    )
     run(["git", "-C", str(target), "checkout", "-q", "--detach", "FETCH_HEAD"])
     actual = run(["git", "-C", str(target), "rev-parse", "HEAD"])
     if actual != repo["base"]:
         raise ValueError(f"{repo['id']}: expected {repo['base']}, got {actual}")
-    mutations = repo["negative_mutations"] if variant == "negative" else []
+    mutations = repo.get("exact_mutations", []) if variant == "exact" else []
     for mutation in mutations:
         path = target / mutation["path"]
         body = path.read_text(encoding="utf-8")
@@ -98,28 +101,34 @@ def clone_snapshot(
         "remote": repo["remote"],
         "source_commit": repo["base"],
         "benchmark_commit": run(["git", "-C", str(target), "rev-parse", "HEAD"]),
-        "mutation_paths": [row["path"] for row in mutations],
     }
 
 
-def oracle_source(repo: dict[str, Any], remote_only: bool, oracle_root: Path) -> Path:
-    if not remote_only and Path(repo.get("source", "")).is_dir():
-        return Path(repo["source"])
-    path = oracle_root / repo["id"]
-    run(["git", "clone", "-q", "--filter=blob:none", "--no-checkout", repo["remote"], str(path)], timeout=1800)
+def oracle_source(repo: dict[str, Any], remote_only: bool, root: Path) -> Path:
+    source = Path(repo.get("source", ""))
+    if not remote_only and source.is_dir():
+        return source
+    path = root / repo["id"]
+    run(
+        ["git", "clone", "-q", "--filter=blob:none", "--no-checkout", repo["remote"], str(path)],
+        timeout=1800,
+    )
     return path
 
 
-def extract_oracles(
+def extract_overlays(
     repo: dict[str, Any], tasks: list[dict[str, Any]], source: Path, out_dir: Path
 ) -> dict[str, list[dict[str, str]]]:
-    extracted: dict[str, list[dict[str, str]]] = {}
+    extracted = {}
     for task in tasks:
         if task["repo_id"] != repo["id"]:
             continue
         rows = []
         for overlay in task.get("overlays", []):
-            body = run(["git", "-C", str(source), "show", f"{overlay['commit']}:{overlay['path']}"], timeout=120)
+            body = run(
+                ["git", "-C", str(source), "show", f"{overlay['commit']}:{overlay['path']}"],
+                timeout=120,
+            )
             target = out_dir / task["id"] / overlay["path"]
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(body + ("" if body.endswith("\n") else "\n"), encoding="utf-8")
@@ -133,20 +142,20 @@ def replace_overlays(value: Any, overlays: list[dict[str, str]]) -> Any:
         return {key: replace_overlays(item, overlays) for key, item in value.items()}
     if isinstance(value, list):
         return [replace_overlays(item, overlays) for item in value]
-    if value == "{task_overlays}":
-        return overlays
-    return value
+    return overlays if value == "{task_overlays}" else value
 
 
 def verifier_row(spec: Path, task: dict[str, Any], criterion: str) -> dict[str, Any]:
-    weights = {"required": 3, "behavior": 4, "contract": 3, "downstream": 2, "regression": 2, "provenance": 1}
+    action = task["criteria"].get(
+        criterion, {"category": "provenance", "weight": 1, "required": True}
+    )
     return {
         "name": criterion,
-        "category": criterion,
-        "weight": weights[criterion],
-        "required": criterion in {"required", "provenance"},
+        "category": action.get("category", criterion),
+        "weight": action.get("weight", 1),
+        "required": action.get("required", True),
         "scoring": "deterministic",
-        "evidence_surface": f"external verifier receipt:{task['id']}:{criterion}",
+        "evidence_surface": f"external verifier:{task['id']}:{criterion}",
         "command": [
             sys.executable,
             str(VERIFY),
@@ -163,28 +172,25 @@ def verifier_row(spec: Path, task: dict[str, Any], criterion: str) -> dict[str, 
 def materialize(blueprint_path: Path, out_dir: Path, remote_only: bool) -> Path:
     blueprint = json.loads(blueprint_path.read_text(encoding="utf-8"))
     out_dir.mkdir(parents=True, exist_ok=False)
-    repos_dir = out_dir / "repositories"
-    oracles_dir = out_dir / "oracles"
-    oracle_sources = out_dir / ".oracle-sources"
+    repositories: dict[tuple[str, str], Path] = {}
     receipts = []
-    repo_paths: dict[tuple[str, str], Path] = {}
-    all_overlays: dict[str, list[dict[str, str]]] = {}
+    overlays = {}
+    oracle_root = out_dir / ".oracle-sources"
     for repo in blueprint["repositories"]:
-        clean = repos_dir / f"{repo['id']}-clean"
-        negative = repos_dir / f"{repo['id']}-negative"
+        clean = out_dir / "repositories" / f"{repo['id']}-clean"
+        exact = out_dir / "repositories" / f"{repo['id']}-exact"
         receipts.append(clone_snapshot(repo, clean, remote_only, "clean"))
-        receipts.append(clone_snapshot(repo, negative, remote_only, "negative", clean))
-        repo_paths[(repo["id"], "clean")] = clean
-        repo_paths[(repo["id"], "negative")] = negative
-        source = oracle_source(repo, remote_only, oracle_sources)
-        all_overlays.update(extract_oracles(repo, blueprint["tasks"], source, oracles_dir))
-    if oracle_sources.exists():
-        shutil.rmtree(oracle_sources)
+        receipts.append(clone_snapshot(repo, exact, remote_only, "exact", clean))
+        repositories[(repo["id"], "clean")] = clean
+        repositories[(repo["id"], "exact")] = exact
+        source = oracle_source(repo, remote_only, oracle_root)
+        overlays.update(extract_overlays(repo, blueprint["tasks"], source, out_dir / "oracles"))
+    if oracle_root.exists():
+        shutil.rmtree(oracle_root)
     spec = {"kind": "codemap_flagship_verification_spec", "version": 1, "tasks": {}}
-    spec_path = out_dir / "verification-spec.json"
     for task in blueprint["tasks"]:
-        variant = "negative" if task["task_class"] == "negative_control" else "clean"
-        actions = replace_overlays(task["criteria"], all_overlays[task["id"]])
+        variant = "exact" if task["task_class"] == "exact_control" else "clean"
+        actions = replace_overlays(task["criteria"], overlays[task["id"]])
         actions["provenance"] = {
             "kind": "git_head",
             "commit": next(
@@ -192,50 +198,71 @@ def materialize(blueprint_path: Path, out_dir: Path, remote_only: bool) -> Path:
                 for row in receipts
                 if row["repo_id"] == task["repo_id"] and row["variant"] == variant
             ),
+            "category": "provenance",
+            "weight": 1,
+            "required": True,
         }
         spec["tasks"][task["id"]] = actions
+    spec_path = out_dir / "verification-spec.json"
     spec_path.write_text(json.dumps(spec, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     artifacts = [str(VERIFY.resolve()), str(spec_path.resolve())]
-    artifacts.extend(row["source"] for rows in all_overlays.values() for row in rows)
+    artifacts.extend(row["source"] for rows in overlays.values() for row in rows)
     artifacts.extend(
         str((blueprint_path.parent / path).resolve())
         for path in blueprint.get("verifier_artifacts", [])
     )
-    tasks_path = out_dir / "tasks.jsonl"
     task_rows = []
     for task in blueprint["tasks"]:
-        variant = "negative" if task["task_class"] == "negative_control" else "clean"
-        criteria = list(spec["tasks"][task["id"]])
+        task_class = task["task_class"]
+        variant = "exact" if task_class == "exact_control" else "clean"
         meta = {
             "repo_id": task["repo_id"],
             "repo_variant": variant,
             "ecosystem": task["ecosystem"],
-            "task_class": task["task_class"],
-            "split": task["split"],
-            "ordinal_criteria": task.get("ordinal_criteria", []),
-            "exception_criteria": task.get("exception_criteria", []),
+            "task_class": task_class,
             "verifier_artifacts": sorted(set(artifacts)),
         }
-        if task["task_class"] == "negative_control":
-            meta.update({"expected_same_outcome": True, "allowed_exact_entries": task["allowed_exact_entries"]})
+        if task_class == "exact_control":
+            meta["allowed_exact_entries"] = task["allowed_exact_entries"]
         task_rows.append(
             {
                 "id": task["id"],
-                "mode": "analysis" if task["task_class"] == "analysis" else "implementation",
-                "repo": str(repo_paths[(task["repo_id"], variant)].resolve()),
+                "mode": "analysis" if task_class == "investigation" else "implementation",
+                "repo": str(repositories[(task["repo_id"], variant)].resolve()),
                 "base_ref": "HEAD",
                 "prompt": task["prompt"],
-                "verify": [verifier_row(spec_path.resolve(), task, name) for name in criteria],
+                "verify": [
+                    verifier_row(spec_path.resolve(), task, name)
+                    for name in spec["tasks"][task["id"]]
+                ],
                 "protected_paths": task.get("protected_paths", []),
                 "benchmark": meta,
             }
         )
-    tasks_path.write_text("\n".join(json.dumps(row, sort_keys=True) for row in task_rows) + "\n")
-    draft = {**blueprint["experiment"], "kind": "codemap_flagship_corpus", "version": 1, "tasks_file": str(tasks_path.resolve())}
+    tasks_path = out_dir / "tasks.jsonl"
+    tasks_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in task_rows) + "\n",
+        encoding="utf-8",
+    )
+    draft = {
+        **blueprint["experiment"],
+        "kind": "codemap_flagship_corpus",
+        "version": 1,
+        "tasks_file": str(tasks_path.resolve()),
+    }
     draft_path = out_dir / "corpus-draft.json"
-    draft_path.write_text(json.dumps(draft, indent=2, sort_keys=True) + "\n")
-    receipt = {"kind": "codemap_flagship_materialization", "version": 1, "blueprint_sha256": sha256(blueprint_path), "repositories": receipts, "tasks_sha256": sha256(tasks_path), "spec_sha256": sha256(spec_path)}
-    (out_dir / "materialization-receipt.json").write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
+    draft_path.write_text(json.dumps(draft, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    receipt = {
+        "kind": "codemap_flagship_materialization",
+        "version": 1,
+        "blueprint_sha256": sha256(blueprint_path),
+        "repositories": receipts,
+        "tasks_sha256": sha256(tasks_path),
+        "spec_sha256": sha256(spec_path),
+    }
+    (out_dir / "materialization-receipt.json").write_text(
+        json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     return draft_path
 
 
@@ -246,8 +273,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--remote-only", action="store_true")
     args = parser.parse_args(argv)
     try:
-        output = materialize(Path(args.blueprint).resolve(), Path(args.out_dir).resolve(), args.remote_only)
-        print(output)
+        print(materialize(Path(args.blueprint).resolve(), Path(args.out_dir).resolve(), args.remote_only))
         return 0
     except (OSError, ValueError, KeyError, json.JSONDecodeError, subprocess.TimeoutExpired) as exc:
         print(f"codemap flagship materializer: {exc}", file=sys.stderr)

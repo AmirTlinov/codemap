@@ -277,6 +277,8 @@ def codemap_protocol(
     ]
     ordered_daily = bool(
         first
+        and len(changed_calls) == 1
+        and len(proof_changed_calls) == 1
         and any(
             first[0] < changed_call < proof_call
             for changed_call in changed_calls

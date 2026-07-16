@@ -1,973 +1,158 @@
 {
-  "kind": "codemap_flagship_corpus_blueprint",
-  "version": 1,
-  "repositories": [
-    {
-      "id": "codemap",
-      "ecosystem": "rust",
-      "source": "/Users/amir/Documents/projects/tools/cli/codemap",
-      "remote": "https://github.com/AmirTlinov/codemap.git",
-      "base": "7028642a8b5bcc937a3fed13b4c3e97f5e38e970",
-      "negative_mutations": [
-        {
-          "path": "README.md",
-          "before": "Read-only project x-ray for AI coding agents.",
-          "after": "Read only project x-ray for AI coding agents."
-        }
-      ]
-    },
-    {
-      "id": "main-cluster",
-      "ecosystem": "typescript",
-      "source": "/Users/amir/Documents/projects/main_cluster",
-      "remote": "https://github.com/AmirTlinov/Main_Cluster.git",
-      "base": "0a502f91ca04f318db7b5ceb2a92c439fec569bc",
-      "negative_mutations": [
-        {
-          "path": "README.md",
-          "before": "GitOps delivery rails.",
-          "after": "GitOps delivery rail."
-        }
-      ]
-    },
-    {
-      "id": "pabg",
-      "ecosystem": "typescript",
-      "source": "/Users/amir/Documents/projects/PABG",
-      "remote": "https://github.com/AmirTlinov/PABG.git",
-      "base": "c0ec4a24dfb787250d5cc8193f16ce0b52c9e06e",
-      "negative_mutations": [
-        {
-          "path": "README.md",
-          "before": "настоящий in-memory `platform-api`",
-          "after": "настоящий in memory `platform-api`"
-        }
-      ]
-    },
-    {
-      "id": "browser",
-      "ecosystem": "python",
-      "source": "/Users/amir/Documents/projects/MCP/browser",
-      "remote": "https://github.com/AmirTlinov/browser",
-      "base": "f60dc7ccf3e6e98748709f03965e1c4ceb635e45",
-      "negative_mutations": [
-        {
-          "path": "README.md",
-          "before": "controlled, real-browser",
-          "after": "controlled, real browser"
-        }
-      ]
-    },
-    {
-      "id": "openslop",
-      "ecosystem": "swift",
-      "source": "/Users/amir/Documents/projects/OpenSlop",
-      "remote": "https://github.com/AmirTlinov/OpenSlop.git",
-      "base": "ca6604de0b6862607ee620bedd1bddc094de19a5",
-      "negative_mutations": [
-        {
-          "path": "README.md",
-          "before": "первый load-bearing слой",
-          "after": "первый load bearing слой"
-        }
-      ]
-    },
-    {
-      "id": "ratio",
-      "ecosystem": "rust",
-      "source": "/Users/amir/Desktop/RatioTissueDB",
-      "remote": "https://github.com/AmirTlinov/RatioTissueDB.git",
-      "base": "a2f6fcf64caae30390d901141b49494e6bc9eb01",
-      "negative_mutations": [
-        {
-          "path": "README.md",
-          "before": "проект mmap-базы поиска",
-          "after": "проект mmap базы поиска"
-        }
-      ]
-    }
-  ],
-  "verifier_artifacts": [
-    "browser_focused_clipboard_test.js"
-  ],
   "experiment": {
-    "model": "gpt-5.6-sol",
-    "reasoning_effort": "high",
-    "repetitions": 3,
-    "parallel_pairs": 4,
-    "timeout_seconds": 1800,
-    "verifier_timeout_seconds": 1200,
-    "bootstrap_iterations": 50000,
-    "bootstrap_seed": 20260715,
-    "pair_order": "split_task_index_plus_repetition_v1",
-    "allowed_exclusions": [
-      "codex_crash",
-      "codex_timeout",
-      "missing_arm",
-      "preflight_no_gap",
-      "protocol_violation",
-      "provenance_mismatch",
-      "verifier_infrastructure_failure"
-    ],
     "acceptance": {
-      "primary_alpha": 0.05,
-      "min_task_win_rate": 0.6,
-      "max_complex_time_overhead": 0.2,
       "max_complex_input_overhead": 0.15,
-      "max_negative_overhead": 0.1,
-      "min_agreement_alpha": 0.67,
-      "allow_completeness_exception": true
+      "max_complex_time_overhead": 0.2,
+      "max_exact_overhead": 0.1,
+      "min_complex_wins": 8
     },
-    "judging": {
-      "assignment_seed": 151501,
-      "manual_audit_seed": 151503,
-      "manual_audit_sample_size": 6,
-      "judges_per_candidate": 2,
-      "blind_adjudication": true,
-      "model": "gpt-5.6-sol",
-      "reasoning_effort": "high",
+    "limits": {
+      "infrastructure_retries": 1,
+      "parallel_pairs": 4,
+      "repetitions": 2,
       "timeout_seconds": 1800,
-      "parallel_jobs": 4
-    }
-  },
-  "tasks": [
-    {
-      "id": "codemap-system-analysis",
-      "repo_id": "codemap",
-      "ecosystem": "rust",
-      "task_class": "analysis",
-      "split": "calibration",
-      "prompt": "Analyze the frozen codemap repository as an unfamiliar structural-navigation CLI. Identify 8-12 consequential correctness, completeness, cache/provenance, agent-protocol, or release risks supported at this commit. Cover CLI, map extraction, cache, schemas, tests, and documentation. For every finding distinguish defect from risk, give a multi-file causal chain with exact path:line citations, affected behavior, and the existing or missing verification that would expose it. Include at least three cross-owner chains and finish with the three systemic patterns. Use repository evidence only, do not modify files, and write the report in English. This is evidence analysis only: apart from codemap in the treatment arm, use read-only repository-file and VCS inspection; do not run builds, tests, package installs, hooks, or network commands.",
-      "criteria": {
-        "required": {
-          "kind": "analysis",
-          "min_characters": 2500,
-          "min_citations": 12,
-          "min_paths": 9,
-          "min_surfaces": 3
-        },
-        "provenance": {
-          "kind": "analysis",
-          "min_characters": 2500,
-          "min_citations": 12,
-          "min_paths": 9,
-          "min_surfaces": 3,
-          "max_invalid": 2
-        }
-      },
-      "ordinal_criteria": [
-        {
-          "id": "evidence_accuracy",
-          "category": "provenance",
-          "weight": 3,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score 0=no checkable support, 1=mostly vague or materially wrong, 2=mixed support, 3=well supported with minor defects, 4=precise and citation-valid; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report claims checked against the frozen repository"
-        },
-        {
-          "id": "causal_coverage",
-          "category": "downstream",
-          "weight": 4,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score connected owner-to-consumer and failure chains: 0=none, 1=single local link, 2=partial chain, 3=multiple complete chains, 4=systemic coverage without padding; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report causal chains and affected consumers"
-        },
-        {
-          "id": "verification_specificity",
-          "category": "regression",
-          "weight": 2,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score whether named existing or missing checks would actually expose each claim: 0=absent, 1=generic, 2=partly executable, 3=specific, 4=specific and correctly owner-scoped; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report verification evidence"
-        }
-      ],
-      "exception_criteria": [
-        "causal_coverage"
-      ],
-      "protected_paths": [],
-      "verifier_timeout_seconds": 90
-    },
-    {
-      "id": "codemap-focused-analysis",
-      "repo_id": "codemap",
-      "ecosystem": "rust",
-      "task_class": "analysis",
-      "split": "holdout",
-      "prompt": "Trace the `proof changed` scenario from CLI parsing through proof planning, changed-scope selection, rendering, cache artifacts, schemas, and structural tests in this frozen codemap commit. Report every confirmed mismatch or plausible failure boundary you can support, including dynamic or unsupported horizons. Give 6-10 findings with exact path:line citations, symbol/config owners, affected consumers, and executable verification. Use only repository evidence, do not modify files, and write in English. This is evidence analysis only: apart from codemap in the treatment arm, use read-only repository-file and VCS inspection; do not run builds, tests, package installs, hooks, or network commands.",
-      "criteria": {
-        "required": {
-          "kind": "analysis",
-          "min_characters": 2000,
-          "min_citations": 9,
-          "min_paths": 7,
-          "min_surfaces": 2
-        },
-        "provenance": {
-          "kind": "analysis",
-          "min_characters": 2000,
-          "min_citations": 9,
-          "min_paths": 7,
-          "min_surfaces": 2,
-          "max_invalid": 2
-        }
-      },
-      "ordinal_criteria": [
-        {
-          "id": "evidence_accuracy",
-          "category": "provenance",
-          "weight": 3,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score 0=no checkable support, 1=mostly vague or materially wrong, 2=mixed support, 3=well supported with minor defects, 4=precise and citation-valid; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report claims checked against the frozen repository"
-        },
-        {
-          "id": "causal_coverage",
-          "category": "downstream",
-          "weight": 4,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score connected owner-to-consumer and failure chains: 0=none, 1=single local link, 2=partial chain, 3=multiple complete chains, 4=systemic coverage without padding; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report causal chains and affected consumers"
-        },
-        {
-          "id": "verification_specificity",
-          "category": "regression",
-          "weight": 2,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score whether named existing or missing checks would actually expose each claim: 0=absent, 1=generic, 2=partly executable, 3=specific, 4=specific and correctly owner-scoped; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report verification evidence"
-        }
-      ],
-      "exception_criteria": [
-        "causal_coverage"
-      ],
-      "protected_paths": [],
-      "verifier_timeout_seconds": 90
-    },
-    {
-      "id": "main-cluster-system-analysis",
-      "repo_id": "main-cluster",
-      "ecosystem": "typescript",
-      "task_class": "analysis",
-      "split": "calibration",
-      "prompt": "Analyze this frozen large production monorepo as an unfamiliar connected system. Identify 8-12 consequential architecture, contract, data, deployment, verification, or release risks. Cover at least four owner surfaces among apps, shared packages, CI/release, deployment, data/contracts, and runbooks. Each finding needs defect-versus-risk, a causal chain, exact path:line citations, affected consumers, and verification. Include at least three cross-boundary chains and finish with systemic patterns. No network or live infrastructure; do not modify files; write in English. This is evidence analysis only: apart from codemap in the treatment arm, use read-only repository-file and VCS inspection; do not run builds, tests, package installs, hooks, or network commands.",
-      "criteria": {
-        "required": {
-          "kind": "analysis",
-          "min_characters": 2500,
-          "min_citations": 12,
-          "min_paths": 9,
-          "min_surfaces": 3
-        },
-        "provenance": {
-          "kind": "analysis",
-          "min_characters": 2500,
-          "min_citations": 12,
-          "min_paths": 9,
-          "min_surfaces": 3,
-          "max_invalid": 2
-        }
-      },
-      "ordinal_criteria": [
-        {
-          "id": "evidence_accuracy",
-          "category": "provenance",
-          "weight": 3,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score 0=no checkable support, 1=mostly vague or materially wrong, 2=mixed support, 3=well supported with minor defects, 4=precise and citation-valid; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report claims checked against the frozen repository"
-        },
-        {
-          "id": "causal_coverage",
-          "category": "downstream",
-          "weight": 4,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score connected owner-to-consumer and failure chains: 0=none, 1=single local link, 2=partial chain, 3=multiple complete chains, 4=systemic coverage without padding; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report causal chains and affected consumers"
-        },
-        {
-          "id": "verification_specificity",
-          "category": "regression",
-          "weight": 2,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score whether named existing or missing checks would actually expose each claim: 0=absent, 1=generic, 2=partly executable, 3=specific, 4=specific and correctly owner-scoped; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report verification evidence"
-        }
-      ],
-      "exception_criteria": [
-        "causal_coverage"
-      ],
-      "protected_paths": [],
-      "verifier_timeout_seconds": 90
-    },
-    {
-      "id": "main-cluster-focused-analysis",
-      "repo_id": "main-cluster",
-      "ecosystem": "typescript",
-      "task_class": "analysis",
-      "split": "holdout",
-      "prompt": "Trace `.github/workflows/release-prod.yml` and the release path it owns through reusable workflows/scripts, image identity, GitOps manifests, deployment health, rollback, and receipt/runbook surfaces. Identify 6-10 confirmed mismatches or plausible failure boundaries with exact path:line citations and the check that would expose each. Follow consumers across packages and deployment rather than summarizing one YAML file. Do not modify files and write in English. This is evidence analysis only: apart from codemap in the treatment arm, use read-only repository-file and VCS inspection; do not run builds, tests, package installs, hooks, or network commands.",
-      "criteria": {
-        "required": {
-          "kind": "analysis",
-          "min_characters": 2000,
-          "min_citations": 9,
-          "min_paths": 7,
-          "min_surfaces": 2
-        },
-        "provenance": {
-          "kind": "analysis",
-          "min_characters": 2000,
-          "min_citations": 9,
-          "min_paths": 7,
-          "min_surfaces": 2,
-          "max_invalid": 2
-        }
-      },
-      "ordinal_criteria": [
-        {
-          "id": "evidence_accuracy",
-          "category": "provenance",
-          "weight": 3,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score 0=no checkable support, 1=mostly vague or materially wrong, 2=mixed support, 3=well supported with minor defects, 4=precise and citation-valid; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report claims checked against the frozen repository"
-        },
-        {
-          "id": "causal_coverage",
-          "category": "downstream",
-          "weight": 4,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score connected owner-to-consumer and failure chains: 0=none, 1=single local link, 2=partial chain, 3=multiple complete chains, 4=systemic coverage without padding; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report causal chains and affected consumers"
-        },
-        {
-          "id": "verification_specificity",
-          "category": "regression",
-          "weight": 2,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score whether named existing or missing checks would actually expose each claim: 0=absent, 1=generic, 2=partly executable, 3=specific, 4=specific and correctly owner-scoped; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report verification evidence"
-        }
-      ],
-      "exception_criteria": [
-        "causal_coverage"
-      ],
-      "protected_paths": [],
-      "verifier_timeout_seconds": 90
-    },
-    {
-      "id": "pabg-system-analysis",
-      "repo_id": "pabg",
-      "ecosystem": "typescript",
-      "task_class": "analysis",
-      "split": "calibration",
-      "prompt": "Analyze this frozen PABG monorepo as an unfamiliar game system. Identify 8-12 consequential runtime, protocol, replay, data-authority, web/ws integration, verification, or release risks. Connect Rust, TypeScript, Python, schemas/contracts, and tests where evidence supports it. Each finding needs defect-versus-risk, exact path:line evidence, causal consumers/failure mode, and owner-scoped verification. Include three cross-language chains. Do not modify files and write in English. This is evidence analysis only: apart from codemap in the treatment arm, use read-only repository-file and VCS inspection; do not run builds, tests, package installs, hooks, or network commands.",
-      "criteria": {
-        "required": {
-          "kind": "analysis",
-          "min_characters": 2500,
-          "min_citations": 12,
-          "min_paths": 9,
-          "min_surfaces": 3
-        },
-        "provenance": {
-          "kind": "analysis",
-          "min_characters": 2500,
-          "min_citations": 12,
-          "min_paths": 9,
-          "min_surfaces": 3,
-          "max_invalid": 2
-        }
-      },
-      "ordinal_criteria": [
-        {
-          "id": "evidence_accuracy",
-          "category": "provenance",
-          "weight": 3,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score 0=no checkable support, 1=mostly vague or materially wrong, 2=mixed support, 3=well supported with minor defects, 4=precise and citation-valid; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report claims checked against the frozen repository"
-        },
-        {
-          "id": "causal_coverage",
-          "category": "downstream",
-          "weight": 4,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score connected owner-to-consumer and failure chains: 0=none, 1=single local link, 2=partial chain, 3=multiple complete chains, 4=systemic coverage without padding; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report causal chains and affected consumers"
-        },
-        {
-          "id": "verification_specificity",
-          "category": "regression",
-          "weight": 2,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score whether named existing or missing checks would actually expose each claim: 0=absent, 1=generic, 2=partly executable, 3=specific, 4=specific and correctly owner-scoped; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report verification evidence"
-        }
-      ],
-      "exception_criteria": [
-        "causal_coverage"
-      ],
-      "protected_paths": [],
-      "verifier_timeout_seconds": 90
-    },
-    {
-      "id": "pabg-focused-analysis",
-      "repo_id": "pabg",
-      "ecosystem": "typescript",
-      "task_class": "analysis",
-      "split": "holdout",
-      "prompt": "Trace the replay lifecycle from `crates/sim-core` through replay-format/compiler, platform-api, schemas, and the web Chronicle renderer. Identify 6-10 confirmed mismatches or open failure boundaries with exact path:line citations, symbols/config keys, affected consumers, and checks. Distinguish static proof from dynamic unknowns. Do not modify files and write in English. This is evidence analysis only: apart from codemap in the treatment arm, use read-only repository-file and VCS inspection; do not run builds, tests, package installs, hooks, or network commands.",
-      "criteria": {
-        "required": {
-          "kind": "analysis",
-          "min_characters": 2000,
-          "min_citations": 9,
-          "min_paths": 7,
-          "min_surfaces": 2
-        },
-        "provenance": {
-          "kind": "analysis",
-          "min_characters": 2000,
-          "min_citations": 9,
-          "min_paths": 7,
-          "min_surfaces": 2,
-          "max_invalid": 2
-        }
-      },
-      "ordinal_criteria": [
-        {
-          "id": "evidence_accuracy",
-          "category": "provenance",
-          "weight": 3,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score 0=no checkable support, 1=mostly vague or materially wrong, 2=mixed support, 3=well supported with minor defects, 4=precise and citation-valid; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report claims checked against the frozen repository"
-        },
-        {
-          "id": "causal_coverage",
-          "category": "downstream",
-          "weight": 4,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score connected owner-to-consumer and failure chains: 0=none, 1=single local link, 2=partial chain, 3=multiple complete chains, 4=systemic coverage without padding; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report causal chains and affected consumers"
-        },
-        {
-          "id": "verification_specificity",
-          "category": "regression",
-          "weight": 2,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score whether named existing or missing checks would actually expose each claim: 0=absent, 1=generic, 2=partly executable, 3=specific, 4=specific and correctly owner-scoped; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report verification evidence"
-        }
-      ],
-      "exception_criteria": [
-        "causal_coverage"
-      ],
-      "protected_paths": [],
-      "verifier_timeout_seconds": 90
-    },
-    {
-      "id": "browser-system-analysis",
-      "repo_id": "browser",
-      "ecosystem": "python",
-      "task_class": "analysis",
-      "split": "calibration",
-      "prompt": "Analyze this frozen Browser MCP repository as an unfamiliar browser-control system. Identify 8-12 consequential protocol, extension/native-host, clipboard/canvas, state, security, verification, or packaging risks. Each finding needs defect-versus-risk, exact path:line citations, a connected causal chain, affected callers, and the test or witness that would expose it. Cover server, contracts, extension/vendor, tests, and docs. Do not modify files and write in English. This is evidence analysis only: apart from codemap in the treatment arm, use read-only repository-file and VCS inspection; do not run builds, tests, package installs, hooks, or network commands.",
-      "criteria": {
-        "required": {
-          "kind": "analysis",
-          "min_characters": 2500,
-          "min_citations": 12,
-          "min_paths": 9,
-          "min_surfaces": 3
-        },
-        "provenance": {
-          "kind": "analysis",
-          "min_characters": 2500,
-          "min_citations": 12,
-          "min_paths": 9,
-          "min_surfaces": 3,
-          "max_invalid": 2
-        }
-      },
-      "ordinal_criteria": [
-        {
-          "id": "evidence_accuracy",
-          "category": "provenance",
-          "weight": 3,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score 0=no checkable support, 1=mostly vague or materially wrong, 2=mixed support, 3=well supported with minor defects, 4=precise and citation-valid; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report claims checked against the frozen repository"
-        },
-        {
-          "id": "causal_coverage",
-          "category": "downstream",
-          "weight": 4,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score connected owner-to-consumer and failure chains: 0=none, 1=single local link, 2=partial chain, 3=multiple complete chains, 4=systemic coverage without padding; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report causal chains and affected consumers"
-        },
-        {
-          "id": "verification_specificity",
-          "category": "regression",
-          "weight": 2,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score whether named existing or missing checks would actually expose each claim: 0=absent, 1=generic, 2=partly executable, 3=specific, 4=specific and correctly owner-scoped; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report verification evidence"
-        }
-      ],
-      "exception_criteria": [
-        "causal_coverage"
-      ],
-      "protected_paths": [],
-      "verifier_timeout_seconds": 90
-    },
-    {
-      "id": "browser-focused-analysis",
-      "repo_id": "browser",
-      "ecosystem": "python",
-      "task_class": "analysis",
-      "split": "holdout",
-      "prompt": "Trace the public app insertion/paste operation from MCP tool schema and handler through adapter selection, universal insert/drop/clipboard flows, extension RPC, and receipt/error surfaces. Identify 6-10 confirmed mismatches or plausible failure boundaries with exact path:line citations and executable verification. Include focus, no-op, fallback, and provenance behavior. Do not modify files and write in English. This is evidence analysis only: apart from codemap in the treatment arm, use read-only repository-file and VCS inspection; do not run builds, tests, package installs, hooks, or network commands.",
-      "criteria": {
-        "required": {
-          "kind": "analysis",
-          "min_characters": 2000,
-          "min_citations": 9,
-          "min_paths": 7,
-          "min_surfaces": 2
-        },
-        "provenance": {
-          "kind": "analysis",
-          "min_characters": 2000,
-          "min_citations": 9,
-          "min_paths": 7,
-          "min_surfaces": 2,
-          "max_invalid": 2
-        }
-      },
-      "ordinal_criteria": [
-        {
-          "id": "evidence_accuracy",
-          "category": "provenance",
-          "weight": 3,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score 0=no checkable support, 1=mostly vague or materially wrong, 2=mixed support, 3=well supported with minor defects, 4=precise and citation-valid; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report claims checked against the frozen repository"
-        },
-        {
-          "id": "causal_coverage",
-          "category": "downstream",
-          "weight": 4,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score connected owner-to-consumer and failure chains: 0=none, 1=single local link, 2=partial chain, 3=multiple complete chains, 4=systemic coverage without padding; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report causal chains and affected consumers"
-        },
-        {
-          "id": "verification_specificity",
-          "category": "regression",
-          "weight": 2,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score whether named existing or missing checks would actually expose each claim: 0=absent, 1=generic, 2=partly executable, 3=specific, 4=specific and correctly owner-scoped; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report verification evidence"
-        }
-      ],
-      "exception_criteria": [
-        "causal_coverage"
-      ],
-      "protected_paths": [],
-      "verifier_timeout_seconds": 90
-    },
-    {
-      "id": "openslop-system-analysis",
-      "repo_id": "openslop",
-      "ecosystem": "swift",
-      "task_class": "analysis",
-      "split": "calibration",
-      "prompt": "Analyze this frozen OpenSlop workbench repository as an unfamiliar Swift/Rust/Node system. Identify 8-12 consequential daemon transport, session/provider, macOS state/UI, contract, verification, or roadmap-to-runtime risks. Each finding needs defect-versus-risk, exact path:line citations, a cross-owner causal chain, affected behavior, and an executable proof. Cover at least four owner surfaces and three cross-language chains. Do not modify files and write in English. This is evidence analysis only: apart from codemap in the treatment arm, use read-only repository-file and VCS inspection; do not run builds, tests, package installs, hooks, or network commands.",
-      "criteria": {
-        "required": {
-          "kind": "analysis",
-          "min_characters": 2500,
-          "min_citations": 12,
-          "min_paths": 9,
-          "min_surfaces": 3
-        },
-        "provenance": {
-          "kind": "analysis",
-          "min_characters": 2500,
-          "min_citations": 12,
-          "min_paths": 9,
-          "min_surfaces": 3,
-          "max_invalid": 2
-        }
-      },
-      "ordinal_criteria": [
-        {
-          "id": "evidence_accuracy",
-          "category": "provenance",
-          "weight": 3,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score 0=no checkable support, 1=mostly vague or materially wrong, 2=mixed support, 3=well supported with minor defects, 4=precise and citation-valid; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report claims checked against the frozen repository"
-        },
-        {
-          "id": "causal_coverage",
-          "category": "downstream",
-          "weight": 4,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score connected owner-to-consumer and failure chains: 0=none, 1=single local link, 2=partial chain, 3=multiple complete chains, 4=systemic coverage without padding; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report causal chains and affected consumers"
-        },
-        {
-          "id": "verification_specificity",
-          "category": "regression",
-          "weight": 2,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score whether named existing or missing checks would actually expose each claim: 0=absent, 1=generic, 2=partly executable, 3=specific, 4=specific and correctly owner-scoped; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report verification evidence"
-        }
-      ],
-      "exception_criteria": [
-        "causal_coverage"
-      ],
-      "protected_paths": [],
-      "verifier_timeout_seconds": 90
-    },
-    {
-      "id": "openslop-focused-analysis",
-      "repo_id": "openslop",
-      "ecosystem": "swift",
-      "task_class": "analysis",
-      "split": "holdout",
-      "prompt": "Trace `--submit-codex-turn` from core-daemon CLI and stdio dispatch through session/provider storage and transcript events into the Swift Workbench client and UI. Identify 6-10 confirmed mismatches or plausible failure boundaries with exact path:line citations, affected consumers, and runnable verification. Do not modify files and write in English. This is evidence analysis only: apart from codemap in the treatment arm, use read-only repository-file and VCS inspection; do not run builds, tests, package installs, hooks, or network commands.",
-      "criteria": {
-        "required": {
-          "kind": "analysis",
-          "min_characters": 2000,
-          "min_citations": 9,
-          "min_paths": 7,
-          "min_surfaces": 2
-        },
-        "provenance": {
-          "kind": "analysis",
-          "min_characters": 2000,
-          "min_citations": 9,
-          "min_paths": 7,
-          "min_surfaces": 2,
-          "max_invalid": 2
-        }
-      },
-      "ordinal_criteria": [
-        {
-          "id": "evidence_accuracy",
-          "category": "provenance",
-          "weight": 3,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score 0=no checkable support, 1=mostly vague or materially wrong, 2=mixed support, 3=well supported with minor defects, 4=precise and citation-valid; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report claims checked against the frozen repository"
-        },
-        {
-          "id": "causal_coverage",
-          "category": "downstream",
-          "weight": 4,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score connected owner-to-consumer and failure chains: 0=none, 1=single local link, 2=partial chain, 3=multiple complete chains, 4=systemic coverage without padding; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report causal chains and affected consumers"
-        },
-        {
-          "id": "verification_specificity",
-          "category": "regression",
-          "weight": 2,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score whether named existing or missing checks would actually expose each claim: 0=absent, 1=generic, 2=partly executable, 3=specific, 4=specific and correctly owner-scoped; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report verification evidence"
-        }
-      ],
-      "exception_criteria": [
-        "causal_coverage"
-      ],
-      "protected_paths": [],
-      "verifier_timeout_seconds": 90
-    },
-    {
-      "id": "ratio-system-analysis",
-      "repo_id": "ratio",
-      "ecosystem": "rust",
-      "task_class": "analysis",
-      "split": "calibration",
-      "prompt": "Analyze this frozen RatioTissueDB repository as an unfamiliar Rust/Metal causal storage and continuation system. Identify 8-12 consequential storage, mmap/WAL, search, actionwave/world-return, CLI, verification, or portability risks. Each finding needs defect-versus-risk, exact path:line citations, a connected causal chain, affected behavior, and a concrete test. Include at least three storage-to-runtime or CLI-to-tissue chains. Do not modify files and write in English. This is evidence analysis only: apart from codemap in the treatment arm, use read-only repository-file and VCS inspection; do not run builds, tests, package installs, hooks, or network commands.",
-      "criteria": {
-        "required": {
-          "kind": "analysis",
-          "min_characters": 2500,
-          "min_citations": 12,
-          "min_paths": 9,
-          "min_surfaces": 3
-        },
-        "provenance": {
-          "kind": "analysis",
-          "min_characters": 2500,
-          "min_citations": 12,
-          "min_paths": 9,
-          "min_surfaces": 3,
-          "max_invalid": 2
-        }
-      },
-      "ordinal_criteria": [
-        {
-          "id": "evidence_accuracy",
-          "category": "provenance",
-          "weight": 3,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score 0=no checkable support, 1=mostly vague or materially wrong, 2=mixed support, 3=well supported with minor defects, 4=precise and citation-valid; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report claims checked against the frozen repository"
-        },
-        {
-          "id": "causal_coverage",
-          "category": "downstream",
-          "weight": 4,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score connected owner-to-consumer and failure chains: 0=none, 1=single local link, 2=partial chain, 3=multiple complete chains, 4=systemic coverage without padding; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report causal chains and affected consumers"
-        },
-        {
-          "id": "verification_specificity",
-          "category": "regression",
-          "weight": 2,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score whether named existing or missing checks would actually expose each claim: 0=absent, 1=generic, 2=partly executable, 3=specific, 4=specific and correctly owner-scoped; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report verification evidence"
-        }
-      ],
-      "exception_criteria": [
-        "causal_coverage"
-      ],
-      "protected_paths": [],
-      "verifier_timeout_seconds": 90
-    },
-    {
-      "id": "ratio-focused-analysis",
-      "repo_id": "ratio",
-      "ecosystem": "rust",
-      "task_class": "analysis",
-      "split": "holdout",
-      "prompt": "Trace the `live` continuation command from CLI parsing through carrier ingestion, actionwave runtime, world return, conductance/storage mutation, receipts, and proof programs. Identify 6-10 confirmed mismatches or open causal boundaries with exact path:line citations and executable verification. Separate actual world-contact evidence from bookkeeping or self-report. Do not modify files and write in English. This is evidence analysis only: apart from codemap in the treatment arm, use read-only repository-file and VCS inspection; do not run builds, tests, package installs, hooks, or network commands.",
-      "criteria": {
-        "required": {
-          "kind": "analysis",
-          "min_characters": 2000,
-          "min_citations": 9,
-          "min_paths": 7,
-          "min_surfaces": 2
-        },
-        "provenance": {
-          "kind": "analysis",
-          "min_characters": 2000,
-          "min_citations": 9,
-          "min_paths": 7,
-          "min_surfaces": 2,
-          "max_invalid": 2
-        }
-      },
-      "ordinal_criteria": [
-        {
-          "id": "evidence_accuracy",
-          "category": "provenance",
-          "weight": 3,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score 0=no checkable support, 1=mostly vague or materially wrong, 2=mixed support, 3=well supported with minor defects, 4=precise and citation-valid; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report claims checked against the frozen repository"
-        },
-        {
-          "id": "causal_coverage",
-          "category": "downstream",
-          "weight": 4,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score connected owner-to-consumer and failure chains: 0=none, 1=single local link, 2=partial chain, 3=multiple complete chains, 4=systemic coverage without padding; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report causal chains and affected consumers"
-        },
-        {
-          "id": "verification_specificity",
-          "category": "regression",
-          "weight": 2,
-          "scoring": "ordinal",
-          "max_score": 4,
-          "judge_protocol": "Two independent blind judges score whether named existing or missing checks would actually expose each claim: 0=absent, 1=generic, 2=partly executable, 3=specific, 4=specific and correctly owner-scoped; disagreement is blindly adjudicated.",
-          "evidence_surface": "candidate report verification evidence"
-        }
-      ],
-      "exception_criteria": [
-        "causal_coverage"
-      ],
-      "protected_paths": [],
-      "verifier_timeout_seconds": 90
-    },
-    {
-      "id": "codemap-bounded-guard",
-      "repo_id": "codemap",
-      "ecosystem": "rust",
-      "task_class": "implementation",
-      "split": "calibration",
-      "prompt": "In `src/map/lenses/runtime/paths/classify.rs#middleware_or_guard_kind`, stop classifying an ordinary helper as a runtime guard merely because its name mentions CSRF. Preserve real guard, permission, authorization and authentication detection, and add regression proof using a CSRF observer called from a real guard. Do not weaken existing runtime-path behavior.",
-      "overlays": [
-        {
-          "commit": "c1b129632c5ed1698c057397770fc1de42c84d9e",
-          "path": "tests/structural_map/runtime_transform_paths.rs"
-        }
-      ],
-      "criteria": {
-        "required": {
-          "kind": "commands",
-          "commands": [
-            {
-              "argv": [
-                "cargo",
-                "test",
-                "--test",
-                "structural_map",
-                "runtime_path_carries_guard_service_projection_response_and_deployment_config",
-                "--",
-                "--exact"
-              ],
-              "timeout_seconds": 1200
-            }
-          ],
-          "overlays": "{task_overlays}"
-        },
-        "behavior": {
-          "kind": "files",
-          "not_contains": {
-            "src/map/lenses/runtime/paths/classify.rs": [
-              "lower.contains(\"csrf\")"
-            ]
-          }
-        },
-        "contract": {
-          "kind": "files",
-          "contains": {
-            "src/map/lenses/runtime/paths/classify.rs": [
-              "lower.contains(\"guard\")",
-              "lower.contains(\"permission\")",
-              "lower.contains(\"authorize\")"
-            ]
-          }
-        },
-        "downstream": {
-          "kind": "commands",
-          "commands": [
-            {
-              "argv": [
-                "cargo",
-                "test",
-                "--test",
-                "structural_map",
-                "runtime_path_carries_guard_service_projection_response_and_deployment_config",
-                "--",
-                "--exact"
-              ],
-              "timeout_seconds": 1200
-            }
-          ],
-          "overlays": "{task_overlays}"
-        },
-        "regression": {
-          "kind": "commands",
-          "commands": [
-            {
-              "argv": [
-                "cargo",
-                "test",
-                "--test",
-                "structural_map",
-                "express_middleware_arguments_keep_last_handler_and_explicit_guards",
-                "--",
-                "--exact"
-              ],
-              "timeout_seconds": 1200
-            }
-          ]
-        }
-      },
-      "exception_criteria": [
-        "behavior",
-        "downstream"
-      ],
-      "protected_paths": [
-        "tests"
-      ],
       "verifier_timeout_seconds": 1200
     },
+    "model": "gpt-5.6-sol",
+    "pair_order": "task_index_plus_repetition_v1",
+    "reasoning_effort": "high"
+  },
+  "kind": "codemap_flagship_blueprint",
+  "repositories": [
     {
-      "id": "codemap-response-projection",
-      "repo_id": "codemap",
+      "base": "7028642a8b5bcc937a3fed13b4c3e97f5e38e970",
       "ecosystem": "rust",
-      "task_class": "implementation",
-      "split": "holdout",
-      "prompt": "Correct false runtime transformation claims in `src/map/lenses/runtime/paths/classify.rs`: a CSRF observer name must not become a guard; response omission inference must attribute dotted fields only to the transform primary parameter, must not treat local variables as returned source fields, and must parse nested object/array/call expressions without splitting on inner commas or braces. Preserve exact external response-omission evidence and add regression coverage.",
-      "overlays": [
+      "exact_mutations": [
         {
-          "commit": "9b9217d236acd839b2a035c94de0413a2411a23f",
-          "path": "tests/structural_map/runtime_transform_paths.rs"
+          "after": "Read only project x-ray for AI coding agents.",
+          "before": "Read-only project x-ray for AI coding agents.",
+          "path": "README.md"
         }
       ],
+      "id": "codemap",
+      "remote": "https://github.com/AmirTlinov/codemap.git",
+      "source": "/Users/amir/Documents/projects/tools/cli/codemap"
+    },
+    {
+      "base": "0a502f91ca04f318db7b5ceb2a92c439fec569bc",
+      "ecosystem": "typescript",
+      "exact_mutations": [
+        {
+          "after": "GitOps delivery rail.",
+          "before": "GitOps delivery rails.",
+          "path": "README.md"
+        }
+      ],
+      "id": "main-cluster",
+      "remote": "https://github.com/AmirTlinov/Main_Cluster.git",
+      "source": "/Users/amir/Documents/projects/main_cluster"
+    },
+    {
+      "base": "c0ec4a24dfb787250d5cc8193f16ce0b52c9e06e",
+      "ecosystem": "typescript",
+      "exact_mutations": [
+        {
+          "after": "настоящий in memory `platform-api`",
+          "before": "настоящий in-memory `platform-api`",
+          "path": "README.md"
+        }
+      ],
+      "id": "pabg",
+      "remote": "https://github.com/AmirTlinov/PABG.git",
+      "source": "/Users/amir/Documents/projects/PABG"
+    },
+    {
+      "base": "f60dc7ccf3e6e98748709f03965e1c4ceb635e45",
+      "ecosystem": "python",
+      "exact_mutations": [
+        {
+          "after": "controlled, real browser",
+          "before": "controlled, real-browser",
+          "path": "README.md"
+        }
+      ],
+      "id": "browser",
+      "remote": "https://github.com/AmirTlinov/browser",
+      "source": "/Users/amir/Documents/projects/MCP/browser"
+    },
+    {
+      "base": "ca6604de0b6862607ee620bedd1bddc094de19a5",
+      "ecosystem": "swift",
+      "exact_mutations": [
+        {
+          "after": "первый load bearing слой",
+          "before": "первый load-bearing слой",
+          "path": "README.md"
+        }
+      ],
+      "id": "openslop",
+      "remote": "https://github.com/AmirTlinov/OpenSlop.git",
+      "source": "/Users/amir/Documents/projects/OpenSlop"
+    },
+    {
+      "base": "a2f6fcf64caae30390d901141b49494e6bc9eb01",
+      "ecosystem": "rust",
+      "exact_mutations": [
+        {
+          "after": "проект mmap базы поиска",
+          "before": "проект mmap-базы поиска",
+          "path": "README.md"
+        }
+      ],
+      "id": "ratio",
+      "remote": "https://github.com/AmirTlinov/RatioTissueDB.git",
+      "source": "/Users/amir/Desktop/RatioTissueDB"
+    }
+  ],
+  "tasks": [
+    {
       "criteria": {
-        "required": {
-          "kind": "commands",
-          "commands": [
-            {
-              "argv": [
-                "cargo",
-                "test",
-                "--test",
-                "structural_map",
-                "runtime_path_carries_guard_service_projection_response_and_deployment_config",
-                "--",
-                "--exact"
-              ],
-              "timeout_seconds": 1200
-            }
+        "fact-1": {
+          "facts": [
+            "src/cli/fast_paths/proof_changed.rs"
           ],
-          "overlays": "{task_overlays}"
+          "kind": "facts"
         },
+        "fact-2": {
+          "facts": [
+            "src/map/lenses/changed.rs"
+          ],
+          "kind": "facts"
+        },
+        "fact-3": {
+          "facts": [
+            "src/map/proof.rs"
+          ],
+          "kind": "facts"
+        },
+        "fact-4": {
+          "facts": [
+            "src/cache/lens_artifacts/changed_proof.rs"
+          ],
+          "kind": "facts"
+        },
+        "fact-5": {
+          "facts": [
+            "schemas/changed.schema.json"
+          ],
+          "kind": "facts"
+        },
+        "fact-6": {
+          "facts": [
+            "tests/structural_map/changed_lens.rs"
+          ],
+          "kind": "facts"
+        }
+      },
+      "ecosystem": "rust",
+      "id": "codemap-deterministic-investigation",
+      "prompt": "At the frozen commit, trace the proof-changed CLI fast path, changed lens, proof engine, changed-proof cache artifact, changed JSON schema, and primary structural test. Return one compact answer containing the exact repository-relative path for each of the six requested owners and a one-line connection between adjacent owners. Do not modify files. Do not substitute directories or prose descriptions for paths.",
+      "repo_id": "codemap",
+      "task_class": "investigation"
+    },
+    {
+      "criteria": {
         "behavior": {
-          "kind": "files",
           "contains": {
             "src/map/lenses/runtime/paths/classify.rs": [
               "primary_parameter_name",
@@ -975,7 +160,8 @@
               "matching_brace",
               "top_level_comma_segments"
             ]
-          }
+          },
+          "kind": "files"
         },
         "contract": {
           "kind": "files",
@@ -986,7 +172,6 @@
           }
         },
         "downstream": {
-          "kind": "commands",
           "commands": [
             {
               "argv": [
@@ -1001,10 +186,10 @@
               "timeout_seconds": 1200
             }
           ],
+          "kind": "commands",
           "overlays": "{task_overlays}"
         },
         "regression": {
-          "kind": "commands",
           "commands": [
             {
               "argv": [
@@ -1018,141 +203,126 @@
               ],
               "timeout_seconds": 1200
             }
-          ]
+          ],
+          "kind": "commands"
+        },
+        "required": {
+          "commands": [
+            {
+              "argv": [
+                "cargo",
+                "test",
+                "--test",
+                "structural_map",
+                "runtime_path_carries_guard_service_projection_response_and_deployment_config",
+                "--",
+                "--exact"
+              ],
+              "timeout_seconds": 1200
+            }
+          ],
+          "kind": "commands",
+          "overlays": "{task_overlays}"
         }
       },
-      "exception_criteria": [
-        "behavior",
-        "downstream"
+      "ecosystem": "rust",
+      "id": "codemap-response-projection",
+      "overlays": [
+        {
+          "commit": "9b9217d236acd839b2a035c94de0413a2411a23f",
+          "path": "tests/structural_map/runtime_transform_paths.rs"
+        }
       ],
+      "prompt": "Correct false runtime transformation claims in `src/map/lenses/runtime/paths/classify.rs`: a CSRF observer name must not become a guard; response omission inference must attribute dotted fields only to the transform primary parameter, must not treat local variables as returned source fields, and must parse nested object/array/call expressions without splitting on inner commas or braces. Preserve exact external response-omission evidence and add regression coverage.",
       "protected_paths": [
         "tests"
       ],
+      "repo_id": "codemap",
+      "task_class": "implementation",
       "verifier_timeout_seconds": 1200
     },
     {
-      "id": "main-monitoring-truth",
-      "repo_id": "main-cluster",
-      "ecosystem": "typescript",
-      "task_class": "implementation",
-      "split": "calibration",
-      "prompt": "Restore actionable alert truth across `scripts/ops/monitoring`: ensure the rendered monitoring state has one truthful Alertmanager route, the live smoke waits for the exact created issue before resolving it, duplicate or prematurely closed incidents fail, and repo verification owns these checks. Reconcile deployment manifests, scripts, Make targets, tests, and runbooks without weakening live failure semantics.",
-      "overlays": [
-        {
-          "commit": "377fad1d06bcca1dfaf08acb0b56a1043cd7cb7d",
-          "path": "scripts/ops/monitoring/check_signal_truth_test.py"
-        },
-        {
-          "commit": "377fad1d06bcca1dfaf08acb0b56a1043cd7cb7d",
-          "path": "scripts/ops/monitoring/run_alertmanager_smoke_test.py"
-        },
-        {
-          "commit": "377fad1d06bcca1dfaf08acb0b56a1043cd7cb7d",
-          "path": "scripts/ops/monitoring/validate_alert_issue_test.py"
-        }
+      "allowed_exact_entries": [
+        "ls README.md",
+        "cone README.md"
       ],
       "criteria": {
-        "required": {
-          "kind": "commands",
-          "commands": [
-            {
-              "argv": [
-                "python3",
-                "scripts/ops/monitoring/check_signal_truth_test.py"
-              ]
-            }
-          ],
-          "overlays": "{task_overlays}"
-        },
-        "behavior": {
-          "kind": "commands",
-          "commands": [
-            {
-              "argv": [
-                "python3",
-                "scripts/ops/monitoring/run_alertmanager_smoke_test.py"
-              ]
-            }
-          ],
-          "overlays": "{task_overlays}"
-        },
-        "contract": {
-          "kind": "commands",
-          "commands": [
-            {
-              "argv": [
-                "python3",
-                "scripts/ops/monitoring/validate_alert_issue_test.py"
-              ]
-            }
-          ],
-          "overlays": "{task_overlays}"
-        },
-        "downstream": {
-          "kind": "files",
+        "provenance": {
           "exists": [
-            "scripts/ops/monitoring/check-signal-truth.py"
+            "README.md"
           ],
+          "kind": "files"
+        },
+        "required": {
           "contains": {
-            "scripts/ops/monitoring/run-verify.sh": [
-              "check-signal-truth.py"
-            ],
-            "Makefile": [
-              "monitoring"
+            "README.md": [
+              "Read-only project x-ray for AI coding agents."
+            ]
+          },
+          "kind": "files",
+          "not_contains": {
+            "README.md": [
+              "Read only project x-ray for AI coding agents."
             ]
           }
-        },
-        "regression": {
-          "kind": "commands",
-          "commands": [
-            {
-              "argv": [
-                "python3",
-                "scripts/ops/ci/yaml_loader_test.py"
-              ]
-            }
-          ]
         }
       },
-      "exception_criteria": [
-        "behavior",
-        "downstream"
-      ],
-      "protected_paths": [
-        "scripts/ops/monitoring/check_signal_truth_test.py",
-        "scripts/ops/monitoring/run_alertmanager_smoke_test.py",
-        "scripts/ops/monitoring/validate_alert_issue_test.py"
-      ],
-      "verifier_timeout_seconds": 1200
+      "ecosystem": "rust",
+      "id": "codemap-readme-exact",
+      "prompt": "In `README.md`, restore the exact product phrase `Read-only project x-ray for AI coding agents.` by fixing only the missing hyphen in that sentence. Do not change behavior or any other wording. Begin by examining only README.md. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
+      "protected_paths": [],
+      "repo_id": "codemap",
+      "task_class": "exact_control",
+      "verifier_timeout_seconds": 60
     },
     {
-      "id": "main-postgres-backup",
-      "repo_id": "main-cluster",
-      "ecosystem": "typescript",
-      "task_class": "implementation",
-      "split": "holdout",
-      "prompt": "Restore a verified PostgreSQL backup owner under `deploy/k8s/base/backup`: a scheduled dump must upload to MinIO, read the object back, compare SHA-256 before success, run with pinned images and least privilege, expose only DNS/Postgres/MinIO network paths, be included by GitOps, emit a stale-backup alert, and have an operator runbook. Keep the existing deployment structure and YAML loader contract.",
-      "overlays": [
-        {
-          "commit": "b70afb56f9a72dc8cbfd82a3b51b5d5f98e3b1a5",
-          "path": "deploy/k8s/base/backup/postgres_backup_contract_test.py"
-        }
-      ],
       "criteria": {
-        "required": {
-          "kind": "commands",
-          "commands": [
-            {
-              "argv": [
-                "python3",
-                "deploy/k8s/base/backup/postgres_backup_contract_test.py"
-              ]
-            }
+        "fact-1": {
+          "facts": [
+            ".github/workflows/release-prod.yml"
           ],
-          "overlays": "{task_overlays}"
+          "kind": "facts"
         },
+        "fact-2": {
+          "facts": [
+            "scripts/ops/ci/release-main-compat.mjs"
+          ],
+          "kind": "facts"
+        },
+        "fact-3": {
+          "facts": [
+            "scripts/ops/ci/resolve-release-artifact.mjs"
+          ],
+          "kind": "facts"
+        },
+        "fact-4": {
+          "facts": [
+            "scripts/ops/gitops/release.mjs"
+          ],
+          "kind": "facts"
+        },
+        "fact-5": {
+          "facts": [
+            "scripts/ops/gitops/wait-for-app.sh"
+          ],
+          "kind": "facts"
+        },
+        "fact-6": {
+          "facts": [
+            "scripts/ops/k8s/apply-release-workloads.mjs"
+          ],
+          "kind": "facts"
+        }
+      },
+      "ecosystem": "typescript",
+      "id": "main-cluster-deterministic-investigation",
+      "prompt": "At the frozen commit, trace the release-prod workflow, compatibility check, artifact resolver, GitOps promoter, Argo wait script, and workload applier. Return one compact answer containing the exact repository-relative path for each of the six requested owners and a one-line connection between adjacent owners. Do not modify files. Do not substitute directories or prose descriptions for paths.",
+      "repo_id": "main-cluster",
+      "task_class": "investigation"
+    },
+    {
+      "criteria": {
         "behavior": {
-          "kind": "commands",
           "commands": [
             {
               "argv": [
@@ -1163,10 +333,10 @@
               ]
             }
           ],
+          "kind": "commands",
           "overlays": "{task_overlays}"
         },
         "contract": {
-          "kind": "commands",
           "commands": [
             {
               "argv": [
@@ -1177,10 +347,10 @@
               ]
             }
           ],
+          "kind": "commands",
           "overlays": "{task_overlays}"
         },
         "downstream": {
-          "kind": "commands",
           "commands": [
             {
               "argv": [
@@ -1191,10 +361,10 @@
               ]
             }
           ],
+          "kind": "commands",
           "overlays": "{task_overlays}"
         },
         "regression": {
-          "kind": "commands",
           "commands": [
             {
               "argv": [
@@ -1202,149 +372,189 @@
                 "scripts/ops/ci/yaml_loader_test.py"
               ]
             }
-          ]
+          ],
+          "kind": "commands"
+        },
+        "required": {
+          "commands": [
+            {
+              "argv": [
+                "python3",
+                "deploy/k8s/base/backup/postgres_backup_contract_test.py"
+              ]
+            }
+          ],
+          "kind": "commands",
+          "overlays": "{task_overlays}"
         }
       },
-      "exception_criteria": [
-        "behavior",
-        "downstream"
+      "ecosystem": "typescript",
+      "id": "main-postgres-backup",
+      "overlays": [
+        {
+          "commit": "b70afb56f9a72dc8cbfd82a3b51b5d5f98e3b1a5",
+          "path": "deploy/k8s/base/backup/postgres_backup_contract_test.py"
+        }
       ],
+      "prompt": "Restore a verified PostgreSQL backup owner under `deploy/k8s/base/backup`: a scheduled dump must upload to MinIO, read the object back, compare SHA-256 before success, run with pinned images and least privilege, expose only DNS/Postgres/MinIO network paths, be included by GitOps, emit a stale-backup alert, and have an operator runbook. Keep the existing deployment structure and YAML loader contract.",
       "protected_paths": [
         "deploy/k8s/base/backup/postgres_backup_contract_test.py"
       ],
+      "repo_id": "main-cluster",
+      "task_class": "implementation",
       "verifier_timeout_seconds": 1200
     },
     {
-      "id": "pabg-demo-barracks",
-      "repo_id": "pabg",
-      "ecosystem": "typescript",
-      "task_class": "implementation",
-      "split": "calibration",
-      "prompt": "Fix `apps/web/src/lib/platform-api.ts` so local demo mode renders the Barracks without a platform-api server. `getOwnerAgentWorkspaces` and the committed class catalog must return contract-shaped dev stubs without calling fetch, while connected/runtime modes keep their existing behavior. Add focused proof and preserve the existing barracks consumers.",
-      "overlays": [
-        {
-          "commit": "a83675216f8143245863b9e557d9b9d6e3cf6591",
-          "path": "apps/web/src/lib/platform-api.demo.test.ts"
-        }
+      "allowed_exact_entries": [
+        "ls README.md",
+        "cone README.md"
       ],
       "criteria": {
-        "required": {
-          "kind": "commands",
-          "commands": [
-            {
-              "argv": [
-                "pnpm",
-                "install",
-                "--frozen-lockfile",
-                "--ignore-scripts"
-              ],
-              "timeout_seconds": 1200
-            },
-            {
-              "argv": [
-                "pnpm",
-                "--filter",
-                "@pabg/web",
-                "exec",
-                "vitest",
-                "run",
-                "src/lib/platform-api.demo.test.ts"
-              ],
-              "timeout_seconds": 1200
-            }
+        "provenance": {
+          "exists": [
+            "README.md"
           ],
-          "overlays": "{task_overlays}"
+          "kind": "files"
         },
-        "behavior": {
-          "kind": "files",
+        "required": {
           "contains": {
-            "apps/web/src/lib/platform-api.ts": [
-              "getOwnerAgentWorkspaces",
-              "getClassCatalog",
-              "dev_stub"
+            "README.md": [
+              "GitOps delivery rails."
+            ]
+          },
+          "kind": "files",
+          "not_contains": {
+            "README.md": [
+              "GitOps delivery rail."
             ]
           }
+        }
+      },
+      "ecosystem": "typescript",
+      "id": "main-readme-exact",
+      "prompt": "In `README.md`, restore the exact opening phrase `GitOps delivery rails.` by fixing only the singular typo in that sentence. Do not change behavior or any other wording. Begin by examining only README.md. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
+      "protected_paths": [],
+      "repo_id": "main-cluster",
+      "task_class": "exact_control",
+      "verifier_timeout_seconds": 60
+    },
+    {
+      "criteria": {
+        "fact-1": {
+          "facts": [
+            "apps/web/src/app/(game)/town/chronicle/[match_id]/page.tsx"
+          ],
+          "kind": "facts"
         },
-        "contract": {
-          "kind": "commands",
+        "fact-2": {
+          "facts": [
+            "apps/web/src/lib/replay/loader.ts"
+          ],
+          "kind": "facts"
+        },
+        "fact-3": {
+          "facts": [
+            "apps/web/src/lib/replay/entry.ts"
+          ],
+          "kind": "facts"
+        },
+        "fact-4": {
+          "facts": [
+            "apps/web/src/lib/replay/world-authority.ts"
+          ],
+          "kind": "facts"
+        },
+        "fact-5": {
+          "facts": [
+            "apps/web/src/components/replay/ReplayMount.tsx"
+          ],
+          "kind": "facts"
+        },
+        "fact-6": {
+          "facts": [
+            "apps/web/src/lib/platform-api.ts"
+          ],
+          "kind": "facts"
+        }
+      },
+      "ecosystem": "typescript",
+      "id": "pabg-deterministic-investigation",
+      "prompt": "At the frozen commit, trace the Chronicle match route, replay loader, entry canonicalizer, world-authority owner, replay mount, and platform API. Return one compact answer containing the exact repository-relative path for each of the six requested owners and a one-line connection between adjacent owners. Do not modify files. Do not substitute directories or prose descriptions for paths.",
+      "repo_id": "pabg",
+      "task_class": "investigation"
+    },
+    {
+      "criteria": {
+        "behavior": {
           "commands": [
             {
               "argv": [
                 "pnpm",
                 "--filter",
-                "@pabg/web",
+                "@pabg/ws",
                 "exec",
                 "vitest",
                 "run",
-                "src/lib/platform-api.demo.test.ts",
+                "src/hub.test.ts",
                 "-t",
-                "class catalog"
+                "rate-limits a text flood"
               ],
               "timeout_seconds": 1200
             }
           ],
+          "kind": "commands",
+          "overlays": "{task_overlays}"
+        },
+        "contract": {
+          "commands": [
+            {
+              "argv": [
+                "pnpm",
+                "--filter",
+                "@pabg/ws",
+                "exec",
+                "vitest",
+                "run",
+                "src/protocol.test.ts",
+                "-t",
+                "text chat frames"
+              ],
+              "timeout_seconds": 1200
+            }
+          ],
+          "kind": "commands",
           "overlays": "{task_overlays}"
         },
         "downstream": {
-          "kind": "files",
           "contains": {
-            "apps/web/src/lib/platform-api.ts": [
-              "active_draft",
-              "classes"
+            "apps/web/src/hooks/useTownMultiplayer.ts": [
+              "chat_text",
+              "chat_history"
+            ],
+            "apps/web/src/lib/env.ts": [
+              "CHAT"
             ]
-          }
+          },
+          "kind": "files"
         },
         "regression": {
-          "kind": "commands",
           "commands": [
             {
               "argv": [
                 "pnpm",
                 "--filter",
-                "@pabg/web",
+                "@pabg/ws",
                 "exec",
                 "vitest",
                 "run",
-                "src/lib/platform-api.barracks.test.ts"
+                "src/rate-limit.test.ts"
               ],
               "timeout_seconds": 1200
             }
-          ]
-        }
-      },
-      "exception_criteria": [
-        "behavior",
-        "downstream"
-      ],
-      "protected_paths": [
-        "apps/web/src/lib/platform-api.demo.test.ts"
-      ],
-      "verifier_timeout_seconds": 1200
-    },
-    {
-      "id": "pabg-global-text-chat",
-      "repo_id": "pabg",
-      "ecosystem": "typescript",
-      "task_class": "implementation",
-      "split": "holdout",
-      "prompt": "Add global text chat over the town WebSocket hub beginning at `apps/ws/src/hub.ts#TownHub`. Define bounded protocol frames that reject empty, overlong, and control-character text; trim accepted text; attach sender identity and server time; broadcast to sender and peers; retain bounded history for newcomers; rate-limit floods; reject chat before hello; and wire the web multiplayer consumer without regressing emoji chat or movement.",
-      "overlays": [
-        {
-          "commit": "76280094c7da410e137f468a19a3d9311402b339",
-          "path": "apps/web/src/lib/ws-client.test.ts"
+          ],
+          "kind": "commands"
         },
-        {
-          "commit": "76280094c7da410e137f468a19a3d9311402b339",
-          "path": "apps/ws/src/hub.test.ts"
-        },
-        {
-          "commit": "76280094c7da410e137f468a19a3d9311402b339",
-          "path": "apps/ws/src/protocol.test.ts"
-        }
-      ],
-      "criteria": {
         "required": {
-          "kind": "commands",
           "commands": [
             {
               "argv": [
@@ -1370,251 +580,147 @@
               "timeout_seconds": 1200
             }
           ],
-          "overlays": "{task_overlays}"
-        },
-        "behavior": {
           "kind": "commands",
-          "commands": [
-            {
-              "argv": [
-                "pnpm",
-                "--filter",
-                "@pabg/ws",
-                "exec",
-                "vitest",
-                "run",
-                "src/hub.test.ts",
-                "-t",
-                "rate-limits a text flood"
-              ],
-              "timeout_seconds": 1200
-            }
-          ],
           "overlays": "{task_overlays}"
-        },
-        "contract": {
-          "kind": "commands",
-          "commands": [
-            {
-              "argv": [
-                "pnpm",
-                "--filter",
-                "@pabg/ws",
-                "exec",
-                "vitest",
-                "run",
-                "src/protocol.test.ts",
-                "-t",
-                "text chat frames"
-              ],
-              "timeout_seconds": 1200
-            }
-          ],
-          "overlays": "{task_overlays}"
-        },
-        "downstream": {
-          "kind": "files",
-          "contains": {
-            "apps/web/src/hooks/useTownMultiplayer.ts": [
-              "chat_text",
-              "chat_history"
-            ],
-            "apps/web/src/lib/env.ts": [
-              "CHAT"
-            ]
-          }
-        },
-        "regression": {
-          "kind": "commands",
-          "commands": [
-            {
-              "argv": [
-                "pnpm",
-                "--filter",
-                "@pabg/ws",
-                "exec",
-                "vitest",
-                "run",
-                "src/rate-limit.test.ts"
-              ],
-              "timeout_seconds": 1200
-            }
-          ]
         }
       },
-      "exception_criteria": [
-        "behavior",
-        "downstream"
+      "ecosystem": "typescript",
+      "id": "pabg-global-text-chat",
+      "overlays": [
+        {
+          "commit": "76280094c7da410e137f468a19a3d9311402b339",
+          "path": "apps/web/src/lib/ws-client.test.ts"
+        },
+        {
+          "commit": "76280094c7da410e137f468a19a3d9311402b339",
+          "path": "apps/ws/src/hub.test.ts"
+        },
+        {
+          "commit": "76280094c7da410e137f468a19a3d9311402b339",
+          "path": "apps/ws/src/protocol.test.ts"
+        }
       ],
+      "prompt": "Add global text chat over the town WebSocket hub beginning at `apps/ws/src/hub.ts#TownHub`. Define bounded protocol frames that reject empty, overlong, and control-character text; trim accepted text; attach sender identity and server time; broadcast to sender and peers; retain bounded history for newcomers; rate-limit floods; reject chat before hello; and wire the web multiplayer consumer without regressing emoji chat or movement.",
       "protected_paths": [
         "apps/web/src/lib/ws-client.test.ts",
         "apps/ws/src/hub.test.ts",
         "apps/ws/src/protocol.test.ts"
       ],
+      "repo_id": "pabg",
+      "task_class": "implementation",
       "verifier_timeout_seconds": 1200
     },
     {
-      "id": "browser-svg-noop",
-      "repo_id": "browser",
-      "ecosystem": "python",
-      "task_class": "implementation",
-      "split": "calibration",
-      "prompt": "Make SVG paste fail closed when the browser reports no observed page change. In `mcp_servers/browser/apps/drop_flow.py` and the universal insert path, preserve explicit focus provenance, fall back to viewport center only when the focus probe fails, require `changed=true` when verification is enabled, surface a stable `paste_not_observed` error, and preserve fallback error codes. Add focused tests without weakening existing drag behavior.",
-      "overlays": [
-        {
-          "commit": "246add766f1f10c831ef3ee6ee84b560c085f06c",
-          "path": "tests/test_drop_flow.py"
-        },
-        {
-          "commit": "246add766f1f10c831ef3ee6ee84b560c085f06c",
-          "path": "tests/test_universal_adapter_strategy.py"
-        }
+      "allowed_exact_entries": [
+        "ls README.md",
+        "cone README.md"
       ],
       "criteria": {
+        "provenance": {
+          "exists": [
+            "README.md"
+          ],
+          "kind": "files"
+        },
         "required": {
-          "kind": "commands",
-          "commands": [
-            {
-              "argv": [
-                "uv",
-                "run",
-                "--extra",
-                "dev",
-                "python",
-                "-m",
-                "pytest",
-                "tests/test_universal_adapter_strategy.py",
-                "-k",
-                "paste_requires_observed_change"
-              ],
-              "timeout_seconds": 1200
-            }
-          ],
-          "overlays": "{task_overlays}"
-        },
-        "behavior": {
-          "kind": "commands",
-          "commands": [
-            {
-              "argv": [
-                "uv",
-                "run",
-                "--extra",
-                "dev",
-                "python",
-                "-m",
-                "pytest",
-                "tests/test_drop_flow.py",
-                "-k",
-                "falls_back_to_viewport_center"
-              ],
-              "timeout_seconds": 1200
-            }
-          ],
-          "overlays": "{task_overlays}"
-        },
-        "contract": {
-          "kind": "files",
           "contains": {
-            "mcp_servers/browser/apps/insert.py": [
-              "paste_not_observed",
-              "changed"
+            "README.md": [
+              "настоящий in-memory `platform-api`"
+            ]
+          },
+          "kind": "files",
+          "not_contains": {
+            "README.md": [
+              "настоящий in memory `platform-api`"
             ]
           }
-        },
-        "downstream": {
-          "kind": "files",
-          "contains": {
-            "mcp_servers/browser/apps/drop_flow.py": [
-              "viewport_center",
-              "focus"
-            ]
-          }
-        },
-        "regression": {
-          "kind": "commands",
-          "commands": [
-            {
-              "argv": [
-                "uv",
-                "run",
-                "--extra",
-                "dev",
-                "python",
-                "-m",
-                "pytest",
-                "tests/test_drop_flow.py",
-                "-k",
-                "drop_flow_sends_drag_events"
-              ],
-              "timeout_seconds": 1200
-            }
-          ],
-          "overlays": "{task_overlays}"
         }
       },
-      "exception_criteria": [
-        "behavior",
-        "downstream"
-      ],
-      "protected_paths": [
-        "tests/test_drop_flow.py",
-        "tests/test_universal_adapter_strategy.py"
-      ],
-      "verifier_timeout_seconds": 1200
+      "ecosystem": "typescript",
+      "id": "pabg-readme-exact",
+      "prompt": "In `README.md`, restore the exact phrase `настоящий in-memory `platform-api`` by fixing only the missing hyphen. Do not change behavior or any other wording. Begin by examining only README.md. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
+      "protected_paths": [],
+      "repo_id": "pabg",
+      "task_class": "exact_control",
+      "verifier_timeout_seconds": 60
     },
     {
-      "id": "browser-focused-clipboard",
-      "repo_id": "browser",
-      "ecosystem": "python",
-      "task_class": "implementation",
-      "split": "holdout",
-      "prompt": "Update `vendor/browser_extension/service_worker.js#dispatchRpc` so `clipboard.write` and `clipboard.writeSvg` first attempt a bounded write in the explicitly requested or focused tab, using the isolated top frame and preserving tab/context provenance. If that fails, fall back to the existing offscreen carrier and report both attempted contexts or combined errors. Keep the extension kill switch and existing RPC behavior intact.",
-      "overlays": [],
       "criteria": {
-        "required": {
-          "kind": "commands",
-          "commands": [
-            {
-              "argv": [
-                "node",
-                "/Users/amir/Documents/projects/tools/cli/codemap/benchmarks/flagship/browser_focused_clipboard_test.js",
-                "{worktree}"
-              ]
-            }
-          ]
+        "fact-1": {
+          "facts": [
+            "mcp_servers/browser/apps/insert.py"
+          ],
+          "kind": "facts"
         },
+        "fact-2": {
+          "facts": [
+            "mcp_servers/browser/apps/clipboard.py"
+          ],
+          "kind": "facts"
+        },
+        "fact-3": {
+          "facts": [
+            "mcp_servers/browser/apps/drop_flow.py"
+          ],
+          "kind": "facts"
+        },
+        "fact-4": {
+          "facts": [
+            "vendor/browser_extension/service_worker.js"
+          ],
+          "kind": "facts"
+        },
+        "fact-5": {
+          "facts": [
+            "vendor/browser_extension/offscreen_clipboard.js"
+          ],
+          "kind": "facts"
+        },
+        "fact-6": {
+          "facts": [
+            "tests/test_drop_flow.py"
+          ],
+          "kind": "facts"
+        }
+      },
+      "ecosystem": "python",
+      "id": "browser-deterministic-investigation",
+      "prompt": "At the frozen commit, trace the universal insert owner, clipboard owner, drop owner, extension RPC carrier, offscreen clipboard carrier, and focused drop test. Return one compact answer containing the exact repository-relative path for each of the six requested owners and a one-line connection between adjacent owners. Do not modify files. Do not substitute directories or prose descriptions for paths.",
+      "repo_id": "browser",
+      "task_class": "investigation"
+    },
+    {
+      "criteria": {
         "behavior": {
-          "kind": "files",
           "contains": {
             "vendor/browser_extension/service_worker.js": [
               "getClipboardTargetTab",
               "writeClipboardItemsInFocusedTab",
               "context: \"focused_tab\""
             ]
-          }
+          },
+          "kind": "files"
         },
         "contract": {
-          "kind": "files",
           "contains": {
             "vendor/browser_extension/service_worker.js": [
               "preferredTabId",
               "allFrames: false",
               "world: \"ISOLATED\""
             ]
-          }
+          },
+          "kind": "files"
         },
         "downstream": {
-          "kind": "files",
           "contains": {
             "vendor/browser_extension/service_worker.js": [
               "attemptedContexts: [\"focused_tab\", \"offscreen\"]",
               "clipboard.writeSvg"
             ]
-          }
+          },
+          "kind": "files"
         },
         "regression": {
-          "kind": "commands",
           "commands": [
             {
               "argv": [
@@ -1623,123 +729,165 @@
                 "vendor/browser_extension/service_worker.js"
               ]
             }
-          ]
+          ],
+          "kind": "commands"
+        },
+        "required": {
+          "commands": [
+            {
+              "argv": [
+                "node",
+                "/Users/amir/Documents/projects/tools/cli/codemap/benchmarks/flagship/browser_focused_clipboard_test.js",
+                "{worktree}"
+              ]
+            }
+          ],
+          "kind": "commands"
         }
       },
-      "exception_criteria": [
-        "behavior",
-        "downstream"
-      ],
+      "ecosystem": "python",
+      "id": "browser-focused-clipboard",
+      "overlays": [],
+      "prompt": "Update `vendor/browser_extension/service_worker.js#dispatchRpc` so `clipboard.write` and `clipboard.writeSvg` first attempt a bounded write in the explicitly requested or focused tab, using the isolated top frame and preserving tab/context provenance. If that fails, fall back to the existing offscreen carrier and report both attempted contexts or combined errors. Keep the extension kill switch and existing RPC behavior intact.",
       "protected_paths": [],
+      "repo_id": "browser",
+      "task_class": "implementation",
       "verifier_timeout_seconds": 1200
     },
     {
-      "id": "openslop-execution-profile",
-      "repo_id": "openslop",
-      "ecosystem": "swift",
-      "task_class": "implementation",
-      "split": "calibration",
-      "prompt": "Add a truthful execution-profile status owner beginning at `services/core-daemon/src/main.rs`: expose the same JSON through CLI and stdio, report Codex as live with supported models/modes, derive Claude availability from its existing runtime status and constrain it to receipt-only or unavailable, then carry the typed contract through WorkbenchCore into the macOS composer/start surfaces and add runnable probe/Make smoke ownership.",
-      "overlays": [],
+      "allowed_exact_entries": [
+        "ls README.md",
+        "cone README.md"
+      ],
       "criteria": {
-        "required": {
-          "kind": "commands",
-          "commands": [
-            {
-              "argv": [
-                "cargo",
-                "run",
-                "--quiet",
-                "-p",
-                "core-daemon",
-                "--",
-                "--execution-profile-status"
-              ],
-              "stdout_contains": [
-                "\"kind\": \"execution_profile_status\"",
-                "\"provider\": \"Codex\""
-              ],
-              "timeout_seconds": 1200
-            }
-          ]
+        "provenance": {
+          "exists": [
+            "README.md"
+          ],
+          "kind": "files"
         },
+        "required": {
+          "contains": {
+            "README.md": [
+              "controlled, real-browser"
+            ]
+          },
+          "kind": "files",
+          "not_contains": {
+            "README.md": [
+              "controlled, real browser"
+            ]
+          }
+        }
+      },
+      "ecosystem": "python",
+      "id": "browser-readme-exact",
+      "prompt": "In `README.md`, restore the exact phrase `controlled, real-browser automation` by fixing only the missing hyphen. Do not change behavior or any other wording. Begin by examining only README.md. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
+      "protected_paths": [],
+      "repo_id": "browser",
+      "task_class": "exact_control",
+      "verifier_timeout_seconds": 60
+    },
+    {
+      "criteria": {
+        "fact-1": {
+          "facts": [
+            "services/core-daemon/src/main.rs"
+          ],
+          "kind": "facts"
+        },
+        "fact-2": {
+          "facts": [
+            "domains/provider/rust/provider-domain/src/lib.rs"
+          ],
+          "kind": "facts"
+        },
+        "fact-3": {
+          "facts": [
+            "domains/session/rust/session-domain/src/lib.rs"
+          ],
+          "kind": "facts"
+        },
+        "fact-4": {
+          "facts": [
+            "apps/macos-app/Sources/WorkbenchCore/CoreDaemonClient.swift"
+          ],
+          "kind": "facts"
+        },
+        "fact-5": {
+          "facts": [
+            "apps/macos-app/Sources/WorkbenchCore/CodexTranscriptSnapshot.swift"
+          ],
+          "kind": "facts"
+        },
+        "fact-6": {
+          "facts": [
+            "apps/macos-app/Sources/OpenSlopApp/WorkbenchRootView.swift"
+          ],
+          "kind": "facts"
+        }
+      },
+      "ecosystem": "swift",
+      "id": "openslop-deterministic-investigation",
+      "prompt": "At the frozen commit, trace the core-daemon submit route, provider owner, session store owner, Swift daemon client, transcript projection, and root UI consumer. Return one compact answer containing the exact repository-relative path for each of the six requested owners and a one-line connection between adjacent owners. Do not modify files. Do not substitute directories or prose descriptions for paths.",
+      "repo_id": "openslop",
+      "task_class": "investigation"
+    },
+    {
+      "criteria": {
         "behavior": {
-          "kind": "commands",
-          "commands": [
-            {
-              "argv": [
-                "cargo",
-                "run",
-                "--quiet",
-                "-p",
-                "core-daemon",
-                "--",
-                "--execution-profile-status"
-              ],
-              "stdout_contains": [
-                "\"runtimeLevel\": \"live\"",
-                "\"provider\": \"Claude\""
-              ],
-              "timeout_seconds": 1200
-            }
-          ]
+          "contains": {
+            "domains/workspace/rust/workspace-domain/src/active_plan.rs": [
+              "first non-done roadmap slice",
+              "ROADMAP.md has no slice rows",
+              "active_slice_id"
+            ]
+          },
+          "exists": [
+            "domains/workspace/rust/workspace-domain/src/active_plan.rs"
+          ],
+          "kind": "files"
         },
         "contract": {
-          "kind": "files",
-          "exists": [
-            "apps/macos-app/Sources/WorkbenchCore/ExecutionProfileStatus.swift"
-          ],
           "contains": {
+            "domains/workspace/rust/workspace-domain/src/lib.rs": [
+              "active_plan"
+            ],
             "services/core-daemon/src/main.rs": [
-              "execution-profile-status",
-              "ExecutionProfileStatusResponse"
+              "active-plan-projection",
+              "active_plan_projection_json"
             ]
-          }
+          },
+          "kind": "files"
         },
         "downstream": {
-          "kind": "files",
           "contains": {
-            "apps/macos-app/Sources/WorkbenchCore/CoreDaemonClient.swift": [
-              "fetchExecutionProfileStatus"
+            "apps/macos-app/Sources/OpenSlopApp/InspectorPanelView.swift": [
+              "active"
             ],
-            "apps/macos-app/Sources/OpenSlopApp/ComposerBarView.swift": [
-              "execution"
+            "apps/macos-app/Sources/WorkbenchCore/CoreDaemonClient.swift": [
+              "fetchActivePlanProjection"
             ]
-          }
+          },
+          "exists": [
+            "apps/macos-app/Sources/WorkbenchCore/ActivePlanProjection.swift"
+          ],
+          "kind": "files"
         },
         "regression": {
-          "kind": "commands",
           "commands": [
             {
               "argv": [
                 "cargo",
                 "test",
-                "-p",
-                "core-daemon"
+                "--workspace"
               ],
               "timeout_seconds": 1200
             }
-          ]
-        }
-      },
-      "exception_criteria": [
-        "behavior",
-        "downstream"
-      ],
-      "protected_paths": [],
-      "verifier_timeout_seconds": 1200
-    },
-    {
-      "id": "openslop-active-plan",
-      "repo_id": "openslop",
-      "ecosystem": "swift",
-      "task_class": "implementation",
-      "split": "holdout",
-      "prompt": "Add an active-plan projection rooted in `ROADMAP.md`: a workspace-domain owner must parse slice rows, materialize STATUS/REVIEW/VISUAL proof state, count done/active/planned/blocked slices, select the first non-done slice, and fail closed when the roadmap is absent or empty. Expose the same typed projection through core-daemon CLI/stdio, WorkbenchCore, the inspector UI, and runnable Make/Swift probes.",
-      "overlays": [],
-      "criteria": {
+          ],
+          "kind": "commands"
+        },
         "required": {
-          "kind": "commands",
           "commands": [
             {
               "argv": [
@@ -1757,140 +905,137 @@
               ],
               "timeout_seconds": 1200
             }
-          ]
-        },
-        "behavior": {
-          "kind": "files",
-          "exists": [
-            "domains/workspace/rust/workspace-domain/src/active_plan.rs"
           ],
-          "contains": {
-            "domains/workspace/rust/workspace-domain/src/active_plan.rs": [
-              "first non-done roadmap slice",
-              "ROADMAP.md has no slice rows",
-              "active_slice_id"
-            ]
-          }
-        },
-        "contract": {
-          "kind": "files",
-          "contains": {
-            "services/core-daemon/src/main.rs": [
-              "active-plan-projection",
-              "active_plan_projection_json"
-            ],
-            "domains/workspace/rust/workspace-domain/src/lib.rs": [
-              "active_plan"
-            ]
-          }
-        },
-        "downstream": {
-          "kind": "files",
-          "exists": [
-            "apps/macos-app/Sources/WorkbenchCore/ActivePlanProjection.swift"
-          ],
-          "contains": {
-            "apps/macos-app/Sources/WorkbenchCore/CoreDaemonClient.swift": [
-              "fetchActivePlanProjection"
-            ],
-            "apps/macos-app/Sources/OpenSlopApp/InspectorPanelView.swift": [
-              "active"
-            ]
-          }
-        },
-        "regression": {
-          "kind": "commands",
-          "commands": [
-            {
-              "argv": [
-                "cargo",
-                "test",
-                "--workspace"
-              ],
-              "timeout_seconds": 1200
-            }
-          ]
+          "kind": "commands"
         }
       },
-      "exception_criteria": [
-        "behavior",
-        "downstream"
-      ],
+      "ecosystem": "swift",
+      "id": "openslop-active-plan",
+      "overlays": [],
+      "prompt": "Add an active-plan projection rooted in `ROADMAP.md`: a workspace-domain owner must parse slice rows, materialize STATUS/REVIEW/VISUAL proof state, count done/active/planned/blocked slices, select the first non-done slice, and fail closed when the roadmap is absent or empty. Expose the same typed projection through core-daemon CLI/stdio, WorkbenchCore, the inspector UI, and runnable Make/Swift probes.",
       "protected_paths": [],
+      "repo_id": "openslop",
+      "task_class": "implementation",
       "verifier_timeout_seconds": 1200
     },
     {
-      "id": "ratio-live-world-adapters",
-      "repo_id": "ratio",
-      "ecosystem": "rust",
-      "task_class": "implementation",
-      "split": "calibration",
-      "prompt": "Extend `crates/ratiotissue-cli/src/cli/continuation.rs` with explicit live world-return adapters: self-return, heldout-next, user-return, and corpus-return. Parse bounded fragment/return options, reject unknown adapters and missing/empty return inputs, feed actual returned bytes through `observe_world_pressure`, reload changed tissue, and emit receipts that distinguish action, conductance, resistance, novelty and residue. Preserve the existing live path and tests.",
-      "overlays": [],
+      "allowed_exact_entries": [
+        "ls README.md",
+        "cone README.md"
+      ],
       "criteria": {
-        "required": {
-          "kind": "commands",
-          "commands": [
-            {
-              "argv": [
-                "cargo",
-                "run",
-                "--quiet",
-                "--",
-                "live",
-                "README.md",
-                "--db",
-                "{worktree}/target/flagship-world.rtdb",
-                "--world",
-                "wrong",
-                "--loops",
-                "1"
-              ],
-              "expected_status": "nonzero",
-              "stderr_contains": [
-                "unknown live world adapter"
-              ],
-              "timeout_seconds": 1200
-            }
-          ]
+        "provenance": {
+          "exists": [
+            "README.md"
+          ],
+          "kind": "files"
         },
-        "behavior": {
+        "required": {
+          "contains": {
+            "README.md": [
+              "первый load-bearing слой"
+            ]
+          },
           "kind": "files",
+          "not_contains": {
+            "README.md": [
+              "первый load bearing слой"
+            ]
+          }
+        }
+      },
+      "ecosystem": "swift",
+      "id": "openslop-readme-exact",
+      "prompt": "In `README.md`, restore the exact phrase `первый load-bearing слой` by fixing only the missing hyphen. Do not change behavior or any other wording. Begin by examining only README.md. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
+      "protected_paths": [],
+      "repo_id": "openslop",
+      "task_class": "exact_control",
+      "verifier_timeout_seconds": 60
+    },
+    {
+      "criteria": {
+        "fact-1": {
+          "facts": [
+            "crates/ratiotissue-cli/src/cli/continuation.rs"
+          ],
+          "kind": "facts"
+        },
+        "fact-2": {
+          "facts": [
+            "crates/ratiotissue-cli/src/continuation/actionwave/runtime.rs"
+          ],
+          "kind": "facts"
+        },
+        "fact-3": {
+          "facts": [
+            "crates/ratiotissue-cli/src/continuation/actionwave/record.rs"
+          ],
+          "kind": "facts"
+        },
+        "fact-4": {
+          "facts": [
+            "crates/ratiotissue-cli/src/continuation/feedback.rs"
+          ],
+          "kind": "facts"
+        },
+        "fact-5": {
+          "facts": [
+            "crates/ratiotissue-cli/src/continuation/interaction.rs"
+          ],
+          "kind": "facts"
+        },
+        "fact-6": {
+          "facts": [
+            "crates/ratiotissue-cli/src/continuation/actionwave/tests.rs"
+          ],
+          "kind": "facts"
+        }
+      },
+      "ecosystem": "rust",
+      "id": "ratio-deterministic-investigation",
+      "prompt": "At the frozen commit, trace the continuation CLI, actionwave runtime, action record, feedback owner, interaction owner, and focused actionwave test. Return one compact answer containing the exact repository-relative path for each of the six requested owners and a one-line connection between adjacent owners. Do not modify files. Do not substitute directories or prose descriptions for paths.",
+      "repo_id": "ratio",
+      "task_class": "investigation"
+    },
+    {
+      "criteria": {
+        "behavior": {
+          "contains": {
+            "crates/ratiotissue-cli/src/cli/codex_sessions.rs": [
+              "CodexSessionEpisode",
+              "next_return_fragment",
+              "build_episodes"
+            ],
+            "crates/ratiotissue-cli/src/cli/continuation.rs": [
+              "cmd_live_codex_sessions",
+              "codex_session_episode"
+            ]
+          },
+          "kind": "files"
+        },
+        "contract": {
+          "contains": {
+            "crates/ratiotissue-cli/src/cli/mod.rs": [
+              "live-codex-sessions",
+              "--session-files",
+              "--max-events",
+              "--no-redact"
+            ]
+          },
+          "kind": "files"
+        },
+        "downstream": {
           "contains": {
             "crates/ratiotissue-cli/src/cli/continuation.rs": [
-              "enum LiveWorldMode",
-              "struct LiveWorldAdapter",
+              "write_session_carrier",
               "observe_world_pressure",
-              "pulse_world_return"
+              "episode-pressure",
+              "episode-return"
             ]
-          }
-        },
-        "contract": {
-          "kind": "files",
-          "contains": {
-            "crates/ratiotissue-cli/src/cli/continuation.rs": [
-              "--world-return",
-              "--world-fragment-bytes",
-              "heldout-next",
-              "user-return",
-              "corpus-return"
-            ]
-          }
-        },
-        "downstream": {
-          "kind": "files",
-          "contains": {
-            "crates/ratiotissue-cli/src/continuation/actionwave/runtime.rs": [
-              "observe_world_return"
-            ],
-            "crates/ratiotissue-cli/src/cli/continuation.rs": [
-              "conductance_changed",
-              "resistance_changed"
-            ]
-          }
+          },
+          "kind": "files"
         },
         "regression": {
-          "kind": "commands",
           "commands": [
             {
               "argv": [
@@ -1900,27 +1045,10 @@
               ],
               "timeout_seconds": 1200
             }
-          ]
-        }
-      },
-      "exception_criteria": [
-        "behavior",
-        "downstream"
-      ],
-      "protected_paths": [],
-      "verifier_timeout_seconds": 1200
-    },
-    {
-      "id": "ratio-codex-live-episodes",
-      "repo_id": "ratio",
-      "ecosystem": "rust",
-      "task_class": "implementation",
-      "split": "holdout",
-      "prompt": "Add a `live-codex-sessions` command through `crates/ratiotissue-cli/src/cli/continuation.rs` that reads bounded Codex JSONL session history, classifies user pressure and assistant world-return fragments, builds stable redacted episodes, writes deterministic carrier files, and runs each episode through the existing actionwave/world-return loop with explicit receipts. Empty or metadata-only sessions must fail closed rather than claim contact. Preserve ordinary live behavior.",
-      "overlays": [],
-      "criteria": {
+          ],
+          "kind": "commands"
+        },
         "required": {
-          "kind": "commands",
           "commands": [
             {
               "argv": [
@@ -1948,274 +1076,56 @@
               ],
               "timeout_seconds": 1200
             }
-          ]
-        },
-        "behavior": {
-          "kind": "files",
-          "contains": {
-            "crates/ratiotissue-cli/src/cli/codex_sessions.rs": [
-              "CodexSessionEpisode",
-              "next_return_fragment",
-              "build_episodes"
-            ],
-            "crates/ratiotissue-cli/src/cli/continuation.rs": [
-              "cmd_live_codex_sessions",
-              "codex_session_episode"
-            ]
-          }
-        },
-        "contract": {
-          "kind": "files",
-          "contains": {
-            "crates/ratiotissue-cli/src/cli/mod.rs": [
-              "live-codex-sessions",
-              "--session-files",
-              "--max-events",
-              "--no-redact"
-            ]
-          }
-        },
-        "downstream": {
-          "kind": "files",
-          "contains": {
-            "crates/ratiotissue-cli/src/cli/continuation.rs": [
-              "write_session_carrier",
-              "observe_world_pressure",
-              "episode-pressure",
-              "episode-return"
-            ]
-          }
-        },
-        "regression": {
-          "kind": "commands",
-          "commands": [
-            {
-              "argv": [
-                "cargo",
-                "test",
-                "--workspace"
-              ],
-              "timeout_seconds": 1200
-            }
-          ]
+          ],
+          "kind": "commands"
         }
       },
-      "exception_criteria": [
-        "behavior",
-        "downstream"
-      ],
+      "ecosystem": "rust",
+      "id": "ratio-codex-live-episodes",
+      "overlays": [],
+      "prompt": "Add a `live-codex-sessions` command through `crates/ratiotissue-cli/src/cli/continuation.rs` that reads bounded Codex JSONL session history, classifies user pressure and assistant world-return fragments, builds stable redacted episodes, writes deterministic carrier files, and runs each episode through the existing actionwave/world-return loop with explicit receipts. Empty or metadata-only sessions must fail closed rather than claim contact. Preserve ordinary live behavior.",
       "protected_paths": [],
+      "repo_id": "ratio",
+      "task_class": "implementation",
       "verifier_timeout_seconds": 1200
     },
     {
-      "id": "codemap-readme-exact",
-      "repo_id": "codemap",
-      "ecosystem": "rust",
-      "task_class": "negative_control",
-      "split": "calibration",
-      "prompt": "In `README.md`, restore the exact product phrase `Read-only project x-ray for AI coding agents.` by fixing only the missing hyphen in that sentence. Do not change behavior or any other wording. Begin by examining only README.md. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
-      "criteria": {
-        "required": {
-          "kind": "files",
-          "contains": {
-            "README.md": [
-              "Read-only project x-ray for AI coding agents."
-            ]
-          },
-          "not_contains": {
-            "README.md": [
-              "Read only project x-ray for AI coding agents."
-            ]
-          }
-        },
-        "provenance": {
-          "kind": "files",
-          "exists": [
-            "README.md"
-          ]
-        }
-      },
       "allowed_exact_entries": [
         "ls README.md",
         "cone README.md"
       ],
-      "protected_paths": [],
-      "verifier_timeout_seconds": 60
-    },
-    {
-      "id": "main-readme-exact",
-      "repo_id": "main-cluster",
-      "ecosystem": "typescript",
-      "task_class": "negative_control",
-      "split": "calibration",
-      "prompt": "In `README.md`, restore the exact opening phrase `GitOps delivery rails.` by fixing only the singular typo in that sentence. Do not change behavior or any other wording. Begin by examining only README.md. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
       "criteria": {
-        "required": {
-          "kind": "files",
-          "contains": {
-            "README.md": [
-              "GitOps delivery rails."
-            ]
-          },
-          "not_contains": {
-            "README.md": [
-              "GitOps delivery rail."
-            ]
-          }
-        },
         "provenance": {
-          "kind": "files",
           "exists": [
             "README.md"
-          ]
-        }
-      },
-      "allowed_exact_entries": [
-        "ls README.md",
-        "cone README.md"
-      ],
-      "protected_paths": [],
-      "verifier_timeout_seconds": 60
-    },
-    {
-      "id": "pabg-readme-exact",
-      "repo_id": "pabg",
-      "ecosystem": "typescript",
-      "task_class": "negative_control",
-      "split": "calibration",
-      "prompt": "In `README.md`, restore the exact phrase `настоящий in-memory `platform-api`` by fixing only the missing hyphen. Do not change behavior or any other wording. Begin by examining only README.md. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
-      "criteria": {
-        "required": {
-          "kind": "files",
-          "contains": {
-            "README.md": [
-              "настоящий in-memory `platform-api`"
-            ]
-          },
-          "not_contains": {
-            "README.md": [
-              "настоящий in memory `platform-api`"
-            ]
-          }
+          ],
+          "kind": "files"
         },
-        "provenance": {
-          "kind": "files",
-          "exists": [
-            "README.md"
-          ]
-        }
-      },
-      "allowed_exact_entries": [
-        "ls README.md",
-        "cone README.md"
-      ],
-      "protected_paths": [],
-      "verifier_timeout_seconds": 60
-    },
-    {
-      "id": "browser-readme-exact",
-      "repo_id": "browser",
-      "ecosystem": "python",
-      "task_class": "negative_control",
-      "split": "holdout",
-      "prompt": "In `README.md`, restore the exact phrase `controlled, real-browser automation` by fixing only the missing hyphen. Do not change behavior or any other wording. Begin by examining only README.md. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
-      "criteria": {
         "required": {
-          "kind": "files",
-          "contains": {
-            "README.md": [
-              "controlled, real-browser"
-            ]
-          },
-          "not_contains": {
-            "README.md": [
-              "controlled, real browser"
-            ]
-          }
-        },
-        "provenance": {
-          "kind": "files",
-          "exists": [
-            "README.md"
-          ]
-        }
-      },
-      "allowed_exact_entries": [
-        "ls README.md",
-        "cone README.md"
-      ],
-      "protected_paths": [],
-      "verifier_timeout_seconds": 60
-    },
-    {
-      "id": "openslop-readme-exact",
-      "repo_id": "openslop",
-      "ecosystem": "swift",
-      "task_class": "negative_control",
-      "split": "holdout",
-      "prompt": "In `README.md`, restore the exact phrase `первый load-bearing слой` by fixing only the missing hyphen. Do not change behavior or any other wording. Begin by examining only README.md. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
-      "criteria": {
-        "required": {
-          "kind": "files",
-          "contains": {
-            "README.md": [
-              "первый load-bearing слой"
-            ]
-          },
-          "not_contains": {
-            "README.md": [
-              "первый load bearing слой"
-            ]
-          }
-        },
-        "provenance": {
-          "kind": "files",
-          "exists": [
-            "README.md"
-          ]
-        }
-      },
-      "allowed_exact_entries": [
-        "ls README.md",
-        "cone README.md"
-      ],
-      "protected_paths": [],
-      "verifier_timeout_seconds": 60
-    },
-    {
-      "id": "ratio-readme-exact",
-      "repo_id": "ratio",
-      "ecosystem": "rust",
-      "task_class": "negative_control",
-      "split": "holdout",
-      "prompt": "In `README.md`, restore the exact phrase `проект mmap-базы поиска` by fixing only the missing hyphen. Do not change behavior or any other wording. Begin by examining only README.md. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
-      "criteria": {
-        "required": {
-          "kind": "files",
           "contains": {
             "README.md": [
               "проект mmap-базы поиска"
             ]
           },
+          "kind": "files",
           "not_contains": {
             "README.md": [
               "проект mmap базы поиска"
             ]
           }
-        },
-        "provenance": {
-          "kind": "files",
-          "exists": [
-            "README.md"
-          ]
         }
       },
-      "allowed_exact_entries": [
-        "ls README.md",
-        "cone README.md"
-      ],
+      "ecosystem": "rust",
+      "id": "ratio-readme-exact",
+      "prompt": "In `README.md`, restore the exact phrase `проект mmap-базы поиска` by fixing only the missing hyphen. Do not change behavior or any other wording. Begin by examining only README.md. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
       "protected_paths": [],
+      "repo_id": "ratio",
+      "task_class": "exact_control",
       "verifier_timeout_seconds": 60
     }
-  ]
+  ],
+  "verifier_artifacts": [
+    "browser_focused_clipboard_test.js"
+  ],
+  "version": 1
 }

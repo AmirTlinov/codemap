@@ -52,8 +52,9 @@ It gives identical tasks and weighted external completeness criteria to isolated
 Codex worktrees with and without codemap. The winner is determined by required
 outcomes and verified coverage; time and tokens are reported only as resource cost.
 Release-level claims use `scripts/benchmark-codemap-flagship.py`: it freezes the
-30-task calibration/holdout corpus, repositories, rubric, order, model and binary
-before execution, then applies the repo-macro bootstrap and negative-control gate.
+18-task corpus, repository commits, prompts, verifier bytes, arm order, model,
+limits, and binary before execution. Two counterbalanced repetitions produce 72
+agent runs; acceptance is computed only from external verifier outcomes and cost.
 See [`docs/BENCHMARK_AB.md`](docs/BENCHMARK_AB.md) for the task format, validity
 rules, artifacts, and claim boundary.
 

@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -14,64 +13,26 @@ from pathlib import Path
 from typing import Any
 
 
-MARKDOWN_CITATION = re.compile(r"\[([^\]\n]+):(\d+)\]\([^\n)]+\)")
-PLAIN_CITATION = re.compile(
-    r"(?<![A-Za-z0-9_.-])((?:[A-Za-z0-9_.@()+\[\]-]+/)+[A-Za-z0-9_.@()+\[\]-]+):(\d+)"
-)
-
-
-def citations(text: str) -> list[tuple[str, str]]:
-    """Extract visible repository citations without treating Markdown URLs as evidence."""
-    visible = [(path.strip(" `"), line) for path, line in MARKDOWN_CITATION.findall(text)]
-    without_links = MARKDOWN_CITATION.sub("", text)
-    return [*visible, *PLAIN_CITATION.findall(without_links)]
-
-
-def fail(message: str, receipt: dict[str, Any] | None = None) -> int:
-    body = {"passed": False, "error": message, **(receipt or {})}
-    print(json.dumps(body, ensure_ascii=False, indent=2))
+def fail(message: str) -> int:
+    print(json.dumps({"passed": False, "error": message}, ensure_ascii=False, indent=2))
     return 1
 
 
-def citation_receipt(message: Path, worktree: Path) -> dict[str, Any]:
+def verify_facts(action: dict[str, Any], message: Path) -> tuple[bool, dict[str, Any]]:
     text = message.read_text(encoding="utf-8") if message.is_file() else ""
-    valid: list[tuple[str, int]] = []
-    invalid: list[tuple[str, int]] = []
-    for raw_path, raw_line in citations(text):
-        path = raw_path.strip()
-        candidate = worktree / path
-        line = int(raw_line)
-        if candidate.is_file():
-            count = sum(1 for _ in candidate.open(encoding="utf-8", errors="replace"))
-            (valid if 1 <= line <= max(count, 1) else invalid).append((path, line))
-        else:
-            invalid.append((path, line))
-    unique = sorted({path for path, _ in valid})
-    top = sorted({path.split("/", 1)[0] for path in unique})
-    return {
-        "characters": len(text),
-        "valid_citations": len(valid),
-        "unique_valid_paths": len(unique),
-        "top_level_surfaces": top,
-        "invalid_citations": invalid,
+    required = action.get("facts", [])
+    forbidden = action.get("forbidden", [])
+    missing = [fact for fact in required if fact not in text]
+    present = [fact for fact in forbidden if fact in text]
+    return not missing and not present, {
+        "required_facts": len(required),
+        "matched_facts": len(required) - len(missing),
+        "missing": missing,
+        "forbidden_present": present,
     }
 
 
-def verify_analysis(action: dict[str, Any], message: Path, worktree: Path) -> tuple[bool, dict]:
-    receipt = citation_receipt(message, worktree)
-    valid = receipt["valid_citations"]
-    invalid = len(receipt["invalid_citations"])
-    passed = (
-        receipt["characters"] >= action.get("min_characters", 1800)
-        and valid >= action.get("min_citations", 8)
-        and receipt["unique_valid_paths"] >= action.get("min_paths", 6)
-        and len(receipt["top_level_surfaces"]) >= action.get("min_surfaces", 2)
-        and invalid <= action.get("max_invalid", max(1, valid // 5))
-    )
-    return passed, receipt
-
-
-def verify_head(action: dict[str, Any], worktree: Path) -> tuple[bool, dict]:
+def verify_head(action: dict[str, Any], worktree: Path) -> tuple[bool, dict[str, Any]]:
     result = subprocess.run(
         ["git", "-C", str(worktree), "rev-parse", "HEAD"], capture_output=True, text=True
     )
@@ -80,7 +41,7 @@ def verify_head(action: dict[str, Any], worktree: Path) -> tuple[bool, dict]:
     return result.returncode == 0 and actual == expected, {"expected": expected, "actual": actual}
 
 
-def verify_files(action: dict[str, Any], worktree: Path) -> tuple[bool, dict]:
+def verify_files(action: dict[str, Any], worktree: Path) -> tuple[bool, dict[str, Any]]:
     errors = []
     for relative in action.get("exists", []):
         if not (worktree / relative).is_file():
@@ -88,15 +49,11 @@ def verify_files(action: dict[str, Any], worktree: Path) -> tuple[bool, dict]:
     for relative, needles in action.get("contains", {}).items():
         path = worktree / relative
         body = path.read_text(encoding="utf-8", errors="replace") if path.is_file() else ""
-        for needle in needles:
-            if needle not in body:
-                errors.append(f"missing-text:{relative}:{needle}")
+        errors.extend(f"missing-text:{relative}:{needle}" for needle in needles if needle not in body)
     for relative, needles in action.get("not_contains", {}).items():
         path = worktree / relative
         body = path.read_text(encoding="utf-8", errors="replace") if path.is_file() else ""
-        for needle in needles:
-            if needle in body:
-                errors.append(f"forbidden-text:{relative}:{needle}")
+        errors.extend(f"forbidden-text:{relative}:{needle}" for needle in needles if needle in body)
     return not errors, {"errors": errors}
 
 
@@ -115,7 +72,7 @@ def apply_overlays(action: dict[str, Any], worktree: Path) -> list[str]:
     return copied
 
 
-def run_commands(action: dict[str, Any], worktree: Path) -> tuple[bool, dict]:
+def run_commands(action: dict[str, Any], worktree: Path) -> tuple[bool, dict[str, Any]]:
     copied = apply_overlays(action, worktree)
     receipts = []
     for command in action.get("commands", []):
@@ -136,14 +93,14 @@ def run_commands(action: dict[str, Any], worktree: Path) -> tuple[bool, dict]:
             return False, {"overlays": copied, "commands": receipts, "timeout": argv}
         expected = command.get("expected_status", 0)
         status_ok = result.returncode != 0 if expected == "nonzero" else result.returncode == expected
-        stdout_ok = all(value in result.stdout for value in command.get("stdout_contains", []))
-        stderr_ok = all(value in result.stderr for value in command.get("stderr_contains", []))
         receipt = {
             "argv": argv,
             "status": result.returncode,
             "stdout_tail": result.stdout[-2000:],
             "stderr_tail": result.stderr[-2000:],
-            "passed": status_ok and stdout_ok and stderr_ok,
+            "passed": status_ok
+            and all(value in result.stdout for value in command.get("stdout_contains", []))
+            and all(value in result.stderr for value in command.get("stderr_contains", [])),
         }
         receipts.append(receipt)
         if not receipt["passed"]:
@@ -151,10 +108,12 @@ def run_commands(action: dict[str, Any], worktree: Path) -> tuple[bool, dict]:
     return True, {"overlays": copied, "commands": receipts}
 
 
-def verify(action: dict[str, Any], message: Path, worktree: Path) -> tuple[bool, dict]:
+def verify(
+    action: dict[str, Any], message: Path, worktree: Path
+) -> tuple[bool, dict[str, Any]]:
     kind = action["kind"]
-    if kind == "analysis":
-        return verify_analysis(action, message, worktree)
+    if kind == "facts":
+        return verify_facts(action, message)
     if kind == "git_head":
         return verify_head(action, worktree)
     if kind == "files":

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independently verify an S15 acceptance receipt without importing its evaluator."""
+"""Independently verify a deterministic flagship acceptance receipt."""
 
 from __future__ import annotations
 
@@ -30,30 +30,48 @@ def verify(path: Path) -> list[str]:
         candidate = Path(artifact.get("path", ""))
         if not candidate.is_file() or sha256(candidate) != artifact.get("sha256"):
             errors.append(f"evidence hash mismatch: {candidate}")
+    run = report.get("run", {})
     acceptance = report.get("acceptance", {})
-    checks = acceptance.get("checks", {})
-    accepted = acceptance.get("accepted")
-    if not isinstance(accepted, bool) or accepted != all(value is True for value in checks.values()):
-        errors.append("accepted state does not equal all normative checks")
-    bootstrap = acceptance.get("bootstrap", {})
-    primary = checks.get("primary_bootstrap_lower_bound_above_zero")
-    if primary is not (isinstance(bootstrap.get("lower_bound"), (int, float)) and bootstrap["lower_bound"] > 0):
-        errors.append("primary endpoint state mismatch")
-    holdout = report.get("holdout", {})
+    validity = acceptance.get("validity", {})
+    criteria = acceptance.get("criteria", {})
     complete = (
-        not holdout.get("invalid")
-        and holdout.get("valid_pairs") == holdout.get("expected_pairs")
-        and holdout.get("observed_trials") == holdout.get("expected_trials")
+        not run.get("invalid")
+        and run.get("observed_trials") == 72
+        and run.get("valid_pairs") == 36
+        and len(run.get("tasks", [])) == 18
     )
-    if checks.get("complete_valid_denominator") is not complete:
-        errors.append("holdout denominator state mismatch")
-    agreement = report.get("agreement", {})
-    agreement_valid = bool(agreement) and all(row.get("valid") is True for row in agreement.values())
-    if checks.get("ordinal_agreement") is not agreement_valid:
-        errors.append("ordinal agreement state mismatch")
-    calibration = report.get("calibration", {})
-    if calibration.get("split") != "calibration" or holdout.get("split") != "holdout":
-        errors.append("calibration and holdout are not separated")
+    if validity.get("complete_72_run_denominator") is not complete:
+        errors.append("72-run denominator state mismatch")
+    zero_write = not run.get("zero_write_violations")
+    if validity.get("zero_repo_writes_for_read_only_tasks") is not zero_write:
+        errors.append("zero-write state mismatch")
+    complex_result = acceptance.get("complex", {})
+    effectiveness = complex_result.get("wins", 0) >= 8 and not complex_result.get("losing_tasks")
+    if criteria.get("complex_effectiveness") is not effectiveness:
+        errors.append("complex effectiveness state mismatch")
+    regression = not acceptance.get("required_criterion_losses") and not acceptance.get(
+        "exact_regressions"
+    )
+    if criteria.get("regression_safety") is not regression:
+        errors.append("regression safety state mismatch")
+    resources = acceptance.get("resources", {})
+    bounds = (
+        resources.get("complex_median_time_overhead") is not None
+        and resources["complex_median_time_overhead"] <= 0.20
+        and resources.get("complex_median_input_overhead") is not None
+        and resources["complex_median_input_overhead"] <= 0.15
+        and resources.get("exact_median_time_overhead") is not None
+        and resources["exact_median_time_overhead"] <= 0.10
+        and resources.get("exact_median_input_overhead") is not None
+        and resources["exact_median_input_overhead"] <= 0.10
+    )
+    if criteria.get("bounded_cost") is not bounds:
+        errors.append("cost boundary state mismatch")
+    accepted = all(value is True for value in validity.values()) and all(
+        value is True for value in criteria.values()
+    )
+    if acceptance.get("accepted") is not accepted:
+        errors.append("accepted state mismatch")
     return errors
 
 

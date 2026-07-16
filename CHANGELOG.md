@@ -5,9 +5,9 @@ public JSON compatibility is governed separately by `docs/SCHEMA_POLICY.md`.
 
 ## Unreleased
 
-- Added the frozen 30-task flagship behavioral gate with calibration/holdout separation,
-  exact binary and repository provenance, external implementation verifiers, blind analysis
-  judging, paired bootstrap acceptance, and exact-entry negative controls.
+- Replaced the unfinished flagship ceremony with one frozen 18-task, 72-run A/B:
+  deterministic investigation facts, hidden implementation checks, exact controls, one
+  infrastructure retry, fixed cost bounds, and no subjective scoring or exclusions.
 - Completed the stable agent envelope, bounded evidence horizons, external zero-footprint cache,
   release-tier ecosystem matrix, and map-first exact-entry workflow.
 - Added cross-platform release archives, checksums, build attestations, package/fresh-install

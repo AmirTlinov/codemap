@@ -81,12 +81,16 @@ def _split_command(value: str, cwd: Path) -> list[str]:
 
 
 def resolve_codemap_command(
-    explicit: str | None,
+    explicit: str | list[str] | None,
     repo_root: Path,
     cwd: Path | None = None,
 ) -> tuple[list[str], str]:
     cwd = canonical(cwd or Path.cwd())
     if explicit:
+        if isinstance(explicit, list):
+            if not explicit or not all(isinstance(part, str) and part for part in explicit):
+                raise CodemapIdentityError("codemap argv must be a non-empty string array")
+            return _split_command(shlex.join(explicit), cwd), "explicit"
         return _split_command(explicit, cwd), "explicit"
     if os.environ.get("CODEMAP_BIN"):
         return _split_command(os.environ["CODEMAP_BIN"], cwd), "environment"

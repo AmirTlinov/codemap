@@ -20,7 +20,7 @@ Keep the product invariant clear:
 - `proof` prints a plan by default and runs commands only with `--run`;
 - `контракт-спецификация.md` owns the one outcome-based flagship criterion;
   strengthen existing map owners from external task evidence instead of adding
-  governance layers, judges, or a task router;
+  governance layers, subjective scoring, or a task router;
 - every new code file stays at or below 400 physical lines; legacy oversize files
   may shrink gradually but may not exceed the ceilings recorded in
   `.codex/legacy-oversize.tsv`;

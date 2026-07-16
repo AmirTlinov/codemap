@@ -26,6 +26,7 @@ print(json.dumps([
     protocol("analysis", "codemap", ["cone ."], root),
     protocol("analysis", "codemap", [f"cone {root}"], root),
     protocol("analysis", "codemap", ["cone src/.."], root),
+    protocol("implementation", "codemap", ["ls src/pricing.py", "changed", "changed", "proof changed"], root),
 ]))
 "#;
     let output = Command::new("python3")
@@ -81,6 +82,8 @@ print(json.dumps([
         assert_eq!(rows[index]["root_entry"], true);
         assert_eq!(rows[index]["compliant"], false);
     }
+    assert_eq!(rows[19]["ordered_daily"], false);
+    assert_eq!(rows[19]["compliant"], false);
 }
 
 #[test]

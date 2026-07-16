@@ -27,33 +27,3 @@ fn flagship_materializer_exposes_the_frozen_provenance_criterion() {
         String::from_utf8_lossy(&output.stderr)
     );
 }
-
-#[test]
-fn flagship_analysis_verifier_accepts_visible_markdown_citations() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let output = Command::new("python3")
-        .arg(root.join("tests/flagship_analysis_verifier_fixture.py"))
-        .output()
-        .expect("analysis verifier fixture should run");
-    assert!(
-        output.status.success(),
-        "analysis verifier failed: stdout={} stderr={}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
-
-#[test]
-fn flagship_blind_judges_are_independent_and_audits_stay_separate() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let output = Command::new("python3")
-        .arg(root.join("tests/flagship_judge_fixture.py"))
-        .output()
-        .expect("blind judge fixture should run");
-    assert!(
-        output.status.success(),
-        "blind judge fixture failed: stdout={} stderr={}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-}

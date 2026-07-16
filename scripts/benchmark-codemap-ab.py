@@ -1118,6 +1118,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--verifier-timeout-seconds", type=int, default=600)
     parser.add_argument("--codex-bin", default=os.environ.get("CODEX_BIN") or shutil.which("codex"))
     parser.add_argument("--codemap-bin", help="Direct binary or Python/POSIX-shell wrapper.")
+    parser.add_argument("--codex-argv-json", help=argparse.SUPPRESS)
+    parser.add_argument("--codemap-argv-json", help=argparse.SUPPRESS)
     parser.add_argument("--out-dir", default=str(default_out_dir()))
     parser.add_argument("--work-dir", help="Parent for disposable git worktrees (default: /tmp).")
     parser.add_argument("--keep-worktrees", action="store_true")
@@ -1133,10 +1135,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         parser.error("--reasoning-effort must be minimal, low, medium, high, or xhigh")
     return args
 
-def split_command(value: str | None, label: str) -> list[str]:
-    if not value:
+def split_command(value: str | None, label: str, argv_json: str | None = None) -> list[str]:
+    if not value and not argv_json:
         raise ValueError(f"{label} not found; pass --{label.replace('_', '-')}")
-    command = shlex.split(value)
+    command = json.loads(argv_json) if argv_json else shlex.split(value or "")
+    if not isinstance(command, list) or not all(isinstance(part, str) for part in command):
+        raise ValueError(f"{label} argv must be a string array")
     if not command:
         raise ValueError(f"empty {label} command")
     executable = command[0]
@@ -1155,9 +1159,10 @@ def main(argv: list[str]) -> int:
     try:
         tasks_path = canonical(Path(args.tasks))
         tasks = load_tasks(tasks_path, args.verifier_timeout_seconds)
-        codex_cmd = split_command(args.codex_bin, "codex_bin")
+        codex_cmd = split_command(args.codex_bin, "codex_bin", args.codex_argv_json)
+        codemap_value = json.loads(args.codemap_argv_json) if args.codemap_argv_json else args.codemap_bin
         codemap_cmd, codemap_resolution = resolve_codemap_command(
-            args.codemap_bin, Path(__file__).resolve().parents[1]
+            codemap_value, Path(__file__).resolve().parents[1]
         )
         codemap_identity = benchmark_binary_identity(
             codemap_cmd, codemap_resolution, tasks[0].repo

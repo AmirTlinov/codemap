@@ -165,10 +165,11 @@ Because the score is external, it measures the effects of understanding instead 
 trusting an agent's self-description. A strong corpus contains tasks where the direct
 edit is easy but important coupled surfaces are not obvious from the prompt.
 
-Exact/local negative controls should name their usable anchor directly in the identical task
+Exact/local controls should name their usable anchor directly in the identical task
 prompt and pre-register the allowed exact first argv/anchor set together with
 `entry_is_first_invocation=true`, `entry_kind=exact`, `root_entry=false`, and `mixed=false` as
-treatment receipt criteria. Implementation trials also require `ordered_daily=true`. They test
+treatment receipt criteria. An implementation trial uses one proportional entry and exactly one
+`changed` / `proof changed` pair after the edit. They test
 that codemap preserves the control outcome without charging for root orientation; time and token
 deltas remain visible resource costs rather than a substitute for that check.
 
@@ -205,115 +206,69 @@ quality.
 
 ## Frozen Flagship Gate
 
-The exploratory harness above remains the execution owner. The S15 release/nightly gate wraps
-it with `scripts/benchmark-codemap-flagship.py`; it does not introduce another runner or change
-an arm prompt after evidence exists.
+The exploratory harness remains the execution owner. The flagship wrapper adds only
+`freeze`, `run`, and `evaluate`; it does not score prose or introduce another agent.
 
-### Freeze before model calls
+### Corpus and freeze
 
-A draft corpus names exactly 12 analysis, 12 multi-file implementation, and 6 exact/local
-negative-control tasks. Every class is split equally between `calibration` and `holdout`.
-Each split must retain at least six repositories and four ecosystem families. The draft also
-fixes model, reasoning effort, timeouts, three-or-more repetitions, bootstrap seed/iterations,
-pair-order algorithm, allowed invalidation reasons, acceptance boundaries, blind-assignment
-seed, and manual-audit sample.
+The corpus contains exactly six repositories across at least four ecosystems. Each
+repository contributes one deterministic investigation, one multi-owner
+implementation, and one exact/local control: 18 tasks total. Two counterbalanced
+repetitions produce 36 pairs and 72 agent runs.
 
-Each task adds executable `benchmark` metadata to the ordinary task manifest:
-
-```json
-{
-  "benchmark": {
-    "repo_id": "billing-service",
-    "ecosystem": "typescript",
-    "task_class": "implementation",
-    "split": "holdout",
-    "ordinal_criteria": [],
-    "exception_criteria": ["secondary-consumer"]
-  }
-}
-```
-
-Every deterministic verifier declares `scoring: "deterministic"` and an external
-`evidence_surface`. Analysis tasks additionally declare ordinal criteria with fixed `id`,
-category, weight, maximum score, evidence surface, and blind-judge protocol. An implementation
-rubric must expose behavior, contract, downstream, and regression separately. All tasks include
-required and provenance criteria. Negative controls pre-register `expected_same_outcome: true`
-and the exact first codemap argv strings allowed by their prompt.
-
-Freeze resolves every repository ref to one commit per repository, hashes task bytes, external
-verifier files, harness/protocol bytes, Codex executable/version, and the attributable codemap
-binary. It materializes immutable split manifests and the counterbalanced arm schedule:
+Each task declares executable deterministic verifiers. Investigation verifiers check
+pre-registered repository facts, implementation verifiers run hidden tests or contract
+checks, and exact controls check their local outcome. Response length, model self-report,
+and another model's opinion are not evidence.
 
 ```bash
+python3 benchmarks/flagship/materialize.py \
+  benchmarks/flagship/corpus-blueprint.json \
+  --out-dir target/flagship-corpus-v1 --remote-only
+
 cargo build --release --locked
-scripts/benchmark-codemap-flagship.py freeze corpus-draft.json \
-  --out-dir target/codemap-ab/flagship-frozen \
+python3 scripts/benchmark-codemap-flagship.py freeze \
+  target/flagship-corpus-v1/corpus-draft.json \
+  --out-dir target/flagship-frozen-v1 \
   --codemap-bin target/release/codemap
 ```
 
-Any later prompt, weight, verifier, repository SHA, model, binary, timeout, schedule, harness, or
-protocol change requires a new frozen corpus. A holdout result is never carried across that
-boundary.
+The manifest fixes task and prompt bytes, repository commits, verifier bytes, model
+`gpt-5.6-sol`, reasoning `high`, the attributable codemap binary SHA-256, arm order,
+timeouts, concurrency, one infrastructure retry, and the acceptance thresholds. Any
+change requires a new frozen identity and a complete rerun.
 
-### Execute isolated splits
-
-```bash
-scripts/benchmark-codemap-flagship.py run \
-  target/codemap-ab/flagship-frozen/corpus-manifest.json calibration \
-  --out-dir target/codemap-ab/flagship-calibration
-
-scripts/benchmark-codemap-flagship.py run \
-  target/codemap-ab/flagship-frozen/corpus-manifest.json holdout \
-  --out-dir target/codemap-ab/flagship-holdout
-```
-
-The wrapper accepts no model, rubric, repetition, timeout, Codex, or codemap overrides. Both
-arms still run through `benchmark-codemap-ab.py` with fresh detached worktrees and separate
-external caches. A task whose verifier already passes at the frozen baseline is rejected before
-model calls. Rejected, missing, duplicated, crashed, timed-out, protocol-invalid, or provenance-
-ambiguous pairs stay visible in the expected denominator; they cannot silently disappear from
-acceptance. Calibration is development evidence only and is always reported separately.
-
-### Blind analysis judgment
+### Run and evaluate
 
 ```bash
-scripts/benchmark-codemap-flagship.py prepare-judging MANIFEST \
-  --calibration-dir CALIBRATION --holdout-dir HOLDOUT --out-dir JUDGING
+python3 scripts/benchmark-codemap-flagship.py run \
+  target/flagship-frozen-v1/manifest.json \
+  --out-dir target/flagship-run-v1
+
+python3 scripts/benchmark-codemap-flagship.py evaluate \
+  target/flagship-frozen-v1/manifest.json \
+  --run-dir target/flagship-run-v1 \
+  --out-dir target/flagship-acceptance-v1
+
+python3 scripts/verify-flagship-acceptance.py \
+  target/flagship-acceptance-v1/acceptance.json
 ```
 
-The frozen seed counterbalances anonymous candidates `A/B`; public assignments contain only the
-candidate report, artifact hash, and rubric ids. The sealed key maps candidates back to arms only
-for final aggregation. Ratings are JSONL with `assignment_id`, `candidate_id`, independent
-`judge_id`, `role: "judge"`, and integer criterion scores. Exactly two judges score each
-candidate. A disagreement requires one `role: "adjudicator"` row while identity remains blind.
-The frozen manual-audit sample additionally requires one `role: "auditor"` row with
-`audit_passed: true`. Krippendorff ordinal alpha is published per rubric; alpha below `0.67`
-invalidates acceptance rather than being repaired post hoc.
+Both arms use fresh detached worktrees and separate external caches. A verifier that
+already passes at baseline rejects the task before model execution. An infrastructure
+failure retries once with the identical manifest. A repeated failure, missing or extra
+arm, protocol violation, provenance mismatch, or read-only task write remains in the
+fixed denominator and makes the gate red.
 
-### Aggregate and verify
+Acceptance has three product conditions:
 
-```bash
-scripts/benchmark-codemap-flagship.py evaluate MANIFEST \
-  --calibration-dir CALIBRATION --holdout-dir HOLDOUT \
-  --assignments JUDGING/assignments.jsonl \
-  --assignment-key JUDGING/assignment-key.jsonl \
-  --ratings ratings.jsonl --out-dir ACCEPTANCE
+1. treatment wins at least 8 of 12 complex tasks by mean deterministic completeness
+   across both repetitions and loses none;
+2. treatment never loses a required criterion passed by control in a valid pair, and
+   all six exact controls keep the same outcome;
+3. median complex overhead is at most 20% wall time and 15% input tokens, while median
+   exact-control overhead is at most 10% for both metrics.
 
-scripts/verify-flagship-acceptance.py ACCEPTANCE/acceptance.json
-```
-
-The evaluator combines deterministic and ordinal criteria with their frozen weights, aggregates
-repetitions inside each task, tasks inside each repository, and only then macro-averages
-repositories. Holdout acceptance requires the one-sided 95% paired-bootstrap lower bound above
-zero, no deterministic required regression, positive median task delta, at least 60% complex-task
-wins, non-inferior downstream/contract/regression categories, bounded complex and negative-control
-resource overhead, zero analysis writes, complete provenance, and valid blind agreement.
-Time and input are costs, never the primary winner. A resource exception is possible only for
-pre-registered criteria, after the primary endpoint and negative controls pass, and when at least
-60% of over-budget complex tasks gain those criteria.
-
-`acceptance.json` hashes the frozen manifest, every raw trial/verifier artifact, blind assignment,
-key, and rating. The independent verifier imports none of the scoring implementation; it checks
-artifact immutability, denominator truth, split separation, agreement, primary-bound state, and
-that the final verdict equals every normative check. The synthetic black-box test runs on normal
-CI; the expensive frozen matrix is a release/nightly gate, not a pull-request model-call ritual.
+`acceptance.json` inventories the manifest, frozen tasks, raw results, per-trial
+receipts, and verifier outputs by SHA-256. The independent verifier imports none of the
+evaluator. The measured claim is restricted to this frozen six-repository corpus.
