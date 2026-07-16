@@ -159,3 +159,21 @@ edition = "2024"
         project.package_edges
     );
 }
+
+#[test]
+fn fresh_project_reads_the_source_bytes_it_indexed() {
+    let repo = tempfile::TempDir::new().expect("indexed source repo");
+    let source = repo.path().join("src/app.ts");
+    write_test_file(&source, "export const value = 'indexed';\n");
+    let project = load_project_with_cache(
+        RootSelection::Exact(repo.path().to_path_buf()),
+        CacheWriteMode::ReadOnly,
+    )
+    .expect("load indexed source project");
+
+    write_test_file(&source, "export const value = 'later';\n");
+    assert_eq!(
+        project.read_indexed_text("src/app.ts").as_deref(),
+        Some("export const value = 'indexed';\n")
+    );
+}

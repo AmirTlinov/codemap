@@ -3,7 +3,8 @@ use super::fingerprints::{CachedFingerprints, FINGERPRINT_CACHE_FORMAT};
 use crate::model::Project;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
-use std::fs;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 pub const MAX_SNAPSHOTS: usize = 32;
@@ -108,9 +109,16 @@ pub fn metadata(cache_dir: &Path, token: &str) -> Option<SnapshotMetadata> {
 }
 
 pub(crate) fn content(cache_dir: &Path, hash: &str) -> Option<String> {
-    valid_hash(hash)
-        .then(|| fs::read_to_string(blob_path(cache_dir, hash)).ok())
-        .flatten()
+    if !valid_hash(hash) {
+        return None;
+    }
+    let path = blob_path(cache_dir, hash);
+    let text = fs::read_to_string(&path).ok()?;
+    if crate::repo::scan_content_hash(text.as_bytes()) != hash {
+        let _ = fs::remove_file(path);
+        return None;
+    }
+    Some(text)
 }
 
 // Best-effort LRU refresh keeps a frequently used session baseline alive.
@@ -135,11 +143,26 @@ fn persist_content_blobs(project: &Project) -> usize {
         let Some(text) = project.read_indexed_text(&file.rel) else {
             continue;
         };
-        if super::io::write_cache_path(&project.cache_dir, &path, text).is_ok() {
+        // Blobs are immutable, content-addressed and verified on read. Writing
+        // them without a per-file fsync keeps one snapshot from issuing
+        // thousands of durability barriers; a torn blob simply fails open.
+        if write_content_blob(&path, &text).is_ok() {
             stored += 1;
         }
     }
     stored
+}
+
+fn write_content_blob(path: &Path, text: &str) -> std::io::Result<()> {
+    let mut options = OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut file = options.open(path)?;
+    file.write_all(text.as_bytes())
 }
 
 fn prune_to(dir: &Path, max: usize) -> bool {
@@ -212,4 +235,22 @@ fn now_unix_seconds() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|duration| duration.as_secs())
         .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn content_rejects_a_torn_blob() {
+        let cache = tempfile::TempDir::new().expect("snapshot cache");
+        fs::create_dir_all(blobs_dir(cache.path())).expect("blob directory");
+        let expected = "complete snapshot body\n";
+        let hash = crate::repo::scan_content_hash(expected.as_bytes());
+        fs::write(blob_path(cache.path(), &hash), "partial").expect("torn blob");
+        assert_eq!(content(cache.path(), &hash), None);
+        assert!(!blob_path(cache.path(), &hash).exists());
+        fs::write(blob_path(cache.path(), &hash), expected).expect("complete blob");
+        assert_eq!(content(cache.path(), &hash).as_deref(), Some(expected));
+    }
 }

@@ -119,6 +119,7 @@ pub(crate) fn extract_imports_exports(root: &Path, info: &mut FileInfo) {
             info.exports.insert(symbol.name.clone());
         }
     }
+    info.scanned_source_text = Some(text);
 }
 
 fn merge_import_bindings(

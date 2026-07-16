@@ -83,7 +83,11 @@ impl Project {
     /// parsers. Downstream fact builders must not turn those paths into body
     /// facts.
     pub(crate) fn read_indexed_text(&self, rel: &str) -> Option<String> {
-        self.files.get(rel)?.content_hash.as_ref()?;
+        let file = self.files.get(rel)?;
+        file.content_hash.as_ref()?;
+        if let Some(text) = &file.scanned_source_text {
+            return Some(text.clone());
+        }
         let path = self.root.join(rel);
         let metadata = std::fs::symlink_metadata(&path).ok()?;
         if metadata.file_type().is_symlink() || !metadata.is_file() {
@@ -111,6 +115,8 @@ pub struct FileInfo {
     pub indexed_boundary: Option<IndexedBoundary>,
     #[serde(default, skip_serializing)]
     pub content_hash: Option<String>,
+    #[serde(skip)]
+    pub(crate) scanned_source_text: Option<String>,
     pub line_count: usize,
     pub language: String,
     pub roles: BTreeSet<String>,

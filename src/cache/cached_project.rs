@@ -198,6 +198,7 @@ impl CachedFile {
             size: self.size,
             indexed_boundary: self.indexed_boundary,
             content_hash: self.content_hash,
+            scanned_source_text: None,
             line_count: self.line_count,
             language: self.language,
             roles: self.roles.into_iter().collect(),

@@ -209,6 +209,7 @@ fn scan_file(
         size,
         indexed_boundary,
         content_hash: None,
+        scanned_source_text: None,
         line_count: 0,
         has_dynamic_import: false,
         has_dynamic_require: false,
