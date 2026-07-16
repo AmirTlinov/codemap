@@ -217,6 +217,10 @@ fn runtime_root_cache_fixture() -> (TempDir, TempDir) {
         &repo.path().join("workers/job.ts"),
         "export async function run() { return true; }\n",
     );
+    write(
+        &repo.path().join(".editorconfig"),
+        "root = true\n[*]\ncharset = utf-8\n",
+    );
     git(repo.path(), &["add", "."]);
     git(
         repo.path(),

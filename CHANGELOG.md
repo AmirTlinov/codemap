@@ -25,6 +25,8 @@ public JSON compatibility is governed separately by `docs/SCHEMA_POLICY.md`.
   and persisted computed-require gaps in file facts instead of rereading the consumer universe.
 - Compacted multi-anchor `changed` overviews and wide exact `proof` command groups behind their
   existing section expands so daily agent context remains bounded without losing facts.
+- Kept warm lens caches valid when Git tracks regular files that the structural scanner
+  intentionally excludes, avoiding repeated runtime-report rebuilds on unchanged worktrees.
 
 ## 0.2.33 - 2026-05-04
 

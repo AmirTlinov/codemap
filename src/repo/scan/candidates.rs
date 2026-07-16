@@ -145,10 +145,8 @@ pub(crate) fn is_cache_candidate_with_index(
     rel: &str,
     git_index: &GitIndexInventory,
 ) -> bool {
-    if git_index.kind(rel).is_some() {
-        return true;
-    }
-    is_cache_candidate_file(root, rel) || indexed_boundary_for_path(root, rel, None).is_some()
+    is_cache_candidate_file(root, rel)
+        || indexed_boundary_for_path(root, rel, git_index.kind(rel)).is_some()
 }
 
 pub(crate) fn scan_candidate_inventory(
