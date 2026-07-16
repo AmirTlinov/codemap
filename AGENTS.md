@@ -18,8 +18,9 @@ Keep the product invariant clear:
 - optional `.codemap.yml` semantic anchors only when hard architecture truth cannot be inferred;
 - no task router, no ranking engine, no embeddings, no LLM in the hard path;
 - `proof` prints a plan by default and runs commands only with `--run`;
-- during the flagship wave, `контракт-спецификация.md` is the only active
-  S00-S17 ledger; do not add a new lens before S11 activates;
+- `контракт-спецификация.md` owns the one outcome-based flagship criterion;
+  strengthen existing map owners from external task evidence instead of adding
+  governance layers, judges, or a task router;
 - every new code file stays at or below 400 physical lines; legacy oversize files
   may shrink gradually but may not exceed the ceilings recorded in
   `.codex/legacy-oversize.tsv`;
