@@ -17,6 +17,8 @@ public JSON compatibility is governed separately by `docs/SCHEMA_POLICY.md`.
   thresholds while measuring the median of three warm samples.
 - Kept broad `changed` maps inside the daily budget by summarizing mechanical groups behind
   exact section expands, and removed per-line Git subprocesses from Rust route diffs.
+- Added a diagnostic treatment-only corpus pass that exercises every task once before the
+  binary, criteria, thresholds, and counterbalanced 72-run experiment are frozen.
 
 ## 0.2.33 - 2026-05-04
 

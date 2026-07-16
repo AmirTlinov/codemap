@@ -279,6 +279,25 @@ raise SystemExit(0 if "README.md:1" in message else 1)
             .is_none(),
         "disposable worktrees should be removed"
     );
+    let treatment_out = TempDir::new().expect("treatment preflight output");
+    let treatment_preflight = python()
+        .arg(repo_root.join("scripts/benchmark-codemap-ab.py"))
+        .arg(&tasks)
+        .args(["--codex-argv-json", &codex_argv])
+        .args(["--codemap-argv-json", &codemap_argv])
+        .args(["--out-dir", treatment_out.path().to_str().unwrap()])
+        .args(["--parallel-pairs", "2", "--treatment-preflight"])
+        .output()
+        .expect("treatment preflight should run");
+    assert!(treatment_preflight.status.success());
+    let treatment_results = fs::read_to_string(
+        treatment_out.path().join("treatment-preflight-results.jsonl"),
+    )
+    .expect("treatment preflight results");
+    assert_eq!(treatment_results.lines().count(), 2);
+    assert!(treatment_results.lines().all(|line| {
+        serde_json::from_str::<Value>(line).unwrap()["arm"] == "codemap"
+    }));
     let source_status = Command::new("git")
         .args(["status", "--short"])
         .current_dir(repo.path())

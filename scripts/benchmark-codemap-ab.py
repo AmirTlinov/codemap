@@ -1075,8 +1075,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--preflight-only", action="store_true")
+    parser.add_argument("--treatment-preflight", action="store_true")
     parser.add_argument("--parallel-pairs", type=int, default=1)
     args = parser.parse_args(argv)
+    if args.preflight_only and args.treatment_preflight:
+        parser.error("--preflight-only and --treatment-preflight are mutually exclusive")
     for name in ["repetitions", "timeout_seconds", "verifier_timeout_seconds", "parallel_pairs"]:
         if getattr(args, name) <= 0:
             parser.error(f"--{name.replace('_', '-')} must be positive")
@@ -1177,6 +1180,38 @@ def main(argv: list[str]) -> int:
         if args.preflight_only:
             print(f"A/B preflight: {out_dir / 'preflight'}")
             return 0
+        if args.treatment_preflight:
+            results = run_ordered(
+                tasks,
+                lambda task: run_trial(
+                    task, 1, ARM_TREATMENT, 1, args, codex_cmd, codemap_cmd,
+                    codex_version, codemap_version, codemap_hashes, codemap_identity,
+                    out_dir, work_root,
+                ),
+                args.parallel_pairs,
+            )
+            baseline_leaks = [row["task_id"] for row in preflight if row["baseline_passed"]]
+            failures = [
+                row["task_id"] for row in results
+                if not row["run_valid"] or not row["outcome_passed"]
+            ]
+            results_path = out_dir / "treatment-preflight-results.jsonl"
+            results_path.write_text(
+                "".join(json.dumps(row, sort_keys=True) + "\n" for row in results),
+                encoding="utf-8",
+            )
+            summary = {
+                "kind": "codemap_treatment_preflight",
+                "tasks": len(tasks),
+                "passed": len(tasks) - len(set(failures) | set(baseline_leaks)),
+                "failed_tasks": sorted(set(failures)),
+                "baseline_leaks": sorted(baseline_leaks),
+            }
+            (out_dir / "treatment-preflight-summary.json").write_text(
+                json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            )
+            print(f"Treatment preflight: {results_path}")
+            return 1 if failures or baseline_leaks else 0
         eligible = {
             row["task_id"] for row in preflight if row.get("baseline_passed") is False
         }
