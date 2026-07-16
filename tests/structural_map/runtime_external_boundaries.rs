@@ -251,6 +251,7 @@ fn runtime_root_cache_is_independent_of_external_symlink_target_kind() {
     assert_runtime_external_exclusion(report, "ci", ".github/workflows/ci.yml");
 }
 
+#[cfg(unix)]
 fn assert_runtime_external_exclusion(json: &Value, group: &str, path: &str) {
     let certificate = runtime_group_certificate(json, group);
     let eligible = certificate["eligible_files"]

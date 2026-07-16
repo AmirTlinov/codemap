@@ -114,6 +114,7 @@ fn runtime_file_looking_ci_gitlink_is_still_a_container_boundary() {
     assert_boundary_exclusions(&json, "ci", &["ci.yml"], true);
 }
 
+#[cfg(unix)]
 fn assert_external_ci_containers(json: &Value) {
     let roots = [".circleci", ".buildkite", ".teamcity"];
     assert!(

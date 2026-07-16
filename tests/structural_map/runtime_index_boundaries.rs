@@ -215,6 +215,7 @@ fn init_index_boundary_repo(path: &Path) {
     git(path, &["config", "user.name", "a"]);
 }
 
+#[cfg(unix)]
 fn add_local_submodule(repo: &Path, target: &Path, destination: &str) {
     let status = Command::new("git")
         .args(["-c", "protocol.file.allow=always", "submodule", "add", "-q"])
@@ -268,6 +269,7 @@ fn run_runtime_markdown_without_cache(repo: &Path, cache: &Path) -> String {
     String::from_utf8(output.stdout).expect("runtime markdown")
 }
 
+#[cfg(unix)]
 fn assert_gitlink_runtime_boundary(json: &Value, paths: &[&str]) {
     let rendered = serde_json::to_string(json).expect("runtime json text");
     for leaked in [
