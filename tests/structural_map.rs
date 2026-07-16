@@ -182,6 +182,7 @@ include!("structural_map/ecosystem_support.rs");
 include!("structural_map/dogfood_harness.rs");
 include!("structural_map/benchmark_value.rs");
 include!("structural_map/benchmark_ab.rs");
+include!("structural_map/benchmark_resume.rs");
 include!("structural_map/benchmark_protocol.rs");
 include!("structural_map/flagship_gate.rs");
 include!("structural_map/release_distribution.rs");

@@ -121,7 +121,7 @@
         },
         "fact-3": {
           "facts": [
-            "src/map/proof.rs"
+            "src/map/proof/entry.rs"
           ],
           "kind": "facts"
         },

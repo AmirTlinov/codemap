@@ -476,6 +476,10 @@ def trial_fingerprint(
 def existing_trial(path: Path, fingerprint: str, resume: bool) -> dict[str, Any] | None:
     result_path = path / "result.json"
     if not result_path.exists():
+        if path.exists():
+            if not resume:
+                raise ValueError(f"incomplete trial exists; use --resume or another --out-dir: {path}")
+            shutil.rmtree(path)
         return None
     if not resume:
         raise ValueError(f"trial already exists; use --resume or another --out-dir: {path}")

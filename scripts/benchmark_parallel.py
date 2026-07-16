@@ -2,17 +2,22 @@
 
 from __future__ import annotations
 
+import atexit
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 import os
 from pathlib import Path
+import signal
 import subprocess
+import threading
 import time
 from typing import Any, Callable, TypeVar
 
 
 Job = TypeVar("Job")
 Result = TypeVar("Result")
+_ACTIVE_PROCESSES: dict[int, subprocess.Popen[str]] = {}
+_ACTIVE_LOCK = threading.Lock()
 
 
 @dataclass
@@ -48,12 +53,18 @@ def run_process(
         errors="replace",
         **options,
     )
+    with _ACTIVE_LOCK:
+        _ACTIVE_PROCESSES[process.pid] = process
     timed_out = False
     try:
-        stdout, stderr = process.communicate(timeout=timeout_seconds)
-    except subprocess.TimeoutExpired:
-        timed_out = True
-        stdout, stderr = terminate_process_tree(process)
+        try:
+            stdout, stderr = process.communicate(timeout=timeout_seconds)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            stdout, stderr = terminate_process_tree(process)
+    finally:
+        with _ACTIVE_LOCK:
+            _ACTIVE_PROCESSES.pop(process.pid, None)
     return ProcessResult(
         status=124 if timed_out else process.returncode,
         elapsed_ms=int((time.monotonic_ns() - started) // 1_000_000),
@@ -64,6 +75,13 @@ def run_process(
 
 
 def terminate_process_tree(process: subprocess.Popen[str]) -> tuple[str, str]:
+    stop_process_tree(process)
+    return process.communicate()
+
+
+def stop_process_tree(process: subprocess.Popen[str]) -> None:
+    if process.poll() is not None:
+        return
     if os.name == "nt":
         subprocess.run(
             ["taskkill", "/PID", str(process.pid), "/T", "/F"],
@@ -71,18 +89,41 @@ def terminate_process_tree(process: subprocess.Popen[str]) -> tuple[str, str]:
             stderr=subprocess.DEVNULL,
             check=False,
         )
-        return process.communicate()
-    import signal
+        return
 
     try:
         os.killpg(process.pid, signal.SIGTERM)
-        return process.communicate(timeout=5)
-    except (ProcessLookupError, subprocess.TimeoutExpired):
+    except ProcessLookupError:
+        return
+    deadline = time.monotonic() + 5
+    while process.poll() is None and time.monotonic() < deadline:
+        time.sleep(0.05)
+    if process.poll() is None:
         try:
             os.killpg(process.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
-        return process.communicate()
+
+
+def terminate_active_processes() -> None:
+    with _ACTIVE_LOCK:
+        processes = list(_ACTIVE_PROCESSES.values())
+    for process in processes:
+        if process.poll() is None:
+            try:
+                stop_process_tree(process)
+            except (OSError, subprocess.SubprocessError):
+                pass
+
+
+def _handle_termination(signum: int, _frame: Any) -> None:
+    terminate_active_processes()
+    raise SystemExit(128 + signum)
+
+
+atexit.register(terminate_active_processes)
+for _signal in (signal.SIGINT, signal.SIGTERM):
+    signal.signal(_signal, _handle_termination)
 
 
 def run_ordered(jobs: list[Job], worker: Callable[[Job], Result], workers: int) -> list[Result]:

@@ -19,6 +19,8 @@ public JSON compatibility is governed separately by `docs/SCHEMA_POLICY.md`.
   exact section expands, and removed per-line Git subprocesses from Rust route diffs.
 - Added a diagnostic treatment-only corpus pass that exercises every task once before the
   binary, criteria, thresholds, and counterbalanced 72-run experiment are frozen.
+- Made interrupted benchmark resumes discard partial receipts and terminate active process
+  trees, and corrected the corpus proof-engine oracle to the concrete implementation owner.
 
 ## 0.2.33 - 2026-05-04
 
