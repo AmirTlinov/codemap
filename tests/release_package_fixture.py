@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import subprocess
 import sys
@@ -16,9 +17,17 @@ ROOT = Path(__file__).resolve().parents[1]
 
 with tempfile.TemporaryDirectory(prefix="codemap-release-package-") as temporary:
     root = Path(temporary)
-    binary = root / "codemap"
-    binary.write_text(
-        """#!/usr/bin/env python3
+    if os.name == "nt":
+        binary = Path(os.environ["CODEMAP_FIXTURE_BIN"])
+        version = subprocess.check_output([binary, "--version"], text=True).strip().split()[1]
+        identity = json.loads(
+            subprocess.check_output([binary, "doctor", "--format", "json"], text=True)
+        )["build_identity"]
+        source_commit = identity["source_commit"]
+    else:
+        binary = root / "codemap"
+        binary.write_text(
+            """#!/usr/bin/env python3
 import hashlib, json, pathlib, sys
 path = pathlib.Path(sys.argv[0])
 if '--version' in sys.argv:
@@ -31,10 +40,12 @@ elif 'doctor' in sys.argv:
 else:
     raise SystemExit(2)
 """,
-        encoding="utf-8",
-    )
-    binary.chmod(0o755)
-    env = {**os.environ, "CODEMAP_SOURCE_COMMIT": "fixture-commit"}
+            encoding="utf-8",
+        )
+        binary.chmod(0o755)
+        version = "9.8.7"
+        source_commit = "fixture-commit"
+    env = {**os.environ, "CODEMAP_SOURCE_COMMIT": source_commit}
     archives = []
     for name in ("first", "second"):
         out = root / name
@@ -48,7 +59,7 @@ else:
                 "--target",
                 "fixture-target",
                 "--version",
-                "9.8.7",
+                version,
                 "--out-dir",
                 str(out),
             ],
@@ -57,7 +68,7 @@ else:
             text=True,
         )
         assert result.returncode == 0, result.stderr
-        archive = out / "codemap-v9.8.7-fixture-target.tar.gz"
+        archive = out / f"codemap-v{version}-fixture-target.tar.gz"
         verify = subprocess.run(
             [
                 sys.executable,
@@ -68,7 +79,7 @@ else:
                 "--checksum",
                 str(archive) + ".sha256",
                 "--version",
-                "9.8.7",
+                version,
             ],
             capture_output=True,
             text=True,

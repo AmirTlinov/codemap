@@ -246,7 +246,7 @@ fn ls_treats_snapshots_as_first_class_non_code_anchors() {
 fn ls_and_changed_treat_shell_scripts_as_first_class_script_surfaces() {
     let (repo, cache) = fixture();
     write(
-        &repo.path().join("scripts/dogfood-codemap.sh"),
+        &repo.path().join("scripts/fixture.sh"),
         "#!/usr/bin/env bash\nset -euo pipefail\ncodemap ls .\n",
     );
     git(repo.path(), &["add", "."]);
@@ -255,7 +255,7 @@ fn ls_and_changed_treat_shell_scripts_as_first_class_script_surfaces() {
     let ls = run_json(
         repo.path(),
         cache.path(),
-        &["ls", "scripts/dogfood-codemap.sh", "--format", "json"],
+        &["ls", "scripts/fixture.sh", "--format", "json"],
     );
     assert_schema("schemas/ls.schema.json", &ls);
     assert_eq!(ls["mode"], "file");
@@ -276,7 +276,7 @@ fn ls_and_changed_treat_shell_scripts_as_first_class_script_surfaces() {
     );
 
     write(
-        &repo.path().join("scripts/dogfood-codemap.sh"),
+        &repo.path().join("scripts/fixture.sh"),
         "#!/usr/bin/env bash\nset -euo pipefail\ncodemap ls .\ncodemap changed\n",
     );
     let changed = run_json(repo.path(), cache.path(), &["changed", "--format", "json"]);
@@ -286,7 +286,7 @@ fn ls_and_changed_treat_shell_scripts_as_first_class_script_surfaces() {
             .as_array()
             .expect("changed")
             .iter()
-            .any(|file| file["path"] == "scripts/dogfood-codemap.sh"
+            .any(|file| file["path"] == "scripts/fixture.sh"
                 && file["kind"] == "script"
                 && file["language"] == "shell"),
         "changed script anchors should be indexed surfaces, not missing unknown rows: {changed:#}"

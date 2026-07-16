@@ -22,7 +22,7 @@ one additional repo under /Users/amir/Documents/projects
 Likely files:
 
 ```txt
-scripts/dogfood-codemap.sh
+scripts/dogfood-codemap.py
 scripts/live-adoption-notes.md or docs/plans/feature/live-probes.md
 README.md
 docs/PRODUCT.md
@@ -32,7 +32,7 @@ tests/*
 
 ## Implementation Steps
 
-1. Extend the existing non-mutating `scripts/dogfood-codemap.sh` harness unless
+1. Extend the existing non-mutating `scripts/dogfood-codemap.py` harness unless
    there is a concrete reason to split it. Do not create a parallel live-probe
    script just to rename the same responsibility.
 2. Add or document a local install path:
@@ -93,9 +93,9 @@ This slice relies on:
 Run:
 
 ```bash
-scripts/dogfood-codemap.sh /Users/amir/Documents/projects/spritestudio
-scripts/dogfood-codemap.sh /Users/amir/Documents/projects/Sillentway-VPN
-scripts/dogfood-codemap.sh <third-project>
+scripts/dogfood-codemap.py /Users/amir/Documents/projects/spritestudio
+scripts/dogfood-codemap.py /Users/amir/Documents/projects/Sillentway-VPN
+scripts/dogfood-codemap.py <third-project>
 ```
 
 Then run one real "find my way around this domain" task in each repo using

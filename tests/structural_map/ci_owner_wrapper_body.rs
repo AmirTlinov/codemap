@@ -56,6 +56,14 @@ fn ci_owner_package_script_wrapper_checks_manifest_body_before_run() {
         .args(["proof", ".github/workflows/ci.yml", "--run"])
         .output()
         .expect("proof --run should execute safe wrapper only");
+    if cfg!(windows) {
+        assert!(
+            !output.status.success()
+                && String::from_utf8_lossy(&output.stderr).contains("POSIX hosts"),
+            "Windows must expose the explicit proof --run boundary"
+        );
+        return;
+    }
     assert!(
         output.status.success(),
         "proof --run should accept only safe CI wrapper proof: {}",

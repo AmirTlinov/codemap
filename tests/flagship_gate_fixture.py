@@ -136,7 +136,7 @@ def freeze(root: Path, tasks: list[dict], codex: Path, codemap: Path) -> tuple[P
         draft_path,
         root / "frozen",
         [sys.executable, str(codex)],
-        f"{sys.executable} {codemap}",
+        [sys.executable, str(codemap)],
     )
     return manifest_path, json.loads(manifest_path.read_text(encoding="utf-8"))
 

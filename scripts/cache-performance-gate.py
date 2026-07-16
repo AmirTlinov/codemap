@@ -9,6 +9,7 @@ import json
 import os
 import platform
 import shutil
+import statistics
 import subprocess
 import tempfile
 import time
@@ -123,10 +124,16 @@ def timed_probe(
     repo: Path,
     cache: Path,
     args: list[str],
+    *,
+    samples: int = 1,
 ) -> str:
-    _, stdout, _, elapsed = command(binary, repo, cache, args)
+    observed = [command(binary, repo, cache, args) for _ in range(samples)]
+    stdout = observed[-1][1]
+    elapsed_samples = [item[3] for item in observed]
+    elapsed = int(statistics.median(elapsed_samples))
     results[name] = {
         "elapsed_ms": elapsed,
+        "samples_ms": elapsed_samples,
         "budget_ms": BUDGETS_MS[name],
         "status": "ok" if elapsed <= BUDGETS_MS[name] else "over",
         "command": ["codemap", *args],
@@ -156,9 +163,19 @@ def run_gate(args: argparse.Namespace) -> dict[str, object]:
         probes: dict[str, object] = {}
         timed_probe(probes, "cold_scan", binary, repo, cache, ["where", "Symbol0000"])
         baseline = json.loads((project_cache(cache) / "status.json").read_text())["fingerprint"]
-        timed_probe(probes, "warm_where", binary, repo, cache, ["where", "Symbol0000"])
-        timed_probe(probes, "warm_cone", binary, repo, cache, ["cone", "src/shared_a.ts"])
-        timed_probe(probes, "warm_ls_root", binary, repo, cache, ["ls", "."])
+        timed_probe(
+            probes, "warm_where", binary, repo, cache, ["where", "Symbol0000"], samples=3
+        )
+        timed_probe(
+            probes,
+            "warm_cone",
+            binary,
+            repo,
+            cache,
+            ["cone", "src/shared_a.ts"],
+            samples=3,
+        )
+        timed_probe(probes, "warm_ls_root", binary, repo, cache, ["ls", "."], samples=3)
 
         dirty_fixture(repo, args.dirty)
         _, profile_text, _, _ = command(
@@ -166,7 +183,7 @@ def run_gate(args: argparse.Namespace) -> dict[str, object]:
         )
         profile = json.loads(profile_text)
         changed_args = ["changed", "--since", baseline]
-        timed_probe(probes, "warm_changed_100", binary, repo, cache, changed_args)
+        timed_probe(probes, "warm_changed_100", binary, repo, cache, changed_args, samples=3)
         changed_json_args = [*changed_args, "--format", "json"]
         _, first_changed, _, _ = command(
             binary, repo, cache, changed_json_args, expect_json=True
@@ -175,7 +192,9 @@ def run_gate(args: argparse.Namespace) -> dict[str, object]:
             binary, repo, cache, changed_json_args, expect_json=True
         )
         proof_args = ["proof", "changed", "--since", baseline]
-        timed_probe(probes, "warm_proof_changed_100", binary, repo, cache, proof_args)
+        timed_probe(
+            probes, "warm_proof_changed_100", binary, repo, cache, proof_args, samples=3
+        )
         proof_json_args = [*proof_args, "--format", "json"]
         _, first_proof, _, _ = command(
             binary, repo, cache, proof_json_args, expect_json=True

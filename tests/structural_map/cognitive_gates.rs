@@ -68,7 +68,7 @@ fn changed_large_schema_and_script_slice_stays_compact() {
         ),
     );
     write(
-        &repo.path().join("scripts/dogfood-codemap.sh"),
+        &repo.path().join("scripts/check-changed.sh"),
         "#!/usr/bin/env bash\nset -euo pipefail\ncodemap changed\n",
     );
     for index in 0..24 {
@@ -90,7 +90,7 @@ fn changed_large_schema_and_script_slice_stays_compact() {
         "large changed overview should expose exact detail expansion: {markdown}"
     );
     assert!(
-        markdown.contains("scripts/dogfood-codemap.sh") && !markdown.contains("[missing; unknown"),
+        markdown.contains("scripts/check-changed.sh") && !markdown.contains("[missing; unknown"),
         "script changes should stay first-class in compact changed output: {markdown}"
     );
 }
@@ -98,7 +98,7 @@ fn changed_large_schema_and_script_slice_stays_compact() {
 #[test]
 fn changed_self_dogfood_shape_compacts_roles_and_schema_events() {
     let (repo, cache) = fixture();
-    for index in 0..6 {
+    for index in 0..30 {
         write(
             &repo.path().join(format!("schemas/public-{index}.schema.json")),
             r#"{
@@ -114,7 +114,7 @@ fn changed_self_dogfood_shape_compacts_roles_and_schema_events() {
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["commit", "-qm", "schema baseline"]);
 
-    for index in 0..6 {
+    for index in 0..30 {
         write(
             &repo.path().join(format!("schemas/public-{index}.schema.json")),
             r#"{
@@ -142,7 +142,7 @@ fn changed_self_dogfood_shape_compacts_roles_and_schema_events() {
         ("src/repo/constants.rs", "pub const CONFIG: &str = \"x\";\n"),
         ("src/map/proof_owner_ci_script_body.rs", "pub fn script_catalog() {}\n"),
         ("tests/structural_map/wide_shape.rs", "#[test]\nfn wide_shape() {}\n"),
-        ("scripts/check-version-bump.sh", "#!/usr/bin/env bash\nexit 0\n"),
+        ("scripts/check-version-bump.py", "#!/usr/bin/env python3\nraise SystemExit(0)\n"),
         (".github/workflows/ci.yml", "name: ci\n"),
         ("docs/guide.md", "# Guide\n"),
         ("runtime/receipts/proof.json", "{\"receipt\":true}\n"),
@@ -164,9 +164,16 @@ fn changed_self_dogfood_shape_compacts_roles_and_schema_events() {
     );
     assert!(
         markdown.contains("`added_schema_field`")
-            && markdown.contains("count=6")
+            && markdown.contains("count=30")
             && markdown.contains("codemap changed --section observed"),
         "wide changed overview should group repeated schema-field events without losing expand: {markdown}"
+    );
+    assert!(
+        markdown.contains("mechanical groups:")
+            && markdown.contains("deterministic groups:")
+            && markdown.contains("changed --section observed")
+            && markdown.contains("changed --section links"),
+        "45-file default view should summarize mechanical facts behind exact section expands: {markdown}"
     );
 }
 

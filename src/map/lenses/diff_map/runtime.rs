@@ -1,8 +1,8 @@
 // Responsibility: diff-map-lens-runtime
 use crate::map::{
-    DiffMapMode, diff_base_file_text, go_route_registrations, javascript_route_registrations,
-    next_app_route, next_app_route_rest, next_pages_route, next_pages_route_rest,
-    python_route_decorators, runtime_routes_for_file, rust_axum_routes_from_text,
+    go_route_registrations, javascript_route_registrations, next_app_route, next_app_route_rest,
+    next_pages_route, next_pages_route_rest, python_route_decorators, runtime_routes_for_file,
+    rust_axum_routes_from_text,
 };
 use crate::model::{EvidenceLocation, EvidenceStrength, Project, RuntimeRoute};
 
@@ -74,11 +74,10 @@ pub(crate) fn added_runtime_routes_from_diff_line(
 }
 
 pub(crate) fn removed_runtime_routes_from_diff_line(
-    project: &Project,
     rel: &str,
     line_number: usize,
     code: &str,
-    mode: &DiffMapMode,
+    base_text: Option<&str>,
 ) -> Vec<RuntimeRoute> {
     let ext = std::path::Path::new(rel)
         .extension()
@@ -87,8 +86,7 @@ pub(crate) fn removed_runtime_routes_from_diff_line(
     if ext != "rs" {
         return runtime_routes_from_diff_line(rel, line_number, code);
     }
-    diff_base_file_text(project, rel, mode)
-        .as_deref()
+    base_text
         .map(|text| rust_axum_routes_from_text(rel, text))
         .unwrap_or_default()
         .into_iter()

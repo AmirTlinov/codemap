@@ -499,14 +499,13 @@ def write_summary(out_dir: Path, rows: list[dict]) -> None:
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Benchmark codemap deterministic context compression."
-    )
+    parser = argparse.ArgumentParser(description="Benchmark codemap deterministic context compression.")
     parser.add_argument("repos", nargs="+", help="Repository roots to benchmark.")
     parser.add_argument(
         "--codemap-bin",
-        help="Explicit executable or quoted Python/POSIX-shell wrapper (then CODEMAP_BIN, local target, PATH).",
+        help="Explicit codemap executable (then CODEMAP_BIN, local target, PATH).",
     )
+    parser.add_argument("--codemap-argv-json", help=argparse.SUPPRESS)
     parser.add_argument(
         "--out-dir",
         default=str(repo_script_root() / "target" / "codemap-value-benchmark"),
@@ -530,10 +529,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
     try:
-        codemap_cmd, resolution = resolve_codemap_command(args.codemap_bin, repo_script_root())
+        codemap_value = json.loads(args.codemap_argv_json) if args.codemap_argv_json else args.codemap_bin
+        codemap_cmd, resolution = resolve_codemap_command(codemap_value, repo_script_root())
         identity_root = canonical(Path(args.repos[0]))
         codemap_identity = benchmark_binary_identity(codemap_cmd, resolution, identity_root)
-    except (OSError, CodemapIdentityError) as exc:
+    except (OSError, ValueError, json.JSONDecodeError, CodemapIdentityError) as exc:
         print(f"codemap benchmark: {exc}", file=sys.stderr)
         return 2
     out_dir = canonical(Path(args.out_dir))

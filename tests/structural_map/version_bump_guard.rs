@@ -13,8 +13,8 @@ fn version_bump_guard_requires_higher_package_version_for_changed_files() {
     git(repo.path(), &["commit", "-qm", "baseline"]);
 
     write(&repo.path().join("src/main.rs"), "fn main() { println!(\"changed\"); }\n");
-    let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/check-version-bump.sh");
-    let missing_bump = Command::new("bash")
+    let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/check-version-bump.py");
+    let missing_bump = python()
         .arg(&script)
         .arg("HEAD")
         .current_dir(repo.path())
@@ -36,7 +36,7 @@ fn version_bump_guard_requires_higher_package_version_for_changed_files() {
         &repo.path().join("Cargo.toml"),
         "[package]\nname = \"version-guard-fixture\"\nversion = \"0.2.1\"\nedition = \"2024\"\n",
     );
-    let bumped = Command::new("bash")
+    let bumped = python()
         .arg(&script)
         .arg("HEAD")
         .current_dir(repo.path())

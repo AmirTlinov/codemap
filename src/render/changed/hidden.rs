@@ -41,23 +41,5 @@ pub(crate) fn changed_hidden_section(
         );
         return;
     }
-    if compact && !force && hidden.len() > 5 {
-        println!("\n## Hidden\n");
-        let visible_hidden_groups = 5;
-        for hidden in hidden.iter().take(visible_hidden_groups) {
-            println!("- {}: {}", hidden.reason, hidden.count);
-            println!("  expand: `{}`", root_aware_expand(&hidden.expand));
-        }
-        let collapsed = hidden.len().saturating_sub(visible_hidden_groups);
-        println!("- hidden groups collapsed: `{collapsed}`");
-        println!(
-            "  expand: `{}`",
-            root_aware_expand(&format!(
-                "codemap changed{} --section hidden",
-                changed_selector_suffix(&report.selector)
-            ))
-        );
-        return;
-    }
     hidden_section(hidden);
 }

@@ -160,8 +160,8 @@ fn dogfood_script_refuses_cleanup_outside_target_or_temp() {
     let refused_out = repo_root.join("dogfood-refused-output");
     let _ = fs::remove_dir_all(&refused_out);
 
-    let output = Command::new("bash")
-        .arg(repo_root.join("scripts/dogfood-codemap.sh"))
+    let output = python()
+        .arg(repo_root.join("scripts/dogfood-codemap.py"))
         .env("CODEMAP_DOGFOOD_OUT", &refused_out)
         .output()
         .expect("dogfood script should run");
@@ -186,8 +186,8 @@ fn dogfood_script_refuses_traversal_outside_target() {
     let traversal_out = repo_root.join("target/../../dogfood-refused-output");
     let _ = fs::remove_dir_all(&refused_out);
 
-    let output = Command::new("bash")
-        .arg(repo_root.join("scripts/dogfood-codemap.sh"))
+    let output = python()
+        .arg(repo_root.join("scripts/dogfood-codemap.py"))
         .env("CODEMAP_DOGFOOD_OUT", &traversal_out)
         .output()
         .expect("dogfood script should run");

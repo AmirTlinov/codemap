@@ -52,7 +52,7 @@ language. This slice is a guardrail and inventory slice.
    - file count;
    - ignored count if available;
    - scan/load timing if already exposed.
-5. Create or update `scripts/dogfood-codemap.sh` as the read-only baseline
+5. Create or update `scripts/dogfood-codemap.py` as the read-only baseline
    harness. It must write only under this repo's `target/dogfood-codemap` or an
    explicit temp/artifact directory, never into probed target repos.
 6. Record current fixture coverage and missing lenses in a test-visible list.
@@ -88,7 +88,7 @@ codemap --root /Users/amir/Documents/projects/spritestudio doctor
 codemap --root /Users/amir/Documents/projects/Sillentway-VPN doctor
 codemap --root <third-project> doctor
 codemap --root /Users/amir/Documents/projects/spritestudio --help
-scripts/dogfood-codemap.sh
+scripts/dogfood-codemap.py
 ```
 
 Record whether current help makes it obvious what to run first.

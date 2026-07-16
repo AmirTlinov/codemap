@@ -81,7 +81,7 @@ proof: focused regression covers large cold root graph shape, representative
 compact surfaces, provenance edges, multiline CI blocks, workspace edges, and
 hidden full-index disclosure. Full gates passed: `cargo fmt --check`,
 `cargo test --quiet`, `cargo clippy --all-targets -- -D warnings`, `cargo run
---quiet --bin codemap -- doctor`, `scripts/check-version-bump.sh`, and
+--quiet --bin codemap -- doctor`, `python3 scripts/check-version-bump.py`, and
 `git diff --check`.
 review: bounded reviewer PASS.
 live: installed PATH `codemap 0.2.10` dogfood on current repo, main_cluster,
@@ -115,7 +115,7 @@ stale cache serving, no claim that inventory edges replace the full graph. The
 full-index escape hatch remains `codemap ls . --all`.
 proof: `cargo fmt --check`, `cargo test --quiet`, `cargo clippy --all-targets
 -- -D warnings`, `cargo run --quiet --bin codemap -- doctor`,
-`scripts/check-version-bump.sh`, `git diff --check`, and focused regression for
+`python3 scripts/check-version-bump.py`, `git diff --check`, and focused regression for
 large cold root inventory shape.
 review: bounded reviewer PASS; reviewer also checked a temp large-repo
 same-cache script mutation did not serve stale output.
@@ -142,7 +142,7 @@ guardrails: latency is a dogfood diagnostic, not a user-facing score or safety
 verdict. No new CLI command, no ranking, no recommendation, no cache rewrite.
 proof: focused root-ls and dogfood harness regressions, `cargo fmt --check`,
 `cargo test --quiet`, `cargo clippy --all-targets -- -D warnings`, `cargo run
---quiet --bin codemap -- doctor`, `scripts/check-version-bump.sh`, and `git
+--quiet --bin codemap -- doctor`, `python3 scripts/check-version-bump.py`, and `git
 diff --check`.
 review: first reviewer attempt timed out without verdict and was not counted;
 second bounded reviewer PASS.
@@ -170,7 +170,7 @@ guardrails: no new classifier to hide the issue, no ranking, no hidden score,
 no proof sufficiency claim, no primary CLI expansion.
 proof: focused trust-boundary regressions, `cargo fmt --check`, `cargo test
 --quiet`, `cargo clippy --all-targets -- -D warnings`, `cargo run --quiet
---bin codemap -- doctor`, `scripts/check-version-bump.sh`, and `git diff
+--bin codemap -- doctor`, `python3 scripts/check-version-bump.py`, and `git diff
 --check`.
 review: first reviewer BLOCK found stale current-doc wording; docs were fixed,
 public-doc regression added, full gates rerun, and final reviewer PASS.
@@ -194,7 +194,7 @@ Cargo.toml package version is higher than the base version.
 guardrails: this is a change-set guard, not a per-commit history auditor or a
 release platform. It adds no repo writes, no new agent-facing command, and no
 map semantics.
-proof: focused guard regression, `scripts/check-version-bump.sh`, `cargo fmt
+proof: focused guard regression, `python3 scripts/check-version-bump.py`, `cargo fmt
 --check`, `cargo test --quiet`, `cargo clippy --all-targets -- -D warnings`,
 `cargo run --quiet --bin codemap -- doctor`, and `git diff --check`.
 review: PASS.
@@ -281,7 +281,7 @@ Default `changed` now keeps JSON proof data complete while collapsing extra
 proof command groups behind `changed --section proof`, so large dirty repos stay
 inside the readable line budget.
 excluded: cold full scans on large repos are still expensive, and
-`scripts/dogfood-codemap.sh` is still too silent during long runs. Those are
+`scripts/dogfood-codemap.py` is still too silent during long runs. Those are
 live-harness/performance follow-ups, not map-truth regressions.
 proof: `cargo fmt --check`, `cargo test --quiet`, `cargo clippy --all-targets
 -- -D warnings`, `cargo run --quiet --bin codemap -- doctor`, focused
@@ -304,13 +304,13 @@ Dogfood progress 2026-05-03 is closed:
 ```txt
 status: closed
 tier: focused/full/live
-closed: `scripts/dogfood-codemap.sh` no longer becomes a silent long-running
+closed: `scripts/dogfood-codemap.py` no longer becomes a silent long-running
 black box. It prints live progress to stderr for repo start, probe start, probe
 completion with elapsed time and line budget, repo completion, and final
 probe/failure/over-budget summary. Stdout remains the stable summary path.
 excluded: this does not optimize cold scan speed; it only makes live dogfood
 observable enough to drive the next performance slice from facts.
-proof: `bash -n scripts/dogfood-codemap.sh`, focused dogfood harness regression,
+proof: `python3 -m py_compile scripts/dogfood-codemap.py`, focused dogfood harness regression,
 `cargo fmt --check`, `cargo test --quiet`, `cargo clippy --all-targets -- -D
 warnings`, `cargo run --quiet --bin codemap -- doctor`, and `git diff --check`.
 live: current repo, Levelly-1, and main_cluster dogfood with
@@ -335,7 +335,7 @@ first cache-writing map command.
 guardrails: target repos remain read-only; outputs and dogfood cache stay under
 `target/dogfood-cache-order-20260503`. The change is harness ordering only, not
 a new map fact, ranking, score, or recommendation.
-proof: `bash -n scripts/dogfood-codemap.sh`, focused dogfood order regression,
+proof: `python3 -m py_compile scripts/dogfood-codemap.py`, focused dogfood order regression,
 `cargo fmt --check`, `cargo test --quiet`, `cargo clippy --all-targets -- -D
 warnings`, `cargo run --quiet --bin codemap -- doctor`, and `git diff --check`.
 live: current repo, spritestudio, Sillentway-VPN, main_cluster, and Levelly-1
@@ -882,7 +882,7 @@ final adoption closure.
 Slice 27 first boundary is closed:
 
 ```txt
-closed: `scripts/dogfood-codemap.sh` is now a real read-only live adoption
+closed: `scripts/dogfood-codemap.py` is now a real read-only live adoption
 harness for daily plus focused probes, and README documents the local
 `cargo install --path .` path plus `CODEMAP_BIN` dogfood override. The harness
 auto-discovers one source anchor and one contract anchor, runs
@@ -1653,7 +1653,7 @@ codemap --root <third-project> changed
 codemap --root <third-project> proof changed
 ```
 
-Prefer `scripts/dogfood-codemap.sh` when the whole harness is relevant. For a
+Prefer `scripts/dogfood-codemap.py` when the whole harness is relevant. For a
 specific slice, run only the commands that prove that slice boundary.
 
 Record:

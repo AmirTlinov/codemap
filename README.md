@@ -37,15 +37,15 @@ Both benchmark harnesses resolve one attributable binary in this order:
 binary, then `PATH`. Their JSON receipts preserve the exact argv, executable,
 version, and SHA-256; an identity disagreement fails the run instead of silently
 benchmarking another installation.
-Quoted wrapper commands are supported for Python and POSIX shells; other runtime
-dispatchers should point `--codemap-bin` at a direct executable.
+`--codemap-bin` and `CODEMAP_BIN` accept one direct executable path. Benchmark
+orchestration keeps any interpreter wrapper as an argv array instead of a shell string.
 
 This proves context compression and navigation-signal density. It does not
 claim that the model became smarter. Run the paired behavioral benchmark for that:
 
 ```bash
 scripts/benchmark-codemap-ab.py tasks.jsonl \
-  --model gpt-5.6-sol --reasoning-effort xhigh --repetitions 3
+  --model gpt-5.6-sol --reasoning-effort high --repetitions 3
 ```
 
 It gives identical tasks and weighted external completeness criteria to isolated
@@ -169,6 +169,6 @@ use.
 cargo fmt --check
 cargo test
 cargo clippy --all-targets -- -D warnings
-scripts/check-version-bump.sh
+python3 scripts/check-version-bump.py
 cargo run --bin codemap -- doctor
 ```

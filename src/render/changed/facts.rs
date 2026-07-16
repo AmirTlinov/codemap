@@ -25,6 +25,10 @@ pub(crate) fn changed_risks_section(report: &ChangedReport, force: bool, compact
         }
         return;
     }
+    if compact && report.total_changed_count > 20 {
+        changed_risk_summary(report, has_live_untracked, has_live_conflicts);
+        return;
+    }
     println!("\n## Risks\n");
     disclaimer("Mechanical facts only. Not an edit verdict.");
     if let Some(prelude) = current_map_prelude() {
@@ -61,6 +65,38 @@ pub(crate) fn changed_risks_section(report: &ChangedReport, force: bool, compact
     }
 }
 
+fn changed_risk_summary(
+    report: &ChangedReport,
+    has_live_untracked: bool,
+    has_live_conflicts: bool,
+) {
+    let mut counts = std::collections::BTreeMap::new();
+    for risk in &report.risks {
+        *counts.entry(risk.severity.as_str()).or_insert(0usize) += 1;
+    }
+    if has_live_untracked {
+        *counts.entry("low").or_insert(0) += 1;
+    }
+    if has_live_conflicts {
+        *counts.entry("high").or_insert(0) += 1;
+    }
+    let summary = counts
+        .into_iter()
+        .map(|(severity, count)| format!("{severity}={count}"))
+        .collect::<Vec<_>>()
+        .join("; ");
+    let groups =
+        report.risks.len() + usize::from(has_live_untracked) + usize::from(has_live_conflicts);
+    println!("\n## Risks\n");
+    println!(
+        "- mechanical groups: `{groups}` [{summary}]; expand: `{}`",
+        root_aware_expand(&format!(
+            "codemap changed{} --section observed",
+            changed_selector_suffix(&report.selector)
+        ))
+    );
+}
+
 fn changed_risk_line(risk: &crate::model::ChangedRisk, compact: bool) {
     if compact {
         println!(
@@ -91,6 +127,10 @@ pub(crate) fn changed_coupling_section(report: &ChangedReport, force: bool, comp
             println!("\n## Coupling\n");
             println!("No deterministic coupling facts found.");
         }
+        return;
+    }
+    if compact && report.total_changed_count > 20 {
+        changed_coupling_summary(report);
         return;
     }
     println!("\n## Coupling\n");
@@ -127,4 +167,25 @@ pub(crate) fn changed_coupling_section(report: &ChangedReport, force: bool, comp
             ))
         );
     }
+}
+
+fn changed_coupling_summary(report: &ChangedReport) {
+    let mut counts = std::collections::BTreeMap::new();
+    for fact in &report.coupling {
+        *counts.entry(fact.status.as_str()).or_insert(0usize) += 1;
+    }
+    let summary = counts
+        .into_iter()
+        .map(|(status, count)| format!("{status}={count}"))
+        .collect::<Vec<_>>()
+        .join("; ");
+    println!("\n## Coupling\n");
+    println!(
+        "- deterministic groups: `{}` [{summary}]; expand: `{}`",
+        report.coupling.len(),
+        root_aware_expand(&format!(
+            "codemap changed{} --section links",
+            changed_selector_suffix(&report.selector)
+        ))
+    );
 }

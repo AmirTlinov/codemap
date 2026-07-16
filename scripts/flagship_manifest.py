@@ -226,7 +226,7 @@ def freeze_corpus(
     draft_path: Path,
     out_dir: Path,
     codex_bin: str | list[str] = "codex",
-    codemap_bin: str | None = None,
+    codemap_bin: str | list[str] | None = None,
 ) -> Path:
     draft_path = draft_path.resolve()
     draft = json.loads(draft_path.read_text(encoding="utf-8"))

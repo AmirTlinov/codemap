@@ -41,6 +41,6 @@ python3 .codex/hooks/code_policy.py check-all
 cargo fmt --check
 cargo test
 cargo clippy --all-targets -- -D warnings
-scripts/check-version-bump.sh
+python3 scripts/check-version-bump.py
 cargo run --bin codemap -- doctor
 ```

@@ -82,6 +82,7 @@ raise SystemExit(0 if "README.md:1" in message else 1)
 "#,
     );
     let tasks = support.path().join("tasks.jsonl");
+    let python_bin = python_executable();
     let task = serde_json::json!({
         "id": "paired-answer",
         "repo": repo.path(),
@@ -93,7 +94,7 @@ raise SystemExit(0 if "README.md:1" in message else 1)
                 "category": "behavior",
                 "weight": 2,
                 "required": true,
-                "command": ["python3", verifier, "{worktree}"],
+                "command": [python_bin, verifier, "{worktree}"],
                 "timeout_seconds": 30
             },
             {
@@ -101,7 +102,7 @@ raise SystemExit(0 if "README.md:1" in message else 1)
                 "category": "contract",
                 "weight": 1,
                 "required": false,
-                "command": ["python3", contract_verifier, "{worktree}"],
+                "command": [python_bin, contract_verifier, "{worktree}"],
                 "timeout_seconds": 30
             }
         ],
@@ -118,7 +119,7 @@ raise SystemExit(0 if "README.md:1" in message else 1)
             "category": "evidence",
             "weight": 1,
             "required": true,
-            "command": ["python3", analysis_verifier, "{last_message}"],
+            "command": [python_bin, analysis_verifier, "{last_message}"],
             "timeout_seconds": 30
         }]
     });
@@ -132,14 +133,14 @@ raise SystemExit(0 if "README.md:1" in message else 1)
     );
 
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let output = Command::new("python3")
+    let codex_argv = serde_json::to_string(&[python_bin, fake_codex.to_str().unwrap()]).unwrap();
+    let codemap_argv =
+        serde_json::to_string(&[python_bin, fake_codemap.to_str().unwrap()]).unwrap();
+    let output = python()
         .arg(repo_root.join("scripts/benchmark-codemap-ab.py"))
         .arg(&tasks)
-        .args(["--codex-bin", &format!("python3 {}", fake_codex.display())])
-        .args([
-            "--codemap-bin",
-            &format!("python3 {}", fake_codemap.display()),
-        ])
+        .args(["--codex-argv-json", &codex_argv])
+        .args(["--codemap-argv-json", &codemap_argv])
         .args(["--out-dir", out.path().to_str().unwrap()])
         .args([
             "--work-dir",
@@ -160,7 +161,7 @@ raise SystemExit(0 if "README.md:1" in message else 1)
     )
     .expect("valid summary");
     assert_eq!(summary["model"], "gpt-5.6-sol");
-    assert_eq!(summary["reasoning_effort"], "xhigh");
+    assert_eq!(summary["reasoning_effort"], "high");
     assert_eq!(
         summary["scoring_contract"]["primary_metric"],
         "weighted_external_completeness"
@@ -296,14 +297,11 @@ raise SystemExit(0 if "README.md:1" in message else 1)
         "# identity-changing bytes"
     )
     .expect("change fake codemap bytes");
-    let resumed = Command::new("python3")
+    let resumed = python()
         .arg(repo_root.join("scripts/benchmark-codemap-ab.py"))
         .arg(&tasks)
-        .args(["--codex-bin", &format!("python3 {}", fake_codex.display())])
-        .args([
-            "--codemap-bin",
-            &format!("python3 {}", fake_codemap.display()),
-        ])
+        .args(["--codex-argv-json", &codex_argv])
+        .args(["--codemap-argv-json", &codemap_argv])
         .args(["--out-dir", out.path().to_str().unwrap()])
         .args([
             "--work-dir",
@@ -340,17 +338,19 @@ elif "doctor" in sys.argv:
     );
     write(&config, "ab-config\n");
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let explicit = format!(
-        "python3 'relative tools/ab codemap.py' '{}'",
-        config.display()
-    );
+    let explicit = serde_json::to_string(&[
+        python_executable(),
+        "relative tools/ab codemap.py",
+        config.to_str().unwrap(),
+    ])
+    .unwrap();
     let probe = r#"import json, pathlib, sys
 sys.path.insert(0, sys.argv[1])
 from codemap_identity import benchmark_binary_identity, resolve_codemap_command
-command, source = resolve_codemap_command(sys.argv[5], pathlib.Path(sys.argv[2]), cwd=pathlib.Path(sys.argv[3]))
+command, source = resolve_codemap_command(json.loads(sys.argv[5]), pathlib.Path(sys.argv[2]), cwd=pathlib.Path(sys.argv[3]))
 print(json.dumps(benchmark_binary_identity(command, source, pathlib.Path(sys.argv[4]))))
 "#;
-    let output = Command::new("python3")
+    let output = python()
         .args([
             "-c",
             probe,
@@ -364,10 +364,10 @@ print(json.dumps(benchmark_binary_identity(command, source, pathlib.Path(sys.arg
         .expect("A/B wrapper identity probe");
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     let identity: Value = serde_json::from_slice(&output.stdout).expect("identity json");
-    let wrapper = wrapper.canonicalize().unwrap();
-    assert_eq!(identity["command_argv"][1], wrapper.to_string_lossy().as_ref());
+    let wrapper_path = comparable_canonical_path(&wrapper);
+    assert_eq!(identity["command_argv"][1], wrapper_path);
     assert_eq!(identity["command_argv"][2], config.to_string_lossy().as_ref());
-    assert_eq!(identity["build_identity"]["executable_path"], wrapper.to_string_lossy().as_ref());
+    assert_eq!(identity["build_identity"]["executable_path"], wrapper_path);
     assert_eq!(identity["build_identity"]["binary_sha256"], executable_sha256(&wrapper));
     let artifacts = identity["command_artifacts"].as_array().unwrap();
     assert_eq!(artifacts.len(), 2, "config must not enter executable artifacts: {identity:#}");

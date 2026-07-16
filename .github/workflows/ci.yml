@@ -66,8 +66,16 @@ jobs:
           rustc --version
           cargo --version
 
+      - name: Install Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+
+      - name: Code and line policy
+        run: python3 .codex/hooks/code_policy.py check-all
+
       - name: Version bump guard
-        run: scripts/check-version-bump.sh
+        run: python3 scripts/check-version-bump.py
 
       - name: Format
         run: cargo fmt --check
@@ -112,11 +120,19 @@ jobs:
       - name: Code and line policy
         run: python3 .codex/hooks/code_policy.py check-all
 
+      - name: Version bump guard
+        run: python3 scripts/check-version-bump.py
+
       - name: Format
         run: cargo fmt --check
 
       - name: Test
         run: cargo test --locked
+
+      - name: Strict cache performance gate
+        run: |
+          cargo build --release --locked
+          python3 scripts/cache-performance-gate.py --binary target/release/codemap.exe --strict --output target/cache-performance.json
 
       - name: Clippy
         run: cargo clippy --locked --all-targets -- -D warnings

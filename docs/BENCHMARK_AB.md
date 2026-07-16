@@ -25,10 +25,10 @@ The default requested model configuration is:
 
 ```txt
 model = gpt-5.6-sol
-model_reasoning_effort = xhigh
+model_reasoning_effort = high
 ```
 
-`gpt-5.6-sol-xhigh` is therefore represented by two explicit Codex settings rather
+The model and `high` reasoning effort are represented by two explicit Codex settings rather
 than an invented compound model name.
 
 ## Task Manifest
@@ -79,7 +79,7 @@ Then run the paired experiment:
 ```bash
 scripts/benchmark-codemap-ab.py tasks.jsonl \
   --model gpt-5.6-sol \
-  --reasoning-effort xhigh \
+  --reasoning-effort high \
   --repetitions 3 \
   --codemap-bin target/debug/codemap
 ```
@@ -94,8 +94,8 @@ then a local debug/release target, then `PATH`. Summary and per-trial JSON prese
 one shared `report_prelude.codemap` with exact argv, version, executable artifacts,
 and SHA-256. These fields participate in the resume fingerprint, so replacing a
 binary without changing its version invalidates the old trial.
-`--codemap-bin` accepts a direct executable or a quoted Python/POSIX-shell
-wrapper; use a direct executable for other runtime dispatchers.
+`--codemap-bin` accepts one direct executable path. Internal orchestration preserves
+wrappers as argv arrays in the frozen manifest; shell command strings are not accepted.
 
 Treatment starts from the narrowest usable anchor named by the task: `codemap ls <scope>`
 for an exact file or directory, `codemap cone <file#symbol>` for an anchored symbol, or

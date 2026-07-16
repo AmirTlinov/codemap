@@ -31,14 +31,15 @@ fn explicit_root_is_preserved_in_json_and_markdown_expand_commands() {
         String::from_utf8_lossy(&output.stderr)
     );
     let report: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json report");
-    let root_prefix = format!("codemap --root {}", repo.path().display());
+    let agent_expands = report["agent"]["expands"].as_array().expect("agent expands");
     assert!(
-        report["expand"]
-            .as_array()
-            .expect("expand")
+        agent_expands
             .iter()
-            .all(|command| command.as_str().is_some_and(|command| command
-                .starts_with(&root_prefix))),
+            .all(|command| command.as_array().is_some_and(|argv| {
+                argv.first() == Some(&serde_json::json!("codemap"))
+                    && argv.get(1) == Some(&serde_json::json!("--root"))
+                    && argv.get(2) == Some(&serde_json::json!(repo.path()))
+            })),
         "json expand commands should preserve explicit --root: {report:#}"
     );
 
@@ -59,14 +60,17 @@ fn explicit_root_is_preserved_in_json_and_markdown_expand_commands() {
         String::from_utf8_lossy(&markdown.stderr)
     );
     let stdout = String::from_utf8(markdown.stdout).expect("markdown utf8");
+    let rendered_root = format!("'{}'", repo.path().display());
+    let rendered_root = if cfg!(windows) {
+        rendered_root
+    } else {
+        repo.path().display().to_string()
+    };
     assert!(
-        stdout.contains(&format!(
-            "`codemap --root {} cone crates/worker`",
-            repo.path().display()
-        )) && stdout.contains(&format!(
-            "`codemap --root {} flow crates/worker/src/bin/worker.rs`",
-            repo.path().display()
-        )),
+        stdout.contains(&format!("`codemap --root {rendered_root} cone crates/worker`"))
+            && stdout.contains(&format!(
+                "`codemap --root {rendered_root} flow crates/worker/src/bin/worker.rs`"
+            )),
         "markdown expand commands should preserve explicit --root: {stdout}"
     );
 }

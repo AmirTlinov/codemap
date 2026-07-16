@@ -7,7 +7,6 @@ import hashlib
 import json
 import os
 import re
-import shlex
 import shutil
 import subprocess
 from pathlib import Path
@@ -54,10 +53,12 @@ def _script_index(command: list[str]) -> int | None:
     return None
 
 
-def _split_command(value: str, cwd: Path) -> list[str]:
-    command = shlex.split(value)
+def _resolve_command(command: list[str], cwd: Path) -> list[str]:
     if not command:
         raise CodemapIdentityError("empty codemap command")
+    if not all(isinstance(part, str) and part for part in command):
+        raise CodemapIdentityError("codemap argv must be a non-empty string array")
+    command = list(command)
     executable = Path(command[0])
     if executable.is_absolute():
         command[0] = str(canonical(executable))
@@ -88,12 +89,10 @@ def resolve_codemap_command(
     cwd = canonical(cwd or Path.cwd())
     if explicit:
         if isinstance(explicit, list):
-            if not explicit or not all(isinstance(part, str) and part for part in explicit):
-                raise CodemapIdentityError("codemap argv must be a non-empty string array")
-            return _split_command(shlex.join(explicit), cwd), "explicit"
-        return _split_command(explicit, cwd), "explicit"
+            return _resolve_command(explicit, cwd), "explicit"
+        return _resolve_command([explicit], cwd), "explicit"
     if os.environ.get("CODEMAP_BIN"):
-        return _split_command(os.environ["CODEMAP_BIN"], cwd), "environment"
+        return _resolve_command([os.environ["CODEMAP_BIN"]], cwd), "environment"
     for profile in ("debug", "release"):
         local = canonical(repo_root / "target" / profile / ("codemap.exe" if os.name == "nt" else "codemap"))
         if local.is_file():

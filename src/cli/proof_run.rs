@@ -21,6 +21,11 @@ pub(crate) fn proof(project: &crate::model::Project, args: ProofArgs) -> Result<
             "--section is display-only and cannot be combined with --run",
         ));
     }
+    if args.run && !cfg!(unix) {
+        return Err(crate::cli::unsafe_refused(
+            "proof --run is available only on POSIX hosts; inspect the plan and run its argv with a platform-native executor",
+        ));
+    }
     let (target, changed, selector, since_notice) = proof_inputs(project, &args)?;
     let limit = if args.include_hidden {
         usize::MAX / 2

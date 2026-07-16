@@ -1,11 +1,9 @@
 scripts/benchmark-codemap-ab.py	1280
 scripts/benchmark-codemap-value.py	577
-scripts/dogfood-codemap.sh	455
 tests/structural_map/boundaries_graph_schema.rs	496
 tests/structural_map/cache_diagnostics.rs	462
 tests/structural_map/cache_lens_artifacts.rs	495
 tests/structural_map/changed_lens.rs	409
-tests/structural_map/ci_owner_proof.rs	496
 tests/structural_map/cli_map_core.rs	410
 tests/structural_map/diff_map_limits.rs	408
 tests/structural_map/false_confidence_owner_cones.rs	492

@@ -135,9 +135,15 @@ fn diff_map_rust_axum_added_route_uses_runtime_facts() {
 fn diff_map_rust_axum_removed_route_uses_base_runtime_facts() {
     let (repo, cache) = fixture();
     let path = repo.path().join("packages/app/src/main.rs");
+    let routes = (0..12)
+        .map(|index| format!("        .route(\"/removed-{index}\", get(handler))"))
+        .collect::<Vec<_>>()
+        .join("\n");
     write(
         &path,
-        "use axum::{routing::get, Router};\n\nfn app() -> Router {\n    Router::new()\n        .route(\"/removed-rust-route\", get(handler))\n}\n\nasync fn handler() {}\n",
+        &format!(
+            "use axum::{{routing::get, Router}};\n\nfn app() -> Router {{\n    Router::new()\n{routes}\n}}\n\nasync fn handler() {{}}\n"
+        ),
     );
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["commit", "-qm", "rust axum removed route baseline"]);
@@ -146,7 +152,20 @@ fn diff_map_rust_axum_removed_route_uses_base_runtime_facts() {
         "use axum::{routing::get, Router};\n\nfn app() -> Router {\n    Router::new()\n}\n\nasync fn handler() {}\n",
     );
 
-    let diff = run_json(repo.path(), cache.path(), &["diff-map", "--changed", "--format", "json"]);
+    let trace = cache.path().join("git-trace.jsonl");
+    let output = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .env("GIT_TRACE2_EVENT", &trace)
+        .args(["diff-map", "--changed", "--format", "json"])
+        .output()
+        .expect("diff-map should run");
+    assert!(
+        output.status.success(),
+        "diff-map failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let diff: serde_json::Value = serde_json::from_slice(&output.stdout).expect("diff-map JSON");
     assert_schema("schemas/diff-map.schema.json", &diff);
     assert!(
         diff["removed_runtime_routes"]
@@ -154,10 +173,19 @@ fn diff_map_rust_axum_removed_route_uses_base_runtime_facts() {
             .expect("removed runtime routes")
             .iter()
             .any(|route| route["method"] == "GET"
-                && route["path"] == "/removed-rust-route"
+                && route["path"] == "/removed-11"
                 && route["file"] == "packages/app/src/main.rs"
                 && route["handler_symbol"] == "handler"
                 && route["evidence"] == "rust_axum_route_registration"),
         "diff-map should reuse base runtime facts for removed Rust axum route lines: {diff:#}"
+    );
+    let trace = std::fs::read_to_string(trace).expect("git trace");
+    let batch_reads = trace
+        .lines()
+        .filter(|line| line.contains(r#""cat-file","--batch""#))
+        .count();
+    assert!(
+        batch_reads <= 2,
+        "removed Rust routes should reuse one batched base-text read, not spawn git per diff line; batch_reads={batch_reads}\n{trace}"
     );
 }

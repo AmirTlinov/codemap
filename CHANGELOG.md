@@ -12,6 +12,11 @@ public JSON compatibility is governed separately by `docs/SCHEMA_POLICY.md`.
   release-tier ecosystem matrix, and map-first exact-entry workflow.
 - Added cross-platform release archives, checksums, build attestations, package/fresh-install
   smoke tests, and upgrade/downgrade cache compatibility verification.
+- Made benchmark process control, version guarding, dogfood probes, release fixtures, and
+  canonical executable identities native on Windows; warm latency gates now keep the same
+  thresholds while measuring the median of three warm samples.
+- Kept broad `changed` maps inside the daily budget by summarizing mechanical groups behind
+  exact section expands, and removed per-line Git subprocesses from Rust route diffs.
 
 ## 0.2.33 - 2026-05-04
 

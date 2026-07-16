@@ -161,6 +161,7 @@ include!("structural_map/false_confidence_owner_cones.rs");
 include!("structural_map/false_confidence_ci_and_deleted_env.rs");
 include!("structural_map/ci_owner_cone.rs");
 include!("structural_map/ci_owner_proof.rs");
+include!("structural_map/ci_owner_proof_boundaries.rs");
 include!("structural_map/ci_owner_run_safety.rs");
 include!("structural_map/ci_owner_wrapper_body.rs");
 include!("structural_map/ci_execution_path.rs");

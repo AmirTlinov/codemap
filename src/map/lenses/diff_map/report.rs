@@ -184,7 +184,10 @@ pub fn diff_map_report(
                 ));
             }
             removed_runtime_routes.extend(removed_runtime_routes_from_diff_line(
-                project, rel, *line, code, &mode,
+                rel,
+                *line,
+                code,
+                base_text.map(String::as_str),
             ));
             removed_env.extend(env_surfaces_from_diff_line(
                 project,

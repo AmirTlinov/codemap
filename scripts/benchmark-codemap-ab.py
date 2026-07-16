@@ -17,18 +17,16 @@ import os
 import re
 import shlex
 import shutil
-import signal
 import statistics
 import subprocess
 import sys
 import tempfile
-import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from benchmark_parallel import run_ordered
+from benchmark_parallel import ProcessResult, run_ordered, run_process
 from codemap_identity import CodemapIdentityError, benchmark_binary_identity, command_artifacts, resolve_codemap_command
 from codemap_protocol import codemap_protocol
 from codemap_protocol_shim import shell_profile_environment, write_shim
@@ -100,15 +98,6 @@ class Task:
     protected_paths: list[str]
 
 
-@dataclass
-class ProcessResult:
-    status: int
-    elapsed_ms: int
-    stdout: str
-    stderr: str
-    timed_out: bool
-
-
 def canonical(path: Path) -> Path:
     return path.expanduser().resolve()
 
@@ -120,49 +109,6 @@ def safe_label(value: str) -> str:
 def stable_hash(value: Any) -> str:
     body = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(body.encode("utf-8")).hexdigest()
-
-
-def run_process(
-    args: list[str],
-    cwd: Path,
-    timeout_seconds: int,
-    env: dict[str, str] | None = None,
-) -> ProcessResult:
-    started = time.monotonic_ns()
-    process = subprocess.Popen(
-        args,
-        cwd=cwd,
-        env=env,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        start_new_session=True,
-    )
-    timed_out = False
-    try:
-        stdout, stderr = process.communicate(timeout=timeout_seconds)
-    except subprocess.TimeoutExpired:
-        timed_out = True
-        try:
-            os.killpg(process.pid, signal.SIGTERM)
-            stdout, stderr = process.communicate(timeout=5)
-        except (ProcessLookupError, subprocess.TimeoutExpired):
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            stdout, stderr = process.communicate()
-    elapsed_ms = int((time.monotonic_ns() - started) // 1_000_000)
-    return ProcessResult(
-        status=124 if timed_out else process.returncode,
-        elapsed_ms=elapsed_ms,
-        stdout=stdout,
-        stderr=stderr,
-        timed_out=timed_out,
-    )
 
 
 def git(repo: Path, args: list[str], timeout_seconds: int = 60) -> ProcessResult:
@@ -511,6 +457,9 @@ def trial_fingerprint(
             "harness_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
             "protocol_parser_sha256": hashlib.sha256(
                 Path(__file__).with_name("codemap_protocol.py").read_bytes()
+            ).hexdigest(),
+            "process_runner_sha256": hashlib.sha256(
+                Path(__file__).with_name("benchmark_parallel.py").read_bytes()
             ).hexdigest(),
             "model": args.model,
             "reasoning_effort": args.reasoning_effort,
@@ -1112,12 +1061,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     parser.add_argument("tasks", help="JSONL task manifest; see docs/BENCHMARK_AB.md")
     parser.add_argument("--model", default="gpt-5.6-sol")
-    parser.add_argument("--reasoning-effort", default="xhigh")
+    parser.add_argument("--reasoning-effort", default="high")
     parser.add_argument("--repetitions", type=int, default=1)
     parser.add_argument("--timeout-seconds", type=int, default=1800)
     parser.add_argument("--verifier-timeout-seconds", type=int, default=600)
     parser.add_argument("--codex-bin", default=os.environ.get("CODEX_BIN") or shutil.which("codex"))
-    parser.add_argument("--codemap-bin", help="Direct binary or Python/POSIX-shell wrapper.")
+    parser.add_argument("--codemap-bin", help="Direct codemap executable path.")
     parser.add_argument("--codex-argv-json", help=argparse.SUPPRESS)
     parser.add_argument("--codemap-argv-json", help=argparse.SUPPRESS)
     parser.add_argument("--out-dir", default=str(default_out_dir()))
@@ -1138,7 +1087,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def split_command(value: str | None, label: str, argv_json: str | None = None) -> list[str]:
     if not value and not argv_json:
         raise ValueError(f"{label} not found; pass --{label.replace('_', '-')}")
-    command = json.loads(argv_json) if argv_json else shlex.split(value or "")
+    command = json.loads(argv_json) if argv_json else [value]
     if not isinstance(command, list) or not all(isinstance(part, str) for part in command):
         raise ValueError(f"{label} argv must be a string array")
     if not command:

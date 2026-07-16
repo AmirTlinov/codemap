@@ -31,8 +31,9 @@ fn release_contract_covers_supported_downloads_and_attested_identity() {
 #[test]
 fn release_archive_is_deterministic_and_verifies_after_extraction() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let output = Command::new("python3")
+    let output = python()
         .arg(root.join("tests/release_package_fixture.py"))
+        .env("CODEMAP_FIXTURE_BIN", env!("CARGO_BIN_EXE_codemap"))
         .output()
         .expect("release package fixture should run");
     assert!(

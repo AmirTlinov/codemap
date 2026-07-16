@@ -77,9 +77,9 @@ cargo test --quiet
 cargo clippy --all-targets -- -D warnings
 cargo run --quiet --bin codemap -- doctor
 git diff --check
-scripts/dogfood-codemap.sh /Users/amir/Documents/projects/spritestudio
-scripts/dogfood-codemap.sh /Users/amir/Documents/projects/Sillentway-VPN
-scripts/dogfood-codemap.sh <third-project>
+scripts/dogfood-codemap.py /Users/amir/Documents/projects/spritestudio
+scripts/dogfood-codemap.py /Users/amir/Documents/projects/Sillentway-VPN
+scripts/dogfood-codemap.py <third-project>
 ```
 
 ## Live Dogfood

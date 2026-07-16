@@ -18,7 +18,7 @@ pub(crate) fn build_identity(include_binary_sha256: bool) -> BuildIdentity {
         semver: env!("CARGO_PKG_VERSION").to_string(),
         cache_format: cache_format(),
         schema_manifest_version: schema_manifest_version(),
-        executable_path: executable.to_string_lossy().to_string(),
+        executable_path: display_path(&executable),
         binary_sha256_state: if !include_binary_sha256 {
             "not_requested"
         } else if binary_sha256.is_some() {
@@ -63,7 +63,7 @@ pub(crate) fn path_executable_identity() -> PathExecutableIdentity {
     };
     let binary_sha256 = sha256_file(&executable);
     PathExecutableIdentity {
-        executable_path: Some(executable.to_string_lossy().to_string()),
+        executable_path: Some(display_path(&executable)),
         binary_sha256_state: if binary_sha256.is_some() {
             "computed"
         } else {
@@ -99,6 +99,14 @@ pub(crate) fn current_executable() -> PathBuf {
         .ok()
         .and_then(|path| path.canonicalize().ok().or(Some(path)))
         .unwrap_or_else(|| PathBuf::from("codemap"))
+}
+
+fn display_path(path: &Path) -> String {
+    let value = path.to_string_lossy();
+    if let Some(rest) = value.strip_prefix(r"\\?\UNC\") {
+        return format!(r"\\{rest}");
+    }
+    value.strip_prefix(r"\\?\").unwrap_or(&value).to_string()
 }
 
 fn resolve_path_executable(name: &str) -> Option<PathBuf> {

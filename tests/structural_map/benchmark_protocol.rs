@@ -19,17 +19,17 @@ print(json.dumps([
     protocol("analysis", "codemap", ["doctor ls src/pricing.py"], root),
     protocol("analysis", "codemap", ["--format json ls src/pricing.py"], root),
     protocol("analysis", "codemap", ["garbage ls src/pricing.py"], root),
-    protocol("analysis", "codemap", [f"ls {root}"], root),
+    protocol("analysis", "codemap", [{"argv":["ls",root],"status":0}], root),
     protocol("analysis", "codemap", [{"argv":["ls","--bogus","src/pricing.py"],"status":2}], root),
-    protocol("analysis", "codemap", [f"--root {selected} ls {selected}"], root),
-    protocol("analysis", "codemap", [f"ls --root {selected} {selected}"], root),
+    protocol("analysis", "codemap", [{"argv":["--root",selected,"ls",selected],"status":0}], root),
+    protocol("analysis", "codemap", [{"argv":["ls","--root",selected,selected],"status":0}], root),
     protocol("analysis", "codemap", ["cone ."], root),
-    protocol("analysis", "codemap", [f"cone {root}"], root),
+    protocol("analysis", "codemap", [{"argv":["cone",root],"status":0}], root),
     protocol("analysis", "codemap", ["cone src/.."], root),
     protocol("implementation", "codemap", ["ls src/pricing.py", "changed", "changed", "proof changed"], root),
 ]))
 "#;
-    let output = Command::new("python3")
+    let output = python()
         .args([
             "-c",
             probe,
@@ -89,7 +89,7 @@ print(json.dumps([
 #[test]
 fn ab_protocol_ignores_project_internal_codemap_consumers() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let output = Command::new("python3")
+    let output = python()
         .arg(root.join("tests/protocol_shim_fixture.py"))
         .output()
         .expect("protocol shim fixture should run");
@@ -119,7 +119,7 @@ values.append(fingerprint())
 values.append(fingerprint(1))
 print(json.dumps(values))
 "#;
-    let output = Command::new("python3")
+    let output = python()
         .args(["-c", probe, script.to_str().unwrap()])
         .output()
         .expect("fingerprint probe");

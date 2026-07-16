@@ -31,7 +31,7 @@ fn value_benchmark_reports_context_compression_without_agent_lift_claim() {
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let codemap_bin = Path::new(env!("CARGO_BIN_EXE_codemap"));
     let codemap_arg = codemap_bin.strip_prefix(repo_root).unwrap_or(codemap_bin);
-    let output = Command::new("python3")
+    let output = python()
         .arg(repo_root.join("scripts/benchmark-codemap-value.py"))
         .arg(repo.path())
         .arg("--codemap-bin")
@@ -71,7 +71,7 @@ fn value_benchmark_reports_context_compression_without_agent_lift_claim() {
     assert_eq!(identity["build_identity"]["semver"], env!("CARGO_PKG_VERSION"));
     assert_eq!(
         identity["build_identity"]["executable_path"],
-        codemap_bin.canonicalize().unwrap().to_string_lossy().as_ref()
+        comparable_canonical_path(codemap_bin)
     );
     assert_eq!(
         identity["build_identity"]["binary_sha256"],
@@ -218,14 +218,19 @@ elif "doctor" in sys.argv:
     write(&caller.path().join("config.json"), "caller-config\n");
     write(&target.path().join("config.json"), "target-config\n");
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let explicit = "python3 'relative tools/codemap wrapper.py' config.json";
+    let explicit = serde_json::to_string(&[
+        python_executable(),
+        "relative tools/codemap wrapper.py",
+        "config.json",
+    ])
+    .unwrap();
     let probe = r#"import json, pathlib, sys
 sys.path.insert(0, sys.argv[1])
 from codemap_identity import benchmark_binary_identity, resolve_codemap_command
-command, source = resolve_codemap_command(sys.argv[5], pathlib.Path(sys.argv[2]), cwd=pathlib.Path(sys.argv[3]))
+command, source = resolve_codemap_command(json.loads(sys.argv[5]), pathlib.Path(sys.argv[2]), cwd=pathlib.Path(sys.argv[3]))
 print(json.dumps(benchmark_binary_identity(command, source, pathlib.Path(sys.argv[4]))))
 "#;
-    let output = Command::new("python3")
+    let output = python()
         .args([
             "-c",
             probe,
@@ -233,18 +238,18 @@ print(json.dumps(benchmark_binary_identity(command, source, pathlib.Path(sys.arg
             repo_root.to_str().unwrap(),
             caller.path().to_str().unwrap(),
             target.path().to_str().unwrap(),
-            explicit,
+            &explicit,
         ])
         .current_dir(repo_root)
         .output()
         .expect("relative wrapper identity probe");
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     let identity: Value = serde_json::from_slice(&output.stdout).expect("identity json");
-    let wrapper = wrapper.canonicalize().unwrap();
-    assert_eq!(identity["command_argv"][1], wrapper.to_string_lossy().as_ref());
+    let wrapper_path = comparable_canonical_path(&wrapper);
+    assert_eq!(identity["command_argv"][1], wrapper_path);
     assert_eq!(identity["command_argv"][2], "config.json");
     assert_eq!(identity["version_output"], "codemap 9.8.7");
-    assert_eq!(identity["build_identity"]["executable_path"], wrapper.to_string_lossy().as_ref());
+    assert_eq!(identity["build_identity"]["executable_path"], wrapper_path);
     assert_eq!(identity["build_identity"]["binary_sha256"], executable_sha256(&wrapper));
     let artifacts = identity["command_artifacts"].as_array().unwrap();
     assert_eq!(artifacts.len(), 2, "only interpreter and wrapper are executable: {identity:#}");
@@ -266,10 +271,16 @@ fn value_identity_attributes_relative_shell_wrapper_bytes() {
     let probe = r#"import json, pathlib, sys
 sys.path.insert(0, sys.argv[1])
 from codemap_identity import benchmark_binary_identity, resolve_codemap_command
-command, source = resolve_codemap_command(sys.argv[5], pathlib.Path(sys.argv[2]), cwd=pathlib.Path(sys.argv[3]))
+command, source = resolve_codemap_command(json.loads(sys.argv[5]), pathlib.Path(sys.argv[2]), cwd=pathlib.Path(sys.argv[3]))
 print(json.dumps(benchmark_binary_identity(command, source, pathlib.Path(sys.argv[4]))))
 "#;
-    let output = Command::new("python3")
+    let explicit = serde_json::to_string(&[
+        "sh",
+        "relative tools/codemap wrapper.sh",
+        "config.txt",
+    ])
+    .unwrap();
+    let output = python()
         .args([
             "-c",
             probe,
@@ -277,7 +288,7 @@ print(json.dumps(benchmark_binary_identity(command, source, pathlib.Path(sys.arg
             repo_root.to_str().unwrap(),
             caller.path().to_str().unwrap(),
             target.path().to_str().unwrap(),
-            "sh 'relative tools/codemap wrapper.sh' config.txt",
+            &explicit,
         ])
         .output()
         .expect("relative shell wrapper identity probe");
@@ -303,24 +314,17 @@ fn value_benchmark_fails_closed_when_codemap_probe_fails() {
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["commit", "-qm", "benchmark fixture"]);
 
-    let failing_bin = out.path().join("failing-codemap");
-    write(&failing_bin, "#!/usr/bin/env sh\nexit 23\n");
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mut permissions = fs::metadata(&failing_bin)
-            .expect("failing binary metadata")
-            .permissions();
-        permissions.set_mode(0o755);
-        fs::set_permissions(&failing_bin, permissions).expect("chmod failing binary");
-    }
+    let failing_bin = out.path().join("failing-codemap.py");
+    write(&failing_bin, "raise SystemExit(23)\n");
 
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let output = Command::new("python3")
+    let codemap_argv =
+        serde_json::to_string(&[python_executable(), failing_bin.to_str().unwrap()]).unwrap();
+    let output = python()
         .arg(repo_root.join("scripts/benchmark-codemap-value.py"))
         .arg(repo.path())
-        .arg("--codemap-bin")
-        .arg(&failing_bin)
+        .arg("--codemap-argv-json")
+        .arg(codemap_argv)
         .arg("--out-dir")
         .arg(out.path().join("result"))
         .output()
