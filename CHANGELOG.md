@@ -23,6 +23,8 @@ public JSON compatibility is governed separately by `docs/SCHEMA_POLICY.md`.
   trees, and corrected the corpus proof-engine oracle to the concrete implementation owner.
 - Reused one complete symbol-reference basis for cone summaries and production incoming edges,
   and persisted computed-require gaps in file facts instead of rereading the consumer universe.
+- Compacted multi-anchor `changed` overviews and wide exact `proof` command groups behind their
+  existing section expands so daily agent context remains bounded without losing facts.
 
 ## 0.2.33 - 2026-05-04
 

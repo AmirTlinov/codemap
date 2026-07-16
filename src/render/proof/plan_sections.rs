@@ -35,7 +35,7 @@ pub(crate) fn proof_plan_surface_sections(report: &ProofReport, force: bool) {
             "No runnable command surfaces were emitted; linked, setup/support, and soft-match surfaces are shown separately.",
         );
     } else if !runnable.is_empty() {
-        proof_plan_surface_section("Runnable Command Surfaces", report, &runnable);
+        proof_plan_surface_section("Runnable Command Surfaces", report, &runnable, force);
     }
     if !evidence_only.is_empty() {
         proof_plan_evidence_surface_section("Linked Surfaces", report, &evidence_only);
@@ -44,13 +44,13 @@ pub(crate) fn proof_plan_surface_sections(report: &ProofReport, force: bool) {
         );
     }
     if !setup_or_support.is_empty() {
-        proof_plan_surface_section("Setup / Support Surfaces", report, &setup_or_support);
+        proof_plan_surface_section("Setup / Support Surfaces", report, &setup_or_support, force);
         println!(
             "\nSetup/support surfaces are connected rails such as install, codegen, migration, seed, deploy, release, watch, or dev-server steps. They are not treated as verification command surfaces and are not run by `--run`."
         );
     }
     if !soft.is_empty() {
-        proof_plan_surface_section("Soft Surface Matches", report, &soft);
+        proof_plan_surface_section("Soft Surface Matches", report, &soft, force);
         println!(
             "\nSoft surface matches are token/name/path overlap. They do not create a direct linked verification surface or remove Unknown entries."
         );
@@ -79,7 +79,12 @@ fn proof_plan_evidence_surface_section(
     }
 }
 
-fn proof_plan_surface_section(title: &str, report: &ProofReport, proofs: &[&ProofSurface]) {
+fn proof_plan_surface_section(
+    title: &str,
+    report: &ProofReport,
+    proofs: &[&ProofSurface],
+    force: bool,
+) {
     println!("\n## {title}");
     let mut grouped: std::collections::BTreeMap<String, Vec<&ProofSurface>> =
         std::collections::BTreeMap::new();
@@ -89,6 +94,10 @@ fn proof_plan_surface_section(title: &str, report: &ProofReport, proofs: &[&Proo
             .or_default()
             .push(*proof);
     }
+    if !force && grouped.len() > 8 {
+        proof_plan_compact_command_groups(report, grouped);
+        return;
+    }
     for (command, proofs) in grouped {
         println!("\n### `{command}`");
         println!("- sensors: `{}`", proofs.len());
@@ -96,6 +105,53 @@ fn proof_plan_surface_section(title: &str, report: &ProofReport, proofs: &[&Proo
         proof_count_line("strength", strength_counts(&proofs));
         proof_plan_surface_samples(report, &proofs);
     }
+}
+
+fn proof_plan_compact_command_groups(
+    report: &ProofReport,
+    grouped: std::collections::BTreeMap<String, Vec<&ProofSurface>>,
+) {
+    for (command, proofs) in grouped {
+        let sample = proofs.first().expect("proof command group is non-empty");
+        let path = sample
+            .path
+            .as_ref()
+            .map(|path| code(path))
+            .unwrap_or_else(|| "`none`".to_string());
+        println!(
+            "- `{command}` [sensors={}; evidence={}; strength={}] sample: {path}{} {}",
+            proofs.len(),
+            proof_inline_counts(evidence_counts(&proofs)),
+            proof_inline_counts(strength_counts(&proofs)),
+            proof_target_suffix(sample),
+            proof_location_summary(&sample.locations),
+        );
+    }
+    if let Some(expand) = proof_plan_section_expand(report) {
+        println!("- details: `{}`", root_aware_expand(&expand));
+    }
+}
+
+fn proof_inline_counts(counts: Vec<(String, usize)>) -> String {
+    counts
+        .into_iter()
+        .map(|(kind, count)| format!("{kind}:{count}"))
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+fn proof_plan_section_expand(report: &ProofReport) -> Option<String> {
+    if let Some(target) = &report.target {
+        return Some(format!(
+            "codemap proof {} --section proof",
+            shell_quote_for_markdown(target)
+        ));
+    }
+    if !report.changed.is_empty() {
+        let suffix = proof_changed_command_selector_suffix(report);
+        return Some(format!("codemap proof changed{suffix} --section proof"));
+    }
+    None
 }
 
 fn proof_plan_surface_samples(report: &ProofReport, proofs: &[&ProofSurface]) {

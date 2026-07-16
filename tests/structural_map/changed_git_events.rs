@@ -61,8 +61,8 @@ fn changed_reports_deleted_and_renamed_structural_events() {
     assert!(
         markdown.contains("\n## Observed\n")
             && markdown.contains("structural events:")
-            && markdown.contains("[removed_anchor; evidence=git_status]")
-            && markdown.contains("[renamed_anchor; evidence=git_status]"),
+            && markdown.contains("- `removed_anchor` [evidence=git_status;")
+            && markdown.contains("- `renamed_anchor` [evidence=git_status;"),
         "changed markdown should expose structural deletion/rename events compactly: {markdown}"
     );
     assert!(

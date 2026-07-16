@@ -130,6 +130,42 @@ fn changed_default_markdown_compacts_small_sets_with_many_unknowns() {
 }
 
 #[test]
+fn changed_default_markdown_compacts_multiple_anchors_before_they_overrun_daily_context() {
+    let (repo, cache) = fixture();
+    write(&repo.path().join("AGENTS.md"), "# Local instructions\n");
+    write(&repo.path().join("packages/replay/src/probe.txt"), "probe\n");
+
+    let output = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args(["changed"])
+        .output()
+        .expect("changed markdown should run");
+    assert!(
+        output.status.success(),
+        "changed failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let markdown = String::from_utf8(output.stdout).expect("markdown utf8");
+    assert!(
+        markdown.lines().count() <= 120,
+        "multiple-anchor changed overview must fit the daily budget: {markdown}"
+    );
+    assert!(
+        markdown.contains("selected files: `2`")
+            && markdown.contains("- no structural delta detected")
+            && markdown.contains("- sections:")
+            && markdown.contains("- lenses:"),
+        "compact overview should preserve anchor state and exact drill-downs: {markdown}"
+    );
+    assert!(
+        !markdown.contains("- added imports/exports: `0`")
+            && !markdown.contains("- removed verification sensors: `0`"),
+        "default overview should not spend context on a zero-valued delta ledger: {markdown}"
+    );
+}
+
+#[test]
 fn changed_large_link_summary_keeps_soft_matches_out_of_verification_mass() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");

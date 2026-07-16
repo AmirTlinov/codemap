@@ -66,7 +66,7 @@ pub(crate) fn changed_should_compact(report: &ChangedReport) -> bool {
     let soft_group_count = changed_proof_surface_groups(report.proof.soft_evidence.iter()).len();
     let evidence_only_count = changed_proof_evidence_only_surfaces(report).len();
     report.display_limit >= 30
-        && (report.total_changed_count > 20
+        && (report.total_changed_count > 1
             || report.changed.len() > 5
             || changed_proof_command_groups(report).len() > COMPACT_CHANGED_PROOF_COMMAND_LIMIT
             || setup_group_count > COMPACT_CHANGED_PROOF_COMMAND_LIMIT
