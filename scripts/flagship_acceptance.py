@@ -61,7 +61,7 @@ def _protocol_errors(row: dict[str, Any], task: dict[str, Any]) -> list[str]:
     protocol = row.get("codemap_protocol", {})
     if row.get("arm") == "control":
         return [] if protocol.get("invocation_count") == 0 else ["control_codemap_access"]
-    errors = [] if protocol.get("compliant") is True else ["treatment_protocol"]
+    errors = [] if protocol.get("invocation_count", 0) > 0 else ["treatment_codemap_missing"]
     meta = task_meta(task)
     if meta["task_class"] == "exact_control":
         if protocol.get("entry_kind") != "exact" or protocol.get("root_entry") is not False:

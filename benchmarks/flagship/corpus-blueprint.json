@@ -234,9 +234,6 @@
         }
       ],
       "prompt": "Correct false runtime transformation claims in `src/map/lenses/runtime/paths/classify.rs`: a CSRF observer name must not become a guard; response omission inference must attribute dotted fields only to the transform primary parameter, must not treat local variables as returned source fields, and must parse nested object/array/call expressions without splitting on inner commas or braces. Preserve exact external response-omission evidence and add regression coverage.",
-      "protected_paths": [
-        "tests"
-      ],
       "repo_id": "codemap",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -270,7 +267,6 @@
       "ecosystem": "rust",
       "id": "codemap-readme-exact",
       "prompt": "In `README.md`, restore the exact product phrase `Read-only project x-ray for AI coding agents.` by fixing only the missing hyphen in that sentence. Do not change behavior or any other wording. Begin by examining only README.md. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
-      "protected_paths": [],
       "repo_id": "codemap",
       "task_class": "exact_control",
       "verifier_timeout_seconds": 60
@@ -397,9 +393,6 @@
         }
       ],
       "prompt": "Restore a verified PostgreSQL backup owner under `deploy/k8s/base/backup`: a scheduled dump must upload to MinIO, read the object back, compare SHA-256 before success, run with pinned images and least privilege, expose only DNS/Postgres/MinIO network paths, be included by GitOps, emit a stale-backup alert, and have an operator runbook. Keep the existing deployment structure and YAML loader contract.",
-      "protected_paths": [
-        "deploy/k8s/base/backup/postgres_backup_contract_test.py"
-      ],
       "repo_id": "main-cluster",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -433,7 +426,6 @@
       "ecosystem": "typescript",
       "id": "main-readme-exact",
       "prompt": "In `README.md`, restore the exact opening phrase `GitOps delivery rails.` by fixing only the singular typo in that sentence. Do not change behavior or any other wording. Begin by examining only README.md. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
-      "protected_paths": [],
       "repo_id": "main-cluster",
       "task_class": "exact_control",
       "verifier_timeout_seconds": 60
@@ -601,11 +593,6 @@
         }
       ],
       "prompt": "Add global text chat over the town WebSocket hub beginning at `apps/ws/src/hub.ts#TownHub`. Define bounded protocol frames that reject empty, overlong, and control-character text; trim accepted text; attach sender identity and server time; broadcast to sender and peers; retain bounded history for newcomers; rate-limit floods; reject chat before hello; and wire the web multiplayer consumer without regressing emoji chat or movement.",
-      "protected_paths": [
-        "apps/web/src/lib/ws-client.test.ts",
-        "apps/ws/src/hub.test.ts",
-        "apps/ws/src/protocol.test.ts"
-      ],
       "repo_id": "pabg",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -639,7 +626,6 @@
       "ecosystem": "typescript",
       "id": "pabg-readme-exact",
       "prompt": "In `README.md`, restore the exact phrase `настоящий in-memory `platform-api`` by fixing only the missing hyphen. Do not change behavior or any other wording. Begin by examining only README.md. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
-      "protected_paths": [],
       "repo_id": "pabg",
       "task_class": "exact_control",
       "verifier_timeout_seconds": 60
@@ -749,7 +735,6 @@
       "id": "browser-focused-clipboard",
       "overlays": [],
       "prompt": "Update `vendor/browser_extension/service_worker.js#dispatchRpc` so `clipboard.write` and `clipboard.writeSvg` first attempt a bounded write in the explicitly requested or focused tab, using the isolated top frame and preserving tab/context provenance. If that fails, fall back to the existing offscreen carrier and report both attempted contexts or combined errors. Keep the extension kill switch and existing RPC behavior intact.",
-      "protected_paths": [],
       "repo_id": "browser",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -783,7 +768,6 @@
       "ecosystem": "python",
       "id": "browser-readme-exact",
       "prompt": "In `README.md`, restore the exact phrase `controlled, real-browser automation` by fixing only the missing hyphen. Do not change behavior or any other wording. Begin by examining only README.md. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
-      "protected_paths": [],
       "repo_id": "browser",
       "task_class": "exact_control",
       "verifier_timeout_seconds": 60
@@ -913,7 +897,6 @@
       "id": "openslop-active-plan",
       "overlays": [],
       "prompt": "Add an active-plan projection rooted in `ROADMAP.md`: a workspace-domain owner must parse slice rows, materialize STATUS/REVIEW/VISUAL proof state, count done/active/planned/blocked slices, select the first non-done slice, and fail closed when the roadmap is absent or empty. Expose the same typed projection through core-daemon CLI/stdio, WorkbenchCore, the inspector UI, and runnable Make/Swift probes.",
-      "protected_paths": [],
       "repo_id": "openslop",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -947,7 +930,6 @@
       "ecosystem": "swift",
       "id": "openslop-readme-exact",
       "prompt": "In `README.md`, restore the exact phrase `первый load-bearing слой` by fixing only the missing hyphen. Do not change behavior or any other wording. Begin by examining only README.md. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
-      "protected_paths": [],
       "repo_id": "openslop",
       "task_class": "exact_control",
       "verifier_timeout_seconds": 60
@@ -1084,7 +1066,6 @@
       "id": "ratio-codex-live-episodes",
       "overlays": [],
       "prompt": "Add a `live-codex-sessions` command through `crates/ratiotissue-cli/src/cli/continuation.rs` that reads bounded Codex JSONL session history, classifies user pressure and assistant world-return fragments, builds stable redacted episodes, writes deterministic carrier files, and runs each episode through the existing actionwave/world-return loop with explicit receipts. Empty or metadata-only sessions must fail closed rather than claim contact. Preserve ordinary live behavior.",
-      "protected_paths": [],
       "repo_id": "ratio",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -1118,7 +1099,6 @@
       "ecosystem": "rust",
       "id": "ratio-readme-exact",
       "prompt": "In `README.md`, restore the exact phrase `проект mmap-базы поиска` by fixing only the missing hyphen. Do not change behavior or any other wording. Begin by examining only README.md. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
-      "protected_paths": [],
       "repo_id": "ratio",
       "task_class": "exact_control",
       "verifier_timeout_seconds": 60

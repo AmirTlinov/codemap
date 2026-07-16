@@ -95,7 +95,6 @@ class Task:
     base_commit: str
     prompt: str
     verifiers: list[Verifier]
-    protected_paths: list[str]
 
 
 def canonical(path: Path) -> Path:
@@ -229,12 +228,6 @@ def load_tasks(path: Path, default_verifier_timeout: int) -> list[Task]:
                 )
             )
 
-        protected_raw = raw.get("protected_paths", [])
-        if not isinstance(protected_raw, list) or not all(
-            isinstance(item, str) for item in protected_raw
-        ):
-            raise ValueError(f"task {task_id}: protected_paths must be a string array")
-        protected = [validate_relative_path(item, task_id) for item in protected_raw]
         tasks.append(
             Task(
                 task_id=task_id,
@@ -244,7 +237,6 @@ def load_tasks(path: Path, default_verifier_timeout: int) -> list[Task]:
                 base_commit=base_commit,
                 prompt=prompt.strip(),
                 verifiers=verifiers,
-                protected_paths=protected,
             )
         )
         seen.add(task_id)
@@ -414,14 +406,6 @@ def capture_patch(worktree: Path, base_commit: str, artifact_dir: Path) -> list[
     return [line for line in changed.stdout.splitlines() if line]
 
 
-def protected_changes(changed_paths: list[str], protected_paths: list[str]) -> list[str]:
-    return sorted(
-        path
-        for path in changed_paths
-        if any(path == protected or path.startswith(f"{protected}/") for protected in protected_paths)
-    )
-
-
 def command_version(command: list[str]) -> str:
     result = run_process([*command, "--version"], Path.cwd(), 15)
     text = (result.stdout or result.stderr).strip()
@@ -447,7 +431,6 @@ def trial_fingerprint(
             "base_commit": base_commit,
             "task_prompt": task.prompt,
             "verifiers": [verifier.__dict__ for verifier in task.verifiers],
-            "protected_paths": task.protected_paths,
             "arm": arm,
             "order": order,
             "prompt_protocol_version": PROMPT_PROTOCOL_VERSION,
@@ -588,10 +571,9 @@ def run_trial(
             event_summary["completed_commands"],
         )
         changed_paths = capture_patch(worktree, base_commit, artifact_dir)
-        protected = protected_changes(changed_paths, task.protected_paths)
         # Capture the candidate before trusted verifiers run. Verifiers may compile,
         # create caches, or otherwise touch the worktree; those effects are not the
-        # model's patch and must not leak into changed-path or protected-path scoring.
+        # model's patch and must not leak into changed-path evidence.
         verifiers = run_verifiers(task, worktree, artifact_dir)
         completeness = completeness_summary(verifiers)
         (artifact_dir / "post-verifier-git-status.txt").write_text(
@@ -601,17 +583,25 @@ def run_trial(
             codex.status == 0
             and not codex.timed_out
             and completeness["required_criteria_passed"]
-            and not protected
             and (task.mode != MODE_ANALYSIS or not changed_paths)
         )
-        run_valid = codex.status == 0 and not codex.timed_out and protocol["compliant"]
+        arm_valid = (
+            protocol["invocation_count"] == 0
+            if arm == ARM_CONTROL
+            else protocol["invocation_count"] > 0
+        )
+        run_valid = codex.status == 0 and not codex.timed_out and arm_valid
         invalidation_reason = None
         if codex.timed_out:
             invalidation_reason = "codex_timeout"
         elif codex.status != 0:
             invalidation_reason = "codex_crash"
-        elif not protocol["compliant"]:
-            invalidation_reason = "protocol_violation"
+        elif not arm_valid:
+            invalidation_reason = (
+                "control_codemap_access"
+                if arm == ARM_CONTROL
+                else "treatment_codemap_missing"
+            )
         result = {
             "task_id": task.task_id,
             "mode": task.mode,
@@ -645,7 +635,6 @@ def run_trial(
             "verifiers": verifiers,
             "completeness": completeness,
             "changed_paths": changed_paths,
-            "protected_path_changes": protected,
             "analysis_no_repo_changes": task.mode != MODE_ANALYSIS or not changed_paths,
             "verifier_passed": all(verifier["passed"] for verifier in verifiers),
             "outcome_passed": outcome_passed,

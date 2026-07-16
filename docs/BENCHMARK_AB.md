@@ -4,7 +4,7 @@
 task twice with Codex:
 
 - `control`: `codemap` is blocked and ordinary repository navigation remains available;
-- `codemap`: the agent must follow the mode-specific proportional-entry protocol.
+- `codemap`: the agent receives the short proportional-entry protocol and the frozen binary.
 
 Both arms use the same git commit, task text, model, reasoning effort, sandbox, and
 external verifier. Each arm receives a fresh detached worktree. Arm order alternates
@@ -36,7 +36,7 @@ than an invented compound model name.
 Tasks are JSONL: one independent JSON object per line.
 
 ```json
-{"id":"session-timeout","repo":"/path/to/repo","base_ref":"task/session-timeout","prompt":"Fix the session timeout regression without changing the public API.","verify":[{"name":"runtime-behavior","category":"behavior","weight":4,"required":true,"command":["python3","/absolute/path/to/verify_runtime.py","{worktree}"],"timeout_seconds":300},{"name":"public-api","category":"contract","weight":3,"required":true,"command":["python3","/absolute/path/to/verify_api.py","{worktree}"]},{"name":"secondary-consumer","category":"downstream","weight":2,"required":false,"command":["python3","/absolute/path/to/verify_consumer.py","{worktree}"]},{"name":"regression-corpus","category":"regression","weight":1,"required":false,"command":["python3","/absolute/path/to/verify_regressions.py","{worktree}"]}],"protected_paths":["tests/hidden"]}
+{"id":"session-timeout","repo":"/path/to/repo","base_ref":"task/session-timeout","prompt":"Fix the session timeout regression without changing the public API.","verify":[{"name":"runtime-behavior","category":"behavior","weight":4,"required":true,"command":["python3","/absolute/path/to/verify_runtime.py","{worktree}"],"timeout_seconds":300},{"name":"public-api","category":"contract","weight":3,"required":true,"command":["python3","/absolute/path/to/verify_api.py","{worktree}"]},{"name":"secondary-consumer","category":"downstream","weight":2,"required":false,"command":["python3","/absolute/path/to/verify_consumer.py","{worktree}"]},{"name":"regression-corpus","category":"regression","weight":1,"required":false,"command":["python3","/absolute/path/to/verify_regressions.py","{worktree}"]}]}
 ```
 
 Required fields:
@@ -54,7 +54,6 @@ Optional fields:
 | --- | --- | --- |
 | `base_ref` | `HEAD` | Exact task starting commit or ref. |
 | `mode` | `implementation` | `implementation` changes code; `analysis` produces an evidence-backed report without repository edits. |
-| `protected_paths` | `[]` | Paths whose modification forces the task outcome to fail. |
 | verifier `category` | `behavior` | Independent coverage dimension, such as `behavior`, `contract`, `downstream`, or `regression`. |
 | verifier `weight` | `1.0` | Positive contribution of this criterion to completeness. Set before the run. |
 | verifier `required` | `true` | Whether failure blocks the task-level required outcome. Optional criteria still affect completeness. |
@@ -63,8 +62,8 @@ Optional fields:
 Verifier arguments may contain `{worktree}`, `{repo}`, `{last_message}`, `{events}`,
 and `{patch}` placeholders. Prefer a
 verifier stored outside the task worktree so the model cannot make the evaluator pass
-by editing it. If repository tests are part of the evaluator, put immutable or hidden
-tests in `protected_paths` or invoke them from outside the worktree.
+by editing it. Repository-local hidden tests are overlaid only after the candidate patch
+is captured, so ordinary regression tests added by the agent remain valid work.
 
 ## Run
 
@@ -112,13 +111,13 @@ consumer launched inside the project's own tests. Agent calls are blocked in con
 to the frozen benchmark binary in treatment; internal consumers keep using the project's own
 built binary and do not count as navigation. Completed Codex command events are independently
 matched against attributed shim calls, so invoking the frozen binary by an absolute path cannot
-bypass the arm protocol. The shim records argv and the actual exit status; only successful calls
-can satisfy the protocol. The report keeps
+bypass arm attribution. The shim records argv and the actual exit status. The report keeps
 the raw `invocation_results`, `first_entry`, `entry_is_first_invocation`, `entry_kind` (`none`,
 `exact`, or `root`), `root_entry`, `exact_entry`, `mixed`, `ordered_daily`, and whether a
 focused call followed root orientation. Ignored internal calls and the event-trace comparison
-remain visible as separate receipts. This keeps task understanding in the agent while making the
-published protocol machine-checkable without reimplementing clap in the harness.
+remain visible as diagnostics. A failed or repeated treatment command is product behavior, not a
+reason to discard external evidence. Validity only requires that control never accesses codemap,
+treatment does access it, and exact controls stay on their pre-registered local entry.
 
 Use `--resume` after interruption. Existing trials are reused only when the task,
 base commit, composed arm prompt, protocol/parser and harness bytes, model, reasoning,
@@ -158,8 +157,8 @@ more complete and cost more context” rather than misclassifying extra observat
 inefficiency.
 
 Aggregate completeness, pass rates, time, and token deltas use complete valid pairs
-only. If one arm crashes or violates its protocol, neither half of that pair leaks into
-the effect estimate.
+only. A crash, timeout, arm contamination, or broken exact-control boundary invalidates
+the pair; navigation mistakes remain measured product losses.
 
 Because the score is external, it measures the effects of understanding instead of
 trusting an agent's self-description. A strong corpus contains tasks where the direct
@@ -167,9 +166,10 @@ edit is easy but important coupled surfaces are not obvious from the prompt.
 
 Exact/local controls should name their usable anchor directly in the identical task
 prompt and pre-register the allowed exact first argv/anchor set together with
-`entry_is_first_invocation=true`, `entry_kind=exact`, `root_entry=false`, and `mixed=false` as
-treatment receipt criteria. An implementation trial uses one proportional entry and exactly one
-`changed` / `proof changed` pair after the edit. They test
+`entry_kind=exact`, `root_entry=false`, and the allowed first entry as treatment integrity checks.
+The treatment prompt asks an implementation agent for one proportional entry and one
+`changed` / `proof changed` pair after the edit; the trace diagnoses friction without overruling
+the verifier. Exact controls test
 that codemap preserves the control outcome without charging for root orientation; time and token
 deltas remain visible resource costs rather than a substitute for that check.
 
@@ -194,8 +194,8 @@ The run root also contains `results.jsonl`, `summary.json`, and `summary.md`.
 
 A failed required verifier is a failed task outcome. Any failed verifier lowers the
 completeness score according to its fixed weight. A Codex crash, timeout, control-arm
-codemap attempt, or treatment arm that skips the required codemap workflow makes the
-pair invalid rather than silently counting it as a product loss.
+codemap attempt, or treatment arm that never invokes codemap makes the pair invalid;
+an unsuccessful codemap command remains part of the product result.
 
 One task and one repetition are a smoke test, not evidence of general lift. A useful
 product result needs multiple representative tasks from unfamiliar repositories,
@@ -257,7 +257,7 @@ python3 scripts/verify-flagship-acceptance.py \
 Both arms use fresh detached worktrees and separate external caches. A verifier that
 already passes at baseline rejects the task before model execution. An infrastructure
 failure retries once with the identical manifest. A repeated failure, missing or extra
-arm, protocol violation, provenance mismatch, or read-only task write remains in the
+arm, arm contamination, provenance mismatch, or read-only task write remains in the
 fixed denominator and makes the gate red.
 
 Acceptance has three product conditions:

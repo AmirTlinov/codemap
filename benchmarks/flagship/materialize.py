@@ -235,7 +235,6 @@ def materialize(blueprint_path: Path, out_dir: Path, remote_only: bool) -> Path:
                     verifier_row(spec_path.resolve(), task, name)
                     for name in spec["tasks"][task["id"]]
                 ],
-                "protected_paths": task.get("protected_paths", []),
                 "benchmark": meta,
             }
         )

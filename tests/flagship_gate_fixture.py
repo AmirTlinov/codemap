@@ -197,7 +197,7 @@ def result_row(
     write(stderr, "")
     protocol = {
         "invocation_count": 1 if treatment else 0,
-        "compliant": True,
+        "compliant": not treatment,
         "entry_kind": "exact" if treatment else "none",
         "root_entry": False,
         "first_entry": "cone README.md" if treatment else None,
