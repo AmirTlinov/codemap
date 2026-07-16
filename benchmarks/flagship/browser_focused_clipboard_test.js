@@ -12,12 +12,10 @@ const source = fs.readFileSync(
 
 const event = () => ({ addListener() {}, removeListener() {} });
 const scriptCalls = [];
-const port = {
-  onMessage: event(),
-  onDisconnect: event(),
-  postMessage() {},
-  disconnect() {},
-};
+const offscreenCalls = [];
+let scriptMode = "success";
+let offscreenMode = "success";
+const port = { onMessage: event(), onDisconnect: event(), postMessage() {}, disconnect() {} };
 const chrome = {
   runtime: {
     id: "benchmark-extension",
@@ -29,8 +27,11 @@ const chrome = {
     getURL: (value) => `chrome-extension://benchmark/${value}`,
     getContexts: async () => [],
     connectNative: () => port,
-    sendMessage(_payload, callback) {
-      callback({ ok: true, result: { ok: true, context: "offscreen" } });
+    sendMessage(payload, callback) {
+      offscreenCalls.push(payload);
+      if (payload.type === "offscreen.ping") return callback({ ok: true });
+      if (offscreenMode === "failure") return callback({ ok: false, error: "offscreen denied" });
+      callback({ ok: true, result: { ok: true, method: "offscreen" } });
     },
   },
   storage: { local: { get: async (fallback) => fallback, set: async () => {} } },
@@ -45,7 +46,14 @@ const chrome = {
   scripting: {
     executeScript: async (options) => {
       scriptCalls.push(options);
-      return [{ result: { ok: true, method: "navigator.clipboard.write", mimes: ["text/plain"] } }];
+      if (scriptMode === "throw") throw new Error("tab injection denied");
+      if (scriptMode === "failure") {
+        return [{ frameId: 0, result: { ok: false, error: "tab clipboard denied" } }];
+      }
+      return [{
+        frameId: 0,
+        result: { ok: true, method: "navigator.clipboard.write", mimes: ["text/plain"] },
+      }];
     },
   },
   debugger: {
@@ -84,22 +92,113 @@ const context = vm.createContext({
 });
 vm.runInContext(source, context, { filename: "service_worker.js" });
 
-(async () => {
-  const result = await context.dispatchRpc("clipboard.write", {
-    tabId: "77",
-    items: [{ mime: "text/plain", dataBase64: Buffer.from("hello").toString("base64") }],
+function tabProvenance(result, expectedTab, expectedSource) {
+  if (result.context === "focused_tab") {
+    return String(result.tabId) === String(expectedTab);
+  }
+  const value = result.context;
+  return value && value.kind === "tab"
+    && String(value.tabId) === String(expectedTab)
+    && Number(value.frameId) === 0
+    && value.world === "ISOLATED"
+    && (!expectedSource || value.source === expectedSource);
+}
+
+function topFrameCall(call, tabId) {
+  const target = call?.target || {};
+  const bounded = target.allFrames === false
+    || (Array.isArray(target.frameIds)
+      && target.frameIds.length === 1
+      && target.frameIds[0] === 0);
+  return target.tabId === tabId && target.allFrames !== true && bounded && call.world === "ISOLATED";
+}
+
+function attempts(result) {
+  return Array.isArray(result?.attemptedContexts) ? result.attemptedContexts : [];
+}
+
+function hasAttempt(rows, kind, status) {
+  return rows.some((row) => {
+    const rowKind = typeof row === "string" ? row : row?.kind || row?.context;
+    return rowKind === kind && (!status || row.status === status);
   });
-  if (result.context !== "focused_tab" || result.tabId !== "77") {
-    throw new Error(`clipboard result did not preserve focused-tab provenance: ${JSON.stringify(result)}`);
+}
+
+const textItems = [{
+  mime: "text/plain",
+  dataBase64: Buffer.from("hello").toString("base64"),
+}];
+
+(async () => {
+  await Promise.resolve();
+
+  const requested = await context.dispatchRpc("clipboard.write", { tabId: "77", items: textItems });
+  if (!tabProvenance(requested, 77, "requested") || !topFrameCall(scriptCalls.at(-1), 77)) {
+    throw new Error(`requested-tab write lost bounded provenance: ${JSON.stringify(requested)}`);
   }
-  if (scriptCalls.length !== 1 || scriptCalls[0].target.tabId !== 77) {
-    throw new Error(`clipboard did not prefer requested focused tab: ${JSON.stringify(scriptCalls)}`);
+
+  vm.runInContext('state.focusedTabId = "41"', context);
+  const focused = await context.dispatchRpc("clipboard.write", { items: textItems });
+  if (!tabProvenance(focused, 41, "focused") || !topFrameCall(scriptCalls.at(-1), 41)) {
+    throw new Error(`focused-tab write lost bounded provenance: ${JSON.stringify(focused)}`);
   }
-  if (scriptCalls[0].target.allFrames !== false || scriptCalls[0].world !== "ISOLATED") {
-    throw new Error("clipboard write did not stay in the bounded isolated top frame");
+
+  scriptMode = "failure";
+  offscreenMode = "success";
+  const fallback = await context.dispatchRpc("clipboard.write", { tabId: "77", items: textItems });
+  const fallbackAttempts = attempts(fallback);
+  if (fallback.context?.kind !== "offscreen"
+      || !hasAttempt(fallbackAttempts, "tab", "failed")
+      || !hasAttempt(fallbackAttempts, "offscreen", "succeeded")) {
+    throw new Error(`fallback did not preserve both attempts: ${JSON.stringify(fallback)}`);
   }
-  console.log(JSON.stringify({ passed: true, tabId: result.tabId, context: result.context }));
-  process.exit(0);
+
+  scriptMode = "success";
+  const svg = await context.dispatchRpc("clipboard.writeSvg", {
+    tabId: "77",
+    svg: '<svg xmlns="http://www.w3.org/2000/svg"/>',
+    includePng: false,
+  });
+  if (!tabProvenance(svg, 77, "requested") || !topFrameCall(scriptCalls.at(-1), 77)) {
+    throw new Error(`writeSvg bypassed focused-tab contract: ${JSON.stringify(svg)}`);
+  }
+
+  scriptMode = "failure";
+  offscreenMode = "failure";
+  let combined;
+  try {
+    await context.dispatchRpc("clipboard.write", { tabId: "77", items: textItems });
+  } catch (error) {
+    combined = error;
+  }
+  const combinedAttempts = combined?.data?.attemptedContexts || [];
+  if (!combined
+      || !hasAttempt(combinedAttempts, "tab", "failed")
+      || !hasAttempt(combinedAttempts, "offscreen", "failed")
+      || !String(combined.message).includes("tab")
+      || !String(combined.message).includes("offscreen")) {
+    throw new Error(`combined failure lost one context: ${combined?.stack || combined}`);
+  }
+
+  scriptMode = "success";
+  offscreenMode = "success";
+  const callsBeforeKill = scriptCalls.length;
+  await context.dispatchRpc("state.set", { enabled: false });
+  let killed = false;
+  try {
+    await context.dispatchRpc("clipboard.write", { tabId: "77", items: textItems });
+  } catch (error) {
+    killed = /off|disabled/i.test(String(error.message));
+  }
+  if (!killed || scriptCalls.length !== callsBeforeKill) {
+    throw new Error("clipboard path bypassed the extension kill switch");
+  }
+
+  console.log(JSON.stringify({
+    passed: true,
+    scriptCalls: scriptCalls.length,
+    offscreenCalls: offscreenCalls.length,
+  }));
 })().catch((error) => {
   console.error(error.stack || String(error));
   process.exit(1);

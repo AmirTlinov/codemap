@@ -35,9 +35,15 @@ def main() -> int:
         git(source, "add", ".")
         git(source, "commit", "-qm", "fixture")
         base = git(source, "rev-parse", "HEAD")
+        oracle = root / "oracle.py"
+        oracle.write_bytes(b'print("artifact bytes stay exact")\n\n')
         criteria = {
-            name: {"kind": "files", "exists": ["README.md"]}
-            for name in ("required", "behavior", "contract", "downstream", "regression")
+            "required": {
+                "kind": "commands",
+                "commands": [{"argv": ["python3", "hidden/oracle.py"]}],
+                "overlays": "{task_overlays}",
+            },
+            "regression": {"kind": "files", "exists": ["README.md"]},
         }
         blueprint = {
             "kind": "codemap_flagship_blueprint",
@@ -60,6 +66,7 @@ def main() -> int:
                     "task_class": "implementation",
                     "prompt": "Restore the exact phrase.",
                     "criteria": criteria,
+                    "overlays": [{"artifact": "oracle.py", "path": "hidden/oracle.py"}],
                 }
             ],
         }
@@ -68,13 +75,16 @@ def main() -> int:
         draft = materialize(blueprint_path, root / "corpus", False)
         task = json.loads((draft.parent / "tasks.jsonl").read_text(encoding="utf-8"))
         names = [criterion["name"] for criterion in task["verify"]]
-        assert names == ["required", "behavior", "contract", "downstream", "regression", "provenance"]
+        assert names == ["required", "regression", "provenance"]
         receipt = json.loads((draft.parent / "materialization-receipt.json").read_text())
         repositories = {row["repo_id"]: row for row in receipt["repositories"]}
         benchmark_commit = repositories["fixture"]["benchmark_commit"]
         assert benchmark_commit == base
         spec = json.loads((draft.parent / "verification-spec.json").read_text())
         assert spec["tasks"]["fixture-task"]["provenance"]["commit"] == benchmark_commit
+        overlay = spec["tasks"]["fixture-task"]["required"]["overlays"][0]
+        assert overlay["target"] == "hidden/oracle.py"
+        assert Path(overlay["source"]).read_bytes() == oracle.read_bytes()
         assert git(Path(task["repo"]), "rev-parse", "HEAD") == benchmark_commit
         assert (Path(task["repo"]) / "README.md").read_text() == "original phrase\n"
         second = materialize(blueprint_path, root / "second-corpus", False)

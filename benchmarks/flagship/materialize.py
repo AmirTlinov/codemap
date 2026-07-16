@@ -49,11 +49,10 @@ def clone_snapshot(
 ) -> dict[str, str]:
     target.mkdir(parents=True)
     run(["git", "init", "-q", "-b", "benchmark", str(target)])
-    source = (
-        str(source_override)
-        if source_override is not None
-        else repo["remote"] if remote_only else repo.get("source", repo["remote"])
-    )
+    local_source = Path(repo.get("source", ""))
+    source = str(source_override) if source_override is not None else repo["remote"]
+    if source_override is None and not remote_only and local_source.is_dir():
+        source = str(local_source)
     run(["git", "-C", str(target), "remote", "add", "source", source])
     run(
         ["git", "-C", str(target), "fetch", "--depth", "1", "source", repo["base"]],
@@ -117,7 +116,11 @@ def oracle_source(repo: dict[str, Any], remote_only: bool, root: Path) -> Path:
 
 
 def extract_overlays(
-    repo: dict[str, Any], tasks: list[dict[str, Any]], source: Path, out_dir: Path
+    repo: dict[str, Any],
+    tasks: list[dict[str, Any]],
+    source: Path,
+    artifact_root: Path,
+    out_dir: Path,
 ) -> dict[str, list[dict[str, str]]]:
     extracted = {}
     for task in tasks:
@@ -125,13 +128,31 @@ def extract_overlays(
             continue
         rows = []
         for overlay in task.get("overlays", []):
-            body = run(
-                ["git", "-C", str(source), "show", f"{overlay['commit']}:{overlay['path']}"],
-                timeout=120,
-            )
             target = out_dir / task["id"] / overlay["path"]
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(body + ("" if body.endswith("\n") else "\n"), encoding="utf-8")
+            if "artifact" in overlay:
+                artifact = artifact_root / overlay["artifact"]
+                if not artifact.is_file():
+                    raise ValueError(f"missing verifier artifact: {artifact}")
+                shutil.copyfile(artifact, target)
+            else:
+                result = subprocess.run(
+                    [
+                        "git",
+                        "-C",
+                        str(source),
+                        "show",
+                        f"{overlay['commit']}:{overlay['path']}",
+                    ],
+                    capture_output=True,
+                    timeout=120,
+                )
+                if result.returncode:
+                    raise ValueError(
+                        f"cannot extract verifier overlay {overlay['path']}: "
+                        f"{result.stderr.decode(errors='replace')}"
+                    )
+                target.write_bytes(result.stdout)
             rows.append({"source": str(target.resolve()), "target": overlay["path"]})
         extracted[task["id"]] = rows
     return extracted
@@ -143,6 +164,13 @@ def replace_overlays(value: Any, overlays: list[dict[str, str]]) -> Any:
     if isinstance(value, list):
         return [replace_overlays(item, overlays) for item in value]
     return overlays if value == "{task_overlays}" else value
+
+
+def ordered_criteria(task: dict[str, Any], overlays: list[dict[str, str]]) -> dict[str, Any]:
+    criteria = task["criteria"]
+    names = ["required"] if "required" in criteria else []
+    names.extend(name for name in criteria if name != "required")
+    return {name: replace_overlays(criteria[name], overlays) for name in names}
 
 
 def verifier_row(spec: Path, task: dict[str, Any], criterion: str) -> dict[str, Any]:
@@ -184,13 +212,21 @@ def materialize(blueprint_path: Path, out_dir: Path, remote_only: bool) -> Path:
         repositories[(repo["id"], "clean")] = clean
         repositories[(repo["id"], "exact")] = exact
         source = oracle_source(repo, remote_only, oracle_root)
-        overlays.update(extract_overlays(repo, blueprint["tasks"], source, out_dir / "oracles"))
+        overlays.update(
+            extract_overlays(
+                repo,
+                blueprint["tasks"],
+                source,
+                blueprint_path.parent,
+                out_dir / "oracles",
+            )
+        )
     if oracle_root.exists():
         shutil.rmtree(oracle_root)
     spec = {"kind": "codemap_flagship_verification_spec", "version": 1, "tasks": {}}
     for task in blueprint["tasks"]:
         variant = "exact" if task["task_class"] == "exact_control" else "clean"
-        actions = replace_overlays(task["criteria"], overlays[task["id"]])
+        actions = ordered_criteria(task, overlays[task["id"]])
         actions["provenance"] = {
             "kind": "git_head",
             "commit": next(

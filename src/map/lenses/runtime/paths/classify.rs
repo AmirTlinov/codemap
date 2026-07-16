@@ -146,7 +146,7 @@ pub(crate) fn explicitly_omitted_fields(body: &str) -> Vec<String> {
         return Vec::new();
     };
     let referenced = owned_dotted_fields(&code, parameter);
-    let returned = returned_object_fields(&code);
+    let returned = returned_primary_fields(&code, parameter);
     if returned.is_empty() {
         return Vec::new();
     }
@@ -196,29 +196,81 @@ fn owned_dotted_fields(code: &str, owner: &str) -> std::collections::BTreeSet<St
     out
 }
 
-fn returned_object_fields(code: &str) -> std::collections::BTreeSet<String> {
-    let Some(start) = code.find("return {") else {
-        return std::collections::BTreeSet::new();
-    };
-    let open = start + "return ".len();
-    let Some(end) = matching_brace(code, open) else {
-        return std::collections::BTreeSet::new();
-    };
-    top_level_comma_segments(&code[open + 1..end])
-        .into_iter()
-        .filter_map(|part| {
-            let name = part
-                .trim()
-                .trim_start_matches("...")
-                .split([':', ' ', '\n'])
-                .next()?;
-            (!name.is_empty()
-                && name
-                    .chars()
-                    .all(|ch| ch.is_ascii_alphanumeric() || ch == '_'))
-            .then(|| name.to_string())
-        })
-        .collect()
+fn returned_primary_fields(code: &str, parameter: &str) -> std::collections::BTreeSet<String> {
+    let aliases = primary_field_aliases(code, parameter);
+    let mut returned = std::collections::BTreeSet::new();
+    for (_, return_end) in crate::map::identifier_ranges(code, "return") {
+        let open = return_end
+            + code[return_end..]
+                .chars()
+                .take_while(|ch| ch.is_whitespace())
+                .map(char::len_utf8)
+                .sum::<usize>();
+        if !code[open..].starts_with('{') {
+            continue;
+        }
+        let Some(close) = matching_brace(code, open) else {
+            continue;
+        };
+        for segment in top_level_comma_segments(&code[open + 1..close]) {
+            returned.extend(owned_dotted_fields(segment, parameter));
+            let value = top_level_value(segment).unwrap_or(segment).trim();
+            for (alias, fields) in &aliases {
+                if crate::map::identifier_ranges(value, alias).next().is_some() {
+                    returned.extend(fields.iter().cloned());
+                }
+            }
+        }
+    }
+    returned
+}
+
+fn primary_field_aliases(
+    code: &str,
+    parameter: &str,
+) -> std::collections::BTreeMap<String, std::collections::BTreeSet<String>> {
+    let mut aliases = std::collections::BTreeMap::new();
+    for line in code.lines() {
+        let Some((left, right)) = line.split_once('=') else {
+            continue;
+        };
+        if right.starts_with('=') || left.ends_with(['!', '<', '>']) {
+            continue;
+        }
+        let fields = owned_dotted_fields(right, parameter);
+        if fields.is_empty() {
+            continue;
+        }
+        let Some(name) = left
+            .split(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '_' || ch == '$'))
+            .rfind(|part| !part.is_empty())
+        else {
+            continue;
+        };
+        aliases.insert(name.to_string(), fields);
+    }
+    aliases
+}
+
+fn top_level_value(segment: &str) -> Option<&str> {
+    let mut round = 0usize;
+    let mut square = 0usize;
+    let mut curly = 0usize;
+    for (offset, ch) in segment.char_indices() {
+        match ch {
+            '(' => round += 1,
+            ')' => round = round.saturating_sub(1),
+            '[' => square += 1,
+            ']' => square = square.saturating_sub(1),
+            '{' => curly += 1,
+            '}' => curly = curly.saturating_sub(1),
+            ':' if round == 0 && square == 0 && curly == 0 => {
+                return Some(&segment[offset + 1..]);
+            }
+            _ => {}
+        }
+    }
+    None
 }
 
 fn matching_brace(code: &str, open: usize) -> Option<usize> {

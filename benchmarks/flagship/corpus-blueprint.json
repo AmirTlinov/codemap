@@ -152,43 +152,6 @@
     },
     {
       "criteria": {
-        "behavior": {
-          "contains": {
-            "src/map/lenses/runtime/paths/classify.rs": [
-              "primary_parameter_name",
-              "owned_dotted_fields",
-              "matching_brace",
-              "top_level_comma_segments"
-            ]
-          },
-          "kind": "files"
-        },
-        "contract": {
-          "kind": "files",
-          "not_contains": {
-            "src/map/lenses/runtime/paths/classify.rs": [
-              "lower.contains(\"csrf\")"
-            ]
-          }
-        },
-        "downstream": {
-          "commands": [
-            {
-              "argv": [
-                "cargo",
-                "test",
-                "--test",
-                "structural_map",
-                "runtime_path_carries_guard_service_projection_response_and_deployment_config",
-                "--",
-                "--exact"
-              ],
-              "timeout_seconds": 1200
-            }
-          ],
-          "kind": "commands",
-          "overlays": "{task_overlays}"
-        },
         "regression": {
           "commands": [
             {
@@ -219,6 +182,18 @@
                 "--exact"
               ],
               "timeout_seconds": 1200
+            },
+            {
+              "argv": [
+                "cargo",
+                "test",
+                "--test",
+                "structural_map",
+                "response_projection_uses_primary_parameter_and_balanced_return_values",
+                "--",
+                "--exact"
+              ],
+              "timeout_seconds": 1200
             }
           ],
           "kind": "commands",
@@ -229,7 +204,7 @@
       "id": "codemap-response-projection",
       "overlays": [
         {
-          "commit": "9b9217d236acd839b2a035c94de0413a2411a23f",
+          "artifact": "oracles/codemap/runtime_transform_paths.rs",
           "path": "tests/structural_map/runtime_transform_paths.rs"
         }
       ],
@@ -318,55 +293,14 @@
     },
     {
       "criteria": {
-        "behavior": {
-          "commands": [
-            {
-              "argv": [
-                "python3",
-                "deploy/k8s/base/backup/postgres_backup_contract_test.py",
-                "-k",
-                "remote_readback"
-              ]
-            }
-          ],
-          "kind": "commands",
-          "overlays": "{task_overlays}"
-        },
-        "contract": {
-          "commands": [
-            {
-              "argv": [
-                "python3",
-                "deploy/k8s/base/backup/postgres_backup_contract_test.py",
-                "-k",
-                "network_contract"
-              ]
-            }
-          ],
-          "kind": "commands",
-          "overlays": "{task_overlays}"
-        },
-        "downstream": {
-          "commands": [
-            {
-              "argv": [
-                "python3",
-                "deploy/k8s/base/backup/postgres_backup_contract_test.py",
-                "-k",
-                "gitops_and_monitoring"
-              ]
-            }
-          ],
-          "kind": "commands",
-          "overlays": "{task_overlays}"
-        },
         "regression": {
           "commands": [
             {
               "argv": [
                 "python3",
                 "scripts/ops/ci/yaml_loader_test.py"
-              ]
+              ],
+              "timeout_seconds": 1200
             }
           ],
           "kind": "commands"
@@ -376,8 +310,9 @@
             {
               "argv": [
                 "python3",
-                "deploy/k8s/base/backup/postgres_backup_contract_test.py"
-              ]
+                "deploy/k8s/base/backup/flagship_postgres_backup_test.py"
+              ],
+              "timeout_seconds": 1200
             }
           ],
           "kind": "commands",
@@ -388,8 +323,8 @@
       "id": "main-postgres-backup",
       "overlays": [
         {
-          "commit": "b70afb56f9a72dc8cbfd82a3b51b5d5f98e3b1a5",
-          "path": "deploy/k8s/base/backup/postgres_backup_contract_test.py"
+          "artifact": "oracles/main/postgres_backup_test.py",
+          "path": "deploy/k8s/base/backup/flagship_postgres_backup_test.py"
         }
       ],
       "prompt": "Restore a verified PostgreSQL backup owner under `deploy/k8s/base/backup`: a scheduled dump must upload to MinIO, read the object back, compare SHA-256 before success, run with pinned images and least privilege, expose only DNS/Postgres/MinIO network paths, be included by GitOps, emit a stale-backup alert, and have an operator runbook. Keep the existing deployment structure and YAML loader contract.",
@@ -477,58 +412,6 @@
     },
     {
       "criteria": {
-        "behavior": {
-          "commands": [
-            {
-              "argv": [
-                "pnpm",
-                "--filter",
-                "@pabg/ws",
-                "exec",
-                "vitest",
-                "run",
-                "src/hub.test.ts",
-                "-t",
-                "rate-limits a text flood"
-              ],
-              "timeout_seconds": 1200
-            }
-          ],
-          "kind": "commands",
-          "overlays": "{task_overlays}"
-        },
-        "contract": {
-          "commands": [
-            {
-              "argv": [
-                "pnpm",
-                "--filter",
-                "@pabg/ws",
-                "exec",
-                "vitest",
-                "run",
-                "src/protocol.test.ts",
-                "-t",
-                "text chat frames"
-              ],
-              "timeout_seconds": 1200
-            }
-          ],
-          "kind": "commands",
-          "overlays": "{task_overlays}"
-        },
-        "downstream": {
-          "contains": {
-            "apps/web/src/hooks/useTownMultiplayer.ts": [
-              "chat_text",
-              "chat_history"
-            ],
-            "apps/web/src/lib/env.ts": [
-              "CHAT"
-            ]
-          },
-          "kind": "files"
-        },
         "regression": {
           "commands": [
             {
@@ -540,6 +423,18 @@
                 "vitest",
                 "run",
                 "src/rate-limit.test.ts"
+              ],
+              "timeout_seconds": 1200
+            },
+            {
+              "argv": [
+                "pnpm",
+                "--filter",
+                "@pabg/web",
+                "exec",
+                "vitest",
+                "run",
+                "src/components/town/ChatStrip.test.tsx"
               ],
               "timeout_seconds": 1200
             }
@@ -565,9 +460,31 @@
                 "exec",
                 "vitest",
                 "run",
-                "src/hub.test.ts",
-                "-t",
-                "text chat"
+                "src/flagship_text_chat.test.ts"
+              ],
+              "timeout_seconds": 1200
+            },
+            {
+              "argv": [
+                "pnpm",
+                "--filter",
+                "@pabg/web",
+                "exec",
+                "vitest",
+                "run",
+                "src/hooks/flagship_text_chat_hook.test.ts"
+              ],
+              "timeout_seconds": 1200
+            },
+            {
+              "argv": [
+                "pnpm",
+                "--filter",
+                "@pabg/web",
+                "exec",
+                "vitest",
+                "run",
+                "src/components/town/flagship_text_chat_ui.test.tsx"
               ],
               "timeout_seconds": 1200
             }
@@ -580,19 +497,19 @@
       "id": "pabg-global-text-chat",
       "overlays": [
         {
-          "commit": "76280094c7da410e137f468a19a3d9311402b339",
-          "path": "apps/web/src/lib/ws-client.test.ts"
+          "artifact": "oracles/pabg/flagship_text_chat.test.ts",
+          "path": "apps/ws/src/flagship_text_chat.test.ts"
         },
         {
-          "commit": "76280094c7da410e137f468a19a3d9311402b339",
-          "path": "apps/ws/src/hub.test.ts"
+          "artifact": "oracles/pabg/flagship_text_chat_ui.test.tsx",
+          "path": "apps/web/src/components/town/flagship_text_chat_ui.test.tsx"
         },
         {
-          "commit": "76280094c7da410e137f468a19a3d9311402b339",
-          "path": "apps/ws/src/protocol.test.ts"
+          "artifact": "oracles/pabg/flagship_text_chat_hook.test.ts",
+          "path": "apps/web/src/hooks/flagship_text_chat_hook.test.ts"
         }
       ],
-      "prompt": "Add global text chat over the town WebSocket hub beginning at `apps/ws/src/hub.ts#TownHub`. Define bounded protocol frames that reject empty, overlong, and control-character text; trim accepted text; attach sender identity and server time; broadcast to sender and peers; retain bounded history for newcomers; rate-limit floods; reject chat before hello; and wire the web multiplayer consumer without regressing emoji chat or movement.",
+      "prompt": "Add global text chat over the town WebSocket hub beginning at `apps/ws/src/hub.ts#TownHub`. Use `text_chat` for the client frame, `text_chat_broadcast` for server delivery, and `chat_history` on welcome. Reject empty, overlong, and control-character text; trim accepted text; attach sender identity and server time; broadcast to sender and peers; retain bounded history for newcomers; rate-limit floods in a bucket separate from emoji chat; reject chat before hello; and wire the web multiplayer consumer without regressing emoji chat or movement.",
       "repo_id": "pabg",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -677,35 +594,6 @@
     },
     {
       "criteria": {
-        "behavior": {
-          "contains": {
-            "vendor/browser_extension/service_worker.js": [
-              "getClipboardTargetTab",
-              "writeClipboardItemsInFocusedTab",
-              "context: \"focused_tab\""
-            ]
-          },
-          "kind": "files"
-        },
-        "contract": {
-          "contains": {
-            "vendor/browser_extension/service_worker.js": [
-              "preferredTabId",
-              "allFrames: false",
-              "world: \"ISOLATED\""
-            ]
-          },
-          "kind": "files"
-        },
-        "downstream": {
-          "contains": {
-            "vendor/browser_extension/service_worker.js": [
-              "attemptedContexts: [\"focused_tab\", \"offscreen\"]",
-              "clipboard.writeSvg"
-            ]
-          },
-          "kind": "files"
-        },
         "regression": {
           "commands": [
             {
@@ -723,17 +611,24 @@
             {
               "argv": [
                 "node",
-                "/Users/amir/Documents/projects/tools/cli/codemap/benchmarks/flagship/browser_focused_clipboard_test.js",
+                ".flagship/browser_focused_clipboard_test.js",
                 "{worktree}"
-              ]
+              ],
+              "timeout_seconds": 1200
             }
           ],
-          "kind": "commands"
+          "kind": "commands",
+          "overlays": "{task_overlays}"
         }
       },
       "ecosystem": "python",
       "id": "browser-focused-clipboard",
-      "overlays": [],
+      "overlays": [
+        {
+          "artifact": "browser_focused_clipboard_test.js",
+          "path": ".flagship/browser_focused_clipboard_test.js"
+        }
+      ],
       "prompt": "Update `vendor/browser_extension/service_worker.js#dispatchRpc` so `clipboard.write` and `clipboard.writeSvg` first attempt a bounded write in the explicitly requested or focused tab, using the isolated top frame and preserving tab/context provenance. If that fails, fall back to the existing offscreen carrier and report both attempted contexts or combined errors. Keep the extension kill switch and existing RPC behavior intact.",
       "repo_id": "browser",
       "task_class": "implementation",
@@ -819,45 +714,6 @@
     },
     {
       "criteria": {
-        "behavior": {
-          "contains": {
-            "domains/workspace/rust/workspace-domain/src/active_plan.rs": [
-              "first non-done roadmap slice",
-              "ROADMAP.md has no slice rows",
-              "active_slice_id"
-            ]
-          },
-          "exists": [
-            "domains/workspace/rust/workspace-domain/src/active_plan.rs"
-          ],
-          "kind": "files"
-        },
-        "contract": {
-          "contains": {
-            "domains/workspace/rust/workspace-domain/src/lib.rs": [
-              "active_plan"
-            ],
-            "services/core-daemon/src/main.rs": [
-              "active-plan-projection",
-              "active_plan_projection_json"
-            ]
-          },
-          "kind": "files"
-        },
-        "downstream": {
-          "contains": {
-            "apps/macos-app/Sources/OpenSlopApp/InspectorPanelView.swift": [
-              "active"
-            ],
-            "apps/macos-app/Sources/WorkbenchCore/CoreDaemonClient.swift": [
-              "fetchActivePlanProjection"
-            ]
-          },
-          "exists": [
-            "apps/macos-app/Sources/WorkbenchCore/ActivePlanProjection.swift"
-          ],
-          "kind": "files"
-        },
         "regression": {
           "commands": [
             {
@@ -875,27 +731,24 @@
           "commands": [
             {
               "argv": [
-                "cargo",
-                "run",
-                "--quiet",
-                "-p",
-                "core-daemon",
-                "--",
-                "--active-plan-projection"
-              ],
-              "stdout_contains": [
-                "\"kind\": \"active_plan_projection\"",
-                "\"slices\""
+                "python3",
+                ".flagship/active_plan_test.py"
               ],
               "timeout_seconds": 1200
             }
           ],
-          "kind": "commands"
+          "kind": "commands",
+          "overlays": "{task_overlays}"
         }
       },
       "ecosystem": "swift",
       "id": "openslop-active-plan",
-      "overlays": [],
+      "overlays": [
+        {
+          "artifact": "oracles/openslop/active_plan_test.py",
+          "path": ".flagship/active_plan_test.py"
+        }
+      ],
       "prompt": "Add an active-plan projection rooted in `ROADMAP.md`: a workspace-domain owner must parse slice rows, materialize STATUS/REVIEW/VISUAL proof state, count done/active/planned/blocked slices, select the first non-done slice, and fail closed when the roadmap is absent or empty. Expose the same typed projection through core-daemon CLI/stdio, WorkbenchCore, the inspector UI, and runnable Make/Swift probes.",
       "repo_id": "openslop",
       "task_class": "implementation",
@@ -981,42 +834,6 @@
     },
     {
       "criteria": {
-        "behavior": {
-          "contains": {
-            "crates/ratiotissue-cli/src/cli/codex_sessions.rs": [
-              "CodexSessionEpisode",
-              "next_return_fragment",
-              "build_episodes"
-            ],
-            "crates/ratiotissue-cli/src/cli/continuation.rs": [
-              "cmd_live_codex_sessions",
-              "codex_session_episode"
-            ]
-          },
-          "kind": "files"
-        },
-        "contract": {
-          "contains": {
-            "crates/ratiotissue-cli/src/cli/mod.rs": [
-              "live-codex-sessions",
-              "--session-files",
-              "--max-events",
-              "--no-redact"
-            ]
-          },
-          "kind": "files"
-        },
-        "downstream": {
-          "contains": {
-            "crates/ratiotissue-cli/src/cli/continuation.rs": [
-              "write_session_carrier",
-              "observe_world_pressure",
-              "episode-pressure",
-              "episode-return"
-            ]
-          },
-          "kind": "files"
-        },
         "regression": {
           "commands": [
             {
@@ -1034,37 +851,24 @@
           "commands": [
             {
               "argv": [
-                "mkdir",
-                "-p",
-                "{worktree}/target/empty-codex-sessions"
-              ]
-            },
-            {
-              "argv": [
-                "cargo",
-                "run",
-                "--quiet",
-                "--",
-                "live-codex-sessions",
-                "{worktree}/target/empty-codex-sessions",
-                "--db",
-                "{worktree}/target/flagship-codex.rtdb",
-                "--limit",
-                "1"
-              ],
-              "expected_status": "nonzero",
-              "stderr_contains": [
-                "did not produce pressure/return episodes"
+                "python3",
+                ".flagship/live_codex_sessions_test.py"
               ],
               "timeout_seconds": 1200
             }
           ],
-          "kind": "commands"
+          "kind": "commands",
+          "overlays": "{task_overlays}"
         }
       },
       "ecosystem": "rust",
       "id": "ratio-codex-live-episodes",
-      "overlays": [],
+      "overlays": [
+        {
+          "artifact": "oracles/ratio/live_codex_sessions_test.py",
+          "path": ".flagship/live_codex_sessions_test.py"
+        }
+      ],
       "prompt": "Add a `live-codex-sessions` command through `crates/ratiotissue-cli/src/cli/continuation.rs` that reads bounded Codex JSONL session history, classifies user pressure and assistant world-return fragments, builds stable redacted episodes, writes deterministic carrier files, and runs each episode through the existing actionwave/world-return loop with explicit receipts. Empty or metadata-only sessions must fail closed rather than claim contact. Preserve ordinary live behavior.",
       "repo_id": "ratio",
       "task_class": "implementation",
@@ -1104,8 +908,6 @@
       "verifier_timeout_seconds": 60
     }
   ],
-  "verifier_artifacts": [
-    "browser_focused_clipboard_test.js"
-  ],
+  "verifier_artifacts": [],
   "version": 1
 }

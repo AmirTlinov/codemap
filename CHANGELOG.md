@@ -5,6 +5,8 @@ public JSON compatibility is governed separately by `docs/SCHEMA_POLICY.md`.
 
 ## Unreleased
 
+- Replaced implementation-task source-shape checks with frozen behavioral oracles, and made
+  runtime response projections follow primary-parameter data through nested returns and aliases.
 - Made exact `ls` and `cone` hydrate explicitly named tracked files inside bounded common-ignore
   directories without widening root inventory or following symlink and oversized bodies.
 - Replaced the unfinished flagship ceremony with one frozen 18-task, 72-run A/B:
