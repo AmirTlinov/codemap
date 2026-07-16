@@ -268,6 +268,10 @@ export function consumer() { return alias(); }\n";
         saved_meta.modified().expect("saved mtime"),
         "mtime must be restored exactly"
     );
+    // Make the content-only edit explicitly Git-known on filesystems where
+    // restored size and mtime make an unstaged change otherwise unobservable.
+    git(repo.path(), &["add", "src/consumer.ts"]);
+    git(repo.path(), &["reset", "-q", "--", "src/consumer.ts"]);
 
     let doctor = run_json(
         repo.path(),

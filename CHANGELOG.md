@@ -27,6 +27,8 @@ public JSON compatibility is governed separately by `docs/SCHEMA_POLICY.md`.
   existing section expands so daily agent context remains bounded without losing facts.
 - Kept warm lens caches valid when Git tracks regular files that the structural scanner
   intentionally excludes, avoiding repeated runtime-report rebuilds on unchanged worktrees.
+- Made the content-only cache regression fixture explicitly Git-known across filesystems,
+  preserving the same full Windows gate without platform skips.
 
 ## 0.2.33 - 2026-05-04
 
