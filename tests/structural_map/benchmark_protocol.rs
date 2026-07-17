@@ -125,7 +125,7 @@ print(json.dumps({
         String::from_utf8_lossy(&output.stderr)
     );
     let prompt: Value = serde_json::from_slice(&output.stdout).expect("prompt json");
-    assert_eq!(prompt["version"], 8);
+    assert_eq!(prompt["version"], 9);
     assert!(prompt["implementation"]
         .as_str()
         .unwrap()
@@ -142,6 +142,10 @@ print(json.dumps({
         .as_str()
         .unwrap()
         .contains("one command-execution shell call"));
+    assert!(prompt["exact"]
+        .as_str()
+        .unwrap()
+        .contains("Python UTF-8 text I/O"));
 }
 
 #[test]
