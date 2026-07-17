@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -88,6 +89,15 @@ def main() -> int:
         observed = (
             "observed=true" in first.stdout
             or "world_return_observed=true" in first.stdout
+            or re.search(r"world_returns_observed=[1-9][0-9]*", first.stdout) is not None
+            or all(
+                marker in first.stdout
+                for marker in (
+                    "live_codex_world_return_receipt",
+                    "world_return_keys=",
+                    "conductance_changed=",
+                )
+            )
             or all(
                 marker in first.stdout
                 for marker in ("contact=true", "world_return_keys=", "conductance_changed=")

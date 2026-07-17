@@ -146,7 +146,7 @@
       },
       "ecosystem": "rust",
       "id": "codemap-deterministic-investigation",
-      "prompt": "At the frozen commit, trace the proof-changed CLI fast path, changed lens, proof engine, changed-proof cache artifact, changed JSON schema, and primary structural test. Return one compact answer containing the exact repository-relative path for each of the six requested owners and a one-line connection between adjacent owners. Do not modify files. Do not substitute directories or prose descriptions for paths.",
+      "prompt": "At the frozen commit, trace the proof-changed CLI fast path, changed lens, proof engine, changed-proof cache artifact, changed JSON schema, and primary changed-lens structural test file. Return one compact answer containing the exact repository-relative path for each of the six requested owners and a one-line connection between adjacent owners. Do not modify files. Do not substitute directories or prose descriptions for paths.",
       "repo_id": "codemap",
       "task_class": "investigation"
     },
@@ -749,7 +749,7 @@
           "path": ".flagship/active_plan_test.py"
         }
       ],
-      "prompt": "Add an active-plan projection rooted in `ROADMAP.md`: a workspace-domain owner must parse slice rows, materialize STATUS/REVIEW/VISUAL proof state, count done/active/planned/blocked slices, select the first non-done slice, and fail closed when the roadmap is absent or empty. Expose the same typed projection through core-daemon CLI/stdio, WorkbenchCore, the inspector UI, and runnable Make/Swift probes.",
+      "prompt": "Add an active-plan projection rooted in `ROADMAP.md`: a workspace-domain owner must parse slice rows, materialize STATUS/REVIEW/VISUAL proof state, count done/active/planned/blocked slices, select the first non-done slice, and fail closed when the roadmap is absent or empty. All emitted repository paths must be deterministic and repository-relative. Expose the same typed projection through core-daemon CLI/stdio, WorkbenchCore, the inspector UI, and runnable Make/Swift probes.",
       "repo_id": "openslop",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -869,7 +869,7 @@
           "path": ".flagship/live_codex_sessions_test.py"
         }
       ],
-      "prompt": "Add a `live-codex-sessions` command through `crates/ratiotissue-cli/src/cli/continuation.rs` that reads bounded Codex JSONL session history, classifies user pressure and assistant world-return fragments, builds stable episodes that redact home paths, email addresses, and secret/token strings, writes deterministic carrier files, and runs each episode through the existing actionwave/world-return loop with explicit receipts. Empty or metadata-only sessions must fail closed rather than claim contact. Preserve ordinary live behavior.",
+      "prompt": "Add a `live-codex-sessions` command through `crates/ratiotissue-cli/src/cli/continuation.rs` that reads bounded Codex JSONL session history, classifies user pressure and assistant world-return fragments, builds stable episodes that redact home paths, email addresses, and secret/token strings, writes deterministic carrier files, and runs each episode through the existing actionwave/world-return loop with explicit receipts. Recognized token prefixes must be redacted even when fixture values are short. Empty or metadata-only sessions must fail closed rather than claim contact. Preserve ordinary live behavior.",
       "repo_id": "ratio",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200

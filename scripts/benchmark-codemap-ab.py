@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any
 
 from benchmark_parallel import ProcessResult, run_ordered, run_process
+from benchmark_worktrees import add_worktree, remove_worktree
 from codemap_identity import CodemapIdentityError, benchmark_binary_identity, command_artifacts, resolve_codemap_command
 from codemap_protocol import codemap_protocol
 from codemap_protocol_shim import shell_profile_environment, write_shim
@@ -507,7 +508,7 @@ def run_trial(
         return resumed
     artifact_dir.mkdir(parents=True, exist_ok=True)
     worktree = work_root / key
-    added = git(task.repo, ["worktree", "add", "--detach", str(worktree), base_commit], 120)
+    added = add_worktree(task.repo, worktree, base_commit)
     if added.status != 0:
         raise ValueError(f"cannot create worktree {worktree}: {added.stderr.strip()}")
     try:
@@ -648,7 +649,7 @@ def run_trial(
         return result
     finally:
         if not args.keep_worktrees:
-            removed = git(task.repo, ["worktree", "remove", "--force", str(worktree)], 120)
+            removed = remove_worktree(task.repo, worktree)
             if removed.status != 0:
                 print(f"[ab] warning: could not remove {worktree}: {removed.stderr}", file=sys.stderr)
 
@@ -843,7 +844,7 @@ def run_preflight(task: Task, out_dir: Path, work_root: Path) -> dict[str, Any]:
     artifact_dir = out_dir / "preflight" / safe_label(task.task_id)
     artifact_dir.mkdir(parents=True, exist_ok=True)
     worktree = work_root / key
-    added = git(task.repo, ["worktree", "add", "--detach", str(worktree), base_commit], 120)
+    added = add_worktree(task.repo, worktree, base_commit)
     if added.status != 0:
         raise ValueError(f"cannot create preflight worktree {worktree}: {added.stderr.strip()}")
     try:
@@ -870,7 +871,7 @@ def run_preflight(task: Task, out_dir: Path, work_root: Path) -> dict[str, Any]:
             )
         return result
     finally:
-        removed = git(task.repo, ["worktree", "remove", "--force", str(worktree)], 120)
+        removed = remove_worktree(task.repo, worktree)
         if removed.status != 0:
             print(f"[ab] warning: could not remove {worktree}: {removed.stderr}", file=sys.stderr)
 

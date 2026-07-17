@@ -5,6 +5,9 @@ public JSON compatibility is governed separately by `docs/SCHEMA_POLICY.md`.
 
 ## Unreleased
 
+- Serialized per-repository worktree mutations in parallel benchmarks and made the
+  same-metadata cache fixture deterministic across Git filesystems.
+- Clarified three flagship task contracts and accepted equivalent tab and world-return receipts.
 - Corrected the OpenSlop investigation criterion to the real transcript-to-timeline projection owner.
 - Made exact file maps lead with mediated proof, followed Kustomization resource ownership,
   and kept focused lenses truthful for explicitly named ignored files.

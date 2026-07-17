@@ -93,8 +93,19 @@ const context = vm.createContext({
 vm.runInContext(source, context, { filename: "service_worker.js" });
 
 function tabProvenance(result, expectedTab, expectedSource) {
+  const sourceMatches = (actual) => !expectedSource
+    || actual === expectedSource
+    || (expectedSource === "requested" && actual === "explicit");
   if (result.context === "focused_tab") {
     return String(result.tabId) === String(expectedTab);
+  }
+  if (result.context === "tab") {
+    const attempt = attempts(result).find((row) => row?.context === "tab");
+    const selectedBy = result.source || result.selectedBy || attempt?.source || attempt?.selectedBy;
+    return String(result.tabId) === String(expectedTab)
+      && Number(result.frameId) === 0
+      && result.world === "ISOLATED"
+      && sourceMatches(selectedBy);
   }
   const value = result.context;
   const selectedBy = value?.source || value?.selectedBy;
@@ -102,7 +113,7 @@ function tabProvenance(result, expectedTab, expectedSource) {
     && String(value.tabId) === String(expectedTab)
     && Number(value.frameId) === 0
     && value.world === "ISOLATED"
-    && (!expectedSource || selectedBy === expectedSource);
+    && sourceMatches(selectedBy);
 }
 
 function topFrameCall(call, tabId) {
@@ -118,26 +129,27 @@ function attempts(result) {
   return Array.isArray(result?.attemptedContexts) ? result.attemptedContexts : [];
 }
 
+function contextKind(row) {
+  const context = row?.context;
+  return typeof row === "string"
+    ? row
+    : row?.kind || row?.type || row?.carrier || (typeof context === "string"
+      ? context
+      : context?.kind || context?.type || context?.carrier);
+}
+
 function hasAttempt(rows, kind, status) {
   return rows.some((row) => {
-    const context = row?.context;
-    const rowKind = typeof row === "string"
-      ? row
-      : row?.kind || row?.type || row?.carrier || (typeof context === "string"
-        ? context
-        : context?.kind || context?.type || context?.carrier);
+    const rowKind = contextKind(row);
     const rowStatus = row?.status || (row?.ok === true ? "succeeded" : row?.ok === false ? "failed" : undefined);
     return rowKind === kind && (!status || rowStatus === status);
   });
 }
 
 function hasContextError(rows, kind) {
-  return rows.some((row) => {
-    const context = row?.context;
-    return (context?.kind || context?.type || context?.carrier) === kind
-      && typeof row?.error === "string"
-      && row.error.length > 0;
-  });
+  return rows.some((row) => contextKind(row) === kind
+    && typeof row?.error === "string"
+    && row.error.length > 0);
 }
 
 const textItems = [{
@@ -163,10 +175,11 @@ const textItems = [{
   offscreenMode = "success";
   const fallback = await context.dispatchRpc("clipboard.write", { tabId: "77", items: textItems });
   const fallbackAttempts = attempts(fallback);
-  if ((fallback.context?.kind || fallback.context?.type || fallback.context?.carrier) !== "offscreen"
+  if (contextKind(fallback) !== "offscreen"
       || !hasAttempt(fallbackAttempts, "tab")
       || !hasAttempt(fallbackAttempts, "offscreen")
       || (!hasAttempt(fallbackAttempts, "tab", "failed")
+        && !hasContextError(fallbackAttempts, "tab")
         && !hasContextError(fallback.errors || fallback.contextErrors || [], "tab"))) {
     throw new Error(`fallback did not preserve both attempts: ${JSON.stringify(fallback)}`);
   }

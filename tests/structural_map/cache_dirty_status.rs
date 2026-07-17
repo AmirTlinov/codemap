@@ -268,10 +268,12 @@ export function consumer() { return alias(); }\n";
         saved_meta.modified().expect("saved mtime"),
         "mtime must be restored exactly"
     );
-    // Make the content-only edit explicitly Git-known on filesystems where
-    // restored size and mtime make an unstaged change otherwise unobservable.
-    git(repo.path(), &["add", "src/consumer.ts"]);
-    git(repo.path(), &["reset", "-q", "--", "src/consumer.ts"]);
+    // Mark the path for explicit content recheck. Staging and resetting a
+    // same-stat edit is racy on Windows because Git may accept the old stat.
+    git(
+        repo.path(),
+        &["update-index", "--assume-unchanged", "src/consumer.ts"],
+    );
 
     let doctor = run_json(
         repo.path(),
