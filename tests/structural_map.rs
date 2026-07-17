@@ -43,6 +43,7 @@ include!("structural_map/contract_role_precision.rs");
 include!("structural_map/contract_markdown.rs");
 include!("structural_map/contract_lineage.rs");
 include!("structural_map/contract_attention_path.rs");
+include!("structural_map/cone_causal_direction.rs");
 include!("structural_map/directory_cone_and_tsconfig.rs");
 include!("structural_map/cone_markdown.rs");
 include!("structural_map/cone_xray.rs");

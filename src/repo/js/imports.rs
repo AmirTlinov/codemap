@@ -29,9 +29,6 @@ pub(crate) fn extract_js_import_specs(text: &str) -> BTreeSet<String> {
 pub(crate) fn extract_js_import_bindings(text: &str) -> ImportBindingsBySpec {
     let mut out = BTreeMap::new();
     for import in extract_js_static_imports(text) {
-        if import.is_type {
-            continue;
-        }
         let Some(clause) = import.clause.as_deref() else {
             continue;
         };

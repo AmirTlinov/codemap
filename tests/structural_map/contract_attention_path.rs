@@ -113,3 +113,77 @@ fn cone_contract_where_and_embedded_schema_form_one_exact_attention_path() {
         "include_str! must expose its exact embedded schema dependency: {rust_owner:#}"
     );
 }
+
+#[test]
+fn exported_symbol_type_dependency_opens_the_shared_contract_consumers() {
+    let repo = TempDir::new().expect("repo");
+    let cache = TempDir::new().expect("cache");
+    git(repo.path(), &["init", "-q"]);
+    write(
+        &repo.path().join("package.json"),
+        r#"{"private":true,"workspaces":["apps/*"]}"#,
+    );
+    write(
+        &repo.path().join("apps/ws/package.json"),
+        r#"{"name":"@fixture/ws","exports":{"./protocol":"./src/protocol.ts"}}"#,
+    );
+    write(
+        &repo.path().join("apps/web/package.json"),
+        r#"{"name":"@fixture/web","private":true}"#,
+    );
+    write(
+        &repo.path().join("apps/ws/src/protocol.ts"),
+        "export interface ClientFrame { type: string }\n",
+    );
+    write(
+        &repo.path().join("apps/ws/src/hub.ts"),
+        "import type { ClientFrame } from './protocol';\nexport class TownHub {\n  handle(frame: ClientFrame): string { return frame.type; }\n}\n",
+    );
+    write(
+        &repo.path().join("apps/web/src/ChatStrip.ts"),
+        "import type { ClientFrame } from '../../ws/src/protocol';\nexport const render = (frame: ClientFrame) => frame.type;\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "shared protocol fixture"]);
+
+    let cone = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "cone",
+            "apps/ws/src/hub.ts#TownHub",
+            "--format",
+            "json",
+        ],
+    );
+    assert!(
+        cone["contracts"].as_array().expect("contracts").iter().any(|edge| {
+            edge["from"] == "apps/ws/src/hub.ts#TownHub"
+                && edge["to"] == "apps/ws/src/protocol.ts"
+                && edge["evidence"] == "public_symbol_type_dependency"
+        }),
+        "the public class signature should expose its shared protocol owner: {cone:#}"
+    );
+    assert!(
+        cone["expand"]
+            .as_array()
+            .expect("expands")
+            .iter()
+            .any(|expand| expand == "codemap contract apps/ws/src/protocol.ts"),
+        "the exact symbol cone should open the contract consumer map directly: {cone:#}"
+    );
+
+    let contract = run_json(
+        repo.path(),
+        cache.path(),
+        &["contract", "apps/ws/src/protocol.ts", "--format", "json"],
+    );
+    assert!(
+        contract["cross_package_consumers"]
+            .as_array()
+            .expect("cross package consumers")
+            .iter()
+            .any(|edge| edge["from"] == "apps/web/src/ChatStrip.ts"),
+        "the exact contract expand must carry the downstream UI consumer: {contract:#}"
+    );
+}

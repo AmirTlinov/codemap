@@ -1,5 +1,5 @@
 // Responsibility: symbol-cone-cross-file-traversal
-use crate::map::{matching_symbols, sort_edges, symbol_outgoing_edges};
+use crate::map::{matching_symbols, shell_quote, sort_edges, symbol_outgoing_edges};
 use crate::model::{Project, StructuralEdge};
 use std::collections::{BTreeSet, VecDeque};
 
@@ -44,4 +44,28 @@ pub(crate) fn symbol_cone_outgoing_edges(
             && left.evidence == right.evidence
     });
     edges
+}
+
+pub(crate) fn symbol_cone_expands(
+    file_rel: &str,
+    anchor_path: &str,
+    depth: usize,
+    contracts: &[StructuralEdge],
+) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    let mut expands = vec![format!(
+        "codemap cone {} --depth {}",
+        shell_quote(anchor_path),
+        depth + 1
+    )];
+    expands.extend(
+        contracts
+            .iter()
+            .map(|edge| edge.to.as_str())
+            .filter(|target| *target != file_rel && seen.insert((*target).to_string()))
+            .take(2)
+            .map(|target| format!("codemap contract {}", shell_quote(target))),
+    );
+    expands.push(format!("codemap ls {}", shell_quote(file_rel)));
+    expands
 }

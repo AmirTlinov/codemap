@@ -165,6 +165,53 @@ func commentOnly(_ input: String) -> String {
     }
 }
 
+#[test]
+fn python_multiline_signature_keeps_the_function_body_in_the_exact_cone() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    write(
+        &repo.path().join("src/carrier.py"),
+        "def deliver(value: str) -> str:\n    return value\n",
+    );
+    write(
+        &repo.path().join("src/entry.py"),
+        r#"from .carrier import deliver
+
+
+def dispatch(
+    value: str,
+    *,
+    enabled: bool = True,
+) -> str:
+    if not enabled:
+        return value
+    return deliver(value)
+"#,
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "python multiline range fixture"]);
+
+    let cone = run_json(
+        repo.path(),
+        cache.path(),
+        &["cone", "src/entry.py#dispatch", "--format", "json"],
+    );
+    assert_schema("schemas/cone.schema.json", &cone);
+    assert_eq!(cone["anchor"]["symbols"][0]["line_end"], 11, "{cone:#}");
+    assert!(
+        cone["outgoing"]
+            .as_array()
+            .expect("outgoing")
+            .iter()
+            .any(|edge| {
+                edge["to"] == "src/carrier.py#deliver"
+                    && edge["evidence"] == "imported_symbol_in_symbol_body"
+            }),
+        "the multiline signature must not truncate its imported carrier call: {cone:#}"
+    );
+}
+
 
 #[test]
 fn symbol_anchor_cone_does_not_treat_receiver_methods_as_local_function_calls() {
@@ -219,4 +266,3 @@ func (s Session) helper() {}
         "incoming cone must not report local function consumers for receiver method targets: {helper_cone:#}"
     );
 }
-

@@ -56,6 +56,16 @@ pub(crate) fn ci_workflow(text: &str) -> Option<CiWorkflow> {
     Some(CiWorkflow { jobs })
 }
 
+pub(crate) fn ci_workflow_name(text: &str) -> Option<String> {
+    text.lines().find_map(|line| {
+        if leading_whitespace_count(line) != 0 {
+            return None;
+        }
+        let value = line.trim().strip_prefix("name:")?.trim();
+        (!value.is_empty()).then(|| trim_yaml_scalar(value))
+    })
+}
+
 fn workflow_steps(
     lines: &[&str],
     job_start: usize,

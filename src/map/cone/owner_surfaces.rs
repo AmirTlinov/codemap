@@ -50,6 +50,10 @@ pub(crate) fn cone_owner_incoming_edges(project: &Project, rel: &str) -> Vec<Str
     if file.has_role("schema_contract") || schema_owner_path(rel) {
         edges.extend(owner_schema_incoming_edges(project, rel));
     }
+    if file.has_role("build_ci") {
+        edges.extend(owner_ci_incoming_edges(project, rel));
+    }
+    edges.extend(owner_runtime_incoming_edges(project, rel));
     sort_edges(&mut edges);
     edges
 }

@@ -9,7 +9,7 @@ use crate::map::{
     default_export_symbol_name, js_brace_depth_after_line,
     js_code_line_without_strings_and_comments, js_type_context_line_is_complete,
     js_type_context_line_starts, line_has_jsx_tag_identifier_reference,
-    line_has_value_identifier_reference, matching_symbols,
+    line_has_type_identifier_reference, line_has_value_identifier_reference, matching_symbols,
 };
 use crate::model::{FileInfo, Project};
 use std::collections::BTreeMap;
@@ -37,6 +37,22 @@ pub(crate) fn symbol_body_text(
             .collect::<Vec<_>>()
             .join("\n"),
     )
+}
+
+pub(crate) fn symbol_body_references_imported_type(body: &str, local: &str, ext: &str) -> bool {
+    if !matches!(
+        ext,
+        "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "vue" | "svelte"
+    ) {
+        return false;
+    }
+    let mut in_block_comment = false;
+    let mut quote = None;
+    body.lines().any(|line| {
+        let code =
+            js_code_line_without_strings_and_comments(line, &mut in_block_comment, &mut quote);
+        line_has_type_identifier_reference(&code, local)
+    })
 }
 
 pub(crate) fn rust_qualified_symbol_body_references(

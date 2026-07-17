@@ -1,11 +1,11 @@
 // Responsibility: map-cone-traversal
 use crate::map::SymbolReferenceEdgeSet;
 use crate::map::{
-    ConeXrayInput, SymbolConeObservationInput, cone_xray_card, directory_has_files,
-    empty_xray_card, file_summary, files_under_directory, import_edge, is_generic_noise,
-    limit_edge_section, missing_symbol_observations, package_name_for_file,
+    ConeXrayInput, SymbolConeObservationInput, cone_owner_incoming_edges, cone_xray_card,
+    directory_has_files, empty_xray_card, file_summary, files_under_directory, import_edge,
+    is_generic_noise, limit_edge_section, missing_symbol_observations, package_name_for_file,
     same_package_symbol_reference_consumers, shell_quote, sort_edges, structural_roles_for_ls,
-    symbol_anchor_path, symbol_cone_observations, symbol_cone_outgoing_edges,
+    symbol_anchor_path, symbol_cone_expands, symbol_cone_observations, symbol_cone_outgoing_edges,
     symbol_contract_edges, symbol_file_summary_with_observed_consumers,
     symbol_local_incoming_edges, symbol_reference_edge_set,
     symbol_verification_edges_with_owning_file, unique, unknown, unknown_missing_symbol_anchor,
@@ -59,6 +59,7 @@ pub(crate) fn cone_symbol_report_with_references(
     let anchor_path = symbol_anchor_path(file_rel, symbol_name);
     let mut incoming = references.production().to_vec();
     incoming.extend(symbol_local_incoming_edges(project, info, symbol_name));
+    incoming.extend(cone_owner_incoming_edges(project, file_rel));
     let mut proof =
         symbol_verification_edges_with_owning_file(project, file_rel, symbol_name, usize::MAX);
     let mut outgoing = symbol_cone_outgoing_edges(project, file_rel, symbol_name, depth);
@@ -123,6 +124,7 @@ pub(crate) fn cone_symbol_report_with_references(
         limit,
         include_hidden,
     });
+    let expand = symbol_cone_expands(file_rel, &anchor_path, depth, &contracts);
     Some(ConeReport {
         kind: "cone_report",
         schema_version: crate::model::ConeReport::SCHEMA_VERSION,
@@ -138,14 +140,7 @@ pub(crate) fn cone_symbol_report_with_references(
         observations,
         hidden,
         unknowns,
-        expand: vec![
-            format!(
-                "codemap cone {} --depth {}",
-                shell_quote(&anchor_path),
-                depth + 1
-            ),
-            format!("codemap ls {}", shell_quote(file_rel)),
-        ],
+        expand,
     })
 }
 
@@ -300,22 +295,17 @@ pub(crate) fn cone_depths(
 }
 
 fn structural_neighbors(project: &Project, rel: &str) -> Vec<String> {
-    let mut neighbors = Vec::new();
-    if let Some(file) = project.files.get(rel) {
-        neighbors.extend(file.resolved_imports.iter().cloned());
-    }
-    if let Some(importers) = project.reverse_imports.get(rel) {
-        neighbors.extend(importers.iter().cloned());
-    }
-    neighbors.extend(
-        same_package_symbol_reference_consumers(project, rel)
+    unique(
+        project
+            .files
+            .get(rel)
             .into_iter()
-            .map(|edge| edge.from),
-    );
-    unique(neighbors)
-        .into_iter()
-        .filter(|neighbor| project.files.contains_key(neighbor))
-        .collect()
+            .flat_map(|file| file.resolved_imports.iter().cloned())
+            .collect(),
+    )
+    .into_iter()
+    .filter(|neighbor| project.files.contains_key(neighbor))
+    .collect()
 }
 
 pub(crate) fn cone_outgoing_edges(

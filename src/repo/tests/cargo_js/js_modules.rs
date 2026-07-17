@@ -45,6 +45,7 @@ const tmpl = `require('./shadow')`;
 const importPattern = /import { RegexHint } from '.\/regex-hint'/;
 const exportPattern = /export { RegexOther } from '.\/regex-other'/;
 import { Real as LocalReal } from './real';
+import type { Contract as LocalContract } from './contract';
 export { Other } from './other';
 export { /* Real is only a comment */ Other as PublicOther } from './commented';
 export { CommentedGap as PublicGap } /* valid comment gap */ from './comment-gap';
@@ -77,6 +78,13 @@ pub(crate) const required = require('./required');
             .and_then(|map| map.get("LocalReal"))
             .map(String::as_str),
         Some("Real")
+    );
+    assert_eq!(
+        bindings
+            .get("./contract")
+            .and_then(|map| map.get("LocalContract"))
+            .map(String::as_str),
+        Some("Contract")
     );
     assert_eq!(
         bindings

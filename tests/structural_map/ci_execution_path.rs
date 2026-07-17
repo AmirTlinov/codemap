@@ -146,6 +146,60 @@ jobs:
 }
 
 #[test]
+fn workflow_cone_shows_static_dispatcher_and_exact_ops_documentation() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    write(
+        &repo.path().join(".github/workflows/release-prod.yml"),
+        "name: Release Prod\non: [workflow_dispatch]\njobs:\n  release:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo release\n",
+    );
+    write(
+        &repo.path().join(".github/workflows/release-readiness.yml"),
+        "name: Release Readiness\non: [workflow_dispatch]\njobs:\n  ready:\n    runs-on: ubuntu-latest\n    steps:\n      - run: gh workflow run release-prod.yml -f sha=$GITHUB_SHA\n",
+    );
+    write(
+        &repo.path().join("docs/ops/github-actions.md"),
+        "# Actions\n\n`Release Prod` is dispatched only after readiness.\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "workflow dispatcher fixture"]);
+
+    let cone = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "cone",
+            ".github/workflows/release-prod.yml",
+            "--format",
+            "json",
+        ],
+    );
+    let incoming = cone["incoming"].as_array().expect("incoming");
+    assert!(
+        incoming.iter().any(|edge| {
+            edge["from"].as_str().is_some_and(|from| {
+                from.starts_with("step:.github/workflows/release-readiness.yml#")
+            }) && edge["to"] == ".github/workflows/release-prod.yml"
+                && edge["type"] == "invokes_workflow"
+        }),
+        "a static gh workflow run command must expose the upstream dispatcher: {cone:#}"
+    );
+    assert!(
+        cone["outgoing"]
+            .as_array()
+            .expect("outgoing")
+            .iter()
+            .any(|edge| {
+            edge["from"] == ".github/workflows/release-prod.yml"
+                && edge["to"] == "docs/ops/github-actions.md"
+                && edge["type"] == "documented_by"
+            }),
+        "the workflow's exact display name should expose its ops contract: {cone:#}"
+    );
+}
+
+#[test]
 fn heredoc_and_computed_shell_stay_typed_stops_not_fragment_actions() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");

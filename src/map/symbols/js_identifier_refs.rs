@@ -162,6 +162,11 @@ fn identifier_occurrence_is_type_only(line: &str, start: usize, end: usize) -> b
     js_type_annotation_before_identifier(before)
 }
 
+pub(crate) fn line_has_type_identifier_reference(line: &str, name: &str) -> bool {
+    identifier_ranges(line, name)
+        .any(|(start, end)| identifier_occurrence_is_type_only(line, start, end))
+}
+
 fn identifier_occurrence_is_value_evidence(line: &str, start: usize, end: usize) -> bool {
     if identifier_occurrence_is_type_only(line, start, end) {
         return false;

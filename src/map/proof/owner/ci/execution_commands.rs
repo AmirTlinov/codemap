@@ -1,7 +1,8 @@
 // Responsibility: exact-command-owner-crossings
 use crate::map::{
-    CiWorkflowStep, command_tokens, package_script_body_for_target, repo_script_targets,
-    script_target_for_path, structural_edge_with_locations,
+    CiWorkflowStep, ci_command_workflow_dispatch_edges, command_tokens,
+    package_script_body_for_target, repo_script_targets, script_target_for_path,
+    structural_edge_with_locations,
 };
 use crate::model::{EvidenceLocation, EvidenceStrength, Project, StructuralEdge};
 use std::collections::BTreeSet;
@@ -17,6 +18,9 @@ pub(crate) fn ci_command_execution_edges(
     let mut edges = Vec::new();
     let location = || vec![EvidenceLocation::line(rel, line, "ci_command")];
     let scripts = repo_script_targets(project, command);
+    edges.extend(ci_command_workflow_dispatch_edges(
+        project, rel, from, command, line,
+    ));
     for script in &scripts {
         edges.push(structural_edge_with_locations(
             from,

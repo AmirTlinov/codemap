@@ -127,6 +127,7 @@ mod match_reasons;
 mod package_reference;
 mod shell_tokens;
 mod workflow;
+mod workflow_dispatch;
 
 pub(crate) use execution::*;
 pub(crate) use execution_commands::*;
@@ -136,3 +137,4 @@ pub(crate) use match_reasons::*;
 pub(crate) use package_reference::*;
 pub(crate) use shell_tokens::*;
 pub(crate) use workflow::*;
+pub(crate) use workflow_dispatch::*;

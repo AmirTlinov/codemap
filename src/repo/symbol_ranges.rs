@@ -152,8 +152,9 @@ fn python_symbol_end(lines: &[&str], line_start: usize, fallback_end: usize) -> 
         return fallback_end;
     };
     let base_indent = leading_spaces(start_line);
-    let mut last_non_blank = line_start;
-    for (idx, line) in lines.iter().enumerate().skip(line_start) {
+    let header_end = python_header_end(lines, line_start, fallback_end);
+    let mut last_non_blank = header_end;
+    for (idx, line) in lines.iter().enumerate().skip(header_end) {
         if line.trim().is_empty() {
             continue;
         }
@@ -165,6 +166,29 @@ fn python_symbol_end(lines: &[&str], line_start: usize, fallback_end: usize) -> 
         last_non_blank = line_no;
     }
     last_non_blank.max(line_start)
+}
+
+fn python_header_end(lines: &[&str], line_start: usize, fallback_end: usize) -> usize {
+    let mut depth = 0isize;
+    for (idx, line) in lines
+        .iter()
+        .enumerate()
+        .skip(line_start.saturating_sub(1))
+        .take(fallback_end.saturating_sub(line_start).saturating_add(1))
+    {
+        let code = crate::repo::code_without_comments_or_strings(line, "py");
+        for ch in code.chars() {
+            match ch {
+                '(' | '[' | '{' => depth += 1,
+                ')' | ']' | '}' => depth = depth.saturating_sub(1),
+                _ => {}
+            }
+        }
+        if depth == 0 && code.trim_end().ends_with(':') {
+            return idx + 1;
+        }
+    }
+    line_start
 }
 
 pub(crate) fn leading_spaces(line: &str) -> usize {

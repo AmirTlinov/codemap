@@ -3,7 +3,8 @@ use crate::map::{
     ImportedSymbolReference, ImportedSymbolReferenceKind, file_has_local_value_shadow,
     file_references_static_expression_after_imports, identifier_ranges,
     imported_symbol_binding_matches, is_identifier_byte, matching_symbols, previous_nonspace_byte,
-    structural_edge_with_locations, symbol_anchor_path, symbol_definition_location,
+    sort_edges, structural_edge_with_locations, symbol_anchor_path,
+    symbol_body_references_imported_type, symbol_body_text, symbol_definition_location,
     symbol_is_exported,
 };
 use crate::model::{EvidenceStrength, FileInfo, Project, StructuralEdge};
@@ -68,14 +69,42 @@ pub(crate) fn symbol_contract_edges(
     if !exported {
         return Vec::new();
     }
-    vec![structural_edge_with_locations(
+    let mut edges = vec![structural_edge_with_locations(
         symbol_anchor_path(file_rel, symbol_name),
         file_rel.to_string(),
         "contract",
         "exported_symbol",
         EvidenceStrength::High,
         symbol_definition_location(project, file_rel, symbol_name, "exported_symbol"),
-    )]
+    )];
+    let Some(info) = project.files.get(file_rel) else {
+        return edges;
+    };
+    let Some(body) = symbol_body_text(project, info, symbol_name) else {
+        return edges;
+    };
+    for (target_rel, bindings) in &info.resolved_import_bindings {
+        if bindings
+            .iter()
+            .any(|(local, _)| symbol_body_references_imported_type(&body, local, &info.ext))
+        {
+            edges.push(structural_edge_with_locations(
+                symbol_anchor_path(file_rel, symbol_name),
+                target_rel.clone(),
+                "contract",
+                "public_symbol_type_dependency",
+                EvidenceStrength::High,
+                symbol_definition_location(
+                    project,
+                    file_rel,
+                    symbol_name,
+                    "public_symbol_type_dependency",
+                ),
+            ));
+        }
+    }
+    sort_edges(&mut edges);
+    edges
 }
 
 pub(crate) fn file_imported_symbol_reference(

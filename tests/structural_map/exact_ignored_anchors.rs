@@ -13,10 +13,18 @@ fn exact_ignored_anchors_are_hydrated_without_expanding_root_inventory() {
             .join("vendor/browser_extension/service_worker.js"),
         "export async function dispatchRpc(request) {\n  return request.method;\n}\n",
     );
+    write(
+        &repo.path().join("vendor/browser_extension/manifest.json"),
+        r#"{"manifest_version":3,"background":{"service_worker":"service_worker.js"},"permissions":["scripting","debugger","offscreen","clipboardWrite"]}"#,
+    );
     git(repo.path(), &["add", "README.md"]);
     git(
         repo.path(),
         &["add", "-f", "vendor/browser_extension/service_worker.js"],
+    );
+    git(
+        repo.path(),
+        &["add", "-f", "vendor/browser_extension/manifest.json"],
     );
     git(repo.path(), &["commit", "-qm", "tracked vendor anchor"]);
 
@@ -47,6 +55,18 @@ fn exact_ignored_anchors_are_hydrated_without_expanding_root_inventory() {
         cold_cone["anchor"]["path"],
         "vendor/browser_extension/service_worker.js#dispatchRpc",
         "{cold_cone:#}"
+    );
+    assert!(
+        cold_cone["incoming"]
+            .as_array()
+            .expect("incoming")
+            .iter()
+            .any(|edge| {
+                edge["from"] == "vendor/browser_extension/manifest.json"
+                    && edge["to"] == "vendor/browser_extension/service_worker.js"
+                    && edge["type"] == "declares_worker"
+            }),
+        "an exact worker symbol must retain its browser-extension runtime owner: {cold_cone:#}"
     );
 
     let flow = run_json(

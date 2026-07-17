@@ -7,6 +7,7 @@ use crate::{map, repo};
 use anyhow::Result;
 use std::collections::BTreeSet;
 use std::env;
+use std::path::Path;
 
 pub(crate) fn try_navigation_fast_paths(
     command: &CommandKind,
@@ -46,7 +47,13 @@ pub(crate) fn hydrate_explicit_navigation(
     if !repo::should_ignore_rel(&file) {
         return Ok(());
     }
-    repo::hydrate_explicit_project_files(project, &BTreeSet::from([file]));
+    let mut files = BTreeSet::from([file.clone()]);
+    if let Some(parent) = Path::new(&file).parent() {
+        files.insert(repo::normalize_rel_path(
+            &parent.join("manifest.json").to_string_lossy(),
+        ));
+    }
+    repo::hydrate_explicit_project_files(project, &files);
     Ok(())
 }
 
