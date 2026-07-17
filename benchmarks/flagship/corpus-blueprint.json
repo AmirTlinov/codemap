@@ -695,7 +695,7 @@
         },
         "fact-5": {
           "facts": [
-            "apps/macos-app/Sources/WorkbenchCore/CodexTranscriptSnapshot.swift"
+            "apps/macos-app/Sources/OpenSlopApp/WorkbenchSeed.swift"
           ],
           "kind": "facts"
         },
@@ -708,7 +708,7 @@
       },
       "ecosystem": "swift",
       "id": "openslop-deterministic-investigation",
-      "prompt": "At the frozen commit, trace the core-daemon submit route, provider owner, session store owner, Swift daemon client, transcript projection, and root UI consumer. Return one compact answer containing the exact repository-relative path for each of the six requested owners and a one-line connection between adjacent owners. Do not modify files. Do not substitute directories or prose descriptions for paths.",
+      "prompt": "At the frozen commit, trace the core-daemon submit route, provider owner, session store owner, Swift daemon client, transcript-to-timeline projection, and root UI consumer. Return one compact answer containing the exact repository-relative path for each of the six requested owners and a one-line connection between adjacent owners. Do not modify files. Do not substitute directories or prose descriptions for paths.",
       "repo_id": "openslop",
       "task_class": "investigation"
     },

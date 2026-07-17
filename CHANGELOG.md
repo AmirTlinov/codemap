@@ -5,6 +5,7 @@ public JSON compatibility is governed separately by `docs/SCHEMA_POLICY.md`.
 
 ## Unreleased
 
+- Corrected the OpenSlop investigation criterion to the real transcript-to-timeline projection owner.
 - Made exact file maps lead with mediated proof, followed Kustomization resource ownership,
   and kept focused lenses truthful for explicitly named ignored files.
 - Kept flagship verifiers outcome-based when equivalent provenance, proof-state, and no-emit
