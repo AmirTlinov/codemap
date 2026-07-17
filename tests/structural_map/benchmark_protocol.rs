@@ -125,7 +125,7 @@ print(json.dumps({
         String::from_utf8_lossy(&output.stderr)
     );
     let prompt: Value = serde_json::from_slice(&output.stdout).expect("prompt json");
-    assert_eq!(prompt["version"], 7);
+    assert_eq!(prompt["version"], 8);
     assert!(prompt["implementation"]
         .as_str()
         .unwrap()
@@ -137,7 +137,11 @@ print(json.dumps({
     assert!(prompt["exact"]
         .as_str()
         .unwrap()
-        .contains("complete the declared literal one-file edit"));
+        .contains("exact current fragment once"));
+    assert!(prompt["exact"]
+        .as_str()
+        .unwrap()
+        .contains("one command-execution shell call"));
 }
 
 #[test]

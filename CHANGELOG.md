@@ -5,8 +5,8 @@ public JSON compatibility is governed separately by `docs/SCHEMA_POLICY.md`.
 
 ## Unreleased
 
-- Collapsed literal exact controls to one agent contact and accepted equivalent focused-tab and
-  active-plan proof projections in external behavior checks.
+- Made literal exact controls one output-bounded agent contact and accepted equivalent focused-tab
+  and active-plan proof projections in external behavior checks.
 - Made treatment navigation one proportionate map contact and expanded investigation evidence
   from named-path lookup to complete runtime, contract, and proof chains.
 - Accepted equivalent selection-source fields and option-bearing S3 copy commands in flagship oracles.

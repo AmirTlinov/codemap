@@ -169,7 +169,7 @@
         },
         "fact-11": {
           "facts": [
-            "src/render/proof.rs"
+            "src/render/proof/impact/plan.rs"
           ],
           "kind": "facts"
         },
@@ -289,7 +289,7 @@
       },
       "ecosystem": "rust",
       "id": "codemap-readme-exact",
-      "prompt": "In `README.md`, restore the exact product phrase `Read-only project x-ray for AI coding agents.` by fixing only the missing hyphen in that sentence. Do not change behavior or any other wording. Begin by examining only README.md. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
+      "prompt": "In `README.md`, replace the exact current fragment `Read only project x-ray for AI coding agents.` once with `Read-only project x-ray for AI coding agents.`. Change nothing else. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
       "repo_id": "codemap",
       "task_class": "exact_control",
       "verifier_timeout_seconds": 60
@@ -438,7 +438,7 @@
       },
       "ecosystem": "typescript",
       "id": "main-readme-exact",
-      "prompt": "In `README.md`, restore the exact opening phrase `GitOps delivery rails.` by fixing only the singular typo in that sentence. Do not change behavior or any other wording. Begin by examining only README.md. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
+      "prompt": "In `README.md`, replace the exact current fragment `GitOps delivery rail.` once with `GitOps delivery rails.`. Change nothing else. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
       "repo_id": "main-cluster",
       "task_class": "exact_control",
       "verifier_timeout_seconds": 60
@@ -650,7 +650,7 @@
       },
       "ecosystem": "typescript",
       "id": "pabg-readme-exact",
-      "prompt": "In `README.md`, restore the exact phrase `настоящий in-memory `platform-api`` by fixing only the missing hyphen. Do not change behavior or any other wording. Begin by examining only README.md. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
+      "prompt": "In `README.md`, replace the exact current fragment `настоящий in memory `platform-api`` once with `настоящий in-memory `platform-api``. Change nothing else. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
       "repo_id": "pabg",
       "task_class": "exact_control",
       "verifier_timeout_seconds": 60
@@ -806,7 +806,7 @@
       },
       "ecosystem": "python",
       "id": "browser-readme-exact",
-      "prompt": "In `README.md`, restore the exact phrase `controlled, real-browser automation` by fixing only the missing hyphen. Do not change behavior or any other wording. Begin by examining only README.md. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
+      "prompt": "In `README.md`, replace the exact current fragment `controlled, real browser` once with `controlled, real-browser`. Change nothing else. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
       "repo_id": "browser",
       "task_class": "exact_control",
       "verifier_timeout_seconds": 60
@@ -923,7 +923,7 @@
           "path": ".flagship/active_plan_test.py"
         }
       ],
-      "prompt": "Add an active-plan projection rooted in `ROADMAP.md`: a workspace-domain owner must parse slice rows, materialize STATUS/REVIEW/VISUAL proof state, count done/active/planned/blocked slices, select the first non-done slice, and fail closed when the roadmap is absent or empty. All emitted repository paths must be deterministic and repository-relative. Expose the same typed projection through core-daemon CLI/stdio, WorkbenchCore, the inspector UI, and runnable Make/Swift probes.",
+      "prompt": "Add an active-plan projection rooted in `ROADMAP.md`: a workspace-domain owner must parse slice rows, materialize STATUS/REVIEW/VISUAL proof state, count done/active/planned/blocked slices, and select the first non-done slice. When the roadmap is absent or has no slice rows, the CLI process must fail closed with a non-zero exit. All emitted repository paths must be deterministic and repository-relative. Expose the same typed projection through core-daemon CLI/stdio, WorkbenchCore, the inspector UI, and runnable Make/Swift probes.",
       "repo_id": "openslop",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -956,7 +956,7 @@
       },
       "ecosystem": "swift",
       "id": "openslop-readme-exact",
-      "prompt": "In `README.md`, restore the exact phrase `первый load-bearing слой` by fixing only the missing hyphen. Do not change behavior or any other wording. Begin by examining only README.md. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
+      "prompt": "In `README.md`, replace the exact current fragment `первый load bearing слой` once with `первый load-bearing слой`. Change nothing else. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
       "repo_id": "openslop",
       "task_class": "exact_control",
       "verifier_timeout_seconds": 60
@@ -1112,7 +1112,7 @@
       },
       "ecosystem": "rust",
       "id": "ratio-readme-exact",
-      "prompt": "In `README.md`, restore the exact phrase `проект mmap-базы поиска` by fixing only the missing hyphen. Do not change behavior or any other wording. Begin by examining only README.md. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
+      "prompt": "In `README.md`, replace the exact current fragment `проект mmap базы поиска` once with `проект mmap-базы поиска`. Change nothing else. Do not run project-wide tests, builds, or repository gates; verify only the exact README diff and file content.",
       "repo_id": "ratio",
       "task_class": "exact_control",
       "verifier_timeout_seconds": 60
