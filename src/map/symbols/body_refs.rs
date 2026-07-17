@@ -12,6 +12,7 @@ use crate::map::{
     line_has_value_identifier_reference, matching_symbols,
 };
 use crate::model::{FileInfo, Project};
+use std::collections::BTreeMap;
 
 pub(crate) fn symbol_body_text(
     project: &Project,
@@ -36,6 +37,71 @@ pub(crate) fn symbol_body_text(
             .collect::<Vec<_>>()
             .join("\n"),
     )
+}
+
+pub(crate) fn rust_qualified_symbol_body_references(
+    project: &Project,
+    info: &FileInfo,
+    symbol_name: &str,
+    namespace: &str,
+) -> Vec<(String, usize)> {
+    if info.ext != "rs" || namespace.is_empty() {
+        return Vec::new();
+    }
+    let symbols = matching_symbols(info, symbol_name);
+    let Some(line_start) = symbols.iter().map(|symbol| symbol.line_start).min() else {
+        return Vec::new();
+    };
+    let line_end = symbols
+        .iter()
+        .map(|symbol| symbol.line_end)
+        .max()
+        .unwrap_or(line_start);
+    let Some(text) = project.read_indexed_text(&info.rel) else {
+        return Vec::new();
+    };
+    let mut found = BTreeMap::new();
+    let mut state = NonJsCodeState::default();
+    for (offset, line) in text
+        .lines()
+        .skip(line_start.saturating_sub(1))
+        .take(line_end.saturating_sub(line_start).saturating_add(1))
+        .enumerate()
+    {
+        let code = non_js_code_line_without_strings_and_comments(line, "rs", &mut state);
+        for member in rust_qualified_members(&code, namespace) {
+            found.entry(member).or_insert(line_start + offset);
+        }
+    }
+    found.into_iter().collect()
+}
+
+fn rust_qualified_members(line: &str, namespace: &str) -> Vec<String> {
+    let needle = format!("{namespace}::");
+    let bytes = line.as_bytes();
+    let mut offset = 0;
+    let mut members = Vec::new();
+    while let Some(found) = line[offset..].find(&needle) {
+        let start = offset + found;
+        let member_start = start + needle.len();
+        offset = member_start;
+        if start > 0 && crate::map::is_identifier_byte(bytes[start - 1]) {
+            continue;
+        }
+        let mut end = member_start;
+        while bytes
+            .get(end)
+            .is_some_and(|byte| crate::map::is_identifier_byte(*byte))
+        {
+            end += 1;
+        }
+        if end == member_start || bytes.get(end..end + 2) == Some(b"::") {
+            continue;
+        }
+        members.push(line[member_start..end].to_string());
+        offset = end;
+    }
+    members
 }
 
 pub(crate) fn imported_binding_target_symbol_name(

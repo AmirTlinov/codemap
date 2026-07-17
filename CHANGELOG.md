@@ -5,6 +5,10 @@ public JSON compatibility is governed separately by `docs/SCHEMA_POLICY.md`.
 
 ## Unreleased
 
+- Added complete paired action histories and one citation-backed causal trajectory analysis per A/B
+  pair; external verifiers still exclusively own outcome scores and acceptance thresholds.
+- Made symbol cones resolve Rust module-qualified calls through re-export facades and use depth
+  for bounded cross-file call traversal without treating type aliases as modules.
 - Made literal exact controls one output-bounded agent contact and accepted equivalent focused-tab
   and active-plan proof projections in external behavior checks.
 - Made treatment navigation one proportionate map contact and expanded investigation evidence

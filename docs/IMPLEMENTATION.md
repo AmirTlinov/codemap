@@ -44,6 +44,7 @@ Keep new implementation under the existing owner folders. Do not create a second
 - lightweight symbol extraction for JS/TS, Rust, Python, and Go;
 - UI/test-facing surface phrase/token extraction from selectors, test ids, aria labels, and routes;
 - JS/TS, Rust, Python, and Go import extraction;
+- Rust module-qualified symbol edges through explicit and glob re-export facades;
 - JS/TS relative import, workspace package import, package entrypoint, and simple `tsconfig.json` alias resolution;
 - Go local module import resolution;
 - Python src-layout import resolution;
@@ -54,7 +55,7 @@ Keep new implementation under the existing owner folders. Do not create a second
 - root/directory `ls` surfaces with bounded domain/package/script/test map;
 - file `ls` with symbols, exports, imports, incoming count, adjacent tests, and next command;
 - `ls .` and `changed` Boundary Facts for instruction files, repo-local guard files, and protected-looking paths;
-- `cone` with X-Ray Card role, inputs, outputs, state, side effects, consumers, structural flow, nearby surfaces, verification buckets, unknowns, plus outgoing/incoming/verification/contract/boundary links;
+- `cone` with X-Ray Card role, inputs, outputs, state, side effects, consumers, bounded cross-file symbol flow, nearby surfaces, verification buckets, unknowns, plus outgoing/incoming/verification/contract/boundary links;
 - first-class edge evidence locations and typed unknowns;
 - structural `impact` by changed anchors, direct consumers, cross-boundary consumers, contract links, and verification edges;
 - `diff-map` for map-level changed structural lines, exported symbol surfaces, and new unknowns;

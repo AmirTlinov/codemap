@@ -15,6 +15,9 @@ def trial_receipt_errors(row: dict[str, Any]) -> list[str]:
         artifact = Path(str(codex.get(field, "")))
         if not artifact.is_file():
             errors.append(f"missing_{field}")
+    patch = Path(str(row.get("patch_artifact", "")))
+    if not patch.is_file():
+        errors.append("missing_patch_artifact")
     last_message = Path(str(codex.get("last_message_artifact", "")))
     result_path = last_message.parent / "result.json"
     if not result_path.is_file():

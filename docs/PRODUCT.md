@@ -92,7 +92,7 @@ It must not:
 
 `codemap ls <file-or-dir>` shows what exists at that level: file symbols, package/domain surfaces, imports, incoming counts, tests, hidden generic counts, Boundary Facts at the repo root, and the next useful map command.
 
-`codemap cone <anchor>` shows a bounded structural cone around one anchor: an X-Ray Card with role, inputs, outputs, state, side effects, consumers, structural flow, nearby implemented surfaces, verification buckets, unknowns, plus outgoing imports, incoming consumers, verification edges, contracts, boundaries, hidden counts, and expand commands.
+`codemap cone <anchor>` shows a bounded structural cone around one anchor: an X-Ray Card with role, inputs, outputs, state, side effects, consumers, structural flow, nearby implemented surfaces, verification buckets, unknowns, plus outgoing imports and symbol calls, incoming consumers, verification edges, contracts, boundaries, hidden counts, and expand commands. Symbol depth follows statically resolved cross-file calls; Rust module-qualified calls traverse unambiguous re-export facades.
 
 `codemap impact --changed|--files` clusters changed anchors by structural blast radius. It is edge-first: reverse imports, package consumers, contract/schema/public surfaces, and verification candidates.
 

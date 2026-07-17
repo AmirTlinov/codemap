@@ -16,6 +16,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from flagship_acceptance import evaluate  # noqa: E402
 from flagship_manifest import freeze_corpus, load_frozen  # noqa: E402
+from flagship_trajectory_support import build_trajectory  # noqa: E402
 
 
 def write(path: Path, body: str) -> None:
@@ -193,8 +194,10 @@ def result_row(
     write(artifact, f"candidate {task['id']} {repetition} {arm}\n")
     events = trial_dir / "events.jsonl"
     stderr = trial_dir / "codex.stderr.log"
+    patch = trial_dir / "patch.diff"
     write(events, "{}\n")
     write(stderr, "")
+    write(patch, "")
     protocol = {
         "invocation_count": 1 if treatment else 0,
         "compliant": not treatment,
@@ -228,6 +231,7 @@ def result_row(
         "codex_artifacts": manifest["codex"]["artifacts"],
         "report_prelude": {"codemap": manifest["codemap_identity"]},
         "codemap_protocol": protocol,
+        "patch_artifact": str(patch),
         "codex": {
             "elapsed_ms": elapsed,
             "usage": {"input_tokens": input_tokens},
@@ -325,7 +329,9 @@ def make_run(
 
 
 def report(root: Path, name: str, manifest: Path, run_dir: Path) -> dict:
-    path = evaluate(manifest, run_dir, root / f"acceptance-{name}")
+    tasks = load_frozen(manifest)[1]
+    trajectory = build_trajectory(root / f"trajectory-{name}", tasks, manifest)
+    path = evaluate(manifest, run_dir, root / f"acceptance-{name}", trajectory)
     return json.loads(path.read_text(encoding="utf-8"))
 
 

@@ -650,6 +650,7 @@ def run_trial(
                 **event_summary,
             },
             "codemap_protocol": protocol,
+            "patch_artifact": str(artifact_dir / "patch.diff"),
             "verifiers": verifiers,
             "completeness": completeness,
             "changed_paths": changed_paths,

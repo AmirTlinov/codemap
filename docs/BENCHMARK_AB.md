@@ -21,6 +21,13 @@ other task-specific consequences. Token and elapsed-time deltas are reported sep
 as the resource cost of that result. A treatment that discovers and correctly handles
 more of the repository may legitimately use more tokens.
 
+The flagship evaluator also preserves each complete A/B action history, patch, verifier
+output, elapsed time, and token usage in one pair context. One comparative agent explains
+how the two attention trajectories found owners, contracts, consumers, and proof surfaces.
+It cites concrete event markers and may report noise or uncertainty, but it does not score,
+vote, or affect completeness and acceptance thresholds. The verifier answers whether the
+task was completed; the trajectory report explains how codemap changed the route to it.
+
 The default requested model configuration is:
 
 ```txt
@@ -124,6 +131,11 @@ base commit, composed arm prompt, protocol/parser and harness bytes, model, reas
 timeout, trial order, Codex version, arm, and verifier configuration produce the same
 fingerprint. Codemap command artifacts and the full benchmark identity also participate,
 so replacing a wrapper or binary without changing its version invalidates the old trial.
+
+For the frozen 72-run corpus, `scripts/benchmark-codemap-flagship.py evaluate` runs the
+same frozen Codex identity as the single trajectory analyst and writes 36 causal reports
+beside `acceptance.json`. `--resume` reuses a report only when its pair-context hash,
+analyzer prompt, model, reasoning effort, and Codex bytes still match.
 
 ## Designing a Completeness Benchmark
 

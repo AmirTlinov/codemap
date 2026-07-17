@@ -5,11 +5,11 @@ use crate::map::{
     empty_xray_card, file_summary, files_under_directory, import_edge, is_generic_noise,
     limit_edge_section, missing_symbol_observations, package_name_for_file,
     same_package_symbol_reference_consumers, shell_quote, sort_edges, structural_roles_for_ls,
-    symbol_anchor_path, symbol_cone_observations, symbol_contract_edges,
-    symbol_file_summary_with_observed_consumers, symbol_local_incoming_edges,
-    symbol_outgoing_edges, symbol_reference_edge_set, symbol_verification_edges_with_owning_file,
-    unique, unknown, unknown_missing_symbol_anchor, unknown_symbol_outgoing,
-    unresolved_import_unknowns,
+    symbol_anchor_path, symbol_cone_observations, symbol_cone_outgoing_edges,
+    symbol_contract_edges, symbol_file_summary_with_observed_consumers,
+    symbol_local_incoming_edges, symbol_reference_edge_set,
+    symbol_verification_edges_with_owning_file, unique, unknown, unknown_missing_symbol_anchor,
+    unknown_symbol_outgoing, unresolved_import_unknowns,
 };
 use crate::model::CountFact;
 use crate::model::{
@@ -61,7 +61,7 @@ pub(crate) fn cone_symbol_report_with_references(
     incoming.extend(symbol_local_incoming_edges(project, info, symbol_name));
     let mut proof =
         symbol_verification_edges_with_owning_file(project, file_rel, symbol_name, usize::MAX);
-    let mut outgoing = symbol_outgoing_edges(project, info, symbol_name);
+    let mut outgoing = symbol_cone_outgoing_edges(project, file_rel, symbol_name, depth);
     let contracts = symbol_contract_edges(project, file_rel, symbol_name);
     let boundary = Vec::new();
     let mut hidden = Vec::new();

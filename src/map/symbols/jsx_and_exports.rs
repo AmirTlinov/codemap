@@ -198,7 +198,7 @@ fn file_directly_references_imported_symbol(
     None
 }
 
-fn module_binding_matches_target(target_rel: &str, imported: &str) -> bool {
+pub(crate) fn module_binding_matches_target(target_rel: &str, imported: &str) -> bool {
     let target = Path::new(target_rel);
     target.file_stem().and_then(|name| name.to_str()) == Some(imported)
         || (target.file_name().and_then(|name| name.to_str()) == Some("mod.rs")

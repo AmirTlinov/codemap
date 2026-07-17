@@ -27,3 +27,18 @@ fn flagship_materializer_exposes_the_frozen_provenance_criterion() {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+#[test]
+fn flagship_trajectory_keeps_raw_actions_diff_verifiers_and_cost() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let output = python()
+        .arg(root.join("tests/flagship_trajectory_fixture.py"))
+        .output()
+        .expect("flagship trajectory fixture should run");
+    assert!(
+        output.status.success(),
+        "flagship trajectory failed: stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
