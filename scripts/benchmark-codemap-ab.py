@@ -39,7 +39,7 @@ ARMS = (ARM_CONTROL, ARM_TREATMENT)
 MODE_IMPLEMENTATION = "implementation"
 MODE_ANALYSIS = "analysis"
 TASK_MODES = (MODE_IMPLEMENTATION, MODE_ANALYSIS)
-PROMPT_PROTOCOL_VERSION = 9
+PROMPT_PROTOCOL_VERSION = 10
 
 COMMON_PROMPT = """You are completing one benchmark coding task in a disposable git worktree.
 Make the smallest complete implementation that satisfies the task. Work autonomously; do not ask
@@ -80,9 +80,10 @@ maps over already identified paths or repeat the investigation with broad scans.
 
 EXACT_TREATMENT_PROMPT = """EXACT TASK CONTACT: use one command-execution shell call and no separate
 file-change tool. In that call, run the narrow codemap entry with output suppressed, assert and replace
-the task's exact current fragment once using Python UTF-8 text I/O, run `codemap changed` and
-`codemap proof changed` with output suppressed, then print only the exact diff/content verification.
-Do not retry or reopen the file.
+the task's exact current fragment once using a Python UTF-8 text-I/O heredoc, then run `codemap changed`
+and `codemap proof changed` with output suppressed and print only the exact diff/content verification.
+Invoke every codemap command directly from the shell, never through Python subprocess. Do not retry
+or reopen the file.
 """
 
 
