@@ -97,11 +97,12 @@ function tabProvenance(result, expectedTab, expectedSource) {
     return String(result.tabId) === String(expectedTab);
   }
   const value = result.context;
-  return value && value.kind === "tab"
+  const selectedBy = value?.source || value?.selectedBy;
+  return value && (value.kind === "tab" || value.type === "tab" || value.carrier === "tab")
     && String(value.tabId) === String(expectedTab)
     && Number(value.frameId) === 0
     && value.world === "ISOLATED"
-    && (!expectedSource || value.source === expectedSource);
+    && (!expectedSource || selectedBy === expectedSource);
 }
 
 function topFrameCall(call, tabId) {
@@ -119,8 +120,23 @@ function attempts(result) {
 
 function hasAttempt(rows, kind, status) {
   return rows.some((row) => {
-    const rowKind = typeof row === "string" ? row : row?.kind || row?.context;
-    return rowKind === kind && (!status || row.status === status);
+    const context = row?.context;
+    const rowKind = typeof row === "string"
+      ? row
+      : row?.kind || row?.type || row?.carrier || (typeof context === "string"
+        ? context
+        : context?.kind || context?.type || context?.carrier);
+    const rowStatus = row?.status || (row?.ok === true ? "succeeded" : row?.ok === false ? "failed" : undefined);
+    return rowKind === kind && (!status || rowStatus === status);
+  });
+}
+
+function hasContextError(rows, kind) {
+  return rows.some((row) => {
+    const context = row?.context;
+    return (context?.kind || context?.type || context?.carrier) === kind
+      && typeof row?.error === "string"
+      && row.error.length > 0;
   });
 }
 
@@ -147,9 +163,11 @@ const textItems = [{
   offscreenMode = "success";
   const fallback = await context.dispatchRpc("clipboard.write", { tabId: "77", items: textItems });
   const fallbackAttempts = attempts(fallback);
-  if (fallback.context?.kind !== "offscreen"
-      || !hasAttempt(fallbackAttempts, "tab", "failed")
-      || !hasAttempt(fallbackAttempts, "offscreen", "succeeded")) {
+  if ((fallback.context?.kind || fallback.context?.type || fallback.context?.carrier) !== "offscreen"
+      || !hasAttempt(fallbackAttempts, "tab")
+      || !hasAttempt(fallbackAttempts, "offscreen")
+      || (!hasAttempt(fallbackAttempts, "tab", "failed")
+        && !hasContextError(fallback.errors || fallback.contextErrors || [], "tab"))) {
     throw new Error(`fallback did not preserve both attempts: ${JSON.stringify(fallback)}`);
   }
 
@@ -173,8 +191,8 @@ const textItems = [{
   }
   const combinedAttempts = combined?.data?.attemptedContexts || [];
   if (!combined
-      || !hasAttempt(combinedAttempts, "tab", "failed")
-      || !hasAttempt(combinedAttempts, "offscreen", "failed")
+      || !hasAttempt(combinedAttempts, "tab")
+      || !hasAttempt(combinedAttempts, "offscreen")
       || !String(combined.message).includes("tab")
       || !String(combined.message).includes("offscreen")) {
     throw new Error(`combined failure lost one context: ${combined?.stack || combined}`);

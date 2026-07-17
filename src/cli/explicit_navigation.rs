@@ -33,7 +33,15 @@ pub(crate) fn hydrate_explicit_navigation(
     let Some(value) = navigation_value(command) else {
         return Ok(());
     };
-    let rel = project_relative_arg(project, value)?;
+    let rel = if matches!(command, CommandKind::Flow(_)) {
+        let rel = crate::cli::flow_anchor_arg(project, value)?;
+        if map::route_like_anchor(&rel) {
+            return Ok(());
+        }
+        rel
+    } else {
+        project_relative_arg(project, value)?
+    };
     let file = navigation_file(rel);
     if !repo::should_ignore_rel(&file) {
         return Ok(());
@@ -67,6 +75,12 @@ fn navigation_value(command: &CommandKind) -> Option<&str> {
     match command {
         CommandKind::Ls(args) => Some(&args.path),
         CommandKind::Cone(args) => Some(&args.path),
+        CommandKind::Contract(args) => Some(&args.path),
+        CommandKind::Delete(args) => Some(&args.path),
+        CommandKind::Flow(args) => Some(&args.path),
+        CommandKind::Runtime(args) => Some(&args.scope),
+        CommandKind::Proof(args) => args.target.as_deref(),
+        CommandKind::ProofMap(args) => args.target.as_deref(),
         _ => None,
     }
 }

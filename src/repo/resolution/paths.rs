@@ -46,7 +46,7 @@ pub(crate) fn resolve_path_like(base: &str, paths: &BTreeSet<String>) -> Option<
     let mut candidates = vec![base.clone()];
     for ext in [
         "ts", "tsx", "js", "jsx", "mjs", "cjs", "py", "rs", "go", "vue", "svelte", "css", "scss",
-        "sass", "less", "svg", "png", "jpg", "jpeg", "gif", "webp", "ico", "snap",
+        "sass", "less", "svg", "png", "jpg", "jpeg", "gif", "webp", "ico", "snap", "yaml", "yml",
     ] {
         candidates.push(format!("{base}.{ext}"));
     }
@@ -57,6 +57,8 @@ pub(crate) fn resolve_path_like(base: &str, paths: &BTreeSet<String>) -> Option<
         "index.jsx",
         "__init__.py",
         "mod.rs",
+        "kustomization.yaml",
+        "kustomization.yml",
     ] {
         candidates.push(normalize_rel_path(&format!("{base}/{index}")));
     }

@@ -87,15 +87,6 @@ pub(crate) fn strict_test_edges_for_file(
             ));
             continue;
         }
-        if test_role_surface_matches_anchor(project, rel, file) {
-            scored.push((
-                66usize,
-                file.rel.clone(),
-                "test_role_surface_match".to_string(),
-                EvidenceStrength::Medium,
-            ));
-            continue;
-        }
         if allow_name_match && test_name_matches_source_stem(&file.rel, &lower_stem) {
             scored.push((
                 70usize,
@@ -109,6 +100,15 @@ pub(crate) fn strict_test_edges_for_file(
             structural_test_surface_match(project, rel, &anchor_terms, &anchor_core_terms, file)
         {
             scored.push((score, file.rel.clone(), evidence, strength));
+            continue;
+        }
+        if test_role_surface_matches_anchor(project, rel, file) {
+            scored.push((
+                66usize,
+                file.rel.clone(),
+                "test_role_surface_match".to_string(),
+                EvidenceStrength::Medium,
+            ));
         }
     }
     scored.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));

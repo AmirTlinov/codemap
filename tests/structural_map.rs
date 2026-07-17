@@ -177,6 +177,8 @@ include!("structural_map/receipt_changed_map.rs");
 include!("structural_map/source_role_quality.rs");
 include!("structural_map/role_segment_matching.rs");
 include!("structural_map/import_evidence_lines.rs");
+include!("structural_map/kustomization_edges.rs");
+include!("structural_map/ls_mediated_priority.rs");
 include!("structural_map/ls_surface_paths.rs");
 include!("structural_map/map_quality_doctor.rs");
 include!("structural_map/scope_repair.rs");

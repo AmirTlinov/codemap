@@ -162,7 +162,7 @@
       "cells": {
         "inventory": "verified",
         "symbols": "unsupported",
-        "imports": "unsupported",
+        "imports": "structural",
         "packages": "structural",
         "runtime": "structural",
         "contracts": "structural",

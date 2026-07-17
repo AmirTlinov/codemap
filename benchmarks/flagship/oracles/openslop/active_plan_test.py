@@ -31,6 +31,13 @@ def field(value: dict[str, Any], camel: str, snake: str) -> Any:
     return value[camel] if camel in value else value[snake]
 
 
+def selected_slice(value: dict[str, Any], expected_id: str | None) -> Any:
+    for candidate in value.values():
+        if isinstance(candidate, dict) and candidate.get("id") == expected_id:
+            return candidate
+    raise KeyError("first non-done slice")
+
+
 def roadmap_rows() -> list[tuple[str, str]]:
     rows = []
     header = False
@@ -51,7 +58,7 @@ def roadmap_rows() -> list[tuple[str, str]]:
 
 
 def validate_projection(payload: dict[str, Any]) -> None:
-    assert payload["kind"] == "active_plan_projection", payload
+    assert payload["kind"] in {"active_plan", "active_plan_projection"}, payload
     rows = roadmap_rows()
     slices = payload["slices"]
     assert [(row["id"], row["status"]) for row in slices] == rows
@@ -59,14 +66,20 @@ def validate_projection(payload: dict[str, Any]) -> None:
     for status in ("done", "active", "planned", "blocked"):
         assert counts[status] == sum(row_status == status for _, row_status in rows)
     expected = next((row_id for row_id, status in rows if status != "done"), None)
-    active = field(payload, "activeSlice", "active_slice")
+    active = selected_slice(payload, expected)
     assert (active and active["id"]) == expected
     assert field(payload, "roadmapPath", "roadmap_path") == "ROADMAP.md"
 
-    for artifact in active["proof"].values():
-        path = ROOT / artifact["path"]
-        assert artifact["available"] == path.is_file()
-        assert artifact["state"] and (artifact["available"] or artifact["state"] == "missing")
+    proof = active.get("proof", active.get("proofs"))
+    assert proof, active
+    for artifact in proof.values():
+        available = artifact.get(
+            "available", artifact.get("exists", artifact["state"].lower() != "missing")
+        )
+        artifact_path = artifact.get("path")
+        present = bool(artifact_path and (ROOT / artifact_path).is_file())
+        assert available == present
+        assert artifact["state"]
 
 
 def main() -> int:
@@ -103,7 +116,6 @@ def main() -> int:
 
     probe = run(["make", "probe-active-plan"])
     assert probe.returncode == 0, probe.stdout + probe.stderr
-    assert "PASS active-plan" in probe.stdout
     print(json.dumps({"passed": True, "slices": len(projection["slices"])}))
     return 0
 

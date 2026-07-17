@@ -208,7 +208,7 @@
           "path": "tests/structural_map/runtime_transform_paths.rs"
         }
       ],
-      "prompt": "Correct false runtime transformation claims in `src/map/lenses/runtime/paths/classify.rs`: a CSRF observer name must not become a guard; response omission inference must attribute dotted fields only to the transform primary parameter, must not treat local variables as returned source fields, and must parse nested object/array/call expressions without splitting on inner commas or braces. Preserve exact external response-omission evidence and add regression coverage.",
+      "prompt": "Correct false runtime transformation claims in `src/map/lenses/runtime/paths/classify.rs`: CSRF observer/recorder telemetry must not become a guard merely because it mentions CSRF, even when its name omits the word `failure` (for example `csrfObserver` whose body only records or observes CSRF); response omission inference must attribute dotted fields only to the transform primary parameter, count an alias derived from a primary field and returned by shorthand as returned even when the alias applies a method/call transformation (for example `const title = result.title.trim(); return { title }`), must not treat unrelated local-object fields as primary-source fields, and must parse nested object/array/call expressions without splitting on inner commas or braces. Preserve exact external response-omission evidence and add regression coverage.",
       "repo_id": "codemap",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -327,7 +327,7 @@
           "path": "deploy/k8s/base/backup/flagship_postgres_backup_test.py"
         }
       ],
-      "prompt": "Restore a verified PostgreSQL backup owner under `deploy/k8s/base/backup`: a scheduled dump must upload to MinIO, read the object back, compare SHA-256 before success, run with pinned images and least privilege, expose only DNS/Postgres/MinIO network paths, be included by GitOps, emit a stale-backup alert, and have an operator runbook. Keep the existing deployment structure and YAML loader contract.",
+      "prompt": "Restore a verified PostgreSQL backup owner under `deploy/k8s/base/backup`: a scheduled dump must upload to MinIO, read the object back, compare SHA-256 before success, run with digest-pinned container images and least privilege, expose only DNS/Postgres/MinIO network paths, be included by GitOps, emit a stale-backup alert with the repository's `kube_cronjob_status_last_successful_time` metric, and have an operator runbook. Keep the existing deployment structure and YAML loader contract.",
       "repo_id": "main-cluster",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -509,7 +509,7 @@
           "path": "apps/web/src/hooks/flagship_text_chat_hook.test.ts"
         }
       ],
-      "prompt": "Add global text chat over the town WebSocket hub beginning at `apps/ws/src/hub.ts#TownHub`. Use `text_chat` for the client frame, `text_chat_broadcast` for server delivery, and `chat_history` on welcome. Reject empty, overlong, and control-character text; trim accepted text; attach sender identity and server time; broadcast to sender and peers; retain bounded history for newcomers; rate-limit floods in a bucket separate from emoji chat; reject chat before hello; and wire the web multiplayer consumer without regressing emoji chat or movement.",
+      "prompt": "Add global text chat over the town WebSocket hub beginning at `apps/ws/src/hub.ts#TownHub`. Use `text_chat` for the client frame, `text_chat_broadcast` for server delivery, and `chat_history` on welcome. Reject empty, overlong, and control-character text; trim accepted text; attach sender identity and server time; broadcast to sender and peers; retain bounded history for newcomers; rate-limit floods in a bucket separate from emoji chat; reject chat before hello; and wire both the web multiplayer hook and a visible text input/history UI without regressing emoji chat or movement.",
       "repo_id": "pabg",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -869,7 +869,7 @@
           "path": ".flagship/live_codex_sessions_test.py"
         }
       ],
-      "prompt": "Add a `live-codex-sessions` command through `crates/ratiotissue-cli/src/cli/continuation.rs` that reads bounded Codex JSONL session history, classifies user pressure and assistant world-return fragments, builds stable redacted episodes, writes deterministic carrier files, and runs each episode through the existing actionwave/world-return loop with explicit receipts. Empty or metadata-only sessions must fail closed rather than claim contact. Preserve ordinary live behavior.",
+      "prompt": "Add a `live-codex-sessions` command through `crates/ratiotissue-cli/src/cli/continuation.rs` that reads bounded Codex JSONL session history, classifies user pressure and assistant world-return fragments, builds stable episodes that redact home paths, email addresses, and secret/token strings, writes deterministic carrier files, and runs each episode through the existing actionwave/world-return loop with explicit receipts. Empty or metadata-only sessions must fail closed rather than claim contact. Preserve ordinary live behavior.",
       "repo_id": "ratio",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200

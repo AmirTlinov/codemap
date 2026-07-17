@@ -50,6 +50,50 @@ fn cone_shows_proof_edges_through_direct_consumers() {
         "via-consumer surface must not hide the missing direct verification surface for the anchor: {public_proof:#}"
     );
 
+    let public_ls = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "ls",
+            "packages/replay/src/public-only.ts",
+            "--format",
+            "json",
+        ],
+    );
+    assert!(
+        public_ls["edges"]
+            .as_array()
+            .expect("ls edges")
+            .iter()
+            .any(|edge| edge["from"] == "packages/replay/tests/public-api.test.ts"
+                && edge["to"] == "packages/replay/src/public-only.ts"
+                && edge["evidence"] == "test_import_via_direct_consumer"),
+        "exact ls should expose mediated proof through the direct public consumer: {public_ls:#}"
+    );
+
+    let bounded_ls = codemap()
+        .current_dir(repo.path())
+        .env("CODEMAP_CACHE_DIR", cache.path())
+        .args([
+            "ls",
+            "packages/replay/src/public-only.ts",
+            "--limit",
+            "1",
+        ])
+        .output()
+        .expect("bounded ls should run");
+    assert!(
+        bounded_ls.status.success(),
+        "bounded ls failed: {}",
+        String::from_utf8_lossy(&bounded_ls.stderr)
+    );
+    let bounded_ls = String::from_utf8(bounded_ls.stdout).expect("bounded ls utf8");
+    assert!(
+        bounded_ls.contains("test_import_via_direct_consumer")
+            && !bounded_ls.contains("test_role_surface_match"),
+        "strong mediated proof should survive before broad role noise: {bounded_ls}"
+    );
+
     let cone = run_json(
         repo.path(),
         cache.path(),

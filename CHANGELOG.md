@@ -5,6 +5,10 @@ public JSON compatibility is governed separately by `docs/SCHEMA_POLICY.md`.
 
 ## Unreleased
 
+- Made exact file maps lead with mediated proof, followed Kustomization resource ownership,
+  and kept focused lenses truthful for explicitly named ignored files.
+- Kept flagship verifiers outcome-based when equivalent provenance, proof-state, and no-emit
+  receipts use different internal field shapes.
 - Replaced implementation-task source-shape checks with frozen behavioral oracles, and made
   runtime response projections follow primary-parameter data through nested returns and aliases.
 - Made exact `ls` and `cone` hydrate explicitly named tracked files inside bounded common-ignore

@@ -220,10 +220,15 @@ pub(crate) fn grouped_edge_list_with_paths(
     }
     println!("{title}:");
     let visible_count = edges.len().min(limit);
-    let mut grouped: std::collections::BTreeMap<&str, Vec<&StructuralEdge>> =
-        std::collections::BTreeMap::new();
+    let mut grouped = Vec::<(&str, Vec<&StructuralEdge>)>::new();
+    let mut group_index = std::collections::BTreeMap::<&str, usize>::new();
     for edge in edges.iter().take(visible_count) {
-        grouped.entry(edge.from.as_str()).or_default().push(edge);
+        if let Some(index) = group_index.get(edge.from.as_str()).copied() {
+            grouped[index].1.push(edge);
+        } else {
+            group_index.insert(edge.from.as_str(), grouped.len());
+            grouped.push((edge.from.as_str(), vec![edge]));
+        }
     }
     for (from, edges) in grouped {
         println!("- `{}`", paths.path(from));

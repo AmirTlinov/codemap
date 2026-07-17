@@ -49,6 +49,35 @@ fn exact_ignored_anchors_are_hydrated_without_expanding_root_inventory() {
         "{cold_cone:#}"
     );
 
+    let flow = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "flow",
+            "vendor/browser_extension/service_worker.js#dispatchRpc",
+            "--format",
+            "json",
+        ],
+    );
+    assert!(
+        flow["steps"]
+            .as_array()
+            .expect("flow steps")
+            .iter()
+            .any(|step| step["kind"] == "symbol_anchor"
+                && step["anchor"]
+                    == "vendor/browser_extension/service_worker.js#dispatchRpc"),
+        "flow must hydrate an exact tracked ignored symbol: {flow:#}"
+    );
+    assert!(
+        flow["unknown_breaks"]
+            .as_array()
+            .expect("flow unknowns")
+            .iter()
+            .all(|unknown| unknown["kind"] != "missing_symbol_anchor"),
+        "hydrated symbol must not be reported missing: {flow:#}"
+    );
+
     let root_after = run_json(repo.path(), cache.path(), &["ls", ".", "--format", "json"]);
     assert_eq!(root_before, root_after, "exact hydration polluted root inventory");
 }

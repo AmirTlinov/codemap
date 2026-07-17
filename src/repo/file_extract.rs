@@ -1,10 +1,12 @@
 // Responsibility: repo-file-extract
 mod css_imports;
+mod kustomization;
 mod language_import_bindings;
 mod rust_includes;
 mod rust_reexports;
 
 pub(crate) use css_imports::*;
+pub(crate) use kustomization::*;
 pub(crate) use language_import_bindings::*;
 pub(crate) use rust_includes::*;
 pub(crate) use rust_reexports::*;
@@ -33,6 +35,13 @@ pub(crate) fn extract_imports_exports(root: &Path, info: &mut FileInfo) {
     info.line_count = line_count(&text);
     if matches!(info.ext.as_str(), "css" | "scss" | "sass" | "less") {
         info.imports.extend(extract_css_import_specs(&text));
+        return;
+    }
+    if matches!(
+        info.rel.rsplit('/').next(),
+        Some("kustomization.yaml" | "kustomization.yml")
+    ) {
+        info.imports.extend(extract_kustomization_resources(&text));
         return;
     }
     if !is_source_ext(&info.ext) {

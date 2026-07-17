@@ -1,10 +1,9 @@
 // Responsibility: map-listing-ls-anchor-reports
-use crate::evidence::import_statement_locations;
 use crate::map::{
-    FileLsObservationInput, SymbolLsObservationInput, file_ls_observations, file_summary,
-    import_edge, missing_symbol_ls_observations, shell_quote, sort_edges,
-    strict_test_edges_for_file, structural_edge_with_locations, symbol_anchor_path,
-    symbol_file_summary, symbol_ls_observations, symbol_proof_edges, symbol_reference_edges,
+    FileLsObservationInput, SymbolLsObservationInput, cone_proof_edges_with_direct_consumers,
+    file_ls_observations, file_summary, import_edge, missing_symbol_ls_observations,
+    proof_evidence_precedence, shell_quote, sort_edges, symbol_anchor_path, symbol_file_summary,
+    symbol_ls_observations, symbol_proof_edges, symbol_reference_edges,
 };
 use crate::model::{BoundaryFacts, EvidenceStrength, FileInfo, LsReport, Project};
 
@@ -130,18 +129,8 @@ pub(crate) fn ls_file_report(
                 ));
             }
         }
-        for (test, evidence, strength) in strict_test_edges_for_file(project, &info.rel, usize::MAX)
-        {
-            let locations = import_statement_locations(project, &test, &info.rel);
-            verification.push(structural_edge_with_locations(
-                test,
-                info.rel.clone(),
-                "tests",
-                evidence,
-                strength,
-                locations,
-            ));
-        }
+        verification =
+            cone_proof_edges_with_direct_consumers(project, std::slice::from_ref(&info.rel));
     }
     let imports_observed = imports.len();
     let consumers_observed = consumers.len();
@@ -154,7 +143,7 @@ pub(crate) fn ls_file_report(
     };
     sort_edges(&mut imports);
     sort_edges(&mut consumers);
-    sort_edges(&mut verification);
+    verification.sort_by(verification_edge_order);
     imports = bounded_ls_group("imports", imports, quota, &expand_all);
     consumers = bounded_ls_group("consumers", consumers, quota, &expand_all);
     verification = bounded_ls_group("verification", verification, quota, &expand_all);
@@ -164,7 +153,13 @@ pub(crate) fn ls_file_report(
     edges.sort_by(|a, b| {
         a.edge_type
             .cmp(&b.edge_type)
-            .then_with(|| a.from.cmp(&b.from))
+            .then_with(|| {
+                if a.edge_type == "tests" {
+                    verification_edge_order(a, b)
+                } else {
+                    a.from.cmp(&b.from)
+                }
+            })
             .then_with(|| a.to.cmp(&b.to))
     });
     edges.dedup_by(|a, b| a.from == b.from && a.to == b.to && a.edge_type == b.edge_type);
@@ -221,6 +216,22 @@ pub(crate) fn ls_file_report(
         hidden,
         next: vec![format!("codemap cone {}", shell_quote(&info.rel))],
     }
+}
+
+fn verification_edge_order(
+    a: &crate::model::StructuralEdge,
+    b: &crate::model::StructuralEdge,
+) -> std::cmp::Ordering {
+    b.strength
+        .cmp(&a.strength)
+        .then_with(|| {
+            (a.evidence == "test_role_surface_match")
+                .cmp(&(b.evidence == "test_role_surface_match"))
+        })
+        .then_with(|| {
+            proof_evidence_precedence(&b.evidence).cmp(&proof_evidence_precedence(&a.evidence))
+        })
+        .then_with(|| a.from.cmp(&b.from))
 }
 
 fn bounded_ls_group(
