@@ -146,6 +146,7 @@ raise SystemExit(0 if "README.md:1" in message else 1)
             out.path().join("worktrees").to_str().unwrap(),
         ])
         .args(["--parallel-pairs", "2"])
+        .env("CODEX_HOME", support.path())
         .output()
         .expect("A/B harness should run");
     assert!(
@@ -228,7 +229,7 @@ raise SystemExit(0 if "README.md:1" in message else 1)
     assert_eq!(treatment["run_valid"], true);
     assert_eq!(treatment["outcome_passed"], true);
     assert_eq!(treatment["runtime"]["codex_home"], "isolated");
-    assert_eq!(treatment["runtime"]["auth"], "linked");
+    assert_eq!(treatment["runtime"]["auth"], "environment_or_unavailable");
     assert_eq!(treatment["runtime"]["extensions"], "disabled");
     assert_eq!(treatment["report_prelude"]["codemap"], *summary_identity);
     assert_eq!(treatment["codex"]["usage"]["input_tokens"], 100);
