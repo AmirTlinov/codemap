@@ -101,14 +101,15 @@ function tabProvenance(result, expectedTab, expectedSource) {
   }
   if (result.context === "tab") {
     const attempt = attempts(result).find((row) => row?.context === "tab");
-    const selectedBy = result.source || result.selectedBy || attempt?.source || attempt?.selectedBy;
+    const selectedBy = result.source || result.selectedBy || result.selectionSource
+      || attempt?.source || attempt?.selectedBy || attempt?.selectionSource;
     return String(result.tabId) === String(expectedTab)
       && Number(result.frameId) === 0
       && result.world === "ISOLATED"
       && sourceMatches(selectedBy);
   }
   const value = result.context;
-  const selectedBy = value?.source || value?.selectedBy;
+  const selectedBy = value?.source || value?.selectedBy || value?.selectionSource;
   return value && (value.kind === "tab" || value.type === "tab" || value.carrier === "tab")
     && String(value.tabId) === String(expectedTab)
     && Number(value.frameId) === 0

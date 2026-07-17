@@ -629,7 +629,7 @@
           "path": ".flagship/browser_focused_clipboard_test.js"
         }
       ],
-      "prompt": "Update `vendor/browser_extension/service_worker.js#dispatchRpc` so `clipboard.write` and `clipboard.writeSvg` first attempt a bounded write in the explicitly requested or focused tab, using the isolated top frame and preserving tab/context provenance. If that fails, fall back to the existing offscreen carrier and report both attempted contexts or combined errors. Keep the extension kill switch and existing RPC behavior intact.",
+      "prompt": "Update `vendor/browser_extension/service_worker.js#dispatchRpc` so `clipboard.write` and `clipboard.writeSvg` first attempt a bounded write in the explicitly requested or focused tab, using the isolated top frame and preserving tab/context provenance, including whether selection came from the explicit request or focused state. If that fails, fall back to the existing offscreen carrier and report both attempted contexts or combined errors. Keep the extension kill switch and existing RPC behavior intact.",
       "repo_id": "browser",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
