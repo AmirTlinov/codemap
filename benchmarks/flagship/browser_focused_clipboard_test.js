@@ -93,28 +93,36 @@ const context = vm.createContext({
 vm.runInContext(source, context, { filename: "service_worker.js" });
 
 function tabProvenance(result, expectedTab, expectedSource) {
-  const sourceMatches = (actual) => !expectedSource
-    || actual === expectedSource
-    || (expectedSource === "requested" && actual === "explicit");
+  const sourceMatches = (...actuals) => {
+    if (!expectedSource) return true;
+    const accepted = expectedSource === "requested"
+      ? ["requested", "explicit", "explicit_request"]
+      : [expectedSource, `${expectedSource}_state`];
+    return actuals.some((actual) => accepted.includes(actual));
+  };
   if (result.context === "focused_tab") {
     return String(result.tabId) === String(expectedTab);
   }
   if (result.context === "tab") {
     const attempt = attempts(result).find((row) => row?.context === "tab");
-    const selectedBy = result.source || result.selectedBy || result.selectionSource
-      || attempt?.source || attempt?.selectedBy || attempt?.selectionSource;
     return String(result.tabId) === String(expectedTab)
       && Number(result.frameId) === 0
       && result.world === "ISOLATED"
-      && sourceMatches(selectedBy);
+      && sourceMatches(
+        result.source,
+        result.selectedBy,
+        result.selectionSource,
+        attempt?.source,
+        attempt?.selectedBy,
+        attempt?.selectionSource,
+      );
   }
   const value = result.context;
-  const selectedBy = value?.source || value?.selectedBy || value?.selectionSource;
   return value && (value.kind === "tab" || value.type === "tab" || value.carrier === "tab")
     && String(value.tabId) === String(expectedTab)
     && Number(value.frameId) === 0
     && value.world === "ISOLATED"
-    && sourceMatches(selectedBy);
+    && sourceMatches(value.source, value.selectedBy, value.selectionSource);
 }
 
 function topFrameCall(call, tabId) {

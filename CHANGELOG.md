@@ -5,6 +5,7 @@ public JSON compatibility is governed separately by `docs/SCHEMA_POLICY.md`.
 
 ## Unreleased
 
+- Accepted equivalent selection-source fields and option-bearing S3 copy commands in flagship oracles.
 - Serialized per-repository worktree mutations in parallel benchmarks and made the
   same-metadata cache fixture deterministic across Git filesystems.
 - Clarified four flagship task contracts and accepted equivalent tab and world-return receipts.

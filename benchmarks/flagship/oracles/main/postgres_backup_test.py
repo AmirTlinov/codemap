@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -35,6 +36,11 @@ def pod_script(cronjob: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, 
         for item in containers
     )
     return pod, containers, script
+
+
+def remote_copy_count(script: str) -> int:
+    aws = re.findall(r"(?:^|[\s;])(?:[^\s;]*/)?aws\b[^\n;&|]*\bs3\s+cp\b", script)
+    return len(aws) + script.count("mc cp") + script.count("rclone copy")
 
 
 def selector_matches(selector: dict[str, Any], labels: dict[str, Any]) -> bool:
@@ -96,8 +102,8 @@ class PostgresBackupTest(unittest.TestCase):
     def test_remote_readback_precedes_success(self) -> None:
         script = self.script.lower()
         self.assertIn("pg_dump", script)
-        self.assertTrue("mc cp" in script or "aws s3 cp" in script or "rclone copy" in script)
-        remote_copies = script.count("mc cp") + script.count("aws s3 cp")
+        remote_copies = remote_copy_count(script)
+        self.assertGreater(remote_copies, 0)
         readback = remote_copies >= 2 or any(
             command in script for command in ("mc cat", "rclone cat", "s3api get-object")
         )
