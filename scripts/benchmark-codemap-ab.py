@@ -39,7 +39,7 @@ ARMS = (ARM_CONTROL, ARM_TREATMENT)
 MODE_IMPLEMENTATION = "implementation"
 MODE_ANALYSIS = "analysis"
 TASK_MODES = (MODE_IMPLEMENTATION, MODE_ANALYSIS)
-PROMPT_PROTOCOL_VERSION = 5
+PROMPT_PROTOCOL_VERSION = 6
 
 COMMON_PROMPT = """You are completing one benchmark coding task in a disposable git worktree.
 Make the smallest complete implementation that satisfies the task. Work autonomously; do not ask
@@ -57,10 +57,12 @@ ARM_PROMPTS = {
     ARM_CONTROL: """CONTROL ARM: codemap is unavailable. Do not attempt to use it. Navigate with
 ordinary repository tools only.
 """,
-    ARM_TREATMENT: """CODEMAP TREATMENT ARM: use codemap as the structural navigator. If the task
-names a usable file, directory, file#symbol, or exact symbol, begin with the narrowest applicable
-`codemap ls <scope>`, `codemap cone <file#symbol>`, or `codemap where <symbol>`; do not run root
-orientation first. Use `codemap ls .` only when scope is unknown. After editing, run `codemap changed` and then `codemap proof changed`.
+    ARM_TREATMENT: """CODEMAP TREATMENT ARM: use one proportionate codemap entry before ordinary
+inspection: the narrowest applicable `codemap ls <scope>`, `codemap cone <file#symbol>`, or
+`codemap where <symbol>`. Combine that entry with the first focused read in one shell call. Use
+`codemap ls .` only when scope is unknown; follow one exact printed expand only when the map marks
+relevant evidence hidden or unknown. After editing, make one focused verification call containing
+`codemap changed && codemap proof changed` before the task-specific check. Do not run broad gates.
 """,
 }
 
@@ -68,11 +70,11 @@ ANALYSIS_ARM_PROMPTS = {
     ARM_CONTROL: """CONTROL ARM: codemap is unavailable. Do not attempt to use it. Navigate with
 ordinary read-only repository tools only.
 """,
-    ARM_TREATMENT: """CODEMAP TREATMENT ARM: use codemap as the structural navigator. If the task
-names a usable file, directory, file#symbol, or exact symbol, begin with the narrowest applicable
-`codemap ls <scope>`, `codemap cone <file#symbol>`, or `codemap where <symbol>`; do not run root
-orientation first. Use `codemap ls .` only when scope is unknown, then narrow with a focused map.
-Follow useful expand commands when they expose evidence. Do not edit the repository.
+    ARM_TREATMENT: """CODEMAP TREATMENT ARM: begin with one proportionate structural map: the
+narrowest applicable `codemap ls <scope>`, `codemap cone <file#symbol>`, or `codemap where <symbol>`.
+Use `codemap ls .` only when scope is unknown. Read the cited source paths for line evidence; follow
+one exact printed expand only when the map marks relevant evidence hidden or unknown. Do not stack
+maps over already identified paths or repeat the investigation with broad scans. Do not edit the repository.
 """,
 }
 

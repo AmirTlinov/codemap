@@ -142,11 +142,59 @@
             "tests/structural_map/changed_lens.rs"
           ],
           "kind": "facts"
+        },
+        "fact-7": {
+          "facts": [
+            "src/cli/run.rs"
+          ],
+          "kind": "facts"
+        },
+        "fact-8": {
+          "facts": [
+            "src/cli/fast_paths/changed.rs"
+          ],
+          "kind": "facts"
+        },
+        "fact-9": {
+          "facts": [
+            "src/cli/proof_run.rs"
+          ],
+          "kind": "facts"
+        },
+        "fact-10": {
+          "facts": [
+            "src/render/changed.rs"
+          ],
+          "kind": "facts"
+        },
+        "fact-11": {
+          "facts": [
+            "src/render/proof.rs"
+          ],
+          "kind": "facts"
+        },
+        "fact-12": {
+          "facts": [
+            "tests/structural_map/proof_changed_coverage.rs"
+          ],
+          "kind": "facts"
+        },
+        "fact-13": {
+          "facts": [
+            "tests/structural_map/changed_proof_compact.rs"
+          ],
+          "kind": "facts"
+        },
+        "fact-14": {
+          "facts": [
+            "scripts/dogfood-codemap.sh"
+          ],
+          "kind": "facts"
         }
       },
       "ecosystem": "rust",
       "id": "codemap-deterministic-investigation",
-      "prompt": "At the frozen commit, trace the proof-changed CLI fast path, changed lens, proof engine, changed-proof cache artifact, changed JSON schema, and primary changed-lens structural test file. Return one compact answer containing the exact repository-relative path for each of the six requested owners and a one-line connection between adjacent owners. Do not modify files. Do not substitute directories or prose descriptions for paths.",
+      "prompt": "At the frozen commit, reconstruct the complete repository-file chain used by `codemap proof changed`: CLI dispatch and clean/dirty fast paths, changed/proof computation, cached handoff, public rendering/schema, and first-party structural and dogfood proof. Return every owner and proof file in that chain with compact adjacent connections and concrete line or symbol evidence. Do not modify files or substitute directories.",
       "repo_id": "codemap",
       "task_class": "investigation"
     },
@@ -283,11 +331,41 @@
             "scripts/ops/k8s/apply-release-workloads.mjs"
           ],
           "kind": "facts"
+        },
+        "fact-7": {
+          "facts": [
+            "scripts/ops/ci/release-main-compat.test.mjs"
+          ],
+          "kind": "facts"
+        },
+        "fact-8": {
+          "facts": [
+            "scripts/ops/ci/resolve-release-artifact.test.mjs"
+          ],
+          "kind": "facts"
+        },
+        "fact-9": {
+          "facts": [
+            "scripts/ops/gitops/release.test.mjs"
+          ],
+          "kind": "facts"
+        },
+        "fact-10": {
+          "facts": [
+            "scripts/ops/k8s/apply-release-workloads.test.mjs"
+          ],
+          "kind": "facts"
+        },
+        "fact-11": {
+          "facts": [
+            "scripts/ops/ci/validate-release-prod-receipt.test.mjs"
+          ],
+          "kind": "facts"
         }
       },
       "ecosystem": "typescript",
       "id": "main-cluster-deterministic-investigation",
-      "prompt": "At the frozen commit, trace the release-prod workflow, compatibility check, artifact resolver, GitOps promoter, Argo wait script, and workload applier. Return one compact answer containing the exact repository-relative path for each of the six requested owners and a one-line connection between adjacent owners. Do not modify files. Do not substitute directories or prose descriptions for paths.",
+      "prompt": "At the frozen commit, reconstruct the complete release-prod production chain from request compatibility and artifact resolution through GitOps promotion, Argo convergence, live workload application, and the executable tests and receipt contract proving those transitions. Return every owner and proof file in that chain with compact adjacent connections and concrete line or symbol evidence. Do not modify files or substitute directories.",
       "repo_id": "main-cluster",
       "task_class": "investigation"
     },
@@ -402,11 +480,41 @@
             "apps/web/src/lib/platform-api.ts"
           ],
           "kind": "facts"
+        },
+        "fact-7": {
+          "facts": [
+            "apps/web/src/lib/replay-verify.ts"
+          ],
+          "kind": "facts"
+        },
+        "fact-8": {
+          "facts": [
+            "apps/web/tests/e2e/replay-route-authority.spec.ts"
+          ],
+          "kind": "facts"
+        },
+        "fact-9": {
+          "facts": [
+            "contracts/07-replay-contract.md"
+          ],
+          "kind": "facts"
+        },
+        "fact-10": {
+          "facts": [
+            "schemas/replay-manifest.schema.json"
+          ],
+          "kind": "facts"
+        },
+        "fact-11": {
+          "facts": [
+            "crates/replay-format/src/lib.rs"
+          ],
+          "kind": "facts"
         }
       },
       "ecosystem": "typescript",
       "id": "pabg-deterministic-investigation",
-      "prompt": "At the frozen commit, trace the Chronicle match route, replay loader, entry canonicalizer, world-authority owner, replay mount, and platform API. Return one compact answer containing the exact repository-relative path for each of the six requested owners and a one-line connection between adjacent owners. Do not modify files. Do not substitute directories or prose descriptions for paths.",
+      "prompt": "At the frozen commit, reconstruct the complete Chronicle replay path from route canonicalization through loading and verification, manifest/format contract, world authority, replay mount, platform API access, and route-authority proof. Return every owner and proof file in that chain with compact adjacent connections and concrete line or symbol evidence. Do not modify files or substitute directories.",
       "repo_id": "pabg",
       "task_class": "investigation"
     },
@@ -584,11 +692,47 @@
             "tests/test_drop_flow.py"
           ],
           "kind": "facts"
+        },
+        "fact-7": {
+          "facts": [
+            "mcp_servers/browser/apps/universal.py"
+          ],
+          "kind": "facts"
+        },
+        "fact-8": {
+          "facts": [
+            "mcp_servers/browser/extension_gateway.py"
+          ],
+          "kind": "facts"
+        },
+        "fact-9": {
+          "facts": [
+            "mcp_servers/browser/session_cdp.py"
+          ],
+          "kind": "facts"
+        },
+        "fact-10": {
+          "facts": [
+            "vendor/browser_extension/offscreen.html"
+          ],
+          "kind": "facts"
+        },
+        "fact-11": {
+          "facts": [
+            "vendor/browser_extension/manifest.json"
+          ],
+          "kind": "facts"
+        },
+        "fact-12": {
+          "facts": [
+            "tests/test_universal_adapter_strategy.py"
+          ],
+          "kind": "facts"
         }
       },
       "ecosystem": "python",
       "id": "browser-deterministic-investigation",
-      "prompt": "At the frozen commit, trace the universal insert owner, clipboard owner, drop owner, extension RPC carrier, offscreen clipboard carrier, and focused drop test. Return one compact answer containing the exact repository-relative path for each of the six requested owners and a one-line connection between adjacent owners. Do not modify files. Do not substitute directories or prose descriptions for paths.",
+      "prompt": "At the frozen commit, reconstruct the complete universal insertion path across adapter, clipboard/drop owners, Python RPC and CDP transport, extension manifest/service worker, offscreen document carrier, and focused first-party tests. Return every owner and proof file in that chain with compact adjacent connections and concrete line or symbol evidence. Do not modify files or substitute directories.",
       "repo_id": "browser",
       "task_class": "investigation"
     },
@@ -704,11 +848,41 @@
             "apps/macos-app/Sources/OpenSlopApp/WorkbenchRootView.swift"
           ],
           "kind": "facts"
+        },
+        "fact-7": {
+          "facts": [
+            "apps/macos-app/Sources/OpenSlopApp/TimelinePanelView.swift"
+          ],
+          "kind": "facts"
+        },
+        "fact-8": {
+          "facts": [
+            "apps/macos-app/Sources/WorkbenchCore/CodexTranscriptSnapshot.swift"
+          ],
+          "kind": "facts"
+        },
+        "fact-9": {
+          "facts": [
+            "apps/macos-app/Sources/WorkbenchCore/SessionProjection.swift"
+          ],
+          "kind": "facts"
+        },
+        "fact-10": {
+          "facts": [
+            "domains/provider/contracts/codex-app-server/v0.123.0/witnesses/live_transcript_control_witness.py"
+          ],
+          "kind": "facts"
+        },
+        "fact-11": {
+          "facts": [
+            "docs/architecture/decisions/ADR-001-core-daemon-source-of-truth.md"
+          ],
+          "kind": "facts"
         }
       },
       "ecosystem": "swift",
       "id": "openslop-deterministic-investigation",
-      "prompt": "At the frozen commit, trace the core-daemon submit route, provider owner, session store owner, Swift daemon client, transcript-to-timeline projection, and root UI consumer. Return one compact answer containing the exact repository-relative path for each of the six requested owners and a one-line connection between adjacent owners. Do not modify files. Do not substitute directories or prose descriptions for paths.",
+      "prompt": "At the frozen commit, reconstruct the complete streamed Codex transcript path across daemon route, provider runtime, session persistence, Swift transport and typed projections, timeline seed/view/root UI, architecture boundary, and live transcript witness. Return every owner and proof file in that chain with compact adjacent connections and concrete line or symbol evidence. Do not modify files or substitute directories.",
       "repo_id": "openslop",
       "task_class": "investigation"
     },
@@ -824,11 +998,47 @@
             "crates/ratiotissue-cli/src/continuation/actionwave/tests.rs"
           ],
           "kind": "facts"
+        },
+        "fact-7": {
+          "facts": [
+            "crates/ratiotissue-cli/src/continuation/mod.rs"
+          ],
+          "kind": "facts"
+        },
+        "fact-8": {
+          "facts": [
+            "crates/ratiotissue-cli/src/continuation/ledger.rs"
+          ],
+          "kind": "facts"
+        },
+        "fact-9": {
+          "facts": [
+            "crates/ratiotissue-cli/src/continuation/actionwave/mod.rs"
+          ],
+          "kind": "facts"
+        },
+        "fact-10": {
+          "facts": [
+            "crates/ratiotissue-cli/src/continuation/actionwave/action_out/runtime.rs"
+          ],
+          "kind": "facts"
+        },
+        "fact-11": {
+          "facts": [
+            "crates/ratiotissue-cli/src/continuation/actionwave/types.rs"
+          ],
+          "kind": "facts"
+        },
+        "fact-12": {
+          "facts": [
+            "crates/ratiotissue-cli/src/continuation/tests.rs"
+          ],
+          "kind": "facts"
         }
       },
       "ecosystem": "rust",
       "id": "ratio-deterministic-investigation",
-      "prompt": "At the frozen commit, trace the continuation CLI, actionwave runtime, action record, feedback owner, interaction owner, and focused actionwave test. Return one compact answer containing the exact repository-relative path for each of the six requested owners and a one-line connection between adjacent owners. Do not modify files. Do not substitute directories or prose descriptions for paths.",
+      "prompt": "At the frozen commit, reconstruct the complete actionwave-to-world-return path across CLI/export boundary, action runtime and output, record/ledger, feedback and interaction owners, resident action types, and focused continuation proofs. Return every owner and proof file in that chain with compact adjacent connections and concrete line or symbol evidence. Do not modify files or substitute directories.",
       "repo_id": "ratio",
       "task_class": "investigation"
     },

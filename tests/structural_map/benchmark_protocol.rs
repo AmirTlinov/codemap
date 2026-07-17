@@ -102,6 +102,39 @@ fn ab_protocol_ignores_project_internal_codemap_consumers() {
 }
 
 #[test]
+fn ab_treatment_prompt_keeps_navigation_proportionate() {
+    let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/benchmark-codemap-ab.py");
+    let probe = r#"import json, pathlib, runpy, sys
+sys.path.insert(0, str(pathlib.Path(sys.argv[1]).parent))
+m = runpy.run_path(sys.argv[1])
+print(json.dumps({
+    "version": m["PROMPT_PROTOCOL_VERSION"],
+    "implementation": m["ARM_PROMPTS"]["codemap"],
+    "analysis": m["ANALYSIS_ARM_PROMPTS"]["codemap"],
+}))
+"#;
+    let output = python()
+        .args(["-c", probe, script.to_str().unwrap()])
+        .output()
+        .expect("treatment prompt probe");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let prompt: Value = serde_json::from_slice(&output.stdout).expect("prompt json");
+    assert_eq!(prompt["version"], 6);
+    assert!(prompt["implementation"]
+        .as_str()
+        .unwrap()
+        .contains("one focused verification call"));
+    assert!(prompt["analysis"]
+        .as_str()
+        .unwrap()
+        .contains("one exact printed expand"));
+}
+
+#[test]
 fn ab_fingerprint_tracks_composed_prompt_timeout_and_order() {
     let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/benchmark-codemap-ab.py");
     let probe = r#"import argparse, json, pathlib, runpy, sys

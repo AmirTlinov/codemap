@@ -5,6 +5,8 @@ public JSON compatibility is governed separately by `docs/SCHEMA_POLICY.md`.
 
 ## Unreleased
 
+- Made treatment navigation one proportionate map contact and expanded investigation evidence
+  from named-path lookup to complete runtime, contract, and proof chains.
 - Accepted equivalent selection-source fields and option-bearing S3 copy commands in flagship oracles.
 - Serialized per-repository worktree mutations in parallel benchmarks and made the
   same-metadata cache fixture deterministic across Git filesystems.
