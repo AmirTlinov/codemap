@@ -49,6 +49,7 @@ pub(crate) fn is_proof_runner_surface(
         && (name.starts_with("run_")
             || name.starts_with("run-")
             || name.contains("runner")
+            || name.contains("dogfood")
             || tokens.contains("proof")
             || tokens.contains("validate")
             || tokens.contains("doctor")

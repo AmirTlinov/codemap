@@ -59,13 +59,14 @@ Keep new implementation under the existing owner folders. Do not create a second
 - first-class edge evidence locations and typed unknowns;
 - structural `impact` by changed anchors, direct consumers, cross-boundary consumers, contract links, and verification edges;
 - `diff-map` for map-level changed structural lines, exported symbol surfaces, and new unknowns;
-- `contract` for exported/schema/package/public surfaces and their consumers/verification links;
+- `contract` for exported/schema/package/public surfaces, their consumers/verification links, exact parallel definitions/schema dependencies, low-strength same-subject contract-document candidates, and exact `where` expands;
 - `runtime` for deterministic entrypoints, Next file-convention routes, static JS/Python/Go route registrations, scripts, env references, workers/jobs, CI, typed runtime unknowns, and verification surfaces;
 - structural `proof` as a historical command name for adjacent/importing tests and package-local command surfaces;
 - `proof changed` coverage summary for runnable command, linked-only, setup/support, soft-match, and missing direct-link buckets;
 - `proof` `Most-Direct Commands` section (commands whose sensors have a direct validation link to the changed files) as a fact, not a recommendation;
 - `proof-map` for direct/indirect/e2e/contract verification surfaces and typed blind spots around a scope or diff;
 - `where <symbol>` deterministic symbol-name locator over the indexed symbol map, reusing the cone engine for single definitions;
+- Rust `include!`, `include_str!`, and `include_bytes!` static repository paths as resolved structural dependencies;
 - global `--brief`/`CODEMAP_BRIEF` compact output and cache telemetry removed from the default agent-facing snapshot line;
 - `changed`/`proof changed` `--since <token>` agent-snapshot delta over an external token-keyed fingerprint store, fail-open on unknown tokens;
 - `delete` for deletion blockers, dynamic-reference blind spots, and cleanup hints without safety claims;

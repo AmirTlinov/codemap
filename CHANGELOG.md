@@ -5,6 +5,14 @@ public JSON compatibility is governed separately by `docs/SCHEMA_POLICY.md`.
 
 ## Unreleased
 
+- Replaced investigation chain hints with one concrete runtime/file/symbol anchor per task,
+  keeping the expected owner and proof inventory solely in external verifiers.
+- Let treatment follow causal exact expands while relevant evidence remains hidden instead of
+  imposing a one-expand ceiling, and made direct map links the first source inspection set.
+- Moved investigation completeness from opened-path checklists to source-backed causal claims
+  with bounded `path:line` citations against frozen repository bytes, without scoring fixed prose.
+- Connected visible cone contracts to exact `contract` expands, parallel exported contract names
+  to exact `where` definitions, and Rust `include_str!`/`include_bytes!` owners to embedded files.
 - Added complete paired action histories and one citation-backed causal trajectory analysis per A/B
   pair; external verifiers still exclusively own outcome scores and acceptance thresholds.
 - Made symbol cones resolve Rust module-qualified calls through re-export facades and use depth
@@ -27,7 +35,7 @@ public JSON compatibility is governed separately by `docs/SCHEMA_POLICY.md`.
 - Made exact `ls` and `cone` hydrate explicitly named tracked files inside bounded common-ignore
   directories without widening root inventory or following symlink and oversized bodies.
 - Replaced the unfinished flagship ceremony with one frozen 18-task, 72-run A/B:
-  deterministic investigation facts, hidden implementation checks, exact controls, one
+  source-backed investigations, hidden implementation checks, exact controls, one
   infrastructure retry, fixed cost bounds, and no subjective scoring or exclusions.
 - Completed the stable agent envelope, bounded evidence horizons, external zero-footprint cache,
   release-tier ecosystem matrix, and map-first exact-entry workflow.

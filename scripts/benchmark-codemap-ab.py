@@ -27,6 +27,11 @@ from pathlib import Path
 from typing import Any
 
 from benchmark_parallel import ProcessResult, run_ordered, run_process
+from benchmark_attempts import (
+    current_attempt,
+    existing_trial,
+    retry_infrastructure_failure,
+)
 from benchmark_worktrees import add_worktree, remove_worktree
 from codemap_identity import CodemapIdentityError, benchmark_binary_identity, command_artifacts, resolve_codemap_command
 from codemap_protocol import codemap_protocol
@@ -39,7 +44,7 @@ ARMS = (ARM_CONTROL, ARM_TREATMENT)
 MODE_IMPLEMENTATION = "implementation"
 MODE_ANALYSIS = "analysis"
 TASK_MODES = (MODE_IMPLEMENTATION, MODE_ANALYSIS)
-PROMPT_PROTOCOL_VERSION = 10
+PROMPT_PROTOCOL_VERSION = 11
 
 COMMON_PROMPT = """You are completing one benchmark coding task in a disposable git worktree.
 Make the smallest complete implementation that satisfies the task. Work autonomously; do not ask
@@ -60,8 +65,10 @@ ordinary repository tools only.
     ARM_TREATMENT: """CODEMAP TREATMENT ARM: use one proportionate codemap entry before ordinary
 inspection: the narrowest applicable `codemap ls <scope>`, `codemap cone <file#symbol>`, or
 `codemap where <symbol>`. Combine that entry with the first focused read in one shell call. Use
-`codemap ls .` only when scope is unknown; follow one exact printed expand only when the map marks
-relevant evidence hidden or unknown. After editing, make one focused verification call containing
+`codemap ls .` only when scope is unknown. Inspect task-relevant direct links before searching
+beyond the map. Follow an exact expand printed by the current map only while it marks task-relevant
+evidence hidden or unknown; each further map must be the exact expand printed by the immediately
+preceding map. After editing, make one focused verification call containing
 `codemap changed && codemap proof changed` before the task-specific check. Do not run broad gates.
 """,
 }
@@ -72,9 +79,11 @@ ordinary read-only repository tools only.
 """,
     ARM_TREATMENT: """CODEMAP TREATMENT ARM: begin with one proportionate structural map: the
 narrowest applicable `codemap ls <scope>`, `codemap cone <file#symbol>`, or `codemap where <symbol>`.
-Use `codemap ls .` only when scope is unknown. Read the cited source paths for line evidence; follow
-one exact printed expand only when the map marks relevant evidence hidden or unknown. Do not stack
-maps over already identified paths or repeat the investigation with broad scans. Do not edit the repository.
+Use `codemap ls .` only when scope is unknown. Inspect task-relevant direct links before searching
+beyond the map, and read cited source paths for line evidence. Follow an exact expand printed by the
+current map only while it marks task-relevant evidence hidden or unknown; each further map must be
+the exact expand printed by the immediately preceding map. Do not stack unrelated maps or repeat the
+investigation with broad scans. Do not edit the repository.
 """,
 }
 
@@ -474,22 +483,6 @@ def trial_fingerprint(
     )
 
 
-def existing_trial(path: Path, fingerprint: str, resume: bool) -> dict[str, Any] | None:
-    result_path = path / "result.json"
-    if not result_path.exists():
-        if path.exists():
-            if not resume:
-                raise ValueError(f"incomplete trial exists; use --resume or another --out-dir: {path}")
-            shutil.rmtree(path)
-        return None
-    if not resume:
-        raise ValueError(f"trial already exists; use --resume or another --out-dir: {path}")
-    result = json.loads(result_path.read_text(encoding="utf-8"))
-    if result.get("trial_fingerprint") != fingerprint:
-        raise ValueError(f"cannot resume trial with a different configuration: {path}")
-    return result
-
-
 def run_trial(
     task: Task,
     repetition: int,
@@ -523,8 +516,9 @@ def run_trial(
     if resumed is not None:
         print(f"[ab] resume {key}", file=sys.stderr)
         return resumed
+    infrastructure_attempt = current_attempt(artifact_dir)
     artifact_dir.mkdir(parents=True, exist_ok=True)
-    worktree = work_root / key
+    worktree = work_root / (key if infrastructure_attempt == 1 else f"{key}-attempt-2")
     added = add_worktree(task.repo, worktree, base_commit)
     if added.status != 0:
         raise ValueError(f"cannot create worktree {worktree}: {added.stderr.strip()}")
@@ -608,12 +602,15 @@ def run_trial(
             if arm == ARM_CONTROL
             else protocol["invocation_count"] > 0
         )
-        run_valid = codex.status == 0 and not codex.timed_out and arm_valid
+        verifier_timed_out = any(verifier["timed_out"] for verifier in verifiers)
+        run_valid = codex.status == 0 and not codex.timed_out and arm_valid and not verifier_timed_out
         invalidation_reason = None
         if codex.timed_out:
             invalidation_reason = "codex_timeout"
         elif codex.status != 0:
             invalidation_reason = "codex_crash"
+        elif verifier_timed_out:
+            invalidation_reason = "verifier_timeout"
         elif not arm_valid:
             invalidation_reason = (
                 "control_codemap_access"
@@ -640,6 +637,8 @@ def run_trial(
             "codemap_binary_hashes": codemap_hashes,
             "report_prelude": {"codemap": codemap_identity},
             "trial_fingerprint": fingerprint,
+            "infrastructure_attempt": infrastructure_attempt,
+            "prior_attempts": ["attempts/attempt-1/result.json"] if infrastructure_attempt == 2 else [],
             "codex": {
                 "status": codex.status,
                 "elapsed_ms": codex.elapsed_ms,
@@ -664,12 +663,18 @@ def run_trial(
         (artifact_dir / "result.json").write_text(
             json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
-        return result
     finally:
         if not args.keep_worktrees:
             removed = remove_worktree(task.repo, worktree)
             if removed.status != 0:
                 print(f"[ab] warning: could not remove {worktree}: {removed.stderr}", file=sys.stderr)
+    if retry_infrastructure_failure(artifact_dir, result):
+        print(f"[ab] retry {key} after {result['invalidation_reason']}", file=sys.stderr)
+        return run_trial(
+            task, repetition, arm, order, args, codex_cmd, codemap_cmd, codex_version,
+            codemap_version, codemap_hashes, codemap_identity, out_dir, work_root,
+        )
+    return result
 
 
 def median(values: list[int]) -> int | None:

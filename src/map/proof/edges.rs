@@ -2,9 +2,10 @@
 use crate::evidence::import_statement_locations;
 use crate::map::{
     anchor_core_terms, anchor_symbol_reference_names, anchor_terms, boundary_findings,
-    direct_consumer_edges, direct_dependency_edges, directory_has_files, edge_with_path_location,
-    package_for_rel, proof_evidence_precedence, semantic_name_terms, strict_test_edges_for_file,
-    structural_edge_with_locations, structural_test_surface_match,
+    contract_neighborhood_edges, direct_consumer_edges, direct_dependency_edges,
+    directory_has_files, edge_with_path_location, package_for_rel, proof_evidence_precedence,
+    semantic_name_terms, strict_test_edges_for_file, structural_edge_with_locations,
+    structural_test_surface_match,
 };
 use crate::model::{EvidenceStrength, FileInfo, Project, StructuralEdge};
 use std::collections::BTreeMap;
@@ -244,6 +245,13 @@ pub(crate) fn cone_contract_edges(
                 edge.locations.clone(),
             ));
         }
+    }
+    for target in edges
+        .iter()
+        .map(|edge| edge.to.clone())
+        .collect::<BTreeSet<_>>()
+    {
+        edges.extend(contract_neighborhood_edges(project, &target));
     }
     edges
 }

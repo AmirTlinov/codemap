@@ -100,7 +100,7 @@ It must not:
 
 `codemap changed` is the daily after-edit map. It uses stable readable sections: Worktree, Boundary Facts, Surface Hints, Coupling, Risks, Observed, Links, Proof, Unknown, Hidden, and expand targets without running commands. `Proof` is the stable compatibility section name for verification surfaces.
 
-`codemap contract <anchor>` shows exported/schema/package/public surfaces, producers, consumers, cross-package consumers, and verification edges.
+`codemap contract <anchor>` shows exported/schema/package/public surfaces, producers, consumers, cross-package consumers, and verification edges. A cone exposes exact `contract` expands for visible contract owners. The contract lens connects exact parallel exported definitions and their resolved schema dependencies, exposes their `where` lookup, and labels same-subject files under `contracts/` as low-strength documentation candidates rather than proof.
 
 `codemap where <symbol>` is a deterministic locator for every exact definition of a
 symbol name across the indexed map, with consumers and exact `cone file#symbol`

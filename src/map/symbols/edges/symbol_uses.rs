@@ -1,8 +1,9 @@
 // Responsibility: map-symbols-symbol-uses
 use crate::map::{
     BarrelResolutionCache, barrel_reexports_symbol_from_file, file_has_local_value_shadow,
-    first_identifier_reference_location, imported_binding_target_symbol_name, matching_symbols,
-    module_binding_matches_target, rust_qualified_symbol_body_references, sort_edges,
+    first_identifier_reference_location, imported_symbol_owner, matching_symbols,
+    module_binding_matches_target, rust_qualified_symbol_body_references,
+    rust_static_file_dependency_edges, rust_typed_receiver_method_edges, sort_edges,
     structural_edge_with_locations, symbol_anchor_path, symbol_body_declares_js_local_binding,
     symbol_body_references_imported_local, symbol_body_text,
 };
@@ -27,14 +28,17 @@ pub(crate) fn symbol_outgoing_edges(
                 continue;
             }
             if symbol_body_references_imported_local(&body, local, &info.ext)
-                && let Some(target_symbol) =
-                    imported_binding_target_symbol_name(project, target_rel, imported)
+                && let Some(owner) = imported_symbol_owner(project, target_rel, imported)
             {
                 edges.push(structural_edge_with_locations(
                     symbol_anchor_path(&info.rel, symbol_name),
-                    symbol_anchor_path(target_rel, &target_symbol),
+                    symbol_anchor_path(&owner.rel, &owner.symbol),
                     "symbol_uses",
-                    "imported_symbol_in_symbol_body",
+                    if owner.reexported {
+                        "reexported_symbol_in_symbol_body"
+                    } else {
+                        "imported_symbol_in_symbol_body"
+                    },
                     EvidenceStrength::High,
                     first_identifier_reference_location(
                         project,
@@ -62,6 +66,12 @@ pub(crate) fn symbol_outgoing_edges(
         info,
         symbol_name,
         &body,
+    ));
+    edges.extend(rust_typed_receiver_method_edges(project, info, symbol_name));
+    edges.extend(rust_static_file_dependency_edges(
+        project,
+        info,
+        symbol_name,
     ));
     sort_edges(&mut edges);
     edges

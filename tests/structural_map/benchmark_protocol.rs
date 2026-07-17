@@ -125,7 +125,7 @@ print(json.dumps({
         String::from_utf8_lossy(&output.stderr)
     );
     let prompt: Value = serde_json::from_slice(&output.stdout).expect("prompt json");
-    assert_eq!(prompt["version"], 10);
+    assert_eq!(prompt["version"], 11);
     assert!(prompt["implementation"]
         .as_str()
         .unwrap()
@@ -133,7 +133,11 @@ print(json.dumps({
     assert!(prompt["analysis"]
         .as_str()
         .unwrap()
-        .contains("one exact printed expand"));
+        .contains("Inspect task-relevant direct links"));
+    assert!(prompt["analysis"]
+        .as_str()
+        .unwrap()
+        .contains("exact expand printed by the immediately preceding map"));
     assert!(prompt["exact"]
         .as_str()
         .unwrap()

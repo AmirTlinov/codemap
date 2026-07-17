@@ -141,7 +141,7 @@ pub(crate) fn cone_symbol_report_with_references(
         expand: vec![
             format!(
                 "codemap cone {} --depth {}",
-                shell_quote(file_rel),
+                shell_quote(&anchor_path),
                 depth + 1
             ),
             format!("codemap ls {}", shell_quote(file_rel)),

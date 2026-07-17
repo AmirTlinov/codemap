@@ -192,6 +192,7 @@ def verifier_row(spec: Path, task: dict[str, Any], criterion: str) -> dict[str, 
             criterion,
             "{worktree}",
             "{last_message}",
+            "{events}",
         ],
         "timeout_seconds": task.get("verifier_timeout_seconds", 900),
     }

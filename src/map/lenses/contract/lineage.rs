@@ -1,7 +1,9 @@
 // Responsibility: contract-lineage-fact-assembly
 mod codegen;
 mod declarations;
+mod documentation;
 mod graph;
+mod parallel;
 mod sql;
 
 use crate::map::sort_edges;
@@ -18,6 +20,12 @@ pub(crate) struct ContractLineageFacts {
 pub(crate) fn contract_lineage(project: &Project, rel: &str) -> ContractLineageFacts {
     let mut facts = ContractLineageFacts::default();
     let mut seeds = Vec::new();
+    facts
+        .edges
+        .extend(parallel::parallel_contract_edges(project, rel));
+    facts
+        .edges
+        .extend(documentation::contract_document_candidates(project, rel));
     if rel.ends_with(".sql") {
         let sql = sql::sql_lineage(project, rel);
         facts.declarations.extend(sql.declarations);

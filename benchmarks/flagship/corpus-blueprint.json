@@ -107,94 +107,115 @@
   "tasks": [
     {
       "criteria": {
-        "fact-1": {
-          "facts": [
+        "dispatch-and-fast-paths": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "src/cli/run.rs",
+              "contains": [
+                "try_clean_proof_changed_fast_path(&cli.command",
+                "try_cached_proof_changed_fast_path(&cli.command",
+                "CommandKind::Proof(args) => proof(&project, args)"
+              ]
+            },
+            {
+              "path": "src/cli/fast_paths/proof_changed.rs",
+              "contains": [
+                "map::clean_proof_report(selector)",
+                "crate::cache::read_proof_changed_report("
+              ]
+            }
+          ],
+          "citations": [
+            "src/cli/run.rs",
             "src/cli/fast_paths/proof_changed.rs"
           ],
-          "kind": "facts"
+          "required": false
         },
-        "fact-2": {
-          "facts": [
-            "src/map/lenses/changed.rs"
+        "proof-computation": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "src/cli/proof_run.rs",
+              "contains": [
+                "proof_inputs(project, &args)?",
+                "map::proof_report("
+              ]
+            },
+            {
+              "path": "src/map/proof/entry.rs",
+              "contains": [
+                "proof_surfaces_for_anchor(project, anchor",
+                "proof_coverage_summary(&changed, &proofs_by_anchor)",
+                "changed_missing_deterministic_proof_unknowns("
+              ]
+            }
           ],
-          "kind": "facts"
-        },
-        "fact-3": {
-          "facts": [
+          "citations": [
+            "src/cli/proof_run.rs",
             "src/map/proof/entry.rs"
           ],
-          "kind": "facts"
+          "required": true
         },
-        "fact-4": {
-          "facts": [
-            "src/cache/lens_artifacts/changed_proof.rs"
+        "render-and-execution-boundary": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "src/cli/proof_run.rs",
+              "contains": [
+                "if args.run {",
+                "return run_proof_plan(project, &report)"
+              ]
+            },
+            {
+              "path": "src/render/proof/impact/plan.rs",
+              "contains": [
+                "# Verification Surface Plan",
+                "No changed anchors selected."
+              ]
+            }
           ],
-          "kind": "facts"
-        },
-        "fact-5": {
-          "facts": [
-            "schemas/proof.schema.json"
-          ],
-          "kind": "facts"
-        },
-        "fact-6": {
-          "facts": [
-            "schemas/manifest.json"
-          ],
-          "kind": "facts"
-        },
-        "fact-7": {
-          "facts": [
-            "src/cli/run.rs"
-          ],
-          "kind": "facts"
-        },
-        "fact-8": {
-          "facts": [
-            "src/cli/fast_paths/changed.rs"
-          ],
-          "kind": "facts"
-        },
-        "fact-9": {
-          "facts": [
-            "src/cli/proof_run.rs"
-          ],
-          "kind": "facts"
-        },
-        "fact-10": {
-          "facts": [
-            "tests/structural_map/cache_lens_artifacts.rs"
-          ],
-          "kind": "facts"
-        },
-        "fact-11": {
-          "facts": [
+          "citations": [
+            "src/cli/proof_run.rs",
             "src/render/proof/impact/plan.rs"
           ],
-          "kind": "facts"
+          "required": true
         },
-        "fact-12": {
-          "facts": [
-            "tests/structural_map/proof_changed_coverage.rs"
+        "repository-proof": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "tests/structural_map/proof_changed_coverage.rs",
+              "contains": [
+                "proof_changed_renders_coverage_summary_and_gaps",
+                "proof changed should render coverage as facts, not advice"
+              ]
+            },
+            {
+              "path": "tests/structural_map/cache_lens_artifacts.rs",
+              "contains": [
+                "proof changed warmed by changed must match a direct proof changed report",
+                "cached proof artifact must preserve markdown output"
+              ]
+            },
+            {
+              "path": "tests/structural_map/proof_markdown_compact.rs",
+              "contains": [
+                "proof changed must not hide a missing direct link"
+              ]
+            }
           ],
-          "kind": "facts"
-        },
-        "fact-13": {
-          "facts": [
+          "citations": [
+            "tests/structural_map/proof_changed_coverage.rs",
+            "tests/structural_map/cache_lens_artifacts.rs",
             "tests/structural_map/proof_markdown_compact.rs"
           ],
-          "kind": "facts"
-        },
-        "fact-14": {
-          "facts": [
-            "scripts/dogfood-codemap.sh"
-          ],
-          "kind": "facts"
+          "required": false
         }
       },
       "ecosystem": "rust",
       "id": "codemap-deterministic-investigation",
-      "prompt": "At the frozen commit, reconstruct the complete repository-file chain used by `codemap proof changed`: CLI dispatch and clean/dirty fast paths, changed/proof computation, cached handoff, public rendering/schema, and first-party structural and dogfood proof. Return every owner and proof file in that chain with compact adjacent connections and concrete line or symbol evidence. Do not modify files or substitute directories. End with a newline-separated inventory that repeats every repository-relative file path in full; basename shorthand does not satisfy the machine check.",
+      "prompt": "At the frozen commit, start from `src/cli/run.rs#run` and reconstruct what happens when a user runs `codemap proof changed`, including the repository-owned evidence that proves the public behavior. Follow only connections supported by source. Do not modify files or substitute directories. Explain the resulting chain with compact adjacent connections and concrete line or symbol evidence.",
       "repo_id": "codemap",
       "task_class": "investigation"
     },
@@ -296,76 +317,236 @@
     },
     {
       "criteria": {
-        "fact-1": {
-          "facts": [
-            ".github/workflows/release-prod.yml"
+        "request-authority": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": ".github/workflows/release-prod.yml",
+              "contains": [
+                "node scripts/ops/ci/release-main-compat.mjs",
+                "--sha \"$requested_sha\""
+              ]
+            },
+            {
+              "path": "scripts/ops/ci/release-main-compat.mjs",
+              "contains": [
+                "promotionOnlyDrift: true",
+                "main advanced through non-promotion commit"
+              ]
+            }
           ],
-          "kind": "facts"
-        },
-        "fact-2": {
-          "facts": [
+          "citations": [
+            ".github/workflows/release-prod.yml",
             "scripts/ops/ci/release-main-compat.mjs"
           ],
-          "kind": "facts"
+          "required": false
         },
-        "fact-3": {
-          "facts": [
+        "artifact-authority": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": ".github/workflows/release-prod.yml",
+              "contains": [
+                "node scripts/ops/ci/resolve-release-artifact.mjs"
+              ]
+            },
+            {
+              "path": "scripts/ops/ci/resolve-release-artifact.mjs",
+              "contains": [
+                "validateArtifactOwnerRun(",
+                "validateSuccessfulCiRun(",
+                "validateArtifactPayload("
+              ]
+            }
+          ],
+          "citations": [
+            ".github/workflows/release-prod.yml",
             "scripts/ops/ci/resolve-release-artifact.mjs"
           ],
-          "kind": "facts"
+          "required": true
         },
-        "fact-4": {
-          "facts": [
-            "scripts/ops/gitops/release.mjs"
+        "promotion-and-reconciliation": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": ".github/workflows/release-prod.yml",
+              "contains": [
+                "node scripts/ops/gitops/release.mjs promote",
+                "git push origin HEAD:main",
+                "scripts/ops/gitops/wait-for-app.sh venorus-root",
+                "node scripts/ops/k8s/apply-release-workloads.mjs"
+              ]
+            },
+            {
+              "path": "scripts/ops/gitops/release.mjs",
+              "contains": [
+                "writeFileSync(releasePath",
+                "record.images[change.component]"
+              ]
+            },
+            {
+              "path": "scripts/ops/gitops/wait-for-app.sh",
+              "contains": [
+                "Healthy/Synced",
+                "--revision-synced-only"
+              ]
+            },
+            {
+              "path": "scripts/ops/k8s/apply-release-workloads.mjs",
+              "contains": [
+                "results[target.component] = await applyTarget("
+              ]
+            }
           ],
-          "kind": "facts"
-        },
-        "fact-5": {
-          "facts": [
-            "scripts/ops/gitops/wait-for-app.sh"
-          ],
-          "kind": "facts"
-        },
-        "fact-6": {
-          "facts": [
+          "citations": [
+            ".github/workflows/release-prod.yml",
+            "scripts/ops/gitops/release.mjs",
+            "scripts/ops/gitops/wait-for-app.sh",
             "scripts/ops/k8s/apply-release-workloads.mjs"
           ],
-          "kind": "facts"
+          "required": true
         },
-        "fact-7": {
-          "facts": [
-            "scripts/ops/ci/release-main-compat.test.mjs"
+        "live-proof": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "scripts/ops/k8s/apply-release-workloads.mjs",
+              "contains": [
+                "export function verifyWorkloadImages(",
+                "rolloutStatus: options.dryRun ? \"dry-run\" : \"success\""
+              ]
+            },
+            {
+              "path": ".github/workflows/release-prod.yml",
+              "contains": [
+                "Verify HTTP build proof",
+                "status: liveVerified ? \"live_verified\"",
+                "validate-release-prod-receipt.mjs --receipt"
+              ]
+            },
+            {
+              "path": "scripts/ops/ci/validate-release-prod-receipt.mjs",
+              "contains": [
+                "live_verified"
+              ]
+            }
           ],
-          "kind": "facts"
-        },
-        "fact-8": {
-          "facts": [
-            "scripts/ops/ci/resolve-release-artifact.test.mjs"
+          "citations": [
+            "scripts/ops/k8s/apply-release-workloads.mjs",
+            ".github/workflows/release-prod.yml",
+            "scripts/ops/ci/validate-release-prod-receipt.mjs"
           ],
-          "kind": "facts"
+          "required": true
         },
-        "fact-9": {
-          "facts": [
-            "scripts/ops/gitops/release.test.mjs"
+        "repository-proof": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "scripts/ops/ci/release-main-compat.test.mjs",
+              "contains": [
+                "release main compatibility accepts only GitOps promotion drift"
+              ]
+            },
+            {
+              "path": "scripts/ops/ci/resolve-release-artifact.test.mjs",
+              "contains": [
+                "validateArtifactOwnerRun"
+              ]
+            },
+            {
+              "path": "scripts/ops/k8s/apply-release-workloads.test.mjs",
+              "contains": [
+                "verifyWorkloadImages rejects init container drift"
+              ]
+            },
+            {
+              "path": "scripts/ops/ci/validate-release-prod-receipt.test.mjs",
+              "contains": [
+                "rejects incomplete receipt"
+              ]
+            }
           ],
-          "kind": "facts"
-        },
-        "fact-10": {
-          "facts": [
-            "scripts/ops/k8s/apply-release-workloads.test.mjs"
-          ],
-          "kind": "facts"
-        },
-        "fact-11": {
-          "facts": [
+          "citations": [
+            "scripts/ops/ci/resolve-release-artifact.test.mjs",
+            "scripts/ops/ci/release-main-compat.test.mjs",
+            "scripts/ops/k8s/apply-release-workloads.test.mjs",
             "scripts/ops/ci/validate-release-prod-receipt.test.mjs"
           ],
-          "kind": "facts"
+          "required": false
+        },
+        "readiness-contract-gap": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": ".github/workflows/release-readiness.yml",
+              "contains": [
+                "Write recommended Release Prod command",
+                "gh workflow run release-prod.yml"
+              ]
+            },
+            {
+              "path": "docs/ops/github-actions.md",
+              "contains": [
+                "dispatches `Release Prod` only when"
+              ]
+            }
+          ],
+          "citations": [
+            ".github/workflows/release-readiness.yml",
+            "docs/ops/github-actions.md"
+          ],
+          "required": false
+        },
+        "concurrency-gap": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": ".github/workflows/release-prod.yml",
+              "contains": [
+                "cancel-in-progress: false",
+                "git push origin HEAD:main"
+              ]
+            },
+            {
+              "path": "scripts/ops/ci/release-main-compat.mjs",
+              "contains": [
+                "promotionOnlyDrift: true"
+              ]
+            }
+          ],
+          "citations": [
+            ".github/workflows/release-prod.yml",
+            "scripts/ops/ci/release-main-compat.mjs"
+          ],
+          "required": false
+        },
+        "partial-rollout-boundary": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "scripts/ops/k8s/apply-release-workloads.mjs",
+              "contains": [
+                "for (const raw of rawTargets) {",
+                "await applyTarget(target, values, options)"
+              ]
+            },
+            {
+              "path": "docs/gitops/runbook.md",
+              "contains": [
+                "Multi-component release всегда атомарен"
+              ]
+            }
+          ],
+          "citations": [
+            "scripts/ops/k8s/apply-release-workloads.mjs",
+            "docs/gitops/runbook.md"
+          ],
+          "required": false
         }
       },
       "ecosystem": "typescript",
       "id": "main-cluster-deterministic-investigation",
-      "prompt": "At the frozen commit, reconstruct the complete release-prod production chain from request compatibility and artifact resolution through GitOps promotion, Argo convergence, live workload application, and the executable tests and receipt contract proving those transitions. Return every owner and proof file in that chain with compact adjacent connections and concrete line or symbol evidence. Do not modify files or substitute directories. End with a newline-separated inventory that repeats every repository-relative file path in full; basename shorthand does not satisfy the machine check.",
+      "prompt": "At the frozen commit, start from `.github/workflows/release-prod.yml` and reconstruct the end-to-end production behavior it owns, including the repository-owned evidence that proves the release contract. Follow only connections supported by source. Do not modify files or substitute directories. Explain the resulting chain with compact adjacent connections and concrete line or symbol evidence.",
       "repo_id": "main-cluster",
       "task_class": "investigation"
     },
@@ -445,76 +626,178 @@
     },
     {
       "criteria": {
-        "fact-1": {
-          "facts": [
-            "apps/web/src/app/(game)/town/chronicle/[match_id]/page.tsx"
+        "canonical-entry": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "apps/web/src/app/(game)/town/chronicle/[match_id]/page.tsx",
+              "contains": [
+                "canonicalizeReplayEntryHref(match_id, query)",
+                "loaded = await loadReplay(match_id"
+              ]
+            },
+            {
+              "path": "apps/web/src/lib/replay/entry.ts",
+              "contains": [
+                "export function canonicalizeReplayEntryHref"
+              ]
+            }
           ],
-          "kind": "facts"
-        },
-        "fact-2": {
-          "facts": [
-            "apps/web/src/lib/replay/loader.ts"
-          ],
-          "kind": "facts"
-        },
-        "fact-3": {
-          "facts": [
+          "citations": [
+            "apps/web/src/app/(game)/town/chronicle/[match_id]/page.tsx",
             "apps/web/src/lib/replay/entry.ts"
           ],
-          "kind": "facts"
+          "required": true
         },
-        "fact-4": {
-          "facts": [
-            "apps/web/src/lib/replay/world-authority.ts"
+        "live-integrity-and-materialization": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "apps/web/src/lib/replay/loader.ts",
+              "contains": [
+                "const verdict = await verifyReplayManifest({",
+                "loadReplayPackageFromManifestUrl("
+              ]
+            },
+            {
+              "path": "apps/web/src/lib/replay-verify.ts",
+              "contains": [
+                "ed.verifyAsync(signatureBytes, input.payload, pubkeyBytes)",
+                "crypto.subtle.digest(\"SHA-256\""
+              ]
+            },
+            {
+              "path": "apps/web/src/lib/replay/package-dir.ts",
+              "contains": [
+                "async function materializeReplayPackage("
+              ]
+            }
           ],
-          "kind": "facts"
-        },
-        "fact-5": {
-          "facts": [
-            "apps/web/src/components/replay/ReplayMount.tsx"
+          "citations": [
+            "apps/web/src/lib/replay/loader.ts",
+            "apps/web/src/lib/replay-verify.ts",
+            "apps/web/src/lib/replay/package-dir.ts"
           ],
-          "kind": "facts"
+          "required": true
         },
-        "fact-6": {
-          "facts": [
-            "apps/web/src/lib/platform-api.ts"
+        "assembled-package-boundary": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "apps/web/src/lib/replay/types.ts",
+              "contains": [
+                "export const ReplayPackageSchema = z.object({",
+                "roster: z.array(AgentRosterEntrySchema).min(1)"
+              ]
+            },
+            {
+              "path": "apps/web/src/lib/replay/package-dir.ts",
+              "contains": [
+                "async function materializeReplayPackage("
+              ]
+            }
           ],
-          "kind": "facts"
-        },
-        "fact-7": {
-          "facts": [
-            "apps/web/src/lib/replay-verify.ts"
+          "citations": [
+            "apps/web/src/lib/replay/types.ts",
+            "apps/web/src/lib/replay/package-dir.ts"
           ],
-          "kind": "facts"
+          "required": false
         },
-        "fact-8": {
-          "facts": [
-            "apps/web/tests/e2e/replay-route-authority.spec.ts"
+        "policy-boundary": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "apps/web/src/lib/replay/loader.ts",
+              "contains": [
+                "applyOwnerFilter(loaded.package.thoughts, ownedAgentIds)",
+                "manifest.world.terrain_art_surface_json required"
+              ]
+            },
+            {
+              "path": "contracts/07-replay-contract.md",
+              "contains": [
+                "terrain_art_surface_json"
+              ]
+            }
           ],
-          "kind": "facts"
-        },
-        "fact-9": {
-          "facts": [
+          "citations": [
+            "apps/web/src/lib/replay/loader.ts",
             "contracts/07-replay-contract.md"
           ],
-          "kind": "facts"
+          "required": false
         },
-        "fact-10": {
-          "facts": [
-            "schemas/replay-manifest.schema.json"
+        "client-mount": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "apps/web/src/app/(game)/town/chronicle/[match_id]/page.tsx",
+              "contains": [
+                "<ReplayMount"
+              ]
+            },
+            {
+              "path": "apps/web/src/components/replay/ReplayMount.tsx",
+              "contains": [
+                "createReplayKernel(loaded.package)",
+                "<ReplayScene"
+              ]
+            },
+            {
+              "path": "apps/web/src/components/replay/ReplayScene.tsx",
+              "contains": [
+                "const stage = mountReplayStage(",
+                "data-replay-scene-status\", \"ready\""
+              ]
+            },
+            {
+              "path": "apps/web/src/lib/replay/stage.ts",
+              "contains": [
+                "export function mountReplayStage("
+              ]
+            }
           ],
-          "kind": "facts"
+          "citations": [
+            "apps/web/src/app/(game)/town/chronicle/[match_id]/page.tsx",
+            "apps/web/src/components/replay/ReplayMount.tsx",
+            "apps/web/src/components/replay/ReplayScene.tsx",
+            "apps/web/src/lib/replay/stage.ts"
+          ],
+          "required": true
         },
-        "fact-11": {
-          "facts": [
-            "crates/replay-format/src/lib.rs"
+        "proof-boundary": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "apps/web/src/app/(game)/town/chronicle/[match_id]/page.tsx",
+              "contains": [
+                "const ownedAgentIds = new Set<string>()",
+                "if (entry.is_owner === true) ownedAgentIds.add(entry.agent_id)"
+              ]
+            },
+            {
+              "path": "apps/web/src/lib/replay/terrain-art-surface/load-texture.ts",
+              "contains": [
+                "return null"
+              ]
+            },
+            {
+              "path": "apps/web/scripts/replay-live-route-capture.mjs",
+              "contains": [
+                "ok: surfacePresent && renderer === \"terrain_art_surface_v1\""
+              ]
+            }
           ],
-          "kind": "facts"
+          "citations": [
+            "apps/web/src/app/(game)/town/chronicle/[match_id]/page.tsx",
+            "apps/web/src/lib/replay/terrain-art-surface/load-texture.ts",
+            "apps/web/scripts/replay-live-route-capture.mjs"
+          ],
+          "required": false
         }
       },
       "ecosystem": "typescript",
       "id": "pabg-deterministic-investigation",
-      "prompt": "At the frozen commit, reconstruct the complete Chronicle replay path from route canonicalization through loading and verification, manifest/format contract, world authority, replay mount, platform API access, and route-authority proof. Return every owner and proof file in that chain with compact adjacent connections and concrete line or symbol evidence. Do not modify files or substitute directories. End with a newline-separated inventory that repeats every repository-relative file path in full; basename shorthand does not satisfy the machine check.",
+      "prompt": "At the frozen commit, start from `apps/web/src/app/(game)/town/chronicle/[match_id]/page.tsx` and reconstruct how a Chronicle replay request becomes a validated, mounted world, including the repository-owned evidence that proves that behavior. Follow only connections supported by source. Do not modify files or substitute directories. Explain the resulting chain with compact adjacent connections and concrete line or symbol evidence.",
       "repo_id": "pabg",
       "task_class": "investigation"
     },
@@ -657,82 +940,160 @@
     },
     {
       "criteria": {
-        "fact-1": {
-          "facts": [
+        "public-entry": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "mcp_servers/browser/apps/universal.py",
+              "contains": [
+                "payload = parse_insert_payload(params)",
+                "result = insert_best_effort("
+              ]
+            },
+            {
+              "path": "mcp_servers/browser/apps/insert.py",
+              "contains": [
+                "def insert_best_effort("
+              ]
+            }
+          ],
+          "citations": [
+            "mcp_servers/browser/apps/universal.py",
             "mcp_servers/browser/apps/insert.py"
           ],
-          "kind": "facts"
+          "required": false
         },
-        "fact-2": {
-          "facts": [
+        "carrier-selection": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "mcp_servers/browser/apps/insert.py",
+              "contains": [
+                "paste→drop→import fallbacks",
+                "clipboard_write_svg_best_effort(",
+                "drop_files_best_effort(",
+                "import_via_file_chooser("
+              ]
+            }
+          ],
+          "citations": [
+            "mcp_servers/browser/apps/insert.py"
+          ],
+          "required": true
+        },
+        "clipboard-request": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "mcp_servers/browser/apps/clipboard.py",
+              "contains": [
+                "gw.rpc_call(\"clipboard.writeSvg\"",
+                "navigator.clipboard.write([new ClipboardItem(itemData)])"
+              ]
+            }
+          ],
+          "citations": [
             "mcp_servers/browser/apps/clipboard.py"
           ],
-          "kind": "facts"
+          "required": false
         },
-        "fact-3": {
-          "facts": [
-            "mcp_servers/browser/apps/drop_flow.py"
+        "extension-clipboard-boundary": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "vendor/browser_extension/service_worker.js",
+              "contains": [
+                "offscreen.clipboard.writeSvgBundle",
+                "if (m === \"clipboard.writeSvg\")"
+              ]
+            },
+            {
+              "path": "vendor/browser_extension/offscreen_clipboard.js",
+              "contains": [
+                "navigator.clipboard.write([new ClipboardItem(entries)])",
+                "offscreen.clipboard.writeSvgBundle"
+              ]
+            }
           ],
-          "kind": "facts"
-        },
-        "fact-4": {
-          "facts": [
-            "vendor/browser_extension/service_worker.js"
-          ],
-          "kind": "facts"
-        },
-        "fact-5": {
-          "facts": [
+          "citations": [
+            "vendor/browser_extension/service_worker.js",
             "vendor/browser_extension/offscreen_clipboard.js"
           ],
-          "kind": "facts"
+          "required": false
         },
-        "fact-6": {
-          "facts": [
-            "tests/test_drop_flow.py"
+        "drop-request": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "mcp_servers/browser/apps/drop_flow.py",
+              "contains": [
+                "Input.dispatchDragEvent",
+                "send_many(commands)"
+              ]
+            },
+            {
+              "path": "mcp_servers/browser/session_cdp.py",
+              "contains": [
+                "return self.gateway.cdp_send_many("
+              ]
+            }
           ],
-          "kind": "facts"
-        },
-        "fact-7": {
-          "facts": [
-            "mcp_servers/browser/apps/universal.py"
-          ],
-          "kind": "facts"
-        },
-        "fact-8": {
-          "facts": [
-            "mcp_servers/browser/extension_gateway.py"
-          ],
-          "kind": "facts"
-        },
-        "fact-9": {
-          "facts": [
+          "citations": [
+            "mcp_servers/browser/apps/drop_flow.py",
             "mcp_servers/browser/session_cdp.py"
           ],
-          "kind": "facts"
+          "required": false
         },
-        "fact-10": {
-          "facts": [
-            "vendor/browser_extension/offscreen.html"
+        "carrier-proof": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "tests/test_drop_flow.py",
+              "contains": [
+                "test_drop_flow_sends_drag_events",
+                "[\"dragEnter\", \"dragOver\", \"drop\"]"
+              ]
+            },
+            {
+              "path": "tests/test_universal_adapter_strategy.py",
+              "contains": [
+                "test_insert_best_effort_svg_paste_strategy_rejects_text_only_representation",
+                "clipboard_text_only_svg"
+              ]
+            }
           ],
-          "kind": "facts"
-        },
-        "fact-11": {
-          "facts": [
-            "vendor/browser_extension/manifest.json"
-          ],
-          "kind": "facts"
-        },
-        "fact-12": {
-          "facts": [
+          "citations": [
+            "tests/test_drop_flow.py",
             "tests/test_universal_adapter_strategy.py"
           ],
-          "kind": "facts"
+          "required": false
+        },
+        "live-proof-boundary": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "mcp_servers/browser/docs/plans/active/PLAN-BROWSER-065-high-fidelity-canvas-carrier-and-paste-truth/proof/PROOF-BROWSER-065-10-page-clipboard-eval-timeout-truth.md",
+              "contains": [
+                "stayed pending until the JS-side timeout",
+                "writeText(...)` succeeded"
+              ]
+            },
+            {
+              "path": "mcp_servers/browser/docs/plans/active/PLAN-BROWSER-065-high-fidelity-canvas-carrier-and-paste-truth/proof/PROOF-BROWSER-065-09-carrier-error-stack-truth.md",
+              "contains": [
+                "still failed on tiny SVG paste"
+              ]
+            }
+          ],
+          "citations": [
+            "mcp_servers/browser/docs/plans/active/PLAN-BROWSER-065-high-fidelity-canvas-carrier-and-paste-truth/proof/PROOF-BROWSER-065-10-page-clipboard-eval-timeout-truth.md"
+          ],
+          "required": false
         }
       },
       "ecosystem": "python",
       "id": "browser-deterministic-investigation",
-      "prompt": "At the frozen commit, reconstruct the complete universal insertion path across adapter, clipboard/drop owners, Python RPC and CDP transport, extension manifest/service worker, offscreen document carrier, and focused first-party tests. Return every owner and proof file in that chain with compact adjacent connections and concrete line or symbol evidence. Do not modify files or substitute directories. End with a newline-separated inventory that repeats every repository-relative file path in full; basename shorthand does not satisfy the machine check.",
+      "prompt": "At the frozen commit, start from `mcp_servers/browser/apps/insert.py#insert_best_effort` and reconstruct how a universal insert request reaches the controlled browser, including the repository-owned evidence that proves the carrier behavior. Follow only connections supported by source. Do not modify files or substitute directories. Explain the resulting chain with compact adjacent connections and concrete line or symbol evidence.",
       "repo_id": "browser",
       "task_class": "investigation"
     },
@@ -813,76 +1174,170 @@
     },
     {
       "criteria": {
-        "fact-1": {
-          "facts": [
-            "services/core-daemon/src/main.rs"
+        "provider-stream": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "services/core-daemon/src/main.rs",
+              "contains": [
+                ".stream_turn_with_approvals(",
+                "|snapshot| bridge.borrow_mut().emit_snapshot(snapshot)",
+                "|approval| bridge.borrow_mut().wait_for_approval(&approval)"
+              ]
+            },
+            {
+              "path": "domains/provider/rust/provider-domain/src/lib.rs",
+              "contains": [
+                "pub fn stream_turn_with_approvals",
+                "fn poll_transcript_until_terminal"
+              ]
+            }
           ],
-          "kind": "facts"
-        },
-        "fact-2": {
-          "facts": [
+          "citations": [
+            "services/core-daemon/src/main.rs",
             "domains/provider/rust/provider-domain/src/lib.rs"
           ],
-          "kind": "facts"
+          "required": false
         },
-        "fact-3": {
-          "facts": [
-            "domains/session/rust/session-domain/src/lib.rs"
+        "stdio-stream-contract": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "services/core-daemon/src/main.rs",
+              "contains": [
+                "kind: \"codex_transcript_stream_event\"",
+                "kind: \"codex_approval_request\""
+              ]
+            },
+            {
+              "path": "apps/macos-app/Sources/WorkbenchCore/CoreDaemonClient.swift",
+              "contains": [
+                "func streamCodexTurn(",
+                "streamEvent.kind == \"codex_transcript_stream_event\"",
+                "approvalEvent.kind == \"codex_approval_request\""
+              ]
+            }
           ],
-          "kind": "facts"
-        },
-        "fact-4": {
-          "facts": [
+          "citations": [
+            "services/core-daemon/src/main.rs",
             "apps/macos-app/Sources/WorkbenchCore/CoreDaemonClient.swift"
           ],
-          "kind": "facts"
+          "required": true
         },
-        "fact-5": {
-          "facts": [
-            "apps/macos-app/Sources/OpenSlopApp/WorkbenchSeed.swift"
+        "macos-transcript": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "apps/macos-app/Sources/OpenSlopApp/WorkbenchRootView.swift",
+              "contains": [
+                "transcript = streamedSnapshot",
+                "seed.timeline("
+              ]
+            },
+            {
+              "path": "apps/macos-app/Sources/OpenSlopApp/WorkbenchSeed.swift",
+              "contains": [
+                "if let transcript, !transcript.items.isEmpty",
+                "return transcript.items.map"
+              ]
+            },
+            {
+              "path": "apps/macos-app/Sources/OpenSlopApp/TimelinePanelView.swift",
+              "contains": [
+                "ForEach(timeline)"
+              ]
+            }
           ],
-          "kind": "facts"
-        },
-        "fact-6": {
-          "facts": [
-            "apps/macos-app/Sources/OpenSlopApp/WorkbenchRootView.swift"
-          ],
-          "kind": "facts"
-        },
-        "fact-7": {
-          "facts": [
+          "citations": [
+            "apps/macos-app/Sources/OpenSlopApp/WorkbenchRootView.swift",
+            "apps/macos-app/Sources/OpenSlopApp/WorkbenchSeed.swift",
             "apps/macos-app/Sources/OpenSlopApp/TimelinePanelView.swift"
           ],
-          "kind": "facts"
+          "required": false
         },
-        "fact-8": {
-          "facts": [
-            "apps/macos-app/Sources/WorkbenchCore/CodexTranscriptSnapshot.swift"
+        "durable-session-boundary": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "services/core-daemon/src/main.rs",
+              "contains": [
+                "upsert_runtime_session(repo_root, &session)",
+                "map_transcript_to_session(repo_root, session_id, &transcript)"
+              ]
+            },
+            {
+              "path": "domains/session/rust/session-domain/src/lib.rs",
+              "contains": [
+                "const STORE_RELATIVE_PATH: &str = \".openslop/state/session-store.sqlite3\"",
+                "pub fn upsert_runtime_session("
+              ]
+            }
           ],
-          "kind": "facts"
+          "citations": [
+            "services/core-daemon/src/main.rs",
+            "domains/session/rust/session-domain/src/lib.rs"
+          ],
+          "required": true
         },
-        "fact-9": {
-          "facts": [
-            "apps/macos-app/Sources/WorkbenchCore/SessionProjection.swift"
+        "live-proof": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "apps/macos-app/Sources/OpenSlopTurnProbe/main.swift",
+              "contains": [
+                "let sawStreamingProgress =",
+                "cold transcript read did not return the archived completed turn"
+              ]
+            },
+            {
+              "path": "plans/slices/S04-transcript-approval-pty/REVIEW.md",
+              "contains": [
+                "OpenSlopTurnProbe` -> PASS",
+                "PID reuse, in-progress snapshots"
+              ]
+            }
           ],
-          "kind": "facts"
+          "citations": [
+            "apps/macos-app/Sources/OpenSlopTurnProbe/main.swift",
+            "plans/slices/S04-transcript-approval-pty/REVIEW.md"
+          ],
+          "required": false
         },
-        "fact-10": {
-          "facts": [
-            "domains/provider/contracts/codex-app-server/v0.123.0/witnesses/live_transcript_control_witness.py"
+        "persistence-limit": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "domains/session/rust/session-domain/src/lib.rs",
+              "contains": [
+                "CREATE TABLE IF NOT EXISTS sessions (",
+                "provider TEXT NOT NULL",
+                "status TEXT NOT NULL"
+              ]
+            },
+            {
+              "path": "services/core-daemon/src/main.rs",
+              "contains": [
+                "upsert_runtime_session(repo_root, &session)"
+              ]
+            },
+            {
+              "path": "domains/provider/rust/provider-domain/src/lib.rs",
+              "contains": [
+                "ThreadNeedsLiveRuntime"
+              ]
+            }
           ],
-          "kind": "facts"
-        },
-        "fact-11": {
-          "facts": [
-            "docs/architecture/decisions/ADR-001-core-daemon-source-of-truth.md"
+          "citations": [
+            "domains/session/rust/session-domain/src/lib.rs",
+            "services/core-daemon/src/main.rs",
+            "domains/provider/rust/provider-domain/src/lib.rs"
           ],
-          "kind": "facts"
+          "required": false
         }
       },
       "ecosystem": "swift",
       "id": "openslop-deterministic-investigation",
-      "prompt": "At the frozen commit, reconstruct the complete streamed Codex transcript path across daemon route, provider runtime, session persistence, Swift transport and typed projections, timeline seed/view/root UI, architecture boundary, and live transcript witness. Return every owner and proof file in that chain with compact adjacent connections and concrete line or symbol evidence. Do not modify files or substitute directories. End with a newline-separated inventory that repeats every repository-relative file path in full; basename shorthand does not satisfy the machine check.",
+      "prompt": "At the frozen commit, start from `services/core-daemon/src/main.rs#codex_submit_turn_stream_json` and reconstruct how a streamed Codex turn reaches the macOS transcript experience and durable session state, including the repository-owned evidence that proves the live behavior. Follow only connections supported by source. Do not modify files or substitute directories. Explain the resulting chain with compact adjacent connections and concrete line or symbol evidence.",
       "repo_id": "openslop",
       "task_class": "investigation"
     },
@@ -963,82 +1418,104 @@
     },
     {
       "criteria": {
-        "fact-1": {
-          "facts": [
+        "world-boundary": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "crates/ratiotissue-cli/src/cli/continuation.rs",
+              "contains": [
+                "fs::write(&path",
+                "observe_return("
+              ]
+            }
+          ],
+          "citations": [
             "crates/ratiotissue-cli/src/cli/continuation.rs"
           ],
-          "kind": "facts"
+          "required": true
         },
-        "fact-2": {
-          "facts": [
+        "action-runtime": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "crates/ratiotissue-cli/src/continuation/actionwave/runtime.rs",
+              "contains": [
+                "actionwave_from_continue_resident",
+                "materialize_interaction"
+              ]
+            }
+          ],
+          "citations": [
             "crates/ratiotissue-cli/src/continuation/actionwave/runtime.rs"
           ],
-          "kind": "facts"
+          "required": false
         },
-        "fact-3": {
-          "facts": [
-            "crates/ratiotissue-cli/src/continuation/actionwave/record.rs"
+        "durable-return": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "crates/ratiotissue-cli/src/continuation/interaction.rs",
+              "contains": [
+                "pub(crate) fn observe_return",
+                "record_interaction_source"
+              ]
+            },
+            {
+              "path": "crates/ratiotissue-cli/src/continuation/ledger.rs",
+              "contains": [
+                "store.begin_wal(",
+                "store.commit_wal("
+              ]
+            }
           ],
-          "kind": "facts"
-        },
-        "fact-4": {
-          "facts": [
-            "crates/ratiotissue-cli/src/continuation/feedback.rs"
-          ],
-          "kind": "facts"
-        },
-        "fact-5": {
-          "facts": [
-            "crates/ratiotissue-cli/src/continuation/interaction.rs"
-          ],
-          "kind": "facts"
-        },
-        "fact-6": {
-          "facts": [
-            "crates/ratiotissue-cli/src/continuation/actionwave/tests.rs"
-          ],
-          "kind": "facts"
-        },
-        "fact-7": {
-          "facts": [
-            "crates/ratiotissue-cli/src/continuation/mod.rs"
-          ],
-          "kind": "facts"
-        },
-        "fact-8": {
-          "facts": [
+          "citations": [
+            "crates/ratiotissue-cli/src/continuation/interaction.rs",
             "crates/ratiotissue-cli/src/continuation/ledger.rs"
           ],
-          "kind": "facts"
+          "required": true
         },
-        "fact-9": {
-          "facts": [
-            "crates/ratiotissue-cli/src/continuation/actionwave/mod.rs"
+        "next-iteration": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "crates/ratiotissue-cli/src/cli/continuation.rs",
+              "contains": [
+                "reload_application_memory",
+                "self.cached_contact = None"
+              ]
+            }
           ],
-          "kind": "facts"
+          "citations": [
+            "crates/ratiotissue-cli/src/cli/continuation.rs"
+          ],
+          "required": true
         },
-        "fact-10": {
-          "facts": [
-            "crates/ratiotissue-cli/src/continuation/actionwave/action_out/runtime.rs"
+        "proof-boundary": {
+          "kind": "source_claim",
+          "evidence": [
+            {
+              "path": "crates/ratiotissue-cli/src/cli/continuation.rs",
+              "contains": [
+                "pulse_world_loop_keeps_actionwave_pending_until_return_contact"
+              ]
+            },
+            {
+              "path": "crates/ratiotissue-cli/src/continuation/actionwave/tests.rs",
+              "contains": [
+                "world_return_payload_changes_resident_action_memory_before_flush"
+              ]
+            }
           ],
-          "kind": "facts"
-        },
-        "fact-11": {
-          "facts": [
-            "crates/ratiotissue-cli/src/continuation/actionwave/types.rs"
+          "citations": [
+            "crates/ratiotissue-cli/src/cli/continuation.rs",
+            "crates/ratiotissue-cli/src/continuation/actionwave/tests.rs"
           ],
-          "kind": "facts"
-        },
-        "fact-12": {
-          "facts": [
-            "crates/ratiotissue-cli/src/continuation/tests.rs"
-          ],
-          "kind": "facts"
+          "required": false
         }
       },
       "ecosystem": "rust",
       "id": "ratio-deterministic-investigation",
-      "prompt": "At the frozen commit, reconstruct the complete actionwave-to-world-return path across CLI/export boundary, action runtime and output, record/ledger, feedback and interaction owners, resident action types, and focused continuation proofs. Return every owner and proof file in that chain with compact adjacent connections and concrete line or symbol evidence. Do not modify files or substitute directories. End with a newline-separated inventory that repeats every repository-relative file path in full; basename shorthand does not satisfy the machine check.",
+      "prompt": "At the frozen commit, start from `crates/ratiotissue-cli/src/cli/continuation.rs#cmd_pulse_world_loop` and reconstruct the exact causal boundary: how an actionwave leaves continuation, what world operation actually occurs, how the returned contact is recorded and influences the next iteration, and what repository-owned evidence does or does not prove that loop. Follow only connections supported by source. Do not modify files or substitute directories. Explain the resulting chain with compact adjacent connections and concrete line or symbol evidence.",
       "repo_id": "ratio",
       "task_class": "investigation"
     },

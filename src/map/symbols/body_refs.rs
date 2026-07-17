@@ -159,9 +159,15 @@ fn non_js_symbol_body_references_local(body: &str, local: &str, ext: &str) -> bo
     let mut state = NonJsCodeState::default();
     for line in body.lines() {
         let code = non_js_code_line_without_strings_and_comments(line, ext, &mut state);
-        if line_has_value_identifier_reference(&code, local) {
+        if non_js_identifier_call(&code, local) || line_has_value_identifier_reference(&code, local)
+        {
             return true;
         }
     }
     false
+}
+
+fn non_js_identifier_call(line: &str, name: &str) -> bool {
+    crate::map::identifier_ranges(line, name)
+        .any(|(_, end)| line[end..].bytes().find(|byte| !byte.is_ascii_whitespace()) == Some(b'('))
 }

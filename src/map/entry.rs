@@ -12,8 +12,11 @@ use crate::map::{
     parent_anchor_for_missing, shell_quote, sort_edges, split_symbol_anchor,
     unknown_unindexed_anchor,
 };
-use crate::model::{BoundaryFacts, ConeReport, LsReport, ObservationLedger, Project};
+use crate::model::{
+    BoundaryFacts, ConeReport, LsReport, ObservationLedger, Project, StructuralEdge,
+};
 use crate::repo;
+use std::collections::BTreeSet;
 
 pub fn ls_report(
     project: &Project,
@@ -223,6 +226,7 @@ pub fn cone_report(
                 },
             )
         });
+    let expand = cone_file_expands(&rel, depth, &contracts);
     ConeReport {
         kind: "cone_report",
         schema_version: crate::model::ConeReport::SCHEMA_VERSION,
@@ -238,9 +242,22 @@ pub fn cone_report(
         observations,
         hidden,
         unknowns,
-        expand: vec![
-            format!("codemap cone {} --depth {}", shell_quote(&rel), depth + 1),
-            format!("codemap ls {} --all", shell_quote(&rel)),
-        ],
+        expand,
     }
+}
+
+fn cone_file_expands(rel: &str, depth: usize, contracts: &[StructuralEdge]) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    let mut expands = contracts
+        .iter()
+        .map(|edge| edge.to.as_str())
+        .filter(|target| seen.insert(*target))
+        .take(2)
+        .map(|target| format!("codemap contract {}", shell_quote(target)))
+        .collect::<Vec<_>>();
+    expands.extend([
+        format!("codemap cone {} --depth {}", shell_quote(rel), depth + 1),
+        format!("codemap ls {} --all", shell_quote(rel)),
+    ]);
+    expands
 }

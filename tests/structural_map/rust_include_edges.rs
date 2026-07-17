@@ -11,7 +11,11 @@ fn rust_include_and_file_module_edges_are_structural() {
     );
     write(
         &repo.path().join("src/map.rs"),
-        "mod graph_lens;\ninclude!(\"map/status.rs\");\n\npub fn entry() -> &'static str {\n    status()\n}\n",
+        "mod graph_lens;\ninclude!(\"map/status.rs\");\n\npub struct Identity { pub manifest: &'static str }\npub fn entry() -> &'static str {\n    status()\n}\npub fn build_identity() -> Identity {\n    Identity { manifest: embedded_manifest() }\n}\npub fn embedded_manifest() -> &'static str {\n    include_str!(\"../schemas/manifest.json\")\n}\n",
+    );
+    write(
+        &repo.path().join("schemas/manifest.json"),
+        "{\"version\":1}\n",
     );
     write(
         &repo.path().join("src/commented.rs"),
@@ -77,6 +81,47 @@ fn rust_include_and_file_module_edges_are_structural() {
                 && edge["evidence"] == "reverse_import"),
         "Rust include! targets should be structural incoming edges: {include_cone:#}"
     );
+    let embedded = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "cone",
+            "src/map.rs#embedded_manifest",
+            "--all",
+            "--format",
+            "json",
+        ],
+    );
+    assert!(embedded["outgoing"]
+        .as_array()
+        .expect("embedded outgoing")
+        .iter()
+        .any(|edge| {
+            edge["from"] == "src/map.rs#embedded_manifest"
+                && edge["to"] == "schemas/manifest.json"
+                && edge["type"] == "embeds_file"
+                && edge["evidence"] == "rust_static_include_in_symbol_body"
+                && edge["locations"][0]["line_start"] == 12
+        }), "symbol cone should retain its exact embedded file: {embedded:#}");
+    let identity = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "cone",
+            "src/map.rs#build_identity",
+            "--depth",
+            "2",
+            "--all",
+            "--format",
+            "json",
+        ],
+    );
+    assert!(identity["outgoing"]
+        .as_array()
+        .expect("identity outgoing")
+        .iter()
+        .any(|edge| edge["to"] == "schemas/manifest.json"),
+        "field-name colon must not hide the called schema owner: {identity:#}");
 
     let mod_cone = run_json(
         repo.path(),

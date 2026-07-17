@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -18,17 +19,50 @@ def fail(message: str) -> int:
     return 1
 
 
-def verify_facts(action: dict[str, Any], message: Path) -> tuple[bool, dict[str, Any]]:
-    text = message.read_text(encoding="utf-8") if message.is_file() else ""
-    required = action.get("facts", [])
-    forbidden = action.get("forbidden", [])
-    missing = [fact for fact in required if fact not in text]
-    present = [fact for fact in forbidden if fact in text]
-    return not missing and not present, {
-        "required_facts": len(required),
-        "matched_facts": len(required) - len(missing),
-        "missing": missing,
-        "forbidden_present": present,
+def verify_source_claim(
+    action: dict[str, Any], message: Path, worktree: Path
+) -> tuple[bool, dict[str, Any]]:
+    answer = message.read_text(encoding="utf-8") if message.is_file() else ""
+    missing_citations = []
+    cited_lines = {}
+    source_errors = []
+    source_line_counts = {}
+    root = worktree.resolve()
+    for evidence in action.get("evidence", []):
+        relative = Path(evidence["path"])
+        source = (root / relative).resolve()
+        if relative.is_absolute() or ".." in relative.parts or not source.is_relative_to(root):
+            source_errors.append(f"invalid-path:{evidence['path']}")
+            continue
+        body = (
+            source.read_text(encoding="utf-8", errors="replace") if source.is_file() else ""
+        )
+        source_line_counts[evidence["path"]] = len(body.splitlines())
+        if not source.is_file():
+            source_errors.append(f"missing-source:{evidence['path']}")
+        source_errors.extend(
+            f"missing-source-text:{evidence['path']}:{needle}"
+            for needle in evidence.get("contains", [])
+            if needle not in body
+        )
+    for path in action.get("citations", []):
+        matches = [
+            int(value)
+            for value in re.findall(
+                rf"(?<![A-Za-z0-9_./-]){re.escape(path)}:(\d+)", answer
+            )
+        ]
+        line_count = source_line_counts.get(path, 0)
+        valid = [line for line in matches if 1 <= line <= line_count]
+        if not valid:
+            missing_citations.append(path)
+        else:
+            cited_lines[path] = valid
+    return not missing_citations and not source_errors, {
+        "evidence_source": "frozen_source_and_cited_report",
+        "missing_citations": missing_citations,
+        "cited_lines": cited_lines,
+        "source_errors": source_errors,
     }
 
 
@@ -108,12 +142,10 @@ def run_commands(action: dict[str, Any], worktree: Path) -> tuple[bool, dict[str
     return True, {"overlays": copied, "commands": receipts}
 
 
-def verify(
-    action: dict[str, Any], message: Path, worktree: Path
-) -> tuple[bool, dict[str, Any]]:
+def verify(action: dict[str, Any], message: Path, worktree: Path) -> tuple[bool, dict[str, Any]]:
     kind = action["kind"]
-    if kind == "facts":
-        return verify_facts(action, message)
+    if kind == "source_claim":
+        return verify_source_claim(action, message, worktree)
     if kind == "git_head":
         return verify_head(action, worktree)
     if kind == "files":
@@ -130,6 +162,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("criterion")
     parser.add_argument("worktree")
     parser.add_argument("last_message")
+    parser.add_argument("events")
     args = parser.parse_args(argv)
     spec = json.loads(Path(args.spec).read_text(encoding="utf-8"))
     try:

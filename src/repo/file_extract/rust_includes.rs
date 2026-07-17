@@ -59,7 +59,15 @@ pub(crate) fn extract_rust_include_specs(text: &str) -> BTreeSet<String> {
             continue;
         }
         if rust_identifier_at(bytes, index, b"include")
-            && let Some((spec, next)) = parse_rust_include_spec(bytes, index + "include".len())
+            && let Some((spec, next)) =
+                parse_rust_include_spec(bytes, index + "include".len(), true)
+        {
+            specs.insert(spec);
+            index = next;
+            continue;
+        }
+        if let Some(macro_len) = rust_embedded_include_len(bytes, index)
+            && let Some((spec, next)) = parse_rust_include_spec(bytes, index + macro_len, false)
         {
             specs.insert(spec);
             index = next;
@@ -167,7 +175,11 @@ fn byte_line_number(text: &str, byte_index: usize) -> usize {
         + 1
 }
 
-fn parse_rust_include_spec(bytes: &[u8], mut index: usize) -> Option<(String, usize)> {
+fn parse_rust_include_spec(
+    bytes: &[u8],
+    mut index: usize,
+    rust_source_only: bool,
+) -> Option<(String, usize)> {
     index = skip_ascii_space(bytes, index);
     if bytes.get(index) != Some(&b'!') {
         return None;
@@ -177,8 +189,16 @@ fn parse_rust_include_spec(bytes: &[u8], mut index: usize) -> Option<(String, us
         return None;
     }
     index = skip_ascii_space(bytes, index + 1);
-    parse_rust_string_literal(bytes, index)
-        .and_then(|(spec, next)| spec.ends_with(".rs").then_some((spec, next)))
+    parse_rust_string_literal(bytes, index).and_then(|(spec, next)| {
+        (!rust_source_only || spec.ends_with(".rs")).then_some((spec, next))
+    })
+}
+
+fn rust_embedded_include_len(bytes: &[u8], index: usize) -> Option<usize> {
+    [b"include_str".as_slice(), b"include_bytes".as_slice()]
+        .into_iter()
+        .find(|name| rust_identifier_at(bytes, index, name))
+        .map(<[u8]>::len)
 }
 
 fn parse_rust_string_literal(bytes: &[u8], mut index: usize) -> Option<(String, usize)> {

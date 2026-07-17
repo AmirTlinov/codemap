@@ -16,7 +16,7 @@ from flagship_stats import criterion_score, median, task_aggregate
 
 
 ARMS = ("control", "codemap")
-INFRASTRUCTURE_FAILURES = {"codex_crash", "codex_timeout", "verifier_infrastructure_failure"}
+INFRASTRUCTURE_FAILURES = {"codex_crash", "codex_timeout", "verifier_timeout"}
 
 
 def _input_usage(row: dict[str, Any]) -> int:
@@ -72,13 +72,23 @@ def _protocol_errors(row: dict[str, Any], task: dict[str, Any]) -> list[str]:
 
 
 def _run_errors(row: dict[str, Any]) -> list[str]:
-    attempts = row.get("infrastructure_attempts", [])
-    if not isinstance(attempts, list) or len(attempts) > 1:
-        return ["invalid_infrastructure_attempts"]
+    attempt = row.get("infrastructure_attempt")
+    prior = row.get("prior_attempts")
+    expected_prior = [] if attempt == 1 else ["attempts/attempt-1/result.json"]
+    if attempt not in (1, 2) or prior != expected_prior:
+        return ["invalid_infrastructure_attempt_history"]
+    if attempt == 2:
+        first_path = Path(row["codex"]["last_message_artifact"]).parent / prior[0]
+        if not first_path.is_file():
+            return ["missing_first_infrastructure_attempt"]
+        first = json.loads(first_path.read_text(encoding="utf-8"))
+        valid_first = first.get("infrastructure_attempt") == 1 and first.get("invalidation_reason") in INFRASTRUCTURE_FAILURES
+        if not valid_first or first.get("trial_fingerprint") != row.get("trial_fingerprint"):
+            return ["invalid_first_infrastructure_attempt"]
     if row.get("run_valid") is True:
         return []
     reason = row.get("invalidation_reason")
-    if reason in INFRASTRUCTURE_FAILURES and len(attempts) == 1:
+    if reason in INFRASTRUCTURE_FAILURES and attempt == 2:
         return ["repeated_infrastructure_failure"]
     return ["invalid_run"]
 

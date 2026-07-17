@@ -230,6 +230,7 @@ def result_row(
         "codex_version": manifest["codex"]["version"],
         "codex_artifacts": manifest["codex"]["artifacts"],
         "report_prelude": {"codemap": manifest["codemap_identity"]},
+        "trial_fingerprint": f"{task['id']}:{repetition}:{arm}",
         "codemap_protocol": protocol,
         "patch_artifact": str(patch),
         "codex": {
@@ -244,15 +245,21 @@ def result_row(
         "outcome_passed": all(row["passed"] for row in verifiers if row["required"]),
         "run_valid": not infrastructure_failure,
         "invalidation_reason": "codex_timeout" if infrastructure_failure else None,
-        "infrastructure_attempts": (
-            [{"attempt": 1, "reason": "codex_timeout", "artifact_dir": str(trial_dir)}]
-            if infrastructure_failure
-            else []
-        ),
+        "infrastructure_attempt": 2 if infrastructure_failure else 1,
+        "prior_attempts": ["attempts/attempt-1/result.json"] if infrastructure_failure else [],
     }
+    if infrastructure_failure:
+        first = {
+            "trial_fingerprint": row["trial_fingerprint"],
+            "infrastructure_attempt": 1,
+            "prior_attempts": [],
+            "invalidation_reason": "codex_timeout",
+            "run_valid": False,
+        }
+        path = trial_dir / "attempts/attempt-1/result.json"
+        write(path, json.dumps(first, indent=2, sort_keys=True) + "\n")
     write(trial_dir / "result.json", json.dumps(row, indent=2, sort_keys=True) + "\n")
     return row
-
 
 def make_run(
     root: Path,
@@ -321,10 +328,8 @@ def make_run(
     if missing_arm:
         rows.pop()
     write(run_dir / "results.jsonl", "\n".join(json.dumps(row) for row in rows) + "\n")
-    write(
-        run_dir / "summary.json",
-        json.dumps({"preflight": [{"task_id": task["id"], "baseline_passed": False} for task in tasks]}),
-    )
+    preflight = [{"task_id": task["id"], "baseline_passed": False} for task in tasks]
+    write(run_dir / "summary.json", json.dumps({"preflight": preflight}))
     return run_dir
 
 

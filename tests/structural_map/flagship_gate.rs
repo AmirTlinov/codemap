@@ -42,3 +42,18 @@ fn flagship_trajectory_keeps_raw_actions_diff_verifiers_and_cost() {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+#[test]
+fn flagship_investigations_verify_source_backed_outcomes_not_path_lists() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let output = python()
+        .arg(root.join("tests/flagship_verifier_fixture.py"))
+        .output()
+        .expect("flagship verifier fixture should run");
+    assert!(
+        output.status.success(),
+        "flagship verifier failed: stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}

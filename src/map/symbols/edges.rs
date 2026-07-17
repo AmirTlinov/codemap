@@ -10,6 +10,14 @@ use std::collections::BTreeSet;
 
 mod proof_edges;
 pub(crate) use proof_edges::*;
+mod imported_owner;
+pub(crate) use imported_owner::*;
+mod cli_command_consumers;
+pub(crate) use cli_command_consumers::*;
+mod rust_receiver_methods;
+pub(crate) use rust_receiver_methods::*;
+mod static_file_dependencies;
+pub(crate) use static_file_dependencies::*;
 mod symbol_uses;
 pub(crate) use symbol_uses::*;
 

@@ -166,9 +166,38 @@ pub fn contract_report(
         proof,
         unknowns,
         hidden,
-        expand: vec![
-            format!("codemap cone {}", shell_quote(&rel)),
-            format!("codemap impact --files {}", shell_quote(&rel)),
-        ],
+        expand: contract_expands(project, &rel),
     }
+}
+
+pub(crate) fn contract_neighborhood_edges(
+    project: &Project,
+    rel: &str,
+) -> Vec<crate::model::StructuralEdge> {
+    lineage::contract_lineage(project, rel).edges
+}
+
+fn contract_expands(project: &Project, rel: &str) -> Vec<String> {
+    let mut expands = project
+        .files
+        .get(rel)
+        .into_iter()
+        .flat_map(|file| &file.exports)
+        .filter(|name| {
+            project
+                .files
+                .values()
+                .filter(|candidate| candidate.symbols.iter().any(|symbol| symbol.name == **name))
+                .take(2)
+                .count()
+                > 1
+        })
+        .take(2)
+        .map(|name| format!("codemap where {}", shell_quote(name)))
+        .collect::<Vec<_>>();
+    expands.extend([
+        format!("codemap cone {}", shell_quote(rel)),
+        format!("codemap impact --files {}", shell_quote(rel)),
+    ]);
+    expands
 }

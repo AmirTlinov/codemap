@@ -5,15 +5,14 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
 from codemap_identity import benchmark_binary_identity, command_artifacts
-from flagship_acceptance import INFRASTRUCTURE_FAILURES, evaluate
-from flagship_manifest import command_version, freeze_corpus, load_frozen, read_jsonl
+from flagship_acceptance import evaluate
+from flagship_manifest import command_version, freeze_corpus, load_frozen
 from flagship_trajectory import analyze_trajectories
 
 
@@ -52,59 +51,6 @@ def _benchmark_command(args: argparse.Namespace, manifest: dict[str, Any]) -> li
     return command
 
 
-def _infrastructure_failures(run_dir: Path) -> dict[tuple[str, int, str], dict[str, Any]]:
-    results = run_dir / "results.jsonl"
-    if not results.is_file():
-        return {}
-    failures = {}
-    for row in read_jsonl(results):
-        timed_out_verifier = any(item.get("timed_out") is True for item in row.get("verifiers", []))
-        if row.get("invalidation_reason") in INFRASTRUCTURE_FAILURES or timed_out_verifier:
-            failures[(row["task_id"], row["repetition"], row["arm"])] = row
-    return failures
-
-
-def _retry_infrastructure(
-    command: list[str], run_dir: Path, failures: dict[tuple[str, int, str], dict[str, Any]]
-) -> int:
-    attempts = run_dir / "infrastructure-attempts"
-    attempts.mkdir(exist_ok=True)
-    receipts = {}
-    for key, row in failures.items():
-        artifact = Path(row["codex"]["last_message_artifact"]).parent
-        target = attempts / f"{artifact.name}-attempt-1"
-        if target.exists():
-            raise ValueError(f"infrastructure attempt already exists: {target}")
-        shutil.move(str(artifact), target)
-        receipts[key] = {
-            "attempt": 1,
-            "reason": row.get("invalidation_reason") or "verifier_infrastructure_failure",
-            "artifact_dir": str(target),
-        }
-    retry = [*command]
-    if "--resume" not in retry:
-        retry.append("--resume")
-    status = subprocess.run(retry, cwd=ROOT, check=False).returncode
-    results_path = run_dir / "results.jsonl"
-    if not results_path.is_file():
-        return status
-    rows = read_jsonl(results_path)
-    for row in rows:
-        key = (row["task_id"], row["repetition"], row["arm"])
-        if key not in receipts:
-            continue
-        row["infrastructure_attempts"] = [receipts[key]]
-        if any(item.get("timed_out") is True for item in row.get("verifiers", [])):
-            row["run_valid"] = False
-            row["invalidation_reason"] = "verifier_infrastructure_failure"
-        result_path = Path(row["codex"]["last_message_artifact"]).parent / "result.json"
-        result_path.write_text(json.dumps(row, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    results_path.write_text(
-        "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n", encoding="utf-8"
-    )
-    return status
-
-
 def _verify_frozen_tools(manifest: dict[str, Any]) -> None:
     codex = manifest["codex"]["command_argv"]
     if command_version(codex) != manifest["codex"]["version"]:
@@ -124,12 +70,7 @@ def run(args: argparse.Namespace) -> int:
     manifest, _ = load_frozen(manifest_path)
     _verify_frozen_tools(manifest)
     command = _benchmark_command(args, manifest)
-    status = subprocess.run(command, cwd=ROOT, check=False).returncode
-    run_dir = Path(args.out_dir).resolve()
-    failures = _infrastructure_failures(run_dir)
-    if failures:
-        status = _retry_infrastructure(command, run_dir, failures)
-    return status
+    return subprocess.run(command, cwd=ROOT, check=False).returncode
 
 
 def parser() -> argparse.ArgumentParser:

@@ -6,8 +6,13 @@ implementation, and one exact/local control per repository.
 
 `materialize.py` creates clean repository snapshots, isolated exact-control
 mutations, hidden verifier overlays, a verification spec, and a runnable draft.
-Investigation answers are checked against frozen fact sets; implementation tasks
-use hidden tests and contract checks; exact controls verify the local byte change.
+Investigation reports are checked as source-backed claims with concrete `path:line`
+citations against frozen source bytes; an opened-file inventory does not score.
+The verifier checks frozen causal anchors and real citations, not prescribed prose.
+Required claims define the task's causal core; additional claims measure completeness.
+Implementation tasks use hidden tests and contract checks; exact controls verify the local byte change.
+An investigation prompt exposes one real runtime/file/symbol anchor, not the expected
+owner and proof vocabulary that its external verifier checks.
 
 ```bash
 python3 benchmarks/flagship/materialize.py \

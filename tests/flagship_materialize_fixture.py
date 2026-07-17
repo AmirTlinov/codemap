@@ -76,6 +76,7 @@ def main() -> int:
         task = json.loads((draft.parent / "tasks.jsonl").read_text(encoding="utf-8"))
         names = [criterion["name"] for criterion in task["verify"]]
         assert names == ["required", "regression", "provenance"]
+        assert all(criterion["command"][-1] == "{events}" for criterion in task["verify"])
         receipt = json.loads((draft.parent / "materialization-receipt.json").read_text())
         repositories = {row["repo_id"]: row for row in receipt["repositories"]}
         benchmark_commit = repositories["fixture"]["benchmark_commit"]

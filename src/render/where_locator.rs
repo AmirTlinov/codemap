@@ -161,6 +161,9 @@ fn render_where_consumer_preview(def: &WhereDefinition) {
 fn render_compact_definition(def: &WhereDefinition) {
     println!("- `{}`", def.anchor.path);
     let mut expands = std::collections::BTreeSet::new();
+    if let Some(expand) = def.expand.first() {
+        expands.insert(root_aware_expand(expand));
+    }
     for group in ["consumers", "incoming", "verification"] {
         let Some(horizon) = def
             .observations

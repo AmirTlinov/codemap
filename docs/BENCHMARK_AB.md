@@ -106,7 +106,9 @@ wrappers as argv arrays in the frozen manifest; shell command strings are not ac
 Treatment starts from the narrowest usable anchor named by the task: `codemap ls <scope>`
 for an exact file or directory, `codemap cone <file#symbol>` for an anchored symbol, or
 `codemap where <symbol>` when only the exact symbol name is known. It uses `codemap ls .`
-only when the scope is unknown. In `implementation` mode, either entry is followed by
+only when the scope is unknown. The agent inspects task-relevant direct links before searching
+beyond the map; another map is used only when it is an exact expand printed by the current map
+for still-relevant hidden or unknown evidence. In `implementation` mode, the navigation is followed by
 `codemap changed` and `codemap proof changed`. In `analysis` mode, an exact entry is
 sufficient; root orientation must be followed by another focused map. Any analytical
 repository change fails the outcome. Control has ordinary tools and blocks agent-attributed
@@ -131,6 +133,10 @@ base commit, composed arm prompt, protocol/parser and harness bytes, model, reas
 timeout, trial order, Codex version, arm, and verifier configuration produce the same
 fingerprint. Codemap command artifacts and the full benchmark identity also participate,
 so replacing a wrapper or binary without changing its version invalidates the old trial.
+An agent crash, agent timeout, or verifier timeout is retried exactly once with that
+fingerprint. The first raw attempt moves to `attempts/attempt-1`; the second attempt stays
+at the trial root and links the preserved result. A normal verifier failure or invalid
+arm protocol is product evidence and is never retried as infrastructure.
 
 For the frozen 72-run corpus, `scripts/benchmark-codemap-flagship.py evaluate` runs the
 same frozen Codex identity as the single trajectory analyst and writes 36 causal reports
@@ -229,9 +235,15 @@ implementation, and one exact/local control: 18 tasks total. Two counterbalanced
 repetitions produce 36 pairs and 72 agent runs.
 
 Each task declares executable deterministic verifiers. Investigation verifiers check
-pre-registered repository facts, implementation verifiers run hidden tests or contract
-checks, and exact controls check their local outcome. Response length, model self-report,
-and another model's opinion are not evidence.
+source-backed claims and concrete `path:line` citations against frozen repository bytes;
+they do not match prescribed report wording, and an opened-file inventory does not score.
+Implementation verifiers run hidden tests or
+contract checks, and exact controls check their local outcome. Response length, model
+self-report, and another model's opinion are not evidence.
+
+Each investigation prompt names one real runtime, file, or symbol anchor and asks a
+behavioral question. It does not enumerate the expected owners, proof files, or chain
+vocabulary; those remain hidden verifier claims rather than hints available to either arm.
 
 ```bash
 python3 benchmarks/flagship/materialize.py \

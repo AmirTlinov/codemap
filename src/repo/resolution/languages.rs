@@ -207,7 +207,9 @@ fn rust_crate_src_dir(from: &str, packages: &[PackageInfo]) -> String {
 }
 
 fn resolve_rust_include_path(from: &str, spec: &str, paths: &BTreeSet<String>) -> Option<String> {
-    if !spec.ends_with(".rs") {
+    if spec.contains("::")
+        || (!spec.ends_with(".rs") && !spec.contains('/') && Path::new(spec).extension().is_none())
+    {
         return None;
     }
     let base_dir = Path::new(from).parent().unwrap_or_else(|| Path::new("."));

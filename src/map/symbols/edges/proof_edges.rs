@@ -5,9 +5,9 @@ use crate::map::{
     BarrelResolutionCache, file_imported_symbol_reference_kind,
     file_imported_symbol_reference_with_cache, first_identifier_reference_location,
     matching_symbols, same_scope_file_references_symbol, semantic_name_terms, semantic_path_terms,
-    sort_edges, split_symbol_anchor, static_expression_reference_location,
-    strict_test_edges_for_file, structural_edge_with_locations, surface_phrase_terms,
-    symbol_anchor_path, test_surface_terms,
+    sort_edges, split_symbol_anchor, static_cli_command_consumer_edges,
+    static_expression_reference_location, strict_test_edges_for_file,
+    structural_edge_with_locations, surface_phrase_terms, symbol_anchor_path, test_surface_terms,
 };
 use crate::model::{EvidenceStrength, Project, StructuralEdge};
 use std::collections::BTreeSet;
@@ -89,6 +89,13 @@ pub(crate) fn symbol_verification_edges_with_owning_file(
 ) -> Vec<StructuralEdge> {
     let mut edges = symbol_proof_edges_with_owning_file(project, file_rel, symbol_name, limit);
     edges.extend(symbol_test_support_edges(project, file_rel, symbol_name));
+    if let Some(source) = project.files.get(file_rel) {
+        edges.extend(static_cli_command_consumer_edges(
+            project,
+            source,
+            symbol_name,
+        ));
+    }
     sort_edges(&mut edges);
     edges.dedup_by(|a, b| {
         a.from == b.from && a.to == b.to && a.edge_type == b.edge_type && a.evidence == b.evidence

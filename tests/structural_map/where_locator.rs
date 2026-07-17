@@ -35,6 +35,22 @@ fn where_single_definition_is_cone_equivalent() {
         markdown.contains("useReplay"),
         "single-def where must preserve the real consumer links: {markdown}"
     );
+
+    let cone = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "cone",
+            "packages/replay/src/session.ts#seek",
+            "--format",
+            "json",
+        ],
+    );
+    assert_eq!(
+        cone["expand"][0],
+        "codemap cone 'packages/replay/src/session.ts#seek' --depth 2",
+        "symbol expansion must preserve the symbol instead of widening to its whole file"
+    );
 }
 
 #[test]
