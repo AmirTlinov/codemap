@@ -32,6 +32,7 @@ from benchmark_attempts import (
     existing_trial,
     retry_infrastructure_failure,
 )
+import benchmark_codex_runtime as codex_runtime
 from benchmark_worktrees import add_worktree, remove_worktree
 from codemap_identity import CodemapIdentityError, benchmark_binary_identity, command_artifacts, resolve_codemap_command
 from codemap_protocol import codemap_protocol
@@ -471,6 +472,7 @@ def trial_fingerprint(
             "process_runner_sha256": hashlib.sha256(
                 Path(__file__).with_name("benchmark_parallel.py").read_bytes()
             ).hexdigest(),
+            "codex_runtime_sha256": codex_runtime.codex_runtime_sha256(),
             "model": args.model,
             "reasoning_effort": args.reasoning_effort,
             "timeout_seconds": args.timeout_seconds,
@@ -547,7 +549,7 @@ def run_trial(
             "--ephemeral",
             "--ignore-user-config",
             "--ignore-rules",
-            "--strict-config",
+            "--strict-config", *codex_runtime.codex_runtime_isolation_args(),
             "--color",
             "never",
             "--disable",
@@ -571,7 +573,9 @@ def run_trial(
             prompt,
         ]
         print(f"[ab] run {key} order={order} model={args.model}/{args.reasoning_effort}", file=sys.stderr)
-        codex = run_process(invocation, worktree, args.timeout_seconds, env=env)
+        with codex_runtime.isolated_codex_runtime(env) as runtime:
+            codex = run_process(invocation, worktree, args.timeout_seconds, env=runtime.env)
+            runtime_evidence = runtime.evidence()
         events_path.write_text(codex.stdout, encoding="utf-8")
         stderr_path.write_text(codex.stderr, encoding="utf-8")
         event_summary = parse_codex_events(codex.stdout)
@@ -639,6 +643,7 @@ def run_trial(
             "trial_fingerprint": fingerprint,
             "infrastructure_attempt": infrastructure_attempt,
             "prior_attempts": ["attempts/attempt-1/result.json"] if infrastructure_attempt == 2 else [],
+            "runtime": runtime_evidence,
             "codex": {
                 "status": codex.status,
                 "elapsed_ms": codex.elapsed_ms,

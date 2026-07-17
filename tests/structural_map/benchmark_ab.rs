@@ -227,6 +227,9 @@ raise SystemExit(0 if "README.md:1" in message else 1)
     assert_eq!(treatment["codemap_protocol"]["compliant"], false);
     assert_eq!(treatment["run_valid"], true);
     assert_eq!(treatment["outcome_passed"], true);
+    assert_eq!(treatment["runtime"]["codex_home"], "isolated");
+    assert_eq!(treatment["runtime"]["auth"], "linked");
+    assert_eq!(treatment["runtime"]["extensions"], "disabled");
     assert_eq!(treatment["report_prelude"]["codemap"], *summary_identity);
     assert_eq!(treatment["codex"]["usage"]["input_tokens"], 100);
     assert_eq!(control["completeness"]["passed_criteria"], 1);

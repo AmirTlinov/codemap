@@ -5,6 +5,8 @@ public JSON compatibility is governed separately by `docs/SCHEMA_POLICY.md`.
 
 ## Unreleased
 
+- Isolated every benchmark arm to an auth-only ephemeral Codex home so user skills,
+  plugins, MCP state, and cached instructions cannot become an unplanned arm input.
 - Replaced investigation chain hints with one concrete runtime/file/symbol anchor per task,
   keeping the expected owner and proof inventory solely in external verifiers.
 - Let treatment follow causal exact expands while relevant evidence remains hidden instead of
