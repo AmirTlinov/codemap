@@ -133,13 +133,13 @@
         },
         "fact-5": {
           "facts": [
-            "schemas/changed.schema.json"
+            "schemas/proof.schema.json"
           ],
           "kind": "facts"
         },
         "fact-6": {
           "facts": [
-            "tests/structural_map/changed_lens.rs"
+            "schemas/manifest.json"
           ],
           "kind": "facts"
         },
@@ -163,7 +163,7 @@
         },
         "fact-10": {
           "facts": [
-            "src/render/changed.rs"
+            "tests/structural_map/cache_lens_artifacts.rs"
           ],
           "kind": "facts"
         },
@@ -181,7 +181,7 @@
         },
         "fact-13": {
           "facts": [
-            "tests/structural_map/changed_proof_compact.rs"
+            "tests/structural_map/proof_markdown_compact.rs"
           ],
           "kind": "facts"
         },
@@ -194,7 +194,7 @@
       },
       "ecosystem": "rust",
       "id": "codemap-deterministic-investigation",
-      "prompt": "At the frozen commit, reconstruct the complete repository-file chain used by `codemap proof changed`: CLI dispatch and clean/dirty fast paths, changed/proof computation, cached handoff, public rendering/schema, and first-party structural and dogfood proof. Return every owner and proof file in that chain with compact adjacent connections and concrete line or symbol evidence. Do not modify files or substitute directories.",
+      "prompt": "At the frozen commit, reconstruct the complete repository-file chain used by `codemap proof changed`: CLI dispatch and clean/dirty fast paths, changed/proof computation, cached handoff, public rendering/schema, and first-party structural and dogfood proof. Return every owner and proof file in that chain with compact adjacent connections and concrete line or symbol evidence. Do not modify files or substitute directories. End with a newline-separated inventory that repeats every repository-relative file path in full; basename shorthand does not satisfy the machine check.",
       "repo_id": "codemap",
       "task_class": "investigation"
     },
@@ -365,7 +365,7 @@
       },
       "ecosystem": "typescript",
       "id": "main-cluster-deterministic-investigation",
-      "prompt": "At the frozen commit, reconstruct the complete release-prod production chain from request compatibility and artifact resolution through GitOps promotion, Argo convergence, live workload application, and the executable tests and receipt contract proving those transitions. Return every owner and proof file in that chain with compact adjacent connections and concrete line or symbol evidence. Do not modify files or substitute directories.",
+      "prompt": "At the frozen commit, reconstruct the complete release-prod production chain from request compatibility and artifact resolution through GitOps promotion, Argo convergence, live workload application, and the executable tests and receipt contract proving those transitions. Return every owner and proof file in that chain with compact adjacent connections and concrete line or symbol evidence. Do not modify files or substitute directories. End with a newline-separated inventory that repeats every repository-relative file path in full; basename shorthand does not satisfy the machine check.",
       "repo_id": "main-cluster",
       "task_class": "investigation"
     },
@@ -514,7 +514,7 @@
       },
       "ecosystem": "typescript",
       "id": "pabg-deterministic-investigation",
-      "prompt": "At the frozen commit, reconstruct the complete Chronicle replay path from route canonicalization through loading and verification, manifest/format contract, world authority, replay mount, platform API access, and route-authority proof. Return every owner and proof file in that chain with compact adjacent connections and concrete line or symbol evidence. Do not modify files or substitute directories.",
+      "prompt": "At the frozen commit, reconstruct the complete Chronicle replay path from route canonicalization through loading and verification, manifest/format contract, world authority, replay mount, platform API access, and route-authority proof. Return every owner and proof file in that chain with compact adjacent connections and concrete line or symbol evidence. Do not modify files or substitute directories. End with a newline-separated inventory that repeats every repository-relative file path in full; basename shorthand does not satisfy the machine check.",
       "repo_id": "pabg",
       "task_class": "investigation"
     },
@@ -732,7 +732,7 @@
       },
       "ecosystem": "python",
       "id": "browser-deterministic-investigation",
-      "prompt": "At the frozen commit, reconstruct the complete universal insertion path across adapter, clipboard/drop owners, Python RPC and CDP transport, extension manifest/service worker, offscreen document carrier, and focused first-party tests. Return every owner and proof file in that chain with compact adjacent connections and concrete line or symbol evidence. Do not modify files or substitute directories.",
+      "prompt": "At the frozen commit, reconstruct the complete universal insertion path across adapter, clipboard/drop owners, Python RPC and CDP transport, extension manifest/service worker, offscreen document carrier, and focused first-party tests. Return every owner and proof file in that chain with compact adjacent connections and concrete line or symbol evidence. Do not modify files or substitute directories. End with a newline-separated inventory that repeats every repository-relative file path in full; basename shorthand does not satisfy the machine check.",
       "repo_id": "browser",
       "task_class": "investigation"
     },
@@ -882,7 +882,7 @@
       },
       "ecosystem": "swift",
       "id": "openslop-deterministic-investigation",
-      "prompt": "At the frozen commit, reconstruct the complete streamed Codex transcript path across daemon route, provider runtime, session persistence, Swift transport and typed projections, timeline seed/view/root UI, architecture boundary, and live transcript witness. Return every owner and proof file in that chain with compact adjacent connections and concrete line or symbol evidence. Do not modify files or substitute directories.",
+      "prompt": "At the frozen commit, reconstruct the complete streamed Codex transcript path across daemon route, provider runtime, session persistence, Swift transport and typed projections, timeline seed/view/root UI, architecture boundary, and live transcript witness. Return every owner and proof file in that chain with compact adjacent connections and concrete line or symbol evidence. Do not modify files or substitute directories. End with a newline-separated inventory that repeats every repository-relative file path in full; basename shorthand does not satisfy the machine check.",
       "repo_id": "openslop",
       "task_class": "investigation"
     },
@@ -1038,7 +1038,7 @@
       },
       "ecosystem": "rust",
       "id": "ratio-deterministic-investigation",
-      "prompt": "At the frozen commit, reconstruct the complete actionwave-to-world-return path across CLI/export boundary, action runtime and output, record/ledger, feedback and interaction owners, resident action types, and focused continuation proofs. Return every owner and proof file in that chain with compact adjacent connections and concrete line or symbol evidence. Do not modify files or substitute directories.",
+      "prompt": "At the frozen commit, reconstruct the complete actionwave-to-world-return path across CLI/export boundary, action runtime and output, record/ledger, feedback and interaction owners, resident action types, and focused continuation proofs. Return every owner and proof file in that chain with compact adjacent connections and concrete line or symbol evidence. Do not modify files or substitute directories. End with a newline-separated inventory that repeats every repository-relative file path in full; basename shorthand does not satisfy the machine check.",
       "repo_id": "ratio",
       "task_class": "investigation"
     },

@@ -107,10 +107,12 @@ fn ab_treatment_prompt_keeps_navigation_proportionate() {
     let probe = r#"import json, pathlib, runpy, sys
 sys.path.insert(0, str(pathlib.Path(sys.argv[1]).parent))
 m = runpy.run_path(sys.argv[1])
+task = m["Task"]("exact", "implementation", pathlib.Path("."), "HEAD", "abc", "edit", [], "exact_control")
 print(json.dumps({
     "version": m["PROMPT_PROTOCOL_VERSION"],
     "implementation": m["ARM_PROMPTS"]["codemap"],
     "analysis": m["ANALYSIS_ARM_PROMPTS"]["codemap"],
+    "exact": m["task_prompt"](task, "codemap"),
 }))
 "#;
     let output = python()
@@ -123,7 +125,7 @@ print(json.dumps({
         String::from_utf8_lossy(&output.stderr)
     );
     let prompt: Value = serde_json::from_slice(&output.stdout).expect("prompt json");
-    assert_eq!(prompt["version"], 6);
+    assert_eq!(prompt["version"], 7);
     assert!(prompt["implementation"]
         .as_str()
         .unwrap()
@@ -132,6 +134,10 @@ print(json.dumps({
         .as_str()
         .unwrap()
         .contains("one exact printed expand"));
+    assert!(prompt["exact"]
+        .as_str()
+        .unwrap()
+        .contains("complete the declared literal one-file edit"));
 }
 
 #[test]

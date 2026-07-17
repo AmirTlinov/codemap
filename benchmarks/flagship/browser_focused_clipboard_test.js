@@ -111,9 +111,11 @@ function tabProvenance(result, expectedTab, expectedSource) {
       && sourceMatches(
         result.source,
         result.selectedBy,
+        result.selectedFrom,
         result.selectionSource,
         attempt?.source,
         attempt?.selectedBy,
+        attempt?.selectedFrom,
         attempt?.selectionSource,
       );
   }
@@ -122,7 +124,7 @@ function tabProvenance(result, expectedTab, expectedSource) {
     && String(value.tabId) === String(expectedTab)
     && Number(value.frameId) === 0
     && value.world === "ISOLATED"
-    && sourceMatches(value.source, value.selectedBy, value.selectionSource);
+    && sourceMatches(value.source, value.selectedBy, value.selectedFrom, value.selectionSource);
 }
 
 function topFrameCall(call, tabId) {

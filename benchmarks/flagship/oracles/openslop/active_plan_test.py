@@ -38,6 +38,18 @@ def selected_slice(value: dict[str, Any], expected_id: str | None) -> Any:
     raise KeyError("first non-done slice")
 
 
+def proof_artifacts(value: dict[str, Any]) -> dict[str, Any]:
+    grouped = value.get("proof", value.get("proofs"))
+    if isinstance(grouped, dict) and grouped:
+        return grouped
+    aliases = {
+        "status": value.get("statusProof", value.get("status_proof")),
+        "review": value.get("reviewProof", value.get("review_proof")),
+        "visual": value.get("visualProof", value.get("visual_proof")),
+    }
+    return {name: artifact for name, artifact in aliases.items() if isinstance(artifact, dict)}
+
+
 def roadmap_rows() -> list[tuple[str, str]]:
     rows = []
     header = False
@@ -70,7 +82,7 @@ def validate_projection(payload: dict[str, Any]) -> None:
     assert (active and active["id"]) == expected
     assert field(payload, "roadmapPath", "roadmap_path") == "ROADMAP.md"
 
-    proof = active.get("proof", active.get("proofs"))
+    proof = proof_artifacts(active)
     assert proof, active
     for artifact in proof.values():
         available = artifact.get(

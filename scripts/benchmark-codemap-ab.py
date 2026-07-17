@@ -39,7 +39,7 @@ ARMS = (ARM_CONTROL, ARM_TREATMENT)
 MODE_IMPLEMENTATION = "implementation"
 MODE_ANALYSIS = "analysis"
 TASK_MODES = (MODE_IMPLEMENTATION, MODE_ANALYSIS)
-PROMPT_PROTOCOL_VERSION = 6
+PROMPT_PROTOCOL_VERSION = 7
 
 COMMON_PROMPT = """You are completing one benchmark coding task in a disposable git worktree.
 Make the smallest complete implementation that satisfies the task. Work autonomously; do not ask
@@ -78,6 +78,11 @@ maps over already identified paths or repeat the investigation with broad scans.
 """,
 }
 
+EXACT_TREATMENT_PROMPT = """EXACT TASK CONTACT: complete the declared literal one-file edit in
+one shell call: narrow codemap entry, focused content check, literal edit, `codemap changed`,
+`codemap proof changed`, and exact diff/content verification. Do not repeat the entry or reopen the file.
+"""
+
 
 @dataclass(frozen=True)
 class Verifier:
@@ -98,6 +103,7 @@ class Task:
     base_commit: str
     prompt: str
     verifiers: list[Verifier]
+    task_class: str | None = None
 
 
 def canonical(path: Path) -> Path:
@@ -231,6 +237,8 @@ def load_tasks(path: Path, default_verifier_timeout: int) -> list[Task]:
                 )
             )
 
+        benchmark = raw.get("benchmark")
+        task_class = benchmark.get("task_class") if isinstance(benchmark, dict) else None
         tasks.append(
             Task(
                 task_id=task_id,
@@ -240,6 +248,7 @@ def load_tasks(path: Path, default_verifier_timeout: int) -> list[Task]:
                 base_commit=base_commit,
                 prompt=prompt.strip(),
                 verifiers=verifiers,
+                task_class=task_class,
             )
         )
         seen.add(task_id)
@@ -260,6 +269,8 @@ def task_prompt(task: Task, arm: str) -> str:
     else:
         common = COMMON_PROMPT
         arm_prompt = ARM_PROMPTS[arm]
+        if arm == ARM_TREATMENT and task.task_class == "exact_control":
+            arm_prompt += EXACT_TREATMENT_PROMPT
     return f"{common}\n{arm_prompt}\nTASK (identical in both arms):\n{task.prompt}\n"
 
 
@@ -430,6 +441,7 @@ def trial_fingerprint(
         {
             "task_id": task.task_id,
             "mode": task.mode,
+            "task_class": task.task_class,
             "repo": str(task.repo),
             "base_commit": base_commit,
             "task_prompt": task.prompt,
