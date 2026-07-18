@@ -107,12 +107,13 @@ function tabProvenance(result, expectedTab, expectedSource) {
   }
   if (result.context === "tab") {
     const attempt = attempts(result).find((row) => row?.context === "tab");
-    return String(result.tabId ?? result.selectedTabId) === String(expectedTab)
+    return String(result.tabId ?? result.selectedTabId ?? result.selectedTab?.tabId) === String(expectedTab)
       && isTopFrame(result)
-      && result.world === "ISOLATED"
+      && carrierWorld(result) === "ISOLATED"
       && sourceMatches(
         result.source,
         result.selectedTabSource,
+        result.selectedTab?.source,
         result.selectedBy,
         result.selectedFrom,
         result.selectionSource,
@@ -126,12 +127,13 @@ function tabProvenance(result, expectedTab, expectedSource) {
   }
   const value = typeof result.context === "object" ? result.context : result;
   return value && (value.kind === "tab" || value.type === "tab" || value.carrier === "tab")
-    && String(value.tabId ?? value.selectedTabId) === String(expectedTab)
+    && String(value.tabId ?? value.selectedTabId ?? value.selectedTab?.tabId) === String(expectedTab)
     && isTopFrame(value)
-    && value.world === "ISOLATED"
+    && carrierWorld(value) === "ISOLATED"
     && sourceMatches(
       value.source,
       value.selectedTabSource,
+      value.selectedTab?.source,
       value.selectedBy,
       value.selectedFrom,
       value.selectionSource,
@@ -140,10 +142,15 @@ function tabProvenance(result, expectedTab, expectedSource) {
 }
 
 function isTopFrame(value) {
-  return Number(value?.frameId) === 0
-    || (Array.isArray(value?.frameIds)
-      && value.frameIds.length === 1
-      && Number(value.frameIds[0]) === 0);
+  return [value, value?.carrierDetails].some((candidate) =>
+    Number(candidate?.frameId) === 0
+      || (Array.isArray(candidate?.frameIds)
+        && candidate.frameIds.length === 1
+        && Number(candidate.frameIds[0]) === 0));
+}
+
+function carrierWorld(value) {
+  return value?.world ?? value?.carrierDetails?.world;
 }
 
 function topFrameCall(call, tabId) {
