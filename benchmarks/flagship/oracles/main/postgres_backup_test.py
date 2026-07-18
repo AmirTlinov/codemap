@@ -10,7 +10,14 @@ from pathlib import Path
 from typing import Any
 
 
-ROOT = Path(__file__).resolve().parents[4]
+def repository_root(path: Path) -> Path:
+    for parent in path.parents:
+        if (parent / "scripts/ops/ci/yaml_loader.py").is_file():
+            return parent
+    raise RuntimeError(f"cannot locate repository root from {path}")
+
+
+ROOT = repository_root(Path(__file__).resolve())
 sys.path.insert(0, str(ROOT / "scripts/ops/ci"))
 from yaml_loader import load_all_yaml  # noqa: E402
 
@@ -41,6 +48,15 @@ def pod_script(cronjob: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, 
 def remote_copy_count(script: str) -> int:
     aws = re.findall(r"(?:^|[\s;])(?:[^\s;]*/)?aws\b[^\n;&|]*\bs3\s+cp\b", script)
     return len(aws) + script.count("mc cp") + script.count("rclone copy")
+
+
+def has_checksum_comparison(script: str) -> bool:
+    checksum_check = re.search(
+        r"\b(?:sha256sum|shasum)\b[^\n;&|]*(?:\s-c(?:\s|$)|\s--check(?:\s|$))",
+        script,
+    )
+    shell_compare = any(word in script for word in ("test ", "cmp ", "diff ", "if ["))
+    return checksum_check is not None or shell_compare
 
 
 def selector_matches(selector: dict[str, Any], labels: dict[str, Any]) -> bool:
@@ -109,7 +125,10 @@ class PostgresBackupTest(unittest.TestCase):
         )
         self.assertTrue(readback, "backup must upload and independently read back")
         self.assertGreaterEqual(script.count("sha256sum"), 2)
-        self.assertTrue(any(word in script for word in ("test ", "cmp ", "diff ", "if [")))
+        self.assertTrue(
+            has_checksum_comparison(script),
+            "the readback checksum must be compared by a failing check command",
+        )
         self.assertTrue(all("@sha256:" in item.get("image", "") for item in self.containers))
         self.assertTrue(truth(self.cronjob["spec"].get("suspend", "false")) is False)
 

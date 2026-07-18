@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import json
+import importlib.util
 import subprocess
+import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -97,6 +99,38 @@ def main() -> int:
     }
     assert "crates/ratiotissue-cli/src/continuation/feedback.rs" not in ratio_paths
     assert "what world operation actually occurs" in ratio["prompt"]
+
+    implementations = {
+        task["id"]: task
+        for task in blueprint["tasks"]
+        if task["task_class"] == "implementation"
+    }
+    assert "chrome.scripting.executeScript" in implementations["browser-focused-clipboard"][
+        "prompt"
+    ]
+    assert "frameIds: [0]" in implementations["browser-focused-clipboard"]["prompt"]
+    assert "nested `counts` object" in implementations["openslop-active-plan"]["prompt"]
+
+    with tempfile.TemporaryDirectory(prefix="codemap-postgres-oracle-") as raw:
+        oracle_root = Path(raw)
+        oracle_path = oracle_root / "deploy/k8s/base/backup/flagship_postgres_backup_test.py"
+        oracle_path.parent.mkdir(parents=True)
+        shutil.copy2(
+            ROOT / "benchmarks/flagship/oracles/main/postgres_backup_test.py",
+            oracle_path,
+        )
+        yaml_loader = oracle_root / "scripts/ops/ci/yaml_loader.py"
+        yaml_loader.parent.mkdir(parents=True)
+        yaml_loader.write_text("def load_all_yaml(path): return []\n", encoding="utf-8")
+        oracle_spec = importlib.util.spec_from_file_location(
+            "postgres_backup_oracle", oracle_path
+        )
+        assert oracle_spec is not None and oracle_spec.loader is not None
+        oracle = importlib.util.module_from_spec(oracle_spec)
+        oracle_spec.loader.exec_module(oracle)
+        assert oracle.has_checksum_comparison("expected | sha256sum -c -")
+        assert oracle.has_checksum_comparison('test "$expected" = "$actual"')
+        assert not oracle.has_checksum_comparison("sha256sum backup.sql.gz")
 
     with tempfile.TemporaryDirectory(prefix="codemap-source-claim-verifier-") as raw:
         root = Path(raw)

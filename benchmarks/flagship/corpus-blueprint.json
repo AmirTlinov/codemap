@@ -1134,7 +1134,7 @@
           "path": ".flagship/browser_focused_clipboard_test.js"
         }
       ],
-      "prompt": "Update `vendor/browser_extension/service_worker.js#dispatchRpc` so `clipboard.write` and `clipboard.writeSvg` first attempt a bounded write in the explicitly requested or focused tab, using the isolated top frame and preserving tab/context provenance, including whether selection came from the explicit request or focused state. If that fails, fall back to the existing offscreen carrier and report both attempted contexts or combined errors. Keep the extension kill switch and existing RPC behavior intact.",
+      "prompt": "Update `vendor/browser_extension/service_worker.js#dispatchRpc` so `clipboard.write` and `clipboard.writeSvg` first attempt a bounded write in the explicitly requested or focused tab through `chrome.scripting.executeScript`, targeting only `frameIds: [0]` with `world: \"ISOLATED\"`. Preserve tab/context provenance, including whether selection came from the explicit request or focused state. If that fails, fall back to the existing offscreen carrier and report both attempted contexts or combined errors. Keep the extension kill switch and existing RPC behavior intact.",
       "repo_id": "browser",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -1378,7 +1378,7 @@
           "path": ".flagship/active_plan_test.py"
         }
       ],
-      "prompt": "Add an active-plan projection rooted in `ROADMAP.md`: a workspace-domain owner must parse slice rows, materialize STATUS/REVIEW/VISUAL proof state, count done/active/planned/blocked slices, and select the first non-done slice. When the roadmap is absent or has no slice rows, the CLI process must fail closed with a non-zero exit. All emitted repository paths must be deterministic and repository-relative. Expose the same typed projection through core-daemon CLI/stdio, WorkbenchCore, the inspector UI, and runnable Make/Swift probes.",
+      "prompt": "Add an active-plan projection rooted in `ROADMAP.md`: a workspace-domain owner must parse slice rows, materialize STATUS/REVIEW/VISUAL proof state, emit a nested `counts` object with `done`, `active`, `planned`, and `blocked`, and select the first non-done slice. When the roadmap is absent or has no slice rows, the CLI process must fail closed with a non-zero exit. All emitted repository paths must be deterministic and repository-relative. Expose the same typed projection through core-daemon CLI/stdio, WorkbenchCore, the inspector UI, and runnable Make/Swift probes.",
       "repo_id": "openslop",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200

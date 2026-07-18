@@ -106,7 +106,7 @@ function tabProvenance(result, expectedTab, expectedSource) {
   if (result.context === "tab") {
     const attempt = attempts(result).find((row) => row?.context === "tab");
     return String(result.tabId) === String(expectedTab)
-      && Number(result.frameId) === 0
+      && isTopFrame(result)
       && result.world === "ISOLATED"
       && sourceMatches(
         result.source,
@@ -122,9 +122,16 @@ function tabProvenance(result, expectedTab, expectedSource) {
   const value = result.context;
   return value && (value.kind === "tab" || value.type === "tab" || value.carrier === "tab")
     && String(value.tabId) === String(expectedTab)
-    && Number(value.frameId) === 0
+    && isTopFrame(value)
     && value.world === "ISOLATED"
     && sourceMatches(value.source, value.selectedBy, value.selectedFrom, value.selectionSource);
+}
+
+function isTopFrame(value) {
+  return Number(value?.frameId) === 0
+    || (Array.isArray(value?.frameIds)
+      && value.frameIds.length === 1
+      && Number(value.frameIds[0]) === 0);
 }
 
 function topFrameCall(call, tabId) {
