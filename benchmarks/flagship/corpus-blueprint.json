@@ -888,6 +888,10 @@
       "id": "pabg-global-text-chat",
       "overlays": [
         {
+          "artifact": "oracles/pabg/character_sheets_fixture.ts",
+          "path": "apps/web/src/lib/character-sheets.ts"
+        },
+        {
           "artifact": "oracles/pabg/flagship_text_chat.test.ts",
           "path": "apps/ws/src/flagship_text_chat.test.ts"
         },
