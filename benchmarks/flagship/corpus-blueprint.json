@@ -736,7 +736,6 @@
           ],
           "citations": [
             "apps/web/src/lib/replay/loader.ts",
-            "apps/web/src/lib/replay-verify.ts",
             "apps/web/src/lib/replay/package-dir.ts"
           ],
           "required": true

@@ -105,6 +105,12 @@ def main() -> int:
     assert pabg_investigation["criteria"]["assembled-package-boundary"]["citations"] == [
         "apps/web/src/lib/replay/package-dir.ts"
     ]
+    assert pabg_investigation["criteria"]["live-integrity-and-materialization"][
+        "citations"
+    ] == [
+        "apps/web/src/lib/replay/loader.ts",
+        "apps/web/src/lib/replay/package-dir.ts",
+    ]
     assert pabg_investigation["criteria"]["policy-boundary"]["citations"] == [
         "apps/web/src/lib/replay/loader.ts"
     ]
