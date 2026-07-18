@@ -35,6 +35,16 @@ fn symbol_owning_file_proof_does_not_inherit_consumer_tests_for_sibling_symbol()
         &repo.path().join("packages/app/src/panel-actions.ts"),
         "export function openCartPanel() {\n  return 'open';\n}\n\nexport function closeCartPanel() {\n  return 'close';\n}\n",
     );
+    write(
+        &repo.path().join("packages/app/src/runtime/paths.ts"),
+        "export function runtimeRoutePathAnalysis() {\n  return 'runtime-path';\n}\n",
+    );
+    write(
+        &repo
+            .path()
+            .join("packages/app/tests/runtime-transform-paths.test.ts"),
+        "test('runtime transform paths preserve route analysis', () => {\n  expect('runtime path').toContain('path');\n});\n",
+    );
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["commit", "-qm", "sibling consumer proof"]);
 
@@ -174,6 +184,57 @@ fn symbol_owning_file_proof_does_not_inherit_consumer_tests_for_sibling_symbol()
         "symbol cone must use the same sibling-unique guard as proof: {close_panel_action_cone:#}"
     );
 
+    let runtime_cone = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "cone",
+            "packages/app/src/runtime/paths.ts#runtimeRoutePathAnalysis",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/cone.schema.json", &runtime_cone);
+    assert!(
+        runtime_cone["proof"]
+            .as_array()
+            .expect("runtime cone proof")
+            .iter()
+            .any(|edge| {
+                edge["from"] == "packages/app/tests/runtime-transform-paths.test.ts"
+                    && edge["evidence"] == "test_surface_tokens_owning_file"
+                    && edge["strength"] == "medium"
+            }),
+        "exact symbol cone should retain one soft owning-file behavioral surface: {runtime_cone:#}"
+    );
+    let runtime_proof = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "proof",
+            "packages/app/src/runtime/paths.ts#runtimeRoutePathAnalysis",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/proof.schema.json", &runtime_proof);
+    assert!(
+        runtime_proof["proofs"]
+            .as_array()
+            .expect("runtime proofs")
+            .iter()
+            .all(|surface| surface["path"] != "packages/app/tests/runtime-transform-paths.test.ts"),
+        "a soft owning-file cone hint must not become exact symbol proof: {runtime_proof:#}"
+    );
+    assert!(
+        runtime_proof["unknowns"]
+            .as_array()
+            .expect("runtime unknowns")
+            .iter()
+            .any(|unknown| unknown["kind"] == "direct_test_import_not_found"),
+        "the missing exact proof boundary must remain explicit: {runtime_proof:#}"
+    );
+
     let open_panel_action_proof = run_json(
         repo.path(),
         cache.path(),
@@ -198,4 +259,3 @@ fn symbol_owning_file_proof_does_not_inherit_consumer_tests_for_sibling_symbol()
         "owning-file fallback may use e2e path surfaces when they contain a term unique to this sibling export: {open_panel_action_proof:#}"
     );
 }
-

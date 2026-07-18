@@ -4,10 +4,11 @@ use crate::evidence::import_statement_locations;
 use crate::map::{
     BarrelResolutionCache, file_imported_symbol_reference_kind,
     file_imported_symbol_reference_with_cache, first_identifier_reference_location,
-    matching_symbols, same_scope_file_references_symbol, semantic_name_terms, semantic_path_terms,
-    sort_edges, split_symbol_anchor, static_cli_command_consumer_edges,
-    static_expression_reference_location, strict_test_edges_for_file,
-    structural_edge_with_locations, surface_phrase_terms, symbol_anchor_path, test_surface_terms,
+    matching_symbols, proof_surface_locations_for_target, same_scope_file_references_symbol,
+    semantic_name_terms, semantic_path_terms, sort_edges, split_symbol_anchor,
+    static_cli_command_consumer_edges, static_expression_reference_location,
+    strict_test_edges_for_file, structural_edge_with_locations, surface_phrase_terms,
+    symbol_anchor_path, test_surface_terms,
 };
 use crate::model::{EvidenceStrength, Project, StructuralEdge};
 use std::collections::BTreeSet;
@@ -88,6 +89,14 @@ pub(crate) fn symbol_verification_edges_with_owning_file(
     limit: usize,
 ) -> Vec<StructuralEdge> {
     let mut edges = symbol_proof_edges_with_owning_file(project, file_rel, symbol_name, limit);
+    if edges.is_empty() {
+        edges.extend(symbol_owning_file_soft_edges(
+            project,
+            file_rel,
+            symbol_name,
+            limit.min(1),
+        ));
+    }
     edges.extend(symbol_test_support_edges(project, file_rel, symbol_name));
     if let Some(source) = project.files.get(file_rel) {
         edges.extend(static_cli_command_consumer_edges(
@@ -101,6 +110,37 @@ pub(crate) fn symbol_verification_edges_with_owning_file(
         a.from == b.from && a.to == b.to && a.edge_type == b.edge_type && a.evidence == b.evidence
     });
     edges
+}
+
+fn symbol_owning_file_soft_edges(
+    project: &Project,
+    file_rel: &str,
+    symbol_name: &str,
+    limit: usize,
+) -> Vec<StructuralEdge> {
+    let Some(anchor) = project.files.get(file_rel) else {
+        return Vec::new();
+    };
+    if matching_symbols(anchor, symbol_name).is_empty() {
+        return Vec::new();
+    }
+    let anchor_path = symbol_anchor_path(file_rel, symbol_name);
+    strict_test_edges_for_file(project, file_rel, usize::MAX)
+        .into_iter()
+        .filter(|(_, evidence, _)| evidence == "test_surface_tokens")
+        .take(limit)
+        .map(|(test, evidence, strength)| {
+            let locations = proof_surface_locations_for_target(project, file_rel, &test, &evidence);
+            structural_edge_with_locations(
+                test,
+                anchor_path.clone(),
+                "tests",
+                format!("{evidence}_owning_file"),
+                strength.min(EvidenceStrength::Medium),
+                locations,
+            )
+        })
+        .collect()
 }
 
 fn symbol_test_support_edges(

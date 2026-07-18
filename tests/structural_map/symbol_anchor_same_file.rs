@@ -240,3 +240,51 @@ fn symbol_anchor_cone_links_same_file_symbol_body_uses() {
         );
     }
 }
+
+#[test]
+fn symbol_cone_retains_split_implementation_reached_through_local_helpers() {
+    let repo = TempDir::new().expect("repo tempdir");
+    let cache = TempDir::new().expect("cache tempdir");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("Cargo.toml"),
+        "[package]\nname = \"split-owner\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    );
+    write(
+        &repo.path().join("src/runtime.rs"),
+        "mod classify;\nuse self::classify::classify_route;\n\npub fn analyze_route() {\n    trace_route();\n}\n\nfn trace_route() {\n    classify_route();\n}\n",
+    );
+    write(
+        &repo.path().join("src/runtime/classify.rs"),
+        "pub(super) fn classify_route() { }\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "split implementation owner"]);
+
+    let cone = run_json(
+        repo.path(),
+        cache.path(),
+        &[
+            "cone",
+            "src/runtime.rs#analyze_route",
+            "--format",
+            "json",
+        ],
+    );
+    assert_schema("schemas/cone.schema.json", &cone);
+    assert!(
+        cone["outgoing"]
+            .as_array()
+            .expect("outgoing")
+            .iter()
+            .any(|edge| {
+                edge["from"] == "src/runtime.rs#analyze_route"
+                    && edge["to"] == "src/runtime/classify.rs#classify_route"
+                    && edge["evidence"] == "imported_symbol_in_symbol_body_via_local_helper"
+                    && edge["strength"] == "medium"
+            }),
+        "the exact cone should retain a split implementation owner behind a local coordinator: {cone:#}"
+    );
+}

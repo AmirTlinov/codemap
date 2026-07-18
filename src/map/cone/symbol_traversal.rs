@@ -1,7 +1,11 @@
 // Responsibility: symbol-cone-cross-file-traversal
-use crate::map::{matching_symbols, shell_quote, sort_edges, symbol_outgoing_edges};
-use crate::model::{Project, StructuralEdge};
+use crate::map::{
+    matching_symbols, shell_quote, sort_edges, structural_edge_with_locations, symbol_anchor_path,
+    symbol_outgoing_edges,
+};
+use crate::model::{EvidenceStrength, Project, StructuralEdge};
 use std::collections::{BTreeSet, VecDeque};
+use std::path::Path;
 
 pub(crate) fn symbol_cone_outgoing_edges(
     project: &Project,
@@ -36,6 +40,13 @@ pub(crate) fn symbol_cone_outgoing_edges(
         }
         edges.extend(next);
     }
+    if max_depth <= 1 {
+        edges.extend(local_helper_implementation_edges(
+            project,
+            file_rel,
+            symbol_name,
+        ));
+    }
     sort_edges(&mut edges);
     edges.dedup_by(|left, right| {
         left.from == right.from
@@ -44,6 +55,61 @@ pub(crate) fn symbol_cone_outgoing_edges(
             && left.evidence == right.evidence
     });
     edges
+}
+
+fn local_helper_implementation_edges(
+    project: &Project,
+    file_rel: &str,
+    symbol_name: &str,
+) -> Vec<StructuralEdge> {
+    let source = symbol_anchor_path(file_rel, symbol_name);
+    let mut queue = VecDeque::from([symbol_name.to_string()]);
+    let mut seen = BTreeSet::new();
+    let mut out = Vec::new();
+    while let Some(symbol) = queue.pop_front() {
+        if seen.len() >= 16 || !seen.insert(symbol.clone()) {
+            continue;
+        }
+        let Some(info) = project.files.get(file_rel) else {
+            break;
+        };
+        for edge in symbol_outgoing_edges(project, info, &symbol) {
+            let Some((target_file, target_symbol)) = edge.to.rsplit_once('#') else {
+                continue;
+            };
+            if target_file == file_rel {
+                if !seen.contains(target_symbol) {
+                    queue.push_back(target_symbol.to_string());
+                }
+                continue;
+            }
+            if !split_implementation_file(file_rel, target_file) {
+                continue;
+            }
+            out.push(structural_edge_with_locations(
+                source.clone(),
+                edge.to,
+                "symbol_uses",
+                format!("{}_via_local_helper", edge.evidence),
+                edge.strength.min(EvidenceStrength::Medium),
+                edge.locations,
+            ));
+        }
+    }
+    sort_edges(&mut out);
+    out.truncate(6);
+    out
+}
+
+fn split_implementation_file(anchor_file: &str, target_file: &str) -> bool {
+    let anchor = Path::new(anchor_file);
+    if anchor.extension().and_then(|value| value.to_str()) != Some("rs")
+        || anchor.file_stem().and_then(|value| value.to_str()) == Some("mod")
+    {
+        return false;
+    }
+    let implementation_dir = anchor.with_extension("");
+    Path::new(target_file).starts_with(implementation_dir)
 }
 
 pub(crate) fn symbol_cone_expands(
