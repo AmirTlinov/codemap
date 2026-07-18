@@ -65,10 +65,11 @@ Choose **one** entry proportional to what the task already names:
 ```bash
 codemap where <exact-symbol>
 codemap cone <file-or-file#symbol> --depth 1
-codemap ls <file-or-directory>
+codemap ls <directory>
 ```
 
-Use root orientation only when the relevant scope is unknown:
+Preserve an exact task-named file instead of widening to its parent directory. Use
+root orientation only when the relevant scope is unknown:
 
 ```bash
 codemap ls .

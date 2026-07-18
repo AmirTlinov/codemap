@@ -45,7 +45,7 @@ ARMS = (ARM_CONTROL, ARM_TREATMENT)
 MODE_IMPLEMENTATION = "implementation"
 MODE_ANALYSIS = "analysis"
 TASK_MODES = (MODE_IMPLEMENTATION, MODE_ANALYSIS)
-PROMPT_PROTOCOL_VERSION = 11
+PROMPT_PROTOCOL_VERSION = 12
 
 COMMON_PROMPT = """You are completing one benchmark coding task in a disposable git worktree.
 Make the smallest complete implementation that satisfies the task. Work autonomously; do not ask
@@ -64,8 +64,8 @@ ARM_PROMPTS = {
 ordinary repository tools only.
 """,
     ARM_TREATMENT: """CODEMAP TREATMENT ARM: use one proportionate codemap entry before ordinary
-inspection: the narrowest applicable `codemap ls <scope>`, `codemap cone <file#symbol>`, or
-`codemap where <symbol>`. Combine that entry with the first focused read in one shell call. Use
+inspection: `codemap cone <file-or-file#symbol>` for an exact task-named file; `codemap where <symbol>`
+when only a symbol is known; or `codemap ls <directory>` for a named directory. Never widen a task-named file to its parent directory. Combine that entry with the first focused read. Use
 `codemap ls .` only when scope is unknown. Inspect task-relevant direct links before searching
 beyond the map. Follow an exact expand printed by the current map only while it marks task-relevant
 evidence hidden or unknown; each further map must be the exact expand printed by the immediately
@@ -78,8 +78,8 @@ ANALYSIS_ARM_PROMPTS = {
     ARM_CONTROL: """CONTROL ARM: codemap is unavailable. Do not attempt to use it. Navigate with
 ordinary read-only repository tools only.
 """,
-    ARM_TREATMENT: """CODEMAP TREATMENT ARM: begin with one proportionate structural map: the
-narrowest applicable `codemap ls <scope>`, `codemap cone <file#symbol>`, or `codemap where <symbol>`.
+    ARM_TREATMENT: """CODEMAP TREATMENT ARM: begin with one proportionate structural map: use `codemap
+cone <file-or-file#symbol>` for an exact task-named file; `codemap where <symbol>` when only a symbol is known; or `codemap ls <directory>` for a named directory. Never widen a task-named file to its parent directory.
 Use `codemap ls .` only when scope is unknown. Inspect task-relevant direct links before searching
 beyond the map, and read cited source paths for line evidence. Follow an exact expand printed by the
 current map only while it marks task-relevant evidence hidden or unknown; each further map must be

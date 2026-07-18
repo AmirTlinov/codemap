@@ -103,9 +103,9 @@ binary without changing its version invalidates the old trial.
 `--codemap-bin` accepts one direct executable path. Internal orchestration preserves
 wrappers as argv arrays in the frozen manifest; shell command strings are not accepted.
 
-Treatment starts from the narrowest usable anchor named by the task: `codemap ls <scope>`
-for an exact file or directory, `codemap cone <file#symbol>` for an anchored symbol, or
-`codemap where <symbol>` when only the exact symbol name is known. It uses `codemap ls .`
+Treatment preserves the narrowest usable anchor named by the task: `codemap cone <file-or-file#symbol>`
+for an exact file, `codemap ls <directory>` for a named directory, or `codemap where <symbol>`
+when only the exact symbol name is known. It never widens a task-named file to its parent and uses `codemap ls .`
 only when the scope is unknown. The agent inspects task-relevant direct links before searching
 beyond the map; another map is used only when it is an exact expand printed by the current map
 for still-relevant hidden or unknown evidence. In `implementation` mode, the navigation is followed by

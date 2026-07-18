@@ -5,10 +5,11 @@ fn help_exposes_only_map_first_commands() {
     let stdout = String::from_utf8(output.stdout).expect("help utf8");
     for expected in [
         "Choose one proportional map entry:",
-        "known symbol:     codemap where <symbol>",
-        "known anchor:     codemap cone <file-or-file#symbol>",
-        "known scope:      codemap ls <file-or-directory>",
-        "unfamiliar scope: codemap ls .",
+        "known symbol only: codemap where <symbol>",
+        "known file anchor: codemap cone <file-or-file#symbol>",
+        "known directory:   codemap ls <directory>",
+        "unfamiliar scope:  codemap ls .",
+        "never replace it with a parent directory",
         "root orientation is only for an unknown scope",
         "codemap changed",
         "codemap proof changed",
@@ -92,10 +93,11 @@ fn bootstrap_instruction_teaches_map_lenses_not_removed_router_flow() {
 fn assert_map_bootstrap_text(text: &str) {
     for expected in [
         "codemap ls .",
-        "codemap ls <file-or-directory>",
+        "codemap ls <directory>",
         "codemap cone <file-or-file#symbol> --depth 1",
         "codemap where <exact-symbol>",
         "root orientation first when an exact anchor is already known",
+        "Do not replace an exact file with its parent directory",
         "codemap changed",
         "codemap proof changed",
     ] {

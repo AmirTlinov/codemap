@@ -146,10 +146,11 @@ An agent chooses one entry using the narrowest anchor already present in the tas
 ```bash
 codemap where <exact-symbol>
 codemap cone <file-or-file#symbol> --depth 1
-codemap ls <file-or-directory>
+codemap ls <directory>
 ```
 
-Only when the relevant scope is unknown should it begin at the current level:
+An exact task-named file remains the anchor; it is not widened to its parent directory.
+Only when the relevant scope is unknown should the agent begin at the current level:
 
 ```bash
 codemap ls .

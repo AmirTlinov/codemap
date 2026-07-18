@@ -7,8 +7,9 @@ Keep the product invariant clear:
 - global binary, project-agnostic;
 - zero repository writes by default;
 - external cache by default;
-- use the narrowest known entry: `codemap where <symbol>`,
-  `codemap cone <file-or-file#symbol>`, or `codemap ls <file-or-directory>`;
+- preserve the narrowest task-named entry: `codemap where <symbol>` when only a symbol is known,
+  `codemap cone <file-or-file#symbol>` for an exact file, or `codemap ls <directory>` for a directory;
+- never widen a task-named file to its parent directory;
 - use root orientation `codemap ls .` only when the relevant scope is unknown; it returns a
   bounded domain/package map, not the whole project;
 - root `codemap graph --lens causal` is the current-level map lens, not a recursive file dump;

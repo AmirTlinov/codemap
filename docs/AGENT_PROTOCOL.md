@@ -5,15 +5,16 @@ context, call a model, or require a daemon or network service.
 
 ## Invocation order
 
-Choose the narrowest anchor already known:
+Preserve the narrowest task-named anchor:
 
 ```bash
 codemap where <symbol> --format json
 codemap cone <file-or-file#symbol> --format json
-codemap ls <file-or-directory> --format json
+codemap ls <directory> --format json
 ```
 
-Use `codemap ls .` only when the relevant scope is unknown. Execute entries from
+Do not replace an exact task-named file with its parent directory. Use `codemap ls .`
+only when the relevant scope is unknown. Execute entries from
 `agent.expands` only when the current evidence leaves the corresponding question
 open. After edits, use `codemap changed --format json`, then
 `codemap proof changed --format json`.

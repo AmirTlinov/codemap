@@ -125,7 +125,7 @@ print(json.dumps({
         String::from_utf8_lossy(&output.stderr)
     );
     let prompt: Value = serde_json::from_slice(&output.stdout).expect("prompt json");
-    assert_eq!(prompt["version"], 11);
+    assert_eq!(prompt["version"], 12);
     assert!(prompt["implementation"]
         .as_str()
         .unwrap()
@@ -134,6 +134,10 @@ print(json.dumps({
         .as_str()
         .unwrap()
         .contains("Inspect task-relevant direct links"));
+    assert!(prompt["analysis"]
+        .as_str()
+        .unwrap()
+        .contains("Never widen a task-named file to its parent directory"));
     assert!(prompt["analysis"]
         .as_str()
         .unwrap()

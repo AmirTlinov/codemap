@@ -17,12 +17,12 @@ pub(crate) const DEFAULT_PROOF_LIMIT: usize = 12;
 #[command(name = "codemap")]
 #[command(about = "Structural code map CLI for AI coding agents")]
 #[command(before_help = "Choose one proportional map entry:
-  known symbol:     codemap where <symbol>
-  known anchor:     codemap cone <file-or-file#symbol>
-  known scope:      codemap ls <file-or-directory>
-  unfamiliar scope: codemap ls .
+  known symbol only: codemap where <symbol>
+  known file anchor: codemap cone <file-or-file#symbol>
+  known directory:   codemap ls <directory>
+  unfamiliar scope:  codemap ls .
 
-Use the narrowest known anchor; root orientation is only for an unknown scope.
+Preserve an exact task-named anchor; never replace it with a parent directory; root orientation is only for an unknown scope.
 
 After edits:
   codemap changed
