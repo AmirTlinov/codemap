@@ -45,16 +45,51 @@ def selected_slice(value: dict[str, Any], expected_id: str | None) -> Any:
 
 def proof_artifacts(value: dict[str, Any]) -> dict[str, Any]:
     grouped = value.get("proof", value.get("proofs", value.get("artifacts")))
-    if isinstance(grouped, dict) and grouped:
-        return grouped
-    aliases = {
-        "status": value.get("statusProof", value.get("status_proof")),
-        "review": value.get("reviewProof", value.get("review_proof")),
-        "visual": value.get(
-            "visualProof", value.get("visual_proof", value.get("visual"))
-        ),
-    }
-    return {name: artifact for name, artifact in aliases.items() if isinstance(artifact, dict)}
+    if isinstance(grouped, dict):
+        candidates = grouped.items()
+    elif isinstance(grouped, list):
+        candidates = (
+            (artifact.get("kind"), artifact)
+            for artifact in grouped
+            if isinstance(artifact, dict)
+        )
+    else:
+        candidates = {
+            "status": value.get("statusProof", value.get("status_proof")),
+            "review": value.get("reviewProof", value.get("review_proof")),
+            "visual": value.get(
+                "visualProof", value.get("visual_proof", value.get("visual"))
+            ),
+        }.items()
+    normalized = {}
+    for name, artifact in candidates:
+        if not isinstance(name, str) or not isinstance(artifact, dict):
+            continue
+        normalized["visual" if name == "visual_proof" else name] = artifact
+    return normalized
+
+
+def run_consumer_probe() -> subprocess.CompletedProcess[str]:
+    package = ROOT / "apps/macos-app/Package.swift"
+    direct_probe = ROOT / "apps/macos-app/Sources/OpenSlopActivePlanProbe/main.swift"
+    if package.is_file() and direct_probe.is_file():
+        with tempfile.TemporaryDirectory(prefix="openslop-active-plan-swift-") as raw:
+            scratch = Path(raw)
+            module_cache = scratch / "module-cache"
+            module_cache.mkdir()
+            return run(
+                [
+                    "swift", "run", "--disable-sandbox",
+                    "--package-path", "apps/macos-app",
+                    "--scratch-path", str(scratch / "build"),
+                    "OpenSlopActivePlanProbe",
+                ],
+                env={
+                    "CLANG_MODULE_CACHE_PATH": str(module_cache),
+                    "SWIFTPM_MODULECACHE_OVERRIDE": str(module_cache),
+                },
+            )
+    return run(["make", "probe-active-plan"])
 
 
 def roadmap_rows() -> list[tuple[str, str]]:
@@ -90,7 +125,7 @@ def validate_projection(payload: dict[str, Any]) -> None:
     assert field(payload, "roadmapPath", "roadmap_path") == "ROADMAP.md"
 
     proof = proof_artifacts(active)
-    assert proof, active
+    assert {"status", "review", "visual"} <= proof.keys(), active
     for artifact in proof.values():
         available = artifact.get(
             "available", artifact.get("exists", artifact["state"].lower() != "missing")
@@ -143,7 +178,7 @@ def main() -> int:
             assert no_rows.returncode != 0
 
     if selected("consumer-probes", criterion):
-        probe = run(["make", "probe-active-plan"])
+        probe = run_consumer_probe()
         assert probe.returncode == 0, probe.stdout + probe.stderr
     print(json.dumps({
         "passed": True,

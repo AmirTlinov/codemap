@@ -161,8 +161,39 @@ def main() -> int:
     active_plan_spec.loader.exec_module(active_plan_oracle)
     assert active_plan_oracle.slice_id({"id": "S01"}) == "S01"
     assert active_plan_oracle.slice_id({"slice": "S01"}) == "S01"
-    artifacts = {"visual_proof": {"state": "missing", "available": False}}
-    assert active_plan_oracle.proof_artifacts({"artifacts": artifacts}) == artifacts
+    visual = {"kind": "visual_proof", "state": "missing", "available": False}
+    assert active_plan_oracle.proof_artifacts({"artifacts": [visual]}) == {
+        "visual": visual
+    }
+    grouped = {"visual_proof": {"state": "missing", "available": False}}
+    assert active_plan_oracle.proof_artifacts({"artifacts": grouped}) == {
+        "visual": grouped["visual_proof"]
+    }
+    original_root, original_run = active_plan_oracle.ROOT, active_plan_oracle.run
+    try:
+        with tempfile.TemporaryDirectory(prefix="codemap-openslop-probe-") as raw:
+            probe_root = Path(raw)
+            package = probe_root / "apps/macos-app/Package.swift"
+            source = probe_root / "apps/macos-app/Sources/OpenSlopActivePlanProbe/main.swift"
+            source.parent.mkdir(parents=True)
+            package.write_text("// package\n", encoding="utf-8")
+            source.write_text("// probe\n", encoding="utf-8")
+            calls = []
+
+            def record(argv, **kwargs):
+                calls.append((argv, kwargs))
+                return subprocess.CompletedProcess(argv, 0, "PASS", "")
+
+            active_plan_oracle.ROOT = probe_root
+            active_plan_oracle.run = record
+            active_plan_oracle.run_consumer_probe()
+            assert calls[0][0][:3] == ["swift", "run", "--disable-sandbox"]
+            assert calls[0][0][-1] == "OpenSlopActivePlanProbe"
+            source.unlink()
+            active_plan_oracle.run_consumer_probe()
+            assert calls[1][0] == ["make", "probe-active-plan"]
+    finally:
+        active_plan_oracle.ROOT, active_plan_oracle.run = original_root, original_run
     codemap = implementations["codemap-response-projection"]
     assert "src/map/lenses/runtime/paths.rs#runtime_route_path_analysis" in codemap["prompt"]
     assert "balanced return expressions" in codemap["prompt"]
