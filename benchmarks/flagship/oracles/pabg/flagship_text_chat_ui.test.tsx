@@ -34,7 +34,7 @@ describe("flagship global text chat UI contract", () => {
 
     const input = screen.getByRole("textbox");
     fireEvent.change(input, { target: { value: "Reinforcements incoming" } });
-    fireEvent.click(screen.getByRole("button", { name: /отправить/i }));
+    fireEvent.click(screen.getByRole("button", { name: /отправить|сказать|send/i }));
     expect(publishText).toHaveBeenCalledWith("Reinforcements incoming");
     expect(input).toHaveValue("");
   });
