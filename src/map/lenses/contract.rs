@@ -2,9 +2,9 @@
 mod lineage;
 
 use crate::map::{
-    cone_proof_edges_with_direct_consumers, contract_evidence, direct_consumer_edges,
-    direct_dependency_edges, exported_symbol_surface, file_summary, limit_edge_section,
-    missing_file_summary, package_export_edges, package_for_rel, shell_quote, truncate_with_hidden,
+    contract_evidence, contract_proof_edges, direct_consumer_edges, direct_dependency_edges,
+    exported_symbol_surface, file_summary, limit_edge_section, missing_file_summary,
+    package_export_edges, package_for_rel, shell_quote, sort_edges, truncate_with_hidden,
     unknowns_for_file,
 };
 use crate::model::{ContractReport, Project};
@@ -34,11 +34,9 @@ pub fn contract_report(
         })
         .cloned()
         .collect::<Vec<_>>();
-    let mut proof = if lineage_facts.edges.is_empty() && lineage_facts.declarations.is_empty() {
-        cone_proof_edges_with_direct_consumers(project, std::slice::from_ref(&rel))
-    } else {
-        std::mem::take(&mut lineage_facts.proof)
-    };
+    let mut proof = std::mem::take(&mut lineage_facts.proof);
+    proof.extend(contract_proof_edges(project, std::slice::from_ref(&rel)));
+    sort_edges(&mut proof);
     let mut package_exports = package_export_edges(project, &rel);
     let mut exported_contracts = project
         .files

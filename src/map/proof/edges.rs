@@ -4,8 +4,8 @@ use crate::map::{
     anchor_core_terms, anchor_symbol_reference_names, anchor_terms, boundary_findings,
     contract_document_candidate_edges, contract_neighborhood_edges, direct_consumer_edges,
     direct_dependency_edges, directory_has_files, edge_with_path_location, package_for_rel,
-    proof_evidence_precedence, semantic_name_terms, strict_test_edges_for_file,
-    structural_edge_with_locations, structural_test_surface_match,
+    proof_evidence_has_exact_validation_base, proof_evidence_precedence, semantic_name_terms,
+    strict_test_edges_for_file, structural_edge_with_locations, structural_test_surface_match,
 };
 use crate::model::{EvidenceStrength, FileInfo, Project, StructuralEdge};
 use std::collections::BTreeMap;
@@ -34,6 +34,21 @@ pub(crate) fn cone_proof_edges_with_direct_consumers(
     project: &Project,
     seeds: &[String],
 ) -> Vec<StructuralEdge> {
+    proof_edges_with_direct_consumers(project, seeds, false)
+}
+
+pub(crate) fn contract_proof_edges(project: &Project, seeds: &[String]) -> Vec<StructuralEdge> {
+    proof_edges_with_direct_consumers(project, seeds, true)
+        .into_iter()
+        .filter(|edge| proof_evidence_has_exact_validation_base(&edge.evidence))
+        .collect()
+}
+
+fn proof_edges_with_direct_consumers(
+    project: &Project,
+    seeds: &[String],
+    include_direct_consumer_imports: bool,
+) -> Vec<StructuralEdge> {
     let mut edges = cone_proof_edges(project, seeds);
     for seed in seeds {
         if !edges.iter().any(|edge| edge.to == *seed) {
@@ -50,7 +65,9 @@ pub(crate) fn cone_proof_edges_with_direct_consumers(
                 let Some(test_file) = project.files.get(&test) else {
                     continue;
                 };
-                if !test_mentions_anchor(project, seed, test_file) {
+                if !test_mentions_anchor(project, seed, test_file)
+                    && !(include_direct_consumer_imports && evidence == "test_import")
+                {
                     continue;
                 }
                 let locations = import_statement_locations(project, &test, &consumer.from);

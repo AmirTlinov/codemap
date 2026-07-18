@@ -45,7 +45,7 @@ ARMS = (ARM_CONTROL, ARM_TREATMENT)
 MODE_IMPLEMENTATION = "implementation"
 MODE_ANALYSIS = "analysis"
 TASK_MODES = (MODE_IMPLEMENTATION, MODE_ANALYSIS)
-PROMPT_PROTOCOL_VERSION = 15
+PROMPT_PROTOCOL_VERSION = 16
 
 COMMON_PROMPT = """You are completing one benchmark coding task in a disposable git worktree.
 Make the smallest complete implementation that satisfies the task. Work autonomously; do not ask
@@ -67,8 +67,8 @@ ordinary repository tools only.
 `codemap cone <file-or-file#symbol>` for a task-named file, `codemap where <symbol>` when only a
 symbol is known, or `codemap ls <directory>` for a named directory. Use `codemap ls .` only when
 scope is unknown. If a task-named path does not exist yet, map its nearest existing parent; otherwise
-never replace an exact file with its parent directory. Read the relevant linked source.
-Use a printed exact Expand only when its hidden or unknown evidence matters to the task.
+never replace an exact file with its parent directory; read the relevant linked source.
+Use a printed exact Expand only when its evidence matters; for a shared contract you will edit, run its exact `contract` Expand before editing.
 After editing, run `codemap changed && codemap proof changed` once, then the task-specific check.
 Do not run broad repository gates.""",
 }

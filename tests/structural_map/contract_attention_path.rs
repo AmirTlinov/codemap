@@ -192,6 +192,14 @@ fn exported_symbol_type_dependency_opens_the_shared_contract_consumers() {
         &repo.path().join("apps/web/src/ChatStrip.ts"),
         "import type { ClientFrame } from '../../ws/src/protocol';\nexport const render = (frame: ClientFrame) => frame.type;\n",
     );
+    write(
+        &repo.path().join("apps/web/src/ChatStrip.test.ts"),
+        "import { render } from './ChatStrip';\ntest('renders a welcome frame', () => expect(render({ type: 'welcome' })).toBe('welcome'));\n",
+    );
+    write(
+        &repo.path().join("apps/ws/src/protocol.test.ts"),
+        "import type { ClientFrame } from './protocol';\ntest('keeps the welcome frame', () => expect(({ type: 'welcome' } as ClientFrame).type).toBe('welcome'));\n",
+    );
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["commit", "-qm", "shared protocol fixture"]);
 
@@ -233,6 +241,13 @@ fn exported_symbol_type_dependency_opens_the_shared_contract_consumers() {
             }),
         "the exact symbol cone should inline the cross-package contract consumer: {cone:#}"
     );
+    assert!(
+        cone["proof"].as_array().expect("proof").iter().any(|edge| {
+            edge["from"] == "apps/web/src/ChatStrip.test.ts"
+                && edge["to"] == "apps/ws/src/protocol.ts"
+        }),
+        "the first symbol cone should retain verification of its shared contract consumer: {cone:#}"
+    );
 
     let contract = run_json(
         repo.path(),
@@ -246,5 +261,12 @@ fn exported_symbol_type_dependency_opens_the_shared_contract_consumers() {
             .iter()
             .any(|edge| edge["from"] == "apps/web/src/ChatStrip.ts"),
         "the exact contract expand must carry the downstream UI consumer: {contract:#}"
+    );
+    assert!(
+        contract["proof"].as_array().expect("proof").iter().any(|edge| {
+            edge["from"] == "apps/ws/src/protocol.test.ts"
+                && edge["to"] == "apps/ws/src/protocol.ts"
+        }),
+        "parallel contract lineage must not replace direct contract verification: {contract:#}"
     );
 }

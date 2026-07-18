@@ -142,7 +142,7 @@ print(json.dumps({
         String::from_utf8_lossy(&output.stderr)
     );
     let prompt: Value = serde_json::from_slice(&output.stdout).expect("prompt json");
-    assert_eq!(prompt["version"], 15);
+    assert_eq!(prompt["version"], 16);
     assert!(prompt["implementation"]
         .as_str()
         .unwrap()
@@ -151,6 +151,10 @@ print(json.dumps({
         .as_str()
         .unwrap()
         .contains("nearest existing parent"));
+    assert!(prompt["implementation"]
+        .as_str()
+        .unwrap()
+        .contains("shared contract you will edit"));
     assert!(prompt["analysis"]
         .as_str()
         .unwrap()

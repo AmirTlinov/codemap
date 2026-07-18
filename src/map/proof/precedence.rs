@@ -124,8 +124,12 @@ pub(crate) fn proof_surface_command_closes_fallback(proof: &ProofSurface) -> boo
 }
 
 fn proof_surface_has_exact_validation_base(proof: &ProofSurface) -> bool {
+    proof_evidence_has_exact_validation_base(&proof.evidence)
+}
+
+pub(crate) fn proof_evidence_has_exact_validation_base(evidence: &str) -> bool {
     matches!(
-        crate::proof_classification::proof_base_evidence(&proof.evidence),
+        crate::proof_classification::proof_base_evidence(evidence),
         "test_import"
             | "test_imported_symbol_reference"
             | "test_reexported_symbol_reference"

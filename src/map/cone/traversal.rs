@@ -4,9 +4,9 @@ use crate::map::{
     ConeXrayInput, SymbolConeObservationInput, cone_owner_incoming_edges, cone_xray_card,
     directory_has_files, empty_xray_card, file_summary, files_under_directory, import_edge,
     is_generic_noise, limit_edge_section, missing_symbol_observations, package_name_for_file,
-    same_package_symbol_reference_consumers, shell_quote, sort_edges, structural_roles_for_ls,
-    symbol_anchor_path, symbol_cone_expands, symbol_cone_observations, symbol_cone_outgoing_edges,
-    symbol_contract_consumer_edges, symbol_contract_edges,
+    public_contract_proof_edges, same_package_symbol_reference_consumers, shell_quote, sort_edges,
+    structural_roles_for_ls, symbol_anchor_path, symbol_cone_expands, symbol_cone_observations,
+    symbol_cone_outgoing_edges, symbol_contract_consumer_edges, symbol_contract_edges,
     symbol_file_summary_with_observed_consumers, symbol_local_incoming_edges,
     symbol_outgoing_limit, symbol_reference_edge_set, symbol_verification_edges_with_owning_file,
     unique, unknown, unknown_missing_symbol_anchor, unknown_symbol_outgoing,
@@ -64,6 +64,7 @@ pub(crate) fn cone_symbol_report_with_references(
     let mut outgoing = symbol_cone_outgoing_edges(project, file_rel, symbol_name, depth);
     let mut contracts = symbol_contract_edges(project, file_rel, symbol_name);
     let mut contract_consumers = symbol_contract_consumer_edges(project, &contracts);
+    proof.extend(public_contract_proof_edges(project, &contracts));
     let boundary = Vec::new();
     let mut hidden = Vec::new();
     sort_edges(&mut outgoing);
