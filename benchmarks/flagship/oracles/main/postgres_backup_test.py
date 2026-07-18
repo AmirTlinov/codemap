@@ -47,11 +47,14 @@ def pod_script(cronjob: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, 
 
 def remote_copy_count(script: str) -> int:
     aws = re.findall(r"(?:^|[\s;])(?:[^\s;]*/)?aws\b[^\n;&|]*\bs3\s+cp\b", script)
+    mc = re.findall(r"(?:^|[\s;])(?:[^\s;]*/)?mc\b[^\n;&|]*\bcp\b", script)
+    rclone = re.findall(r"(?:^|[\s;])(?:[^\s;]*/)?rclone\b[^\n;&|]*\bcopy\b", script)
+    restic = re.findall(r"(?:^|[\s;])(?:[^\s;]*/)?restic\b[^\n;&|]*\bbackup\b", script)
     return (
         len(aws)
-        + script.count("mc cp")
-        + script.count("rclone copy")
-        + script.count("restic backup")
+        + len(mc)
+        + len(rclone)
+        + len(restic)
     )
 
 

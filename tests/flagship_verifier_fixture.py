@@ -212,6 +212,12 @@ def main() -> int:
         assert oracle.has_checksum_comparison('test "$expected" = "$actual"')
         assert not oracle.has_checksum_comparison("sha256sum backup.sql.gz")
         assert oracle.remote_copy_count("restic backup /work") == 1
+        assert (
+            oracle.remote_copy_count(
+                'mc --config-dir /work/mc cp "$remote" /work/readback/backup.dump'
+            )
+            == 1
+        )
         assert oracle.has_remote_readback(
             "restic backup /work; restic restore latest --target /verify"
         )
