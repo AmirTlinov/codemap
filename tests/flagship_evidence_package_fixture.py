@@ -30,6 +30,7 @@ def acceptance(root: Path, label: str, accepted: bool) -> Path:
     manifest = attempt / "frozen/manifest.json"
     raw = attempt / "run/results.jsonl"
     verifier = attempt / "run/verifier.stdout.log"
+    cache = attempt / "run/trials/task/codemap-cache/inventory.json"
     write(
         manifest,
         json.dumps(
@@ -45,6 +46,7 @@ def acceptance(root: Path, label: str, accepted: bool) -> Path:
     )
     write(raw, '{"arm":"control"}\n{"arm":"codemap"}\n')
     write(verifier, "external verifier\n")
+    write(cache, "derived cache\n")
     resources = {
         "complex_median_time_overhead": 0.1,
         "complex_median_input_overhead": 0.1,
@@ -59,7 +61,7 @@ def acceptance(root: Path, label: str, accepted: bool) -> Path:
         "manifest_sha256": digest(manifest),
         "evidence": [
             {"path": str(path), "sha256": digest(path)}
-            for path in (manifest, raw, verifier)
+            for path in (manifest, raw, verifier, cache)
         ],
         "acceptance": {
             "accepted": accepted,
@@ -111,8 +113,10 @@ def main() -> int:
             assert body is not None
             manifest = json.load(body)
             assert [row["accepted"] for row in manifest["attempts"]] == [False, True]
+            assert [row["omitted_derived_cache_files"] for row in manifest["attempts"]] == [1, 1]
             assert any(row["path"].endswith("results.jsonl") for row in manifest["files"])
             assert any(row["path"].endswith("verifier.stdout.log") for row in manifest["files"])
+            assert not any("codemap-cache" in row["path"] for row in manifest["files"])
         checksum.write_text(f"{'0' * 64}  {archive.name}\n", encoding="utf-8")
         assert run(
             "verify-evidence",

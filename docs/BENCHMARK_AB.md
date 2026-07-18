@@ -311,4 +311,5 @@ receipts, and verifier outputs by SHA-256. The independent verifier imports none
 evaluator. The measured claim is restricted to this frozen six-repository corpus.
 The release evidence archive requires exactly one accepted receipt and preserves every
 supplied failed attempt, raw trajectory, diff, and external verifier output under its own
-immutable prefix.
+immutable prefix. Reproducible `codemap-cache` contents are deliberately omitted: they are
+derived navigation state, not agent actions, outputs, diffs, or verifier evidence.

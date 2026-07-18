@@ -13,7 +13,11 @@ def artifact_inventory(roots: Iterable[Path], files: Iterable[Path] = ()) -> lis
     for root in roots:
         if not root.is_dir():
             raise ValueError(f"evidence directory is missing: {root}")
-        candidates.update(path.resolve() for path in root.rglob("*") if path.is_file())
+        candidates.update(
+            path.resolve()
+            for path in root.rglob("*")
+            if path.is_file() and "codemap-cache" not in path.parts
+        )
     for path in files:
         if not path.is_file():
             raise ValueError(f"evidence file is missing: {path}")

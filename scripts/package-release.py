@@ -100,11 +100,13 @@ def write_tar_gz(
                 archive.addfile(info, io.BytesIO(body))
 
 
-def load_acceptance(path: Path) -> tuple[dict[str, Any], list[Path]]:
+def load_acceptance(path: Path) -> tuple[dict[str, Any], list[Path], int]:
     report = json.loads(path.read_text(encoding="utf-8"))
     if report.get("kind") != "codemap_flagship_acceptance" or report.get("version") != 1:
         raise ValueError(f"unsupported flagship acceptance receipt: {path}")
-    files = [Path(row["path"]) for row in report.get("evidence", [])]
+    recorded = [Path(row["path"]) for row in report.get("evidence", [])]
+    files = [source for source in recorded if "codemap-cache" not in source.parts]
+    omitted = len(recorded) - len(files)
     files.extend(candidate for candidate in (path, path.with_name("acceptance.md")) if candidate.is_file())
     for source in files:
         if not source.is_file():
@@ -113,7 +115,7 @@ def load_acceptance(path: Path) -> tuple[dict[str, Any], list[Path]]:
     for source in files:
         if str(source) in expected and sha256(source) != expected[str(source)]:
             raise ValueError(f"flagship evidence hash mismatch: {source}")
-    return report, sorted(set(files), key=lambda item: str(item))
+    return report, sorted(set(files), key=lambda item: str(item)), omitted
 
 
 def evidence_readme(version: str, attempts: list[dict[str, Any]]) -> bytes:
@@ -143,7 +145,7 @@ def build_evidence(version: str, receipts: list[Path], out_dir: Path) -> Path:
     inventory = []
     attempts = []
     for index, receipt in enumerate(receipts, 1):
-        report, sources = load_acceptance(receipt.resolve())
+        report, sources, omitted = load_acceptance(receipt.resolve())
         manifest = json.loads(Path(report["manifest"]).read_text(encoding="utf-8"))
         identity = manifest["codemap_identity"]["build_identity"]
         accepted = report["acceptance"]["accepted"] is True
@@ -159,6 +161,7 @@ def build_evidence(version: str, receipts: list[Path], out_dir: Path) -> Path:
             "complex_wins": report["acceptance"]["complex"]["wins"],
             "complex_losses": len(report["acceptance"]["complex"]["losing_tasks"]),
             "resources": report["acceptance"]["resources"],
+            "omitted_derived_cache_files": omitted,
         }
         attempts.append(attempt)
         for source in sources:
