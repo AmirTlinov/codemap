@@ -142,7 +142,7 @@ function tabProvenance(result, expectedTab, expectedSource) {
 }
 
 function isTopFrame(value) {
-  return [value, value?.carrierDetails, value?.carrier].some((candidate) =>
+  return [value, value?.carrierDetails, value?.carrier, value?.tabCarrier].some((candidate) =>
     Number(candidate?.frameId) === 0
       || (Array.isArray(candidate?.frameIds)
         && candidate.frameIds.length === 1
@@ -150,7 +150,10 @@ function isTopFrame(value) {
 }
 
 function carrierWorld(value) {
-  return value?.world ?? value?.carrierDetails?.world ?? value?.carrier?.world;
+  return value?.world
+    ?? value?.carrierDetails?.world
+    ?? value?.carrier?.world
+    ?? value?.tabCarrier?.world;
 }
 
 function topFrameCall(call, tabId) {

@@ -140,6 +140,7 @@ def main() -> int:
     assert "result.selectedTabSource" in browser_oracle
     assert "value?.carrierDetails" in browser_oracle
     assert "value?.carrier?.world" in browser_oracle
+    assert "value?.tabCarrier?.world" in browser_oracle
     assert "carrier?.kind || carrier?.type" in browser_oracle
     assert "combined?.data?.attempts" in browser_oracle
     openslop = implementations["openslop-active-plan"]
@@ -166,7 +167,8 @@ def main() -> int:
     assert "src/map/lenses/runtime/paths.rs#runtime_route_path_analysis" in codemap["prompt"]
     assert "balanced return expressions" in codemap["prompt"]
     assert "passive telemetry call" in codemap["prompt"]
-    assert "inside an established guard" in codemap["prompt"]
+    assert "returned values feed an established guard" in codemap["prompt"]
+    assert "side-effect-only telemetry sibling" in codemap["prompt"]
     assert "retains that field's provenance" in codemap["prompt"]
     assert "only when a field is absent" in codemap["prompt"]
     assert "recordCsrfFailure" not in codemap["prompt"]
