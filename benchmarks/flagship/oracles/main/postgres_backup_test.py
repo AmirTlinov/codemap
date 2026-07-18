@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import posixpath
 import re
 import sys
 import unittest
@@ -35,14 +36,54 @@ def documents() -> list[tuple[Path, dict[str, Any]]]:
     return out
 
 
-def pod_script(cronjob: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]], str]:
+def pod_script(
+    cronjob: dict[str, Any], configmaps: dict[str, dict[str, Any]]
+) -> tuple[dict[str, Any], list[dict[str, Any]], str]:
     pod = cronjob["spec"]["jobTemplate"]["spec"]["template"]["spec"]
     containers = [*pod.get("initContainers", []), *pod.get("containers", [])]
-    script = "\n".join(
-        " ".join(str(part) for part in [*item.get("command", []), *item.get("args", [])])
-        for item in containers
-    )
+    script_parts = []
+    for container in containers:
+        command = " ".join(
+            str(part) for part in [*container.get("command", []), *container.get("args", [])]
+        )
+        script_parts.append(command)
+        script_parts.extend(invoked_configmap_scripts(pod, container, command, configmaps))
+    script = "\n".join(script_parts)
     return pod, containers, script
+
+
+def invoked_configmap_scripts(
+    pod: dict[str, Any],
+    container: dict[str, Any],
+    command: str,
+    configmaps: dict[str, dict[str, Any]],
+) -> list[str]:
+    volumes = {volume.get("name"): volume for volume in pod.get("volumes", [])}
+    scripts = []
+    for mount in container.get("volumeMounts", []):
+        volume = volumes.get(mount.get("name"), {})
+        source = volume.get("configMap", {})
+        configmap = configmaps.get(source.get("name"), {})
+        data = configmap.get("data", {})
+        items = source.get("items") or [
+            {"key": key, "path": key} for key in data
+        ]
+        for item in items:
+            key = item.get("key")
+            relative = item.get("path", key)
+            if not key or not relative or key not in data:
+                continue
+            sub_path = mount.get("subPath")
+            if sub_path and sub_path not in (key, relative):
+                continue
+            mounted_path = (
+                mount.get("mountPath", "")
+                if sub_path
+                else posixpath.join(mount.get("mountPath", ""), relative)
+            )
+            if mounted_path and mounted_path in command:
+                scripts.append(str(data[key]))
+    return scripts
 
 
 def remote_copy_count(script: str) -> int:
@@ -114,12 +155,17 @@ class PostgresBackupTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.docs = documents()
+        configmaps = {
+            resource.get("metadata", {}).get("name"): resource
+            for _, resource in cls.docs
+            if resource["kind"] == "ConfigMap"
+        }
         candidates = []
         for path, resource in cls.docs:
             if resource["kind"] != "CronJob":
                 continue
             try:
-                pod, containers, script = pod_script(resource)
+                pod, containers, script = pod_script(resource, configmaps)
             except (KeyError, TypeError):
                 continue
             if "pg_dump" in script:

@@ -57,3 +57,18 @@ fn flagship_investigations_verify_source_backed_outcomes_not_path_lists() {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+#[test]
+fn postgres_backup_oracle_follows_invoked_configmap_scripts() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let output = python()
+        .arg(root.join("tests/postgres_backup_oracle_fixture.py"))
+        .output()
+        .expect("PostgreSQL backup oracle fixture should run");
+    assert!(
+        output.status.success(),
+        "PostgreSQL backup oracle failed: stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
