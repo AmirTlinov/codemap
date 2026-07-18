@@ -45,7 +45,7 @@ ARMS = (ARM_CONTROL, ARM_TREATMENT)
 MODE_IMPLEMENTATION = "implementation"
 MODE_ANALYSIS = "analysis"
 TASK_MODES = (MODE_IMPLEMENTATION, MODE_ANALYSIS)
-PROMPT_PROTOCOL_VERSION = 13
+PROMPT_PROTOCOL_VERSION = 14
 
 COMMON_PROMPT = """You are completing one benchmark coding task in a disposable git worktree.
 Make the smallest complete implementation that satisfies the task. Work autonomously; do not ask
@@ -63,14 +63,13 @@ ARM_PROMPTS = {
     ARM_CONTROL: """CONTROL ARM: codemap is unavailable. Do not attempt to use it. Navigate with
 ordinary repository tools only.
 """,
-    ARM_TREATMENT: """CODEMAP TREATMENT ARM: use one proportionate codemap entry before ordinary
-inspection: `codemap cone <file-or-file#symbol>` for an exact task-named file; `codemap where <symbol>`
-when only a symbol is known; or `codemap ls <directory>` for a named directory. Never widen a task-named file to its parent directory. Combine that entry with the first focused read. Use
-`codemap ls .` only when scope is unknown. Inspect task-relevant direct links before searching
-beyond the map. Follow an exact expand printed by the current map only while it marks task-relevant
-evidence hidden or unknown; each further map must be the exact expand printed by the immediately
-preceding map. After editing, make one focused verification call containing
-`codemap changed && codemap proof changed` before the task-specific check. Do not run broad gates.
+    ARM_TREATMENT: """CODEMAP TREATMENT ARM: before ordinary inspection, use one proportionate entry:
+`codemap cone <file-or-file#symbol>` for a task-named file, `codemap where <symbol>` when only a
+symbol is known, or `codemap ls <directory>` for a named directory. Use `codemap ls .` only when
+scope is unknown; never replace an exact file with its parent directory. Read the relevant linked
+source. Use a printed exact Expand only when its hidden or unknown evidence matters to the task.
+After editing, run `codemap changed && codemap proof changed` once, then the task-specific check.
+Do not run broad repository gates.
 """,
 }
 
@@ -78,13 +77,12 @@ ANALYSIS_ARM_PROMPTS = {
     ARM_CONTROL: """CONTROL ARM: codemap is unavailable. Do not attempt to use it. Navigate with
 ordinary read-only repository tools only.
 """,
-    ARM_TREATMENT: """CODEMAP TREATMENT ARM: begin with one proportionate structural map: use `codemap
-cone <file-or-file#symbol>` for an exact task-named file; `codemap where <symbol>` when only a symbol is known; or `codemap ls <directory>` for a named directory. Never widen a task-named file to its parent directory.
-Use `codemap ls .` only when scope is unknown. Inspect task-relevant direct links before searching
-beyond the map, and read cited source paths for line evidence. Follow an exact expand printed by the
-current map only while it marks task-relevant evidence hidden or unknown; each further map must be
-the exact expand printed by the immediately preceding map. Do not stack unrelated maps or repeat the
-investigation with broad scans. Do not edit the repository.
+    ARM_TREATMENT: """CODEMAP TREATMENT ARM: begin with one proportionate structural map: `codemap cone
+<file-or-file#symbol>` for a task-named file, `codemap where <symbol>` when only a symbol is known,
+or `codemap ls <directory>` for a named directory. Use `codemap ls .` only when scope is unknown;
+never replace an exact file with its parent directory. Read the relevant linked source for line
+evidence. Use a printed exact Expand only when its hidden or unknown evidence matters to the task.
+Do not edit the repository.
 """,
 }
 

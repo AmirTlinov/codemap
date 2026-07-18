@@ -134,23 +134,23 @@ print(json.dumps({
         String::from_utf8_lossy(&output.stderr)
     );
     let prompt: Value = serde_json::from_slice(&output.stdout).expect("prompt json");
-    assert_eq!(prompt["version"], 13);
+    assert_eq!(prompt["version"], 14);
     assert!(prompt["implementation"]
         .as_str()
         .unwrap()
-        .contains("one focused verification call"));
+        .contains("codemap changed && codemap proof changed` once"));
     assert!(prompt["analysis"]
         .as_str()
         .unwrap()
-        .contains("Inspect task-relevant direct links"));
+        .contains("Read the relevant linked source"));
     assert!(prompt["analysis"]
         .as_str()
         .unwrap()
-        .contains("Never widen a task-named file to its parent directory"));
+        .contains("never replace an exact file with its parent directory"));
     assert!(prompt["analysis"]
         .as_str()
         .unwrap()
-        .contains("exact expand printed by the immediately preceding map"));
+        .contains("printed exact Expand only when"));
     assert!(prompt["exact"]
         .as_str()
         .unwrap()
