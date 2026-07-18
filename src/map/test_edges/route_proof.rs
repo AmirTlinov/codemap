@@ -1,9 +1,14 @@
 // Responsibility: map-test-edges-route-proof
 use crate::map::route_proof_scope_matches;
-use crate::model::{FileInfo, Project};
+use crate::model::{EvidenceLocation, FileInfo, Project};
+
+pub(crate) struct RouteProofRunner {
+    pub(crate) file: String,
+    pub(crate) locations: Vec<EvidenceLocation>,
+}
 
 pub(crate) fn e2e_test_visits_unique_route(project: &Project, rel: &str, test: &FileInfo) -> bool {
-    if !test.has_role("e2e_test") {
+    if !browser_route_proof_consumer(test) {
         return false;
     }
     if !route_proof_scope_matches(project, rel, &test.rel) {
@@ -16,6 +21,65 @@ pub(crate) fn e2e_test_visits_unique_route(project: &Project, rel: &str, test: &
         route_pattern_matches(&route, visited)
             && next_route_visit_owner_count(project, rel, visited) == 1
     })
+}
+
+pub(crate) fn browser_route_proof_consumer(file: &FileInfo) -> bool {
+    file.has_role("e2e_test")
+        || (file.has_role("proof_runner")
+            && !file.visited_route_paths.is_empty()
+            && file
+                .imports
+                .iter()
+                .any(|import| matches!(import.as_str(), "playwright" | "@playwright/test")))
+}
+
+pub(crate) fn route_proof_runner_consumers(
+    project: &Project,
+    browser_consumer: &str,
+) -> Vec<RouteProofRunner> {
+    let mut runners = Vec::new();
+    for file in project.files.values() {
+        if file.rel == browser_consumer || !file.has_role("script") {
+            continue;
+        }
+        let Some(text) = project.read_indexed_text(&file.rel) else {
+            continue;
+        };
+        for (index, line) in text.lines().enumerate() {
+            if static_process_line_invokes(line, browser_consumer) {
+                runners.push(RouteProofRunner {
+                    file: file.rel.clone(),
+                    locations: vec![EvidenceLocation::line(
+                        &file.rel,
+                        index + 1,
+                        "process_invocation",
+                    )],
+                });
+                break;
+            }
+        }
+    }
+    runners.sort_by(|left, right| left.file.cmp(&right.file));
+    runners
+}
+
+fn static_process_line_invokes(line: &str, target: &str) -> bool {
+    let trimmed = line.trim_start();
+    if trimmed.starts_with('#') || !line.contains(target) {
+        return false;
+    }
+    let prefix = line
+        .split_once(target)
+        .map(|(prefix, _)| prefix)
+        .unwrap_or("");
+    prefix
+        .split(|ch: char| !(ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-')))
+        .any(|token| {
+            matches!(
+                token,
+                "node" | "python" | "python3" | "bash" | "sh" | "ruby"
+            )
+        })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

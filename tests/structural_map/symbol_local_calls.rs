@@ -170,6 +170,8 @@ fn python_multiline_signature_keeps_the_function_body_in_the_exact_cone() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");
     git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
     write(
         &repo.path().join("src/carrier.py"),
         "def deliver(value: str) -> str:\n    return value\n",

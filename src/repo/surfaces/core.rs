@@ -10,11 +10,11 @@ use crate::repo::{
     line_opens_pending_nested_body, line_starts_arrow_callback_body,
     line_starts_nested_playwright_body, line_starts_playwright_describe_callback_body,
     line_starts_unparsed_playwright_control_flow, line_terminates_playwright_page_scope,
-    merge_surface_extraction, normalize_route_path, playwright_test_bindings,
-    quoted_prefix_has_object_key, quoted_prefix_is_page_goto_argument, quoted_strings,
-    quoted_value_is_module_specifier_context, static_jsx_visible_text, strip_js_comments_from_line,
-    surface_label_literal_is_structural, surface_literal_is_structural, surface_literal_phrases,
-    surface_literal_terms,
+    merge_surface_extraction, normalize_route_path, page_goto_url_binding,
+    playwright_test_bindings, quoted_prefix_has_object_key, quoted_prefix_is_page_goto_argument,
+    quoted_strings, quoted_value_is_module_specifier_context, static_jsx_visible_text,
+    static_url_route_binding, strip_js_comments_from_line, surface_label_literal_is_structural,
+    surface_literal_is_structural, surface_literal_phrases, surface_literal_terms,
 };
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
@@ -48,10 +48,19 @@ pub(crate) fn extract_surfaces(text: &str, ext: &str) -> SurfaceExtraction {
     let mut playwright_pending_control_flow = false;
     let mut playwright_page_scope_terminated = false;
     let playwright_test_bindings = playwright_test_bindings(text);
+    let mut static_url_routes = BTreeMap::new();
     let mut shadowed_playwright_test_bindings = BTreeSet::new();
     let mut pending_playwright_role_names = BTreeMap::new();
     for raw_line in text.lines() {
         let line = strip_js_comments_from_line(raw_line, &mut in_block_comment);
+        if let Some((binding, route)) = static_url_route_binding(&line) {
+            static_url_routes.insert(binding, route);
+        }
+        if let Some(binding) = page_goto_url_binding(&line)
+            && let Some(route) = static_url_routes.get(&binding)
+        {
+            surfaces.visited_routes.insert(route.clone());
+        }
         for binding in &playwright_test_bindings {
             if line_declares_local_identifier(&line, binding) {
                 shadowed_playwright_test_bindings.insert(binding.clone());

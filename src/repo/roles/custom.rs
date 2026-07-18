@@ -39,6 +39,8 @@ pub(crate) fn is_proof_runner_surface(
     name: &str,
     ext: &str,
     tokens: &BTreeSet<String>,
+    imports: &BTreeSet<String>,
+    visited_routes: &BTreeSet<String>,
 ) -> bool {
     (is_source_ext(ext) || is_script_ext(ext))
         && (rel.starts_with("tools/")
@@ -56,6 +58,15 @@ pub(crate) fn is_proof_runner_surface(
             || tokens.contains("qwen")
             || tokens.contains("receipt")
             || tokens.contains("witness"))
+        || ((rel.starts_with("tools/")
+            || rel.starts_with("scripts/")
+            || rel.contains("/tools/")
+            || rel.contains("/scripts/"))
+            && is_source_ext(ext)
+            && !visited_routes.is_empty()
+            && imports
+                .iter()
+                .any(|import| matches!(import.as_str(), "playwright" | "@playwright/test")))
 }
 
 pub(crate) fn is_migration_surface(rel: &str, name: &str, ext: &str) -> bool {

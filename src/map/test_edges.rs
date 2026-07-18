@@ -33,7 +33,8 @@ pub(crate) fn strict_test_edges_for_file(
         .unwrap_or(false);
     let mut scored = Vec::new();
     for file in project.files.values() {
-        if !file.has_role("test")
+        let browser_route_proof = e2e_test_visits_unique_route(project, rel, file);
+        if (!file.has_role("test") && !browser_route_proof)
             || file.has_role("test_support")
             || !repo::is_source_ext(&file.ext)
         {
@@ -44,7 +45,7 @@ pub(crate) fn strict_test_edges_for_file(
         }
         let test_domain =
             scoped_domain_path_for_rel(project, &file.rel, domain_by_rel(project, rel));
-        let route_visit_owner_is_unique = e2e_test_visits_unique_route(project, rel, file);
+        let route_visit_owner_is_unique = browser_route_proof;
         if source_domain.is_some() && source_domain != test_domain && !route_visit_owner_is_unique {
             continue;
         }
@@ -67,6 +68,20 @@ pub(crate) fn strict_test_edges_for_file(
                 "e2e_route".to_string(),
                 EvidenceStrength::High,
             ));
+            if file.has_role("proof_runner") {
+                scored.extend(
+                    route_proof_runner_consumers(project, &file.rel)
+                        .into_iter()
+                        .map(|runner| {
+                            (
+                                78usize,
+                                runner.file,
+                                "e2e_route".to_string(),
+                                EvidenceStrength::High,
+                            )
+                        }),
+                );
+            }
             continue;
         }
         if test_imports_support_consuming_anchor(project, rel, file) {

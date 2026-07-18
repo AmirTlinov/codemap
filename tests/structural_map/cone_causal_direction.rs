@@ -4,6 +4,8 @@ fn file_cone_depth_follows_dependencies_without_recursing_through_consumers() {
     let repo = TempDir::new().expect("repo");
     let cache = TempDir::new().expect("cache");
     git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
     write(
         &repo.path().join("src/entry.ts"),
         "import { run } from './owner';\nexport const response = run();\n",

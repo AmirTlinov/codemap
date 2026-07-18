@@ -99,7 +99,14 @@ pub(crate) fn classify_roles(root: &Path, info: &mut FileInfo) {
     if is_owner_doc_surface(&rel, &name, &info.ext) {
         info.roles.insert("owner_doc".to_string());
     }
-    if is_proof_runner_surface(&rel, &name, &info.ext, &info.tokens) {
+    if is_proof_runner_surface(
+        &rel,
+        &name,
+        &info.ext,
+        &info.tokens,
+        &info.imports,
+        &info.visited_route_paths,
+    ) {
         info.roles.insert("proof_runner".to_string());
     }
     if is_migration_surface(&rel, &name, &info.ext) {

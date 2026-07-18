@@ -1,8 +1,8 @@
 // Responsibility: flow-lens-route-helpers
 use crate::map::{
     RuntimeFactIndex, domain_by_rel, next_app_route_pattern, package_for_rel,
-    route_pattern_matches, scoped_domain_path_for_rel, static_route_methods,
-    structural_edge_with_locations,
+    route_pattern_matches, route_proof_runner_consumers, scoped_domain_path_for_rel,
+    static_route_methods, structural_edge_with_locations,
 };
 use crate::model::{EvidenceLocation, EvidenceStrength, Project, RuntimeRoute, StructuralEdge};
 use crate::repo;
@@ -126,15 +126,28 @@ pub(crate) fn route_reference_edges_with_index(
         .filter(|visit| {
             route_page_visit_owner_count_for_visit(project, route, &visit.path, index) == 1
         })
-        .map(|visit| {
-            structural_edge_with_locations(
+        .flat_map(|visit| {
+            let mut edges = vec![structural_edge_with_locations(
                 visit.file.clone(),
                 route.file.clone(),
                 "runtime_reference",
                 "e2e_visited_route",
                 EvidenceStrength::High,
                 visit.locations.clone(),
-            )
+            )];
+            for runner in route_proof_runner_consumers(project, &visit.file) {
+                let mut locations = runner.locations;
+                locations.extend(visit.locations.clone());
+                edges.push(structural_edge_with_locations(
+                    runner.file,
+                    route.file.clone(),
+                    "runtime_reference",
+                    "e2e_visited_route",
+                    EvidenceStrength::High,
+                    locations,
+                ));
+            }
+            edges
         })
         .collect()
 }

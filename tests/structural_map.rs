@@ -62,6 +62,7 @@ include!("structural_map/rust_qualified_symbol_cone.rs");
 include!("structural_map/rust_typed_method_cone.rs");
 include!("structural_map/exact_symbol_consumers.rs");
 include!("structural_map/next_routes.rs");
+include!("structural_map/browser_route_proof.rs");
 include!("structural_map/anchors_validate_summary.rs");
 include!("structural_map/anchors_validate_details.rs");
 include!("structural_map/boundaries_graph_schema.rs");

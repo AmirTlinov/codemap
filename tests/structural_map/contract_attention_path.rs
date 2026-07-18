@@ -119,6 +119,8 @@ fn exported_symbol_type_dependency_opens_the_shared_contract_consumers() {
     let repo = TempDir::new().expect("repo");
     let cache = TempDir::new().expect("cache");
     git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
     write(
         &repo.path().join("package.json"),
         r#"{"private":true,"workspaces":["apps/*"]}"#,

@@ -150,6 +150,8 @@ fn workflow_cone_shows_static_dispatcher_and_exact_ops_documentation() {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");
     git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
     write(
         &repo.path().join(".github/workflows/release-prod.yml"),
         "name: Release Prod\non: [workflow_dispatch]\njobs:\n  release:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo release\n",

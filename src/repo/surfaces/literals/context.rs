@@ -1,5 +1,7 @@
 // Responsibility: repo-surfaces-literal-context
 
+use crate::repo::{normalize_route_path, quoted_strings};
+
 pub(crate) fn quoted_prefix_is_page_goto_argument(prefix: &str) -> bool {
     let lower = prefix.to_ascii_lowercase();
     let Some(index) = lower.rfind("page.goto") else {
@@ -18,6 +20,64 @@ pub(crate) fn quoted_prefix_is_page_goto_argument(prefix: &str) -> bool {
         return false;
     };
     !argument_prefix.contains(')') && argument_prefix.trim().is_empty()
+}
+
+pub(crate) fn static_url_route_binding(line: &str) -> Option<(String, String)> {
+    let (declaration, value) = line.split_once('=')?;
+    let binding = declaration
+        .trim()
+        .strip_prefix("const ")
+        .or_else(|| declaration.trim().strip_prefix("let "))
+        .or_else(|| declaration.trim().strip_prefix("var "))?
+        .trim();
+    if !javascript_identifier(binding) {
+        return None;
+    }
+    let value = value.trim_start();
+    let arguments = value
+        .strip_prefix("new URL")?
+        .trim_start()
+        .strip_prefix('(')?;
+    let literal = quoted_strings(arguments).into_iter().next()?.value;
+    let route = absolute_url_route(&literal)?;
+    Some((binding.to_string(), route))
+}
+
+pub(crate) fn page_goto_url_binding(line: &str) -> Option<String> {
+    let lower = line.to_ascii_lowercase();
+    let index = lower.find("page.goto")?;
+    if lower[..index]
+        .chars()
+        .next_back()
+        .is_some_and(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '$')
+    {
+        return None;
+    }
+    let arguments = line[index + "page.goto".len()..]
+        .trim_start()
+        .strip_prefix('(')?;
+    let first = arguments.split([',', ')']).next()?.trim();
+    let binding = first
+        .strip_suffix(".toString(")
+        .or_else(|| first.strip_suffix(".href"))
+        .unwrap_or(first)
+        .trim();
+    javascript_identifier(binding).then(|| binding.to_string())
+}
+
+fn absolute_url_route(value: &str) -> Option<String> {
+    let (_, authority_and_path) = value.split_once("://")?;
+    let path_start = authority_and_path.find('/')?;
+    normalize_route_path(&authority_and_path[path_start..])
+}
+
+fn javascript_identifier(value: &str) -> bool {
+    let mut chars = value.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    (first.is_ascii_alphabetic() || matches!(first, '_' | '$'))
+        && chars.all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '$'))
 }
 
 pub(crate) fn line_has_surface_context(line: &str) -> bool {

@@ -1,7 +1,7 @@
 // Responsibility: runtime-lens-facts
 use crate::map::{
-    directory_has_files, files_under_directory, package_for_rel, route_guard_owner,
-    route_visit_locations, runtime_path_context, runtime_route_path_analysis,
+    browser_route_proof_consumer, directory_has_files, files_under_directory, package_for_rel,
+    route_guard_owner, route_visit_locations, runtime_path_context, runtime_route_path_analysis,
     runtime_routes_for_file,
 };
 use crate::model::{EvidenceLocation, FileInfo, Project, RuntimeRoute, StructuralEdge, Unknown};
@@ -109,7 +109,7 @@ where
     }
 
     for file in project.files.values() {
-        if file.has_role("test") {
+        if file.has_role("test") || browser_route_proof_consumer(file) {
             for path in &file.visited_route_paths {
                 route_visits.push(RouteVisitFact {
                     file: file.rel.clone(),

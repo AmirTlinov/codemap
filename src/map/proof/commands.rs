@@ -8,6 +8,13 @@ use crate::map::{
 use crate::model::{Project, ProofSurface};
 
 pub(crate) fn proof_command_for_test(project: &Project, test: &str) -> Option<String> {
+    if project
+        .files
+        .get(test)
+        .is_some_and(|file| !file.has_role("test"))
+    {
+        return None;
+    }
     let Some(package) = package_for_rel(project, test) else {
         return project.files.get(test).and_then(|file| {
             (file.language == "python").then(|| format!("pytest {}", shell_quote(test)))
