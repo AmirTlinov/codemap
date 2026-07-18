@@ -112,7 +112,8 @@ for still-relevant hidden or unknown evidence. In `implementation` mode, the nav
 `codemap changed` and `codemap proof changed`. In `analysis` mode, an exact entry is
 sufficient; root orientation must be followed by another focused map. Any analytical
 repository change fails the outcome. Control has ordinary tools and blocks agent-attributed
-codemap calls.
+codemap calls. Exact/local controls are the exception: when the prompt already fixes the file
+and replacement bytes, both arms edit and verify directly without required navigation.
 
 The harness does not parse task text or choose a command. Its shim uses native process ancestry
 (`libproc` on macOS, `/proc` on Linux) to separate an agent navigation call from a codemap
@@ -126,7 +127,8 @@ the raw `invocation_results`, `first_entry`, `entry_is_first_invocation`, `entry
 focused call followed root orientation. Ignored internal calls and the event-trace comparison
 remain visible as diagnostics. A failed or repeated treatment command is product behavior, not a
 reason to discard external evidence. Validity only requires that control never accesses codemap,
-treatment does access it, and exact controls stay on their pre-registered local entry.
+treatment accesses it on complex tasks, and an optional exact-control call stays on its
+pre-registered local entry.
 
 Use `--resume` after interruption. Existing trials are reused only when the task,
 base commit, composed arm prompt, protocol/parser and harness bytes, model, reasoning,
@@ -182,12 +184,12 @@ Because the score is external, it measures the effects of understanding instead 
 trusting an agent's self-description. A strong corpus contains tasks where the direct
 edit is easy but important coupled surfaces are not obvious from the prompt.
 
-Exact/local controls should name their usable anchor directly in the identical task
-prompt and pre-register the allowed exact first argv/anchor set together with
-`entry_kind=exact`, `root_entry=false`, and the allowed first entry as treatment integrity checks.
-The treatment prompt asks an implementation agent for one proportional entry and one
-`changed` / `proof changed` pair after the edit; the trace diagnoses friction without overruling
-the verifier. Exact controls test
+Exact/local controls name the file, current bytes, and replacement bytes in the identical task
+prompt. Both arms receive the same instruction to edit that file directly and verify the resulting
+bytes; codemap is not a required contact when there is no navigation uncertainty. If treatment
+does invoke codemap, the call must match a pre-registered exact entry with `entry_kind=exact` and
+`root_entry=false`. These controls measure whether availability alone preserves outcome without
+adding material cost.
 that codemap preserves the control outcome without charging for root orientation; time and token
 deltas remain visible resource costs rather than a substitute for that check.
 
