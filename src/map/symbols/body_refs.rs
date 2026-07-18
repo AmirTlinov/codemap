@@ -39,6 +39,54 @@ pub(crate) fn symbol_body_text(
     )
 }
 
+pub(crate) fn symbol_public_type_text(
+    project: &Project,
+    info: &FileInfo,
+    symbol_name: &str,
+) -> Option<String> {
+    let symbols = matching_symbols(info, symbol_name);
+    let body = symbol_body_text(project, info, symbol_name)?;
+    if !matches!(
+        info.ext.as_str(),
+        "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs"
+    ) || symbols.iter().any(|symbol| {
+        matches!(
+            symbol.kind.as_str(),
+            "class" | "interface" | "type" | "enum"
+        )
+    }) {
+        return Some(body);
+    }
+    let kind = symbols.first().map(|symbol| symbol.kind.as_str())?;
+    if matches!(kind, "const" | "variable" | "component" | "hook")
+        && let Some(arrow) = body.find("=>")
+    {
+        return Some(body[..arrow].to_string());
+    }
+    if matches!(kind, "const" | "variable")
+        && let Some(assign) = body.find('=')
+    {
+        return Some(body[..assign].to_string());
+    }
+    Some(js_function_signature(&body))
+}
+
+fn js_function_signature(body: &str) -> String {
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    for (index, ch) in body.char_indices() {
+        match ch {
+            '(' => paren_depth = paren_depth.saturating_add(1),
+            ')' => paren_depth = paren_depth.saturating_sub(1),
+            '[' => bracket_depth = bracket_depth.saturating_add(1),
+            ']' => bracket_depth = bracket_depth.saturating_sub(1),
+            '{' if paren_depth == 0 && bracket_depth == 0 => return body[..index].to_string(),
+            _ => {}
+        }
+    }
+    body.to_string()
+}
+
 pub(crate) fn symbol_body_references_imported_type(body: &str, local: &str, ext: &str) -> bool {
     if !matches!(
         ext,
@@ -52,6 +100,8 @@ pub(crate) fn symbol_body_references_imported_type(body: &str, local: &str, ext:
         let code =
             js_code_line_without_strings_and_comments(line, &mut in_block_comment, &mut quote);
         line_has_type_identifier_reference(&code, local)
+            && (!matches!(ext, "tsx" | "jsx" | "vue" | "svelte")
+                || !line_has_jsx_tag_identifier_reference(&code, local))
     })
 }
 

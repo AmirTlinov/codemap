@@ -99,6 +99,15 @@ def main() -> int:
     }
     assert "crates/ratiotissue-cli/src/continuation/feedback.rs" not in ratio_paths
     assert "what world operation actually occurs" in ratio["prompt"]
+    pabg_investigation = next(
+        task for task in investigations if task["id"] == "pabg-deterministic-investigation"
+    )
+    assert pabg_investigation["criteria"]["assembled-package-boundary"]["citations"] == [
+        "apps/web/src/lib/replay/package-dir.ts"
+    ]
+    assert pabg_investigation["criteria"]["policy-boundary"]["citations"] == [
+        "apps/web/src/lib/replay/loader.ts"
+    ]
 
     implementations = {
         task["id"]: task

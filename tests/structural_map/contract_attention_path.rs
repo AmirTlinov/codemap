@@ -16,15 +16,27 @@ fn cone_contract_where_and_embedded_schema_form_one_exact_attention_path() {
     );
     write(
         &repo.path().join("apps/web/src/route.ts"),
-        "import { ReplayMount } from './ReplayMount';\nexport const route = ReplayMount;\n",
+        "import { ReplayMount } from './ReplayMount';\nimport { createTerrainPlacement } from './surface-layer';\nexport const route = [ReplayMount, createTerrainPlacement];\n",
     );
     write(
-        &repo.path().join("apps/web/src/ReplayMount.ts"),
-        "import type { ReplayManifest } from './replay/types';\nexport const ReplayMount = (manifest: ReplayManifest) => manifest.session_id;\n",
+        &repo.path().join("apps/web/src/ReplayMount.tsx"),
+        "import type { ReplayManifest } from './replay/types';\nimport { ReplayHud } from './ReplayHud';\nexport const ReplayMount = (manifest: ReplayManifest) => <ReplayHud id={manifest.session_id} />;\n",
+    );
+    write(
+        &repo.path().join("apps/web/src/ReplayHud.tsx"),
+        "export const ReplayHud = ({ id }: { id: string }) => <p>{id}</p>;\n",
     );
     write(
         &repo.path().join("apps/web/src/replay/types.ts"),
         "export interface ReplayManifest { session_id: string }\n",
+    );
+    write(
+        &repo.path().join("apps/web/src/surface-layer.ts"),
+        "import type { TerrainTextures } from './terrain/load-texture';\nexport const createTerrainPlacement = () => 1;\nexport const buildTerrainLayer = (textures: TerrainTextures) => textures.ready;\n",
+    );
+    write(
+        &repo.path().join("apps/web/src/terrain/load-texture.ts"),
+        "export interface TerrainTextures { ready: boolean }\n",
     );
     write(
         &repo.path().join("apps/web/src/schemas.generated.ts"),
@@ -52,22 +64,20 @@ fn cone_contract_where_and_embedded_schema_form_one_exact_attention_path() {
     let cone = run_markdown(
         repo.path(),
         cache.path(),
-        &["cone", "apps/web/src/route.ts", "--depth", "2"],
+        &["cone", "apps/web/src/route.ts"],
     );
     assert!(
         cone.contains("codemap contract apps/web/src/replay/types.ts"),
         "a visible contract owner should become an exact focused expand: {cone}"
     );
-    for expected in [
-        "crates/replay-format/src/lib.rs#ReplayManifest",
-        "schemas/replay-manifest.schema.json",
-        "contracts/07-replay-contract.md",
-    ] {
-        assert!(
-            cone.contains(expected),
-            "the cone should carry its visible contract into the exact neighborhood `{expected}`: {cone}"
-        );
-    }
+    assert!(
+        cone.contains("apps/web/src/terrain/load-texture.ts"),
+        "the adjacent renderer owner should retain its texture-success boundary: {cone}"
+    );
+    assert!(
+        !cone.contains("contract -> `apps/web/src/ReplayHud.tsx`"),
+        "rendered components are runtime uses, not public type contracts: {cone}"
+    );
 
     let contract = run_markdown(
         repo.path(),

@@ -1,7 +1,7 @@
 // Responsibility: map-entry
 use crate::map::{
-    ConeXrayInput, FileConeObservationInput, ObservationProjection, cone_anchor,
-    cone_boundary_edges, cone_contract_edges, cone_declared_env, cone_depths,
+    ConeXrayInput, FileConeObservationInput, ObservationProjection, adjacent_public_contract_edges,
+    cone_anchor, cone_boundary_edges, cone_contract_edges, cone_declared_env, cone_depths,
     cone_directory_report, cone_incoming_edges, cone_missing_symbol_report, cone_outgoing_edges,
     cone_owner_env_proof_edges_from_facts, cone_owner_incoming_edges, cone_owner_outgoing_edges,
     cone_owner_proof_edges, cone_owner_unknowns, cone_proof_edges_with_direct_consumers,
@@ -116,6 +116,7 @@ pub fn cone_report(
     let mut incoming = cone_incoming_edges(project, &seed_files);
     let mut proof = cone_proof_edges_with_direct_consumers(project, &seed_files);
     let mut contracts = cone_contract_edges(project, &outgoing);
+    contracts.extend(adjacent_public_contract_edges(project, &outgoing));
     let mut boundary = cone_boundary_edges(project, &rel, &depths);
     if seed_files.len() == 1 {
         let seed = &seed_files[0];

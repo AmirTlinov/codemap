@@ -4,8 +4,8 @@ use crate::map::{
     file_references_static_expression_after_imports, identifier_ranges,
     imported_symbol_binding_matches, is_identifier_byte, matching_symbols, previous_nonspace_byte,
     sort_edges, structural_edge_with_locations, symbol_anchor_path,
-    symbol_body_references_imported_type, symbol_body_text, symbol_definition_location,
-    symbol_is_exported,
+    symbol_body_references_imported_type, symbol_definition_location, symbol_is_exported,
+    symbol_public_type_text,
 };
 use crate::model::{EvidenceStrength, FileInfo, Project, StructuralEdge};
 use std::collections::BTreeSet;
@@ -80,7 +80,7 @@ pub(crate) fn symbol_contract_edges(
     let Some(info) = project.files.get(file_rel) else {
         return edges;
     };
-    let Some(body) = symbol_body_text(project, info, symbol_name) else {
+    let Some(body) = symbol_public_type_text(project, info, symbol_name) else {
         return edges;
     };
     for (target_rel, bindings) in &info.resolved_import_bindings {

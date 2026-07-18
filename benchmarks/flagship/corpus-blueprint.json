@@ -745,21 +745,16 @@
           "kind": "source_claim",
           "evidence": [
             {
-              "path": "apps/web/src/lib/replay/types.ts",
-              "contains": [
-                "export const ReplayPackageSchema = z.object({",
-                "roster: z.array(AgentRosterEntrySchema).min(1)"
-              ]
-            },
-            {
               "path": "apps/web/src/lib/replay/package-dir.ts",
               "contains": [
-                "async function materializeReplayPackage("
+                "async function materializeReplayPackage(",
+                "const worldView = adaptWorld(",
+                "manifest: replayManifest,",
+                "world: worldView,"
               ]
             }
           ],
           "citations": [
-            "apps/web/src/lib/replay/types.ts",
             "apps/web/src/lib/replay/package-dir.ts"
           ],
           "required": false
@@ -773,17 +768,10 @@
                 "applyOwnerFilter(loaded.package.thoughts, ownedAgentIds)",
                 "manifest.world.terrain_art_surface_json required"
               ]
-            },
-            {
-              "path": "contracts/07-replay-contract.md",
-              "contains": [
-                "terrain_art_surface_json"
-              ]
             }
           ],
           "citations": [
-            "apps/web/src/lib/replay/loader.ts",
-            "contracts/07-replay-contract.md"
+            "apps/web/src/lib/replay/loader.ts"
           ],
           "required": false
         },

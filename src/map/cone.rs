@@ -1,4 +1,5 @@
 // Responsibility: cone-frame-assembly
+mod contract_edges;
 mod directory;
 mod env_surfaces;
 mod owner_surfaces;
@@ -7,6 +8,7 @@ mod symbol_traversal;
 mod traversal;
 mod xray;
 
+pub(crate) use contract_edges::*;
 pub(crate) use directory::*;
 pub(crate) use env_surfaces::*;
 pub(crate) use owner_surfaces::*;
