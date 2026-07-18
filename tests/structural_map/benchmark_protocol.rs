@@ -27,6 +27,7 @@ print(json.dumps([
     protocol("analysis", "codemap", [{"argv":["cone",root],"status":0}], root),
     protocol("analysis", "codemap", ["cone src/.."], root),
     protocol("implementation", "codemap", ["ls src/pricing.py", "changed", "changed", "proof changed"], root),
+    protocol("analysis", "codemap", [{"argv":["cone","missing.py"],"status":2},{"argv":["cone","src/pricing.py"],"status":0}], root),
 ]))
 "#;
     let output = python()
@@ -84,6 +85,10 @@ print(json.dumps([
     }
     assert_eq!(rows[19]["ordered_daily"], false);
     assert_eq!(rows[19]["compliant"], false);
+    assert_eq!(rows[20]["failed_invocation_count"], 1);
+    assert_eq!(rows[20]["first_entry"], "cone src/pricing.py");
+    assert_eq!(rows[20]["entry_is_first_invocation"], true);
+    assert_eq!(rows[20]["compliant"], true);
 }
 
 #[test]

@@ -254,7 +254,13 @@ def codemap_protocol(
     ]
     entries = [(index, entry) for index, _, _, entry in calls if entry is not None]
     first = entries[0] if entries else None
-    entry_is_first_invocation = bool(first and first[0] == 0)
+    first_successful_invocation = next(
+        (index for index, record in enumerate(records) if record["status"] == 0),
+        None,
+    )
+    entry_is_first_invocation = bool(
+        first and first[0] == first_successful_invocation
+    )
     root_entry = any(entry == "root" for _, entry in entries)
     exact_entry = any(entry == "exact" for _, entry in entries)
     focused_calls = [

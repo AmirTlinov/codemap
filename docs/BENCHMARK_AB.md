@@ -126,7 +126,9 @@ the raw `invocation_results`, `first_entry`, `entry_is_first_invocation`, `entry
 `exact`, or `root`), `root_entry`, `exact_entry`, `mixed`, `ordered_daily`, and whether a
 focused call followed root orientation. Ignored internal calls and the event-trace comparison
 remain visible as diagnostics. A failed or repeated treatment command is product behavior, not a
-reason to discard external evidence. Validity only requires that control never accesses codemap,
+reason to discard external evidence. Entry ordering starts with the first successful agent call;
+a failed attempt remains cost evidence but does not invalidate the successful exact entry that
+follows. Validity only requires that control never accesses codemap,
 treatment accesses it on complex tasks, and an optional exact-control call stays on its
 pre-registered local entry.
 
