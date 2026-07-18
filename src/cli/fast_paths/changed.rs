@@ -93,9 +93,6 @@ pub(crate) fn try_cached_changed_fast_path(
         args.files.as_deref(),
         &args.positional_files,
     )?;
-    if since_is_snapshot_token(args.since.as_deref()) {
-        return Ok(None);
-    }
     if changed_has_explicit_files(args) {
         return Ok(None);
     }
@@ -105,7 +102,7 @@ pub(crate) fn try_cached_changed_fast_path(
     let cwd = env::current_dir()?;
     let root = repo::resolve_root(root_selection, &cwd)?;
     let (selector, git_state) = changed_selector_state(args, &root);
-    if git_state.is_empty() {
+    if git_state.is_empty() && !since_is_snapshot_token(args.since.as_deref()) {
         return Ok(None);
     }
     let remote = repo::git_remote(&root);

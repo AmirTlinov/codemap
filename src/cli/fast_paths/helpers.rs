@@ -79,9 +79,7 @@ pub(crate) fn changed_selector(args: &ChangedArgs) -> String {
 }
 
 pub(crate) fn proof_selector(args: &ProofArgs) -> String {
-    if args.target.as_deref() == Some("changed") {
-        "changed".to_string()
-    } else if args.staged {
+    if args.staged {
         "--staged".to_string()
     } else if let Some(since) = args.since.as_deref() {
         format!("--since {}", shell_quote_arg(since))
@@ -94,7 +92,11 @@ fn changed_git_state(args: &ChangedArgs, root: &Path) -> Vec<crate::model::GitCh
     if args.staged {
         repo::git_changes(root, true, None)
     } else if let Some(since) = args.since.as_deref() {
-        repo::git_changes(root, false, Some(since))
+        if crate::cache::looks_like_snapshot_token(since) {
+            repo::git_changes(root, false, None)
+        } else {
+            repo::git_changes(root, false, Some(since))
+        }
     } else {
         repo::git_changes(root, false, None)
     }
@@ -106,7 +108,11 @@ fn proof_git_state(args: &ProofArgs, root: &Path) -> Vec<crate::model::GitChange
     } else if args.staged {
         repo::git_changes(root, true, None)
     } else if let Some(since) = args.since.as_deref() {
-        repo::git_changes(root, false, Some(since))
+        if crate::cache::looks_like_snapshot_token(since) {
+            repo::git_changes(root, false, None)
+        } else {
+            repo::git_changes(root, false, Some(since))
+        }
     } else {
         repo::git_changes(root, false, None)
     }

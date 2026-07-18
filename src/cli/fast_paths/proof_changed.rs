@@ -55,16 +55,13 @@ pub(crate) fn try_cached_proof_changed_fast_path(
     if proof_has_explicit_target_or_files(args) || args.run || args.include_hidden {
         return Ok(None);
     }
-    if since_is_snapshot_token(args.since.as_deref()) {
-        return Ok(None);
-    }
     if args.target.as_deref() != Some("changed") && !args.staged && args.since.is_none() {
         return Ok(None);
     }
     let cwd = env::current_dir()?;
     let root = repo::resolve_root(root_selection, &cwd)?;
     let (selector, git_state) = proof_selector_state(args, &root);
-    if git_state.is_empty() {
+    if git_state.is_empty() && !since_is_snapshot_token(args.since.as_deref()) {
         return Ok(None);
     }
     let remote = repo::git_remote(&root);

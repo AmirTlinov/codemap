@@ -101,6 +101,42 @@ fn proof_changed_since_snapshot_scopes_proof() {
 }
 
 #[test]
+fn snapshot_scoped_daily_reports_reuse_the_exact_warm_artifact() {
+    let (repo, cache) = fixture();
+    write(
+        &repo.path().join("packages/replay/src/warm-a.ts"),
+        "export const warmA = 1;\n",
+    );
+    let token = snapshot_token(&changed_markdown(repo.path(), cache.path(), &["changed"]));
+    write(
+        &repo.path().join("packages/replay/src/warm-b.ts"),
+        "export const warmB = 1;\n",
+    );
+
+    let first = changed_markdown(repo.path(), cache.path(), &["changed", "--since", &token]);
+    assert!(first.contains("warm-b.ts") && !first.contains("warm-a.ts"));
+
+    let snapshot = std::fs::read_dir(cache.path())
+        .expect("cache root")
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path().join("snapshots").join(format!("{token}.json")))
+        .find(|path| path.is_file())
+        .expect("saved snapshot");
+    std::fs::remove_file(snapshot).expect("remove source snapshot after warming exact reports");
+
+    for args in [
+        vec!["changed", "--since", &token],
+        vec!["proof", "changed", "--since", &token],
+    ] {
+        let warmed = changed_markdown(repo.path(), cache.path(), &args);
+        assert!(
+            warmed.contains("warm-b.ts") && !warmed.contains("snapshot_not_found"),
+            "the exact warm report should not recompute its removed snapshot: {warmed}"
+        );
+    }
+}
+
+#[test]
 fn snapshot_not_found_is_fail_open() {
     let (repo, cache) = fixture();
     write(
