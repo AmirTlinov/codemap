@@ -179,6 +179,16 @@ def main() -> int:
         "src/hooks/flagship_text_chat_hook.test.ts" in command["argv"]
         for command in hook_commands
     )
+    chat_oracle = (
+        ROOT / "benchmarks/flagship/oracles/pabg/flagship_text_chat.test.ts"
+    ).read_text(encoding="utf-8")
+    assert "embeddedHistory ??" in chat_oracle
+    assert 'frame.type === "text_chat_broadcast"' in chat_oracle
+    hook_oracle = (
+        ROOT / "benchmarks/flagship/oracles/pabg/flagship_text_chat_hook.test.ts"
+    ).read_text(encoding="utf-8")
+    assert 'text: "First"' in hook_oracle
+    assert "chat_history:" not in hook_oracle
     ratio_implementation = implementations["ratio-codex-live-episodes"]
     assert "continuation.rs#cmd_pulse_world_loop" in ratio_implementation["prompt"]
     assert "ratiotissue live-codex-sessions" in ratio_implementation["prompt"]

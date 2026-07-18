@@ -96,17 +96,24 @@ describe("flagship global text chat contract", () => {
       expect(result.toSender[0]?.type).toBe("text_chat_broadcast");
       hub.disconnect(connection);
     }
-    const welcome = hub.handle(
+    const newcomerFrames = hub.handle(
       "conn-b",
       hello(AGENT_B, "Silverthorn", { x: 8, y: 13 }),
-    ).toSender[0];
+    ).toSender;
+    const welcome = newcomerFrames.find((frame) => frame.type === "welcome");
     if (welcome?.type !== "welcome") throw new Error("expected welcome");
-    expect(welcome.chat_history.length).toBeGreaterThan(0);
-    expect(welcome.chat_history.length).toBeLessThan(historyInputs);
-    expect(welcome.chat_history[0]?.text).toBe(
-      `message ${historyInputs - welcome.chat_history.length}`,
+    const embeddedHistory = (welcome as unknown as {
+      chat_history?: Extract<(typeof newcomerFrames)[number], { type: "text_chat_broadcast" }>[];
+    }).chat_history;
+    const history =
+      embeddedHistory ??
+      newcomerFrames.filter((frame) => frame.type === "text_chat_broadcast");
+    expect(history.length).toBeGreaterThan(0);
+    expect(history.length).toBeLessThan(historyInputs);
+    expect(history[0]?.text).toBe(
+      `message ${historyInputs - history.length}`,
     );
-    expect(welcome.chat_history.at(-1)?.text).toBe(`message ${historyInputs - 1}`);
+    expect(history.at(-1)?.text).toBe(`message ${historyInputs - 1}`);
 
     const floodHub = new TownHub();
     floodHub.handle("conn-a", hello(AGENT_A, "Volkov"));

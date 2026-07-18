@@ -52,9 +52,13 @@ describe("flagship text chat multiplayer consumer", () => {
         type: "welcome",
         your_id: AGENT,
         peers: [],
-        chat_history: [
-          { peer_id: AGENT, agent_name: "Volkov", text: "First", ts: 1 },
-        ],
+      });
+      transport.options?.onFrame({
+        type: "text_chat_broadcast",
+        peer_id: AGENT,
+        agent_name: "Volkov",
+        text: "First",
+        ts: 1,
       });
       transport.options?.onFrame({
         type: "text_chat_broadcast",
