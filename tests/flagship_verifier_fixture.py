@@ -136,13 +136,54 @@ def main() -> int:
         encoding="utf-8"
     )
     assert "result?.attempts" in browser_oracle
-    assert "result.selectedTabId" in browser_oracle
-    assert "result.selectedTabSource" in browser_oracle
+    assert "value.selectedTabId" in browser_oracle
+    assert "value.selectedTabSource" in browser_oracle
+    assert "contextKind(row) === \"tab\"" in browser_oracle
+    assert "tab.ok !== false" in browser_oracle
     assert "value?.carrierDetails" in browser_oracle
     assert "value?.carrier?.world" in browser_oracle
     assert "value?.tabCarrier?.world" in browser_oracle
     assert "carrier?.kind || carrier?.type" in browser_oracle
     assert "combined?.data?.attempts" in browser_oracle
+    with tempfile.TemporaryDirectory(prefix="codemap-browser-receipt-") as raw:
+        browser_root = Path(raw)
+        worker = browser_root / "vendor/browser_extension/service_worker.js"
+        worker.parent.mkdir(parents=True)
+        worker.write_text(
+            """
+const state = { enabled: true, focusedTabId: null };
+async function dispatchRpc(method, params = {}) {
+  const requested = Object.prototype.hasOwnProperty.call(params, "tabId");
+  const tabId = Number(requested ? params.tabId : state.focusedTabId);
+  const source = requested ? "request" : "focused";
+  const rows = await chrome.scripting.executeScript({
+    target: { tabId, frameIds: [0] }, world: "ISOLATED", func() {}, args: [],
+  });
+  return {
+    selectedTab: { tabId: String(tabId), source },
+    selectedTabId: String(tabId),
+    carrier: "isolated_top_frame",
+    attempts: [{
+      kind: "tab", carrier: "isolated_top_frame", tabId: String(tabId), source,
+      world: "ISOLATED", frameId: 0, ok: true, result: rows[0].result,
+    }],
+  };
+}
+""",
+            encoding="utf-8",
+        )
+        for criterion in ("tab-provenance", "svg-carrier"):
+            semantic_receipt = subprocess.run(
+                [
+                    "node",
+                    str(ROOT / "benchmarks/flagship/browser_focused_clipboard_test.js"),
+                    str(browser_root),
+                    criterion,
+                ],
+                capture_output=True,
+                text=True,
+            )
+            assert semantic_receipt.returncode == 0, semantic_receipt.stderr
     openslop = implementations["openslop-active-plan"]
     assert "public `active-plan`" in openslop["prompt"]
     assert "every ROADMAP row in order as `slices`" in openslop["prompt"]

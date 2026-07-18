@@ -105,31 +105,13 @@ function tabProvenance(result, expectedTab, expectedSource) {
   if (result.context === "focused_tab") {
     return String(result.tabId) === String(expectedTab);
   }
-  if (result.context === "tab") {
-    const attempt = attempts(result).find((row) => row?.context === "tab");
-    return String(result.tabId ?? result.selectedTabId ?? result.selectedTab?.tabId) === String(expectedTab)
-      && isTopFrame(result)
-      && carrierWorld(result) === "ISOLATED"
-      && sourceMatches(
-        result.source,
-        result.selectedTabSource,
-        result.selectedTab?.source,
-        result.selectedBy,
-        result.selectedFrom,
-        result.selectionSource,
-        result.tabIdSource,
-        attempt?.source,
-        attempt?.selectedBy,
-        attempt?.selectedFrom,
-        attempt?.selectionSource,
-        attempt?.tabIdSource,
-      );
-  }
   const value = typeof result.context === "object" ? result.context : result;
-  return value && contextKind(value) === "tab"
-    && String(value.tabId ?? value.selectedTabId ?? value.selectedTab?.tabId) === String(expectedTab)
-    && isTopFrame(value)
-    && carrierWorld(value) === "ISOLATED"
+  const attempt = attempts(result).find((row) => contextKind(row) === "tab");
+  const tab = contextKind(value) === "tab" ? value : attempt;
+  return tab && tab.ok !== false
+    && String(value.tabId ?? value.selectedTabId ?? value.selectedTab?.tabId ?? tab.tabId) === String(expectedTab)
+    && (isTopFrame(value) || isTopFrame(tab))
+    && (carrierWorld(value) ?? carrierWorld(tab)) === "ISOLATED"
     && sourceMatches(
       value.source,
       value.selectedTabSource,
@@ -138,6 +120,11 @@ function tabProvenance(result, expectedTab, expectedSource) {
       value.selectedFrom,
       value.selectionSource,
       value.tabIdSource,
+      tab.source,
+      tab.selectedBy,
+      tab.selectedFrom,
+      tab.selectionSource,
+      tab.tabIdSource,
     );
 }
 
