@@ -5,6 +5,10 @@ public JSON compatibility is governed separately by `docs/SCHEMA_POLICY.md`.
 
 ## Unreleased
 
+- Kept adjacent domain contracts and exact CI operations documentation in bounded file cones,
+  so entrypoint-first investigations retain the consumer policy and release contract in view.
+- Reused exact snapshot-scoped `changed` and `proof changed` artifacts after their first build,
+  removing repeated map reconstruction from the Windows daily path without weakening deltas.
 - Isolated every benchmark arm to an auth-only ephemeral Codex home so user skills,
   plugins, MCP state, and cached instructions cannot become an unplanned arm input.
 - Replaced investigation chain hints with one concrete runtime/file/symbol anchor per task,
