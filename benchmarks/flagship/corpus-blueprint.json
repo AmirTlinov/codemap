@@ -302,7 +302,7 @@
           "path": "tests/structural_map/runtime_transform_paths.rs"
         }
       ],
-      "prompt": "Start from `src/map/lenses/runtime/paths.rs#runtime_route_path_analysis`. Make runtime, flow, and cone distinguish request guards from passive security telemetry and response-output shaping from input or unrelated local-object shaping. A security-named observer such as `csrfObserver` is telemetry, not a guard; input transforms such as `sanitizePayload` and `normalizeInput` must remain transformations in the runtime chain but must not become response-projection evidence. For a response projection, compare fields read from the primary parameter and its aliases with reads that actually occur inside balanced return expressions; a same-named output key sourced from an unrelated local object is not evidence that the primary field was returned. Preserve exact external-response evidence and dynamic-boundary behavior, and add focused regression coverage.",
+      "prompt": "Start from `src/map/lenses/runtime/paths.rs#runtime_route_path_analysis`. Make runtime, flow, and cone distinguish request guards from passive security telemetry and response-output shaping from input or unrelated local-object shaping. Security telemetry named as an observer or recorder, including `csrfObserver` and `recordCsrfFailure`, is not a guard merely because its name also contains a security term. Input transforms such as `sanitizePayload` and `normalizeInput` must remain transformations in the runtime chain but must not become response-projection evidence. For a response projection, compare fields read from the primary parameter and its aliases with reads that actually occur inside balanced return expressions; a same-named output key sourced from an unrelated local object is not evidence that the primary field was returned. Preserve exact external-response evidence and dynamic-boundary behavior, and add focused regression coverage.",
       "repo_id": "codemap",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -651,7 +651,7 @@
           "path": "deploy/k8s/base/backup/flagship_postgres_backup_test.py"
         }
       ],
-      "prompt": "Create the production PostgreSQL backup owner under the not-yet-existing `deploy/k8s/base/backup`, beginning structural inspection at its existing parent `deploy/k8s/base`. Require independent remote readback and checksum comparison, digest-pinned deployed images, least privilege, egress limited to DNS/PostgreSQL/object storage, GitOps ownership, and an operator restore runbook. Staleness must be observable from the rendered `kube_cronjob_status_last_successful_time` metric. Keep the existing deployment structure and YAML loader contract.",
+      "prompt": "Create the production PostgreSQL backup owner under the not-yet-existing `deploy/k8s/base/backup`, beginning structural inspection at its existing parent `deploy/k8s/base`. Require independent remote readback and checksum comparison, digest-pinned deployed images, least privilege, egress limited to DNS/PostgreSQL/object storage, GitOps ownership, and an operator restore runbook. Staleness must be observable from the rendered `kube_cronjob_status_last_successful_time` metric. Keep the existing deployment structure and YAML loader contract: every manifest must load through the repository fallback loader without YAML anchors or aliases.",
       "repo_id": "main-cluster",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -1065,7 +1065,7 @@
           "path": "apps/web/src/hooks/flagship_text_chat_hook.test.ts"
         }
       ],
-      "prompt": "Add production-ready global text chat through `apps/ws/src/hub.ts#TownHub` and its shared protocol/web consumers. Preserve authenticated server-owned sender identity, live delivery, bounded newcomer history, per-connection flood isolation, and a usable web conversation surface without regressing emoji chat or movement. Normalize and validate text at the TownHub domain boundary as well as wire ingestion, so direct domain calls cannot retain surrounding whitespace or unsafe input.",
+      "prompt": "Add production-ready global text chat through `apps/ws/src/hub.ts#TownHub` and its shared protocol/web consumers. Own text as dedicated `text_chat` and `text_chat_broadcast` wire frames rather than widening the existing emoji `chat` frames, and give text floods a per-connection budget independent of the existing emoji allowance. Preserve authenticated server-owned sender identity, live delivery, bounded newcomer history, and a usable web conversation surface without regressing emoji chat or movement. Normalize and validate text at the TownHub domain boundary as well as wire ingestion, so direct domain calls cannot retain surrounding whitespace or unsafe input.",
       "repo_id": "pabg",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200

@@ -1,6 +1,6 @@
 [package]
 name = "codemap"
-version = "0.3.25"
+version = "1.0.0"
 edition = "2024"
 description = "Structural code map CLI for coding agents"
 license = "MIT"

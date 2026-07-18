@@ -98,7 +98,7 @@ function tabProvenance(result, expectedTab, expectedSource) {
   const sourceMatches = (...actuals) => {
     if (!expectedSource) return true;
     const accepted = expectedSource === "requested"
-      ? ["requested", "explicit", "explicit_request"]
+      ? ["request", "requested", "explicit", "explicit_request"]
       : [expectedSource, `${expectedSource}_state`];
     return actuals.some((actual) => accepted.includes(actual));
   };
@@ -107,11 +107,12 @@ function tabProvenance(result, expectedTab, expectedSource) {
   }
   if (result.context === "tab") {
     const attempt = attempts(result).find((row) => row?.context === "tab");
-    return String(result.tabId) === String(expectedTab)
+    return String(result.tabId ?? result.selectedTabId) === String(expectedTab)
       && isTopFrame(result)
       && result.world === "ISOLATED"
       && sourceMatches(
         result.source,
+        result.selectedTabSource,
         result.selectedBy,
         result.selectedFrom,
         result.selectionSource,
@@ -123,13 +124,14 @@ function tabProvenance(result, expectedTab, expectedSource) {
         attempt?.tabIdSource,
       );
   }
-  const value = result.context;
+  const value = typeof result.context === "object" ? result.context : result;
   return value && (value.kind === "tab" || value.type === "tab" || value.carrier === "tab")
-    && String(value.tabId) === String(expectedTab)
+    && String(value.tabId ?? value.selectedTabId) === String(expectedTab)
     && isTopFrame(value)
     && value.world === "ISOLATED"
     && sourceMatches(
       value.source,
+      value.selectedTabSource,
       value.selectedBy,
       value.selectedFrom,
       value.selectionSource,
@@ -154,7 +156,8 @@ function topFrameCall(call, tabId) {
 }
 
 function attempts(result) {
-  return Array.isArray(result?.attemptedContexts) ? result.attemptedContexts : [];
+  if (Array.isArray(result?.attemptedContexts)) return result.attemptedContexts;
+  return Array.isArray(result?.attempts) ? result.attempts : [];
 }
 
 function contextKind(row) {
@@ -237,7 +240,7 @@ const textItems = [{
     } catch (error) {
       combined = error;
     }
-    const combinedAttempts = combined?.data?.attemptedContexts || [];
+    const combinedAttempts = combined?.data?.attemptedContexts || combined?.data?.attempts || [];
     if (!combined
         || !hasAttempt(combinedAttempts, "tab")
         || !hasAttempt(combinedAttempts, "offscreen")

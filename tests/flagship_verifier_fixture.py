@@ -117,6 +117,13 @@ def main() -> int:
     assert {"tab-provenance", "offscreen-fallback", "combined-failure"} <= set(
         browser["criteria"]
     )
+    browser_oracle = (ROOT / "benchmarks/flagship/browser_focused_clipboard_test.js").read_text(
+        encoding="utf-8"
+    )
+    assert "result?.attempts" in browser_oracle
+    assert "result.selectedTabId" in browser_oracle
+    assert "result.selectedTabSource" in browser_oracle
+    assert "combined?.data?.attempts" in browser_oracle
     openslop = implementations["openslop-active-plan"]
     assert "public `active-plan`" in openslop["prompt"]
     assert "every ROADMAP row in order as `slices`" in openslop["prompt"]
@@ -126,14 +133,27 @@ def main() -> int:
     assert {"workspace-projection", "stdio-contract", "consumer-probes"} <= set(
         openslop["criteria"]
     )
+    active_plan_spec = importlib.util.spec_from_file_location(
+        "active_plan_oracle",
+        ROOT / "benchmarks/flagship/oracles/openslop/active_plan_test.py",
+    )
+    assert active_plan_spec is not None and active_plan_spec.loader is not None
+    active_plan_oracle = importlib.util.module_from_spec(active_plan_spec)
+    active_plan_spec.loader.exec_module(active_plan_oracle)
+    artifacts = {"visual_proof": {"state": "missing", "available": False}}
+    assert active_plan_oracle.proof_artifacts({"artifacts": artifacts}) == artifacts
     codemap = implementations["codemap-response-projection"]
     assert "src/map/lenses/runtime/paths.rs#runtime_route_path_analysis" in codemap["prompt"]
     assert "balanced return expressions" in codemap["prompt"]
+    assert "recordCsrfFailure" in codemap["prompt"]
     backup = implementations["main-postgres-backup"]
     assert "existing parent `deploy/k8s/base`" in backup["prompt"]
     assert "kube_cronjob_status_last_successful_time" in backup["prompt"]
+    assert "without YAML anchors or aliases" in backup["prompt"]
     pabg = implementations["pabg-global-text-chat"]
     assert "TownHub domain boundary" in pabg["prompt"]
+    assert "dedicated `text_chat` and `text_chat_broadcast`" in pabg["prompt"]
+    assert "independent of the existing emoji allowance" in pabg["prompt"]
     hook_commands = pabg["criteria"]["web-consumer"]["commands"]
     assert any(
         "src/hooks/flagship_text_chat_hook.test.ts" in command["argv"]
@@ -145,6 +165,12 @@ def main() -> int:
     assert "actionwave/world-return contact facts" in ratio_implementation["prompt"]
     assert "email addresses" in ratio_implementation["prompt"]
     assert "no_action" in ratio_implementation["prompt"]
+    ratio_oracle = (
+        ROOT / "benchmarks/flagship/oracles/ratio/live_codex_sessions_test.py"
+    ).read_text(encoding="utf-8")
+    assert '"type": "function_call"' in ratio_oracle
+    assert '"type": "function_call_output"' in ratio_oracle
+    assert "assert no_action.returncode != 0" in ratio_oracle
 
     with tempfile.TemporaryDirectory(prefix="codemap-postgres-oracle-") as raw:
         oracle_root = Path(raw)

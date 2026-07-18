@@ -40,13 +40,15 @@ def selected_slice(value: dict[str, Any], expected_id: str | None) -> Any:
 
 
 def proof_artifacts(value: dict[str, Any]) -> dict[str, Any]:
-    grouped = value.get("proof", value.get("proofs"))
+    grouped = value.get("proof", value.get("proofs", value.get("artifacts")))
     if isinstance(grouped, dict) and grouped:
         return grouped
     aliases = {
         "status": value.get("statusProof", value.get("status_proof")),
         "review": value.get("reviewProof", value.get("review_proof")),
-        "visual": value.get("visualProof", value.get("visual_proof")),
+        "visual": value.get(
+            "visualProof", value.get("visual_proof", value.get("visual"))
+        ),
     }
     return {name: artifact for name, artifact in aliases.items() if isinstance(artifact, dict)}
 

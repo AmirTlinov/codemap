@@ -58,6 +58,10 @@ agent runs; acceptance is computed only from external verifier outcomes and cost
 See [`docs/BENCHMARK_AB.md`](docs/BENCHMARK_AB.md) for the task format, validity
 rules, artifacts, and claim boundary.
 
+The `v1.0.0` flagship claim exists only with the immutable evidence bundle in
+the [GitHub Release](https://github.com/AmirTlinov/codemap/releases/tag/v1.0.0).
+Until that release publishes an accepted receipt for the exact binary, the build is a candidate.
+
 ## Copy-Paste Workflow
 
 Choose **one** entry proportional to what the task already names:

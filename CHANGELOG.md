@@ -5,6 +5,8 @@ public JSON compatibility is governed separately by `docs/SCHEMA_POLICY.md`.
 
 ## Unreleased
 
+## 1.0.0 - 2026-07-18
+
 - Tightened the flagship task contracts where treatment exposed genuine ambiguity, and made
   equivalent restic, hook-state, and content-identity outcomes pass the same external verifier.
 

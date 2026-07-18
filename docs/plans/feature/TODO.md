@@ -1,8 +1,8 @@
 # Feature TODO: Historical Structural Map Closure Record
 
 This records the execution history of `docs/plans/feature/PLAN.md`. It does not
-own current flagship status. The single active slice and S00-S17 ordering live
-in [`контракт-спецификация.md`](../../../контракт-спецификация.md#операционный-статус-flagship-волны).
+own current flagship status. The current outcome-based release boundary lives
+in [`контракт-спецификация.md`](../../../контракт-спецификация.md).
 
 It is deliberately not a five-checkbox-per-slice ritual. A slice is tracked by
 its real boundary:

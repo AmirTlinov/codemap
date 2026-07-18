@@ -63,6 +63,21 @@ def main() -> int:
             {
                 "type": "response_item",
                 "payload": {
+                    "type": "function_call",
+                    "name": "exec_command",
+                    "arguments": json.dumps({"cmd": "python3 verify.py"}),
+                },
+            },
+            {
+                "type": "response_item",
+                "payload": {
+                    "type": "function_call_output",
+                    "output": "Process exited with code 0\nverifier passed",
+                },
+            },
+            {
+                "type": "response_item",
+                "payload": {
                     "type": "message",
                     "role": "assistant",
                     "content": [
@@ -115,6 +130,14 @@ def main() -> int:
             or all(
                 marker in first.stdout
                 for marker in (
+                    "world_return=observed",
+                    "interaction_id=",
+                    "return_source_id=",
+                )
+            )
+            or all(
+                marker in first.stdout
+                for marker in (
                     "live_codex_world_return_receipt",
                     "world_return_keys=",
                     "conductance_changed=",
@@ -127,19 +150,26 @@ def main() -> int:
         )
         if selected("world-return-contact", criterion):
             if observed:
-                assert "conductance_changed=" in first.stdout
+                conductance_facts = "conductance_changed=" in first.stdout or all(
+                    marker in first.stdout
+                    for marker in ("useful_deltas=", "inhibitions=", "corrections=")
+                )
+                assert conductance_facts
             else:
                 no_emit = "reason=no_emit" in first.stdout and (
                     "observed=false" in first.stdout
                     or "world_return_observed=false" in first.stdout
                     or "contact=false" in first.stdout
+                    or "contact=no_contact" in first.stdout
                 )
-                no_action = all(
-                    marker in first.stdout
-                    for marker in (
-                        "world_return=none",
-                        "reason=no_action",
-                        "contact_claimed=false",
+                no_action = "reason=no_action" in first.stdout and (
+                    all(
+                        marker in first.stdout
+                        for marker in ("world_return=none", "contact_claimed=false")
+                    )
+                    or all(
+                        marker in first.stdout
+                        for marker in ("world_return=no_contact", "contact=no_contact")
                     )
                 )
                 assert no_emit or no_action
@@ -181,6 +211,26 @@ def main() -> int:
                 ]
             )
             assert empty.returncode != 0
+            dialogue = root / "dialogue.jsonl"
+            dialogue.write_text(
+                "".join(
+                    json.dumps(row) + "\n"
+                    for row in records
+                    if row["payload"]["type"] == "message"
+                ),
+                encoding="utf-8",
+            )
+            no_action = run(
+                [
+                    str(BINARY),
+                    "live-codex-sessions",
+                    str(dialogue),
+                    "--db",
+                    str(database),
+                ]
+            )
+            assert no_action.returncode != 0
+            assert "no_action" in no_action.stdout and "no_contact" in no_action.stdout
 
         print(json.dumps({
             "passed": True,
