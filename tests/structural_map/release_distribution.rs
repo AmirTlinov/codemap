@@ -43,3 +43,18 @@ fn release_archive_is_deterministic_and_verifies_after_extraction() {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+#[test]
+fn flagship_evidence_archive_keeps_failed_and_accepted_attempts() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let output = python()
+        .arg(root.join("tests/flagship_evidence_package_fixture.py"))
+        .output()
+        .expect("flagship evidence package fixture should run");
+    assert!(
+        output.status.success(),
+        "flagship evidence fixture failed: stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}

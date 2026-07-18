@@ -278,6 +278,17 @@ python3 scripts/benchmark-codemap-flagship.py evaluate \
 
 python3 scripts/verify-flagship-acceptance.py \
   target/flagship-acceptance-v1/acceptance.json
+
+python3 scripts/package-release.py build-evidence \
+  --version 1.0.0 \
+  --acceptance target/flagship-acceptance-failed/acceptance.json \
+  --acceptance target/flagship-acceptance-v1/acceptance.json \
+  --out-dir dist
+
+python3 scripts/package-release.py verify-evidence \
+  --archive dist/flagship-evidence-v1.0.0.tar.gz \
+  --checksum dist/flagship-evidence-v1.0.0.tar.gz.sha256 \
+  --version 1.0.0
 ```
 
 Both arms use fresh detached worktrees and separate external caches. A verifier that
@@ -298,3 +309,6 @@ Acceptance has three product conditions:
 `acceptance.json` inventories the manifest, frozen tasks, raw results, per-trial
 receipts, and verifier outputs by SHA-256. The independent verifier imports none of the
 evaluator. The measured claim is restricted to this frozen six-repository corpus.
+The release evidence archive requires exactly one accepted receipt and preserves every
+supplied failed attempt, raw trajectory, diff, and external verifier output under its own
+immutable prefix.
