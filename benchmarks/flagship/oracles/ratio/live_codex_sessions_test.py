@@ -14,10 +14,97 @@ from pathlib import Path
 
 ROOT = Path.cwd()
 BINARY = ROOT / "target/debug/ratiotissue"
+CALL_ID = "call-fixture-1"
 
 
 def run(argv: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(argv, cwd=ROOT, capture_output=True, text=True, timeout=1200)
+
+
+def records(*, output: bool) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = [
+        {
+            "type": "response_item",
+            "payload": {
+                "type": "message",
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": "Open /Users/alice/private and email alice@example.com with sk-secret",
+                    }
+                ],
+            },
+        },
+        {
+            "type": "response_item",
+            "payload": {
+                "type": "function_call",
+                "name": "exec_command",
+                "call_id": CALL_ID,
+                "arguments": json.dumps({"cmd": "python3 verify.py"}),
+            },
+        },
+    ]
+    if output:
+        rows.append(
+            {
+                "type": "response_item",
+                "payload": {
+                    "type": "function_call_output",
+                    "call_id": CALL_ID,
+                    "output": "Process exited with code 0\nverifier passed",
+                },
+            }
+        )
+    rows.append(
+        {
+            "type": "response_item",
+            "payload": {
+                "type": "message",
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "output_text",
+                        "text": "Changed /Users/alice/private/result.txt and ran the verifier",
+                    }
+                ],
+            },
+        }
+    )
+    return rows
+
+
+def run_case(
+    root: Path,
+    name: str,
+    rows: list[dict[str, object]],
+    *,
+    carriers: bool = True,
+) -> tuple[subprocess.CompletedProcess[str], Path]:
+    root.mkdir(parents=True, exist_ok=True)
+    session = root / f"{name}.jsonl"
+    session.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+    database = root / f"{name}-db"
+    initialized = run([str(BINARY), "init", str(database)])
+    assert initialized.returncode == 0, initialized.stdout + initialized.stderr
+    carrier_dir = root / f"{name}-carriers"
+    command = [
+        str(BINARY),
+        "live-codex-sessions",
+        str(session),
+        "--db",
+        str(database),
+        "--max-sessions",
+        "1",
+        "--max-episodes",
+        "1",
+        "--max-fragment-bytes",
+        "512",
+    ]
+    if carriers:
+        command.extend(["--carrier-dir", str(carrier_dir), "--carriers", str(carrier_dir)])
+    return run(command), carrier_dir
 
 
 def digest(path: Path) -> str:
@@ -34,67 +121,67 @@ def episode_identity(stdout: str) -> str:
     raise AssertionError("live_codex_episode receipt has no stable identity")
 
 
-def selected(name: str, criterion: str) -> bool:
-    return criterion in {"all", name}
+def observed_contact(stdout: str) -> bool:
+    return (
+        "observed=true" in stdout
+        or "world_return_observed=true" in stdout
+        or re.search(r"world_returns_observed=[1-9][0-9]*", stdout) is not None
+        or all(
+            marker in stdout
+            for marker in ("world_return=observed", "interaction_id=", "return_source_id=")
+        )
+        or all(
+            marker in stdout
+            for marker in (
+                "live_codex_world_return_receipt",
+                "world_return_keys=",
+                "conductance_changed=",
+            )
+        )
+        or all(
+            marker in stdout
+            for marker in ("world_return=contact", "interaction_id=", "conductance_changed=")
+        )
+        or all(
+            marker in stdout
+            for marker in ("contact=true", "world_return_keys=", "conductance_changed=")
+        )
+    )
 
 
-def main() -> int:
-    criterion = sys.argv[1] if len(sys.argv) > 1 else "all"
-    build = run(["cargo", "build", "--quiet", "-p", "ratiotissue-cli"])
-    assert build.returncode == 0, build.stderr
+def explicit_no_contact(result: subprocess.CompletedProcess[str]) -> bool:
+    output = result.stdout.lower()
+    return result.returncode != 0 and "no_action" in output and "no_contact" in output
 
-    with tempfile.TemporaryDirectory(prefix="ratio-live-codex-") as raw:
-        root = Path(raw)
-        session = root / "session.jsonl"
-        records = [
-            {
-                "type": "response_item",
-                "payload": {
-                    "type": "message",
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "input_text",
-                            "text": "Open /Users/alice/private and email alice@example.com with sk-secret",
-                        }
-                    ],
-                },
-            },
-            {
-                "type": "response_item",
-                "payload": {
-                    "type": "function_call",
-                    "name": "exec_command",
-                    "arguments": json.dumps({"cmd": "python3 verify.py"}),
-                },
-            },
-            {
-                "type": "response_item",
-                "payload": {
-                    "type": "function_call_output",
-                    "output": "Process exited with code 0\nverifier passed",
-                },
-            },
-            {
-                "type": "response_item",
-                "payload": {
-                    "type": "message",
-                    "role": "assistant",
-                    "content": [
-                        {
-                            "type": "output_text",
-                            "text": "Changed /Users/alice/private/result.txt and ran the verifier",
-                        }
-                    ],
-                },
-            },
-        ]
-        session.write_text("".join(json.dumps(row) + "\n" for row in records), encoding="utf-8")
-        database = root / "db"
-        carriers = root / "carriers"
-        initialized = run([str(BINARY), "init", str(database)])
-        assert initialized.returncode == 0, initialized.stdout + initialized.stderr
-        command = [
+
+def carrier_state(directory: Path) -> dict[str, str]:
+    return {path.name: digest(path) for path in sorted(directory.glob("*"))}
+
+
+def check_redaction_and_bounds(root: Path) -> dict[str, str]:
+    result, carriers = run_case(root, "bounded", records(output=True))
+    assert result.returncode == 0 or explicit_no_contact(result), result.stdout + result.stderr
+    files = sorted(carriers.glob("*"))
+    assert 1 <= len(files) <= 2, files
+    bodies = "\n".join(path.read_text(encoding="utf-8") for path in files)
+    assert bodies.strip()
+    assert all(
+        secret not in bodies for secret in ("/Users/alice", "alice@example.com", "sk-secret")
+    )
+    assert all(0 < path.stat().st_size <= 513 for path in files)
+    return carrier_state(carriers)
+
+
+def check_stable_carriers(root: Path) -> dict[str, str]:
+    first, carriers = run_case(root, "stable", records(output=True))
+    assert first.returncode == 0 or explicit_no_contact(first), first.stdout + first.stderr
+    before = carrier_state(carriers)
+    assert before
+    first_episode = episode_identity(first.stdout)
+    session = root / "stable.jsonl"
+    database = root / "stable-db"
+    second = run(
+        [
             str(BINARY),
             "live-codex-sessions",
             str(session),
@@ -102,141 +189,61 @@ def main() -> int:
             str(database),
             "--carrier-dir",
             str(carriers),
-            "--carriers",
-            str(carriers),
             "--max-sessions",
             "1",
             "--max-episodes",
             "1",
-            "--limit",
-            "1",
             "--max-fragment-bytes",
             "512",
         ]
-        first = run(command)
-        assert first.returncode == 0, first.stdout + first.stderr
-        if selected("world-return-contact", criterion):
-            assert "actionwave" in first.stdout.lower()
-        first_episode = (
-            episode_identity(first.stdout)
-            if selected("world-return-contact", criterion)
-            or selected("stable-carriers", criterion)
-            else None
-        )
-        observed = (
-            "observed=true" in first.stdout
-            or "world_return_observed=true" in first.stdout
-            or re.search(r"world_returns_observed=[1-9][0-9]*", first.stdout) is not None
-            or all(
-                marker in first.stdout
-                for marker in (
-                    "world_return=observed",
-                    "interaction_id=",
-                    "return_source_id=",
-                )
-            )
-            or all(
-                marker in first.stdout
-                for marker in (
-                    "live_codex_world_return_receipt",
-                    "world_return_keys=",
-                    "conductance_changed=",
-                )
-            )
-            or all(
-                marker in first.stdout
-                for marker in ("contact=true", "world_return_keys=", "conductance_changed=")
-            )
-        )
-        if selected("world-return-contact", criterion):
-            if observed:
-                conductance_facts = "conductance_changed=" in first.stdout or all(
-                    marker in first.stdout
-                    for marker in ("useful_deltas=", "inhibitions=", "corrections=")
-                )
-                assert conductance_facts
-            else:
-                no_emit = "reason=no_emit" in first.stdout and (
-                    "observed=false" in first.stdout
-                    or "world_return_observed=false" in first.stdout
-                    or "contact=false" in first.stdout
-                    or "contact=no_contact" in first.stdout
-                )
-                no_action = "reason=no_action" in first.stdout and (
-                    all(
-                        marker in first.stdout
-                        for marker in ("world_return=none", "contact_claimed=false")
-                    )
-                    or all(
-                        marker in first.stdout
-                        for marker in ("world_return=no_contact", "contact=no_contact")
-                    )
-                )
-                assert no_emit or no_action
+    )
+    assert second.returncode == 0 or explicit_no_contact(second), second.stdout + second.stderr
+    assert carrier_state(carriers) == before
+    assert episode_identity(second.stdout) == first_episode
+    return before
 
-        files = sorted(carriers.glob("*"))
-        if selected("redaction-and-bounds", criterion):
-            assert 1 <= len(files) <= 2, files
-        before = {path.name: digest(path) for path in files}
-        bodies = "\n".join(path.read_text(encoding="utf-8") for path in files)
-        if selected("redaction-and-bounds", criterion):
-            assert bodies.strip()
-            assert all(
-                secret not in bodies
-                for secret in ("/Users/alice", "alice@example.com", "sk-secret")
-            )
-            assert all(0 < path.stat().st_size <= 513 for path in files)
 
-        if selected("stable-carriers", criterion):
-            second = run(command)
-            assert second.returncode == 0, second.stdout + second.stderr
-            after = {path.name: digest(path) for path in sorted(carriers.glob("*"))}
-            assert after == before
-            assert first_episode is not None
-            assert first_episode == episode_identity(second.stdout)
+def check_world_return(root: Path) -> dict[str, str]:
+    paired, carriers = run_case(root, "paired", records(output=True))
+    assert paired.returncode == 0, paired.stdout + paired.stderr
+    assert "actionwave" in paired.stdout.lower()
+    assert observed_contact(paired.stdout), paired.stdout
+    assert "conductance_changed=" in paired.stdout or all(
+        marker in paired.stdout for marker in ("useful_deltas=", "inhibitions=", "corrections=")
+    )
 
-        if selected("fail-closed-metadata", criterion):
-            metadata = root / "metadata.jsonl"
-            metadata.write_text(
-                json.dumps({"type": "session_meta", "payload": {"id": "fixture"}}) + "\n",
-                encoding="utf-8",
-            )
-            empty = run(
-                [
-                    str(BINARY),
-                    "live-codex-sessions",
-                    str(metadata),
-                    "--db",
-                    str(database),
-                ]
-            )
-            assert empty.returncode != 0
-            dialogue = root / "dialogue.jsonl"
-            dialogue.write_text(
-                "".join(
-                    json.dumps(row) + "\n"
-                    for row in records
-                    if row["payload"]["type"] == "message"
-                ),
-                encoding="utf-8",
-            )
-            no_action = run(
-                [
-                    str(BINARY),
-                    "live-codex-sessions",
-                    str(dialogue),
-                    "--db",
-                    str(database),
-                ]
-            )
-            assert no_action.returncode != 0
-            assert "no_action" in no_action.stdout and "no_contact" in no_action.stdout
+    unpaired, _ = run_case(root, "unpaired", records(output=False), carriers=False)
+    assert explicit_no_contact(unpaired), unpaired.stdout + unpaired.stderr
+    return carrier_state(carriers)
 
-        print(json.dumps({
-            "passed": True,
-            "criterion": criterion,
-            "carriers": before,
-        }, sort_keys=True))
+
+def check_fail_closed(root: Path) -> dict[str, str]:
+    metadata = [{"type": "session_meta", "payload": {"id": "fixture"}}]
+    empty, _ = run_case(root, "metadata", metadata, carriers=False)
+    assert empty.returncode != 0
+
+    dialogue = [row for row in records(output=True) if row["payload"]["type"] == "message"]
+    no_action, _ = run_case(root, "dialogue", dialogue, carriers=False)
+    assert explicit_no_contact(no_action), no_action.stdout + no_action.stderr
+    return {}
+
+
+def main() -> int:
+    criterion = sys.argv[1] if len(sys.argv) > 1 else "all"
+    build = run(["cargo", "build", "--quiet", "-p", "ratiotissue-cli"])
+    assert build.returncode == 0, build.stderr
+    checks = {
+        "fail-closed-metadata": check_fail_closed,
+        "redaction-and-bounds": check_redaction_and_bounds,
+        "stable-carriers": check_stable_carriers,
+        "world-return-contact": check_world_return,
+    }
+    selected = checks if criterion == "all" else {criterion: checks[criterion]}
+    carriers: dict[str, str] = {}
+    with tempfile.TemporaryDirectory(prefix="ratio-live-codex-") as raw:
+        for name, check in selected.items():
+            carriers.update(check(Path(raw) / name))
+    print(json.dumps({"passed": True, "criterion": criterion, "carriers": carriers}, sort_keys=True))
     return 0
 
 

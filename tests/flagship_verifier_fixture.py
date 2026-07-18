@@ -195,6 +195,9 @@ def main() -> int:
     assert "continuation.rs#cmd_pulse_world_loop" in ratio_implementation["prompt"]
     assert "ratiotissue live-codex-sessions" in ratio_implementation["prompt"]
     assert "actionwave/world-return contact facts" in ratio_implementation["prompt"]
+    assert "paired with `function_call_output` by the same `call_id`" in ratio_implementation[
+        "prompt"
+    ]
     assert "email addresses" in ratio_implementation["prompt"]
     assert "no_action" in ratio_implementation["prompt"]
     ratio_oracle = (
@@ -202,7 +205,8 @@ def main() -> int:
     ).read_text(encoding="utf-8")
     assert '"type": "function_call"' in ratio_oracle
     assert '"type": "function_call_output"' in ratio_oracle
-    assert "assert no_action.returncode != 0" in ratio_oracle
+    assert '"call_id": CALL_ID' in ratio_oracle
+    assert "assert explicit_no_contact(unpaired)" in ratio_oracle
 
     with tempfile.TemporaryDirectory(prefix="codemap-postgres-oracle-") as raw:
         oracle_root = Path(raw)
