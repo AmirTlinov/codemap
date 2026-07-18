@@ -225,6 +225,14 @@ def main() -> int:
         "live_codex_episode contact=true actionwave=observed_external "
         "world_return=observed_external"
     )
+    assert ratio_module.observed_contact(
+        "live_codex_episode contact=paired actionwave=observed_external_action "
+        "world_return=observed_external_return calls=1"
+    )
+    assert ratio_module.observed_contact(
+        "live_codex_episode actionwave=observed world_return=observed contacts=1 "
+        "contact_ids=contact-fixture"
+    )
     assert not ratio_module.observed_contact(
         "live_codex_episode contact=true actionwave=no_action world_return=no_contact"
     )

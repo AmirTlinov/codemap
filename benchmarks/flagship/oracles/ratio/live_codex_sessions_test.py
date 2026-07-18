@@ -132,8 +132,17 @@ def observed_contact(stdout: str) -> bool:
         actionwave = fields.get("actionwave", "").lower()
         world_return = fields.get("world_return", "").lower()
         rejected = {"", "false", "none", "no_action", "no_contact", "synthetic"}
+        positive_count = any(
+            value.isdigit() and int(value) > 0
+            for key, value in fields.items()
+            if key in {"calls", "contacts", "action_count", "return_count"}
+        )
+        paired_identity = any(
+            fields.get(key, "").lower() not in rejected
+            for key in {"call_ids", "contact_ids", "interaction_id", "return_source_id"}
+        )
         if (
-            contact in {"true", "observed"}
+            (contact not in rejected or positive_count or paired_identity)
             and actionwave not in rejected
             and world_return not in rejected
         ):
