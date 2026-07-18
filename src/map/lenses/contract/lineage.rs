@@ -9,6 +9,8 @@ mod sql;
 use crate::map::sort_edges;
 use crate::model::{Project, StructuralEdge, Surface, Unknown};
 
+pub(crate) use documentation::contract_document_candidates;
+
 #[derive(Default)]
 pub(crate) struct ContractLineageFacts {
     pub(crate) declarations: Vec<Surface>,

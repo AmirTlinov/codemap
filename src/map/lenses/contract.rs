@@ -177,6 +177,13 @@ pub(crate) fn contract_neighborhood_edges(
     lineage::contract_lineage(project, rel).edges
 }
 
+pub(crate) fn contract_document_candidate_edges(
+    project: &Project,
+    rel: &str,
+) -> Vec<crate::model::StructuralEdge> {
+    lineage::contract_document_candidates(project, rel)
+}
+
 fn contract_expands(project: &Project, rel: &str) -> Vec<String> {
     let mut expands = project
         .files

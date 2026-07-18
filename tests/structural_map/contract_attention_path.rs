@@ -115,6 +115,43 @@ fn cone_contract_where_and_embedded_schema_form_one_exact_attention_path() {
 }
 
 #[test]
+fn exact_entry_cone_keeps_adjacent_domain_contract_visible() {
+    let repo = TempDir::new().expect("repo");
+    let cache = TempDir::new().expect("cache");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    write(
+        &repo.path().join("apps/web/src/chronicle/page.ts"),
+        "import { loadReplay } from '../lib/replay/loader';\nexport const page = loadReplay;\n",
+    );
+    write(
+        &repo.path().join("apps/web/src/lib/replay/loader.ts"),
+        "export function loadReplay() { return 'mounted'; }\n",
+    );
+    write(
+        &repo.path().join("contracts/07-replay-contract.md"),
+        "# Replay contract\n\nThe terrain carrier is mandatory.\n",
+    );
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "fixture"]);
+
+    let cone = run_markdown(
+        repo.path(),
+        cache.path(),
+        &["cone", "apps/web/src/chronicle/page.ts"],
+    );
+    assert!(
+        cone.contains("contracts/07-replay-contract.md"),
+        "an adjacent domain owner should retain its repository contract: {cone}"
+    );
+    assert!(
+        cone.contains("codemap contract contracts/07-replay-contract.md"),
+        "the contract candidate should be directly expandable: {cone}"
+    );
+}
+
+#[test]
 fn exported_symbol_type_dependency_opens_the_shared_contract_consumers() {
     let repo = TempDir::new().expect("repo");
     let cache = TempDir::new().expect("cache");

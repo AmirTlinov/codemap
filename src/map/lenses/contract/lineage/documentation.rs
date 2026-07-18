@@ -4,7 +4,7 @@ use crate::model::{EvidenceLocation, EvidenceStrength, Project, StructuralEdge};
 use crate::repo;
 use std::collections::BTreeSet;
 
-pub(super) fn contract_document_candidates(project: &Project, rel: &str) -> Vec<StructuralEdge> {
+pub(crate) fn contract_document_candidates(project: &Project, rel: &str) -> Vec<StructuralEdge> {
     let anchor_tokens = contract_subject_tokens(rel);
     if anchor_tokens.is_empty() {
         return Vec::new();

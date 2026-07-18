@@ -58,6 +58,7 @@ pub(crate) fn limit_ci_execution_projection(edges: &mut Vec<StructuralEdge>, lim
         "deploys",
         "smoke_checks",
         "produces_receipt",
+        "documented_by",
         "ci_validation_step",
         "ci_release_step",
         "ci_setup_step",

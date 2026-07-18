@@ -38,6 +38,10 @@ jobs:
         "fs.writeFileSync(\"reports/releases/release-receipt.json\", \"{}\");\n",
     );
     write(&repo.path().join("deploy/prod.yml"), "kind: Deployment\n");
+    write(
+        &repo.path().join("docs/ops/github-actions.md"),
+        "# Actions\n\nThe `release` workflow is the production authority.\n",
+    );
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["commit", "-qm", "release path"]);
 
@@ -105,6 +109,7 @@ jobs:
         "deploys -> `deployment:kubernetes`",
         "smoke_checks ->",
         "produces_receipt ->",
+        "documented_by -> `docs/ops/github-actions.md`",
     ] {
         assert!(
             readable.contains(expected),
