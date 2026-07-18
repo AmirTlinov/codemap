@@ -122,6 +122,22 @@ def episode_identity(stdout: str) -> str:
 
 
 def observed_contact(stdout: str) -> bool:
+    for line in stdout.splitlines():
+        fields = dict(
+            token.split("=", 1)
+            for token in line.split()
+            if "=" in token
+        )
+        contact = fields.get("contact", "").lower()
+        actionwave = fields.get("actionwave", "").lower()
+        world_return = fields.get("world_return", "").lower()
+        rejected = {"", "false", "none", "no_action", "no_contact", "synthetic"}
+        if (
+            contact in {"true", "observed"}
+            and actionwave not in rejected
+            and world_return not in rejected
+        ):
+            return True
     return (
         "observed=true" in stdout
         or "world_return_observed=true" in stdout

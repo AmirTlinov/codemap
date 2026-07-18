@@ -214,6 +214,23 @@ def main() -> int:
     assert '"contact=observed"' in ratio_oracle
     assert "assert observed_contact(paired.stdout)" in ratio_oracle
     assert "assert explicit_no_contact(unpaired)" in ratio_oracle
+    ratio_spec = importlib.util.spec_from_file_location(
+        "ratio_live_codex_oracle",
+        ROOT / "benchmarks/flagship/oracles/ratio/live_codex_sessions_test.py",
+    )
+    assert ratio_spec and ratio_spec.loader
+    ratio_module = importlib.util.module_from_spec(ratio_spec)
+    ratio_spec.loader.exec_module(ratio_module)
+    assert ratio_module.observed_contact(
+        "live_codex_episode contact=true actionwave=observed_external "
+        "world_return=observed_external"
+    )
+    assert not ratio_module.observed_contact(
+        "live_codex_episode contact=true actionwave=no_action world_return=no_contact"
+    )
+    assert not ratio_module.observed_contact(
+        "live_codex_episode contact=true actionwave=synthetic world_return=synthetic"
+    )
 
     with tempfile.TemporaryDirectory(prefix="codemap-postgres-oracle-") as raw:
         oracle_root = Path(raw)
