@@ -141,6 +141,7 @@ def main() -> int:
     assert "contextKind(row) === \"tab\"" in browser_oracle
     assert "tab.ok !== false" in browser_oracle
     assert "value?.carrierDetails" in browser_oracle
+    assert "value?.isolatedTopFrame" in browser_oracle
     assert "value?.carrier?.world" in browser_oracle
     assert "value?.tabCarrier?.world" in browser_oracle
     assert "carrier?.kind || carrier?.type" in browser_oracle
@@ -156,6 +157,9 @@ async function dispatchRpc(method, params = {}) {
   const requested = Object.prototype.hasOwnProperty.call(params, "tabId");
   const tabId = Number(requested ? params.tabId : state.focusedTabId);
   const source = requested ? "request" : "focused";
+  const frame = method === "clipboard.writeSvg"
+    ? { isolatedTopFrame: { world: "ISOLATED", frame: "top", frameId: 0 } }
+    : { world: "ISOLATED", frameId: 0 };
   const rows = await chrome.scripting.executeScript({
     target: { tabId, frameIds: [0] }, world: "ISOLATED", func() {}, args: [],
   });
@@ -165,7 +169,7 @@ async function dispatchRpc(method, params = {}) {
     carrier: "isolated_top_frame",
     attempts: [{
       kind: "tab", carrier: "isolated_top_frame", tabId: String(tabId), source,
-      world: "ISOLATED", frameId: 0, ok: true, result: rows[0].result,
+      ...frame, ok: true, result: rows[0].result,
     }],
   };
 }
