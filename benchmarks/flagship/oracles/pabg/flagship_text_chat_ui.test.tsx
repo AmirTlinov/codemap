@@ -49,6 +49,7 @@ vi.mock("@/hooks/useTownMultiplayer", () => ({
     chatHistory: [chat.message],
     textChatHistory: [chat.message],
     recentTextChat: [chat.message],
+    chatMessages: [chat.message],
     lastReject: null,
     publishMoveIntent: vi.fn(() => false),
     publishChat: vi.fn(() => false),

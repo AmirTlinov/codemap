@@ -112,7 +112,7 @@ def main() -> int:
     )
     browser = implementations["browser-focused-clipboard"]
     assert "both `clipboard.write` and `clipboard.writeSvg`" in browser["prompt"]
-    assert "ordered `tab` and `offscreen` attempted contexts" in browser["prompt"]
+    assert "ordered structured `tab` and `offscreen` attempts" in browser["prompt"]
     assert "kill switch" in browser["prompt"]
     assert {"tab-provenance", "offscreen-fallback", "combined-failure"} <= set(
         browser["criteria"]
@@ -120,6 +120,8 @@ def main() -> int:
     openslop = implementations["openslop-active-plan"]
     assert "public `active-plan`" in openslop["prompt"]
     assert "every ROADMAP row in order as `slices`" in openslop["prompt"]
+    assert "including zero values" in openslop["prompt"]
+    assert "status/review/visual proof artifacts" in openslop["prompt"]
     assert "OPEN_SLOP_REPO_ROOT" in openslop["prompt"]
     assert {"workspace-projection", "stdio-contract", "consumer-probes"} <= set(
         openslop["criteria"]
@@ -140,7 +142,9 @@ def main() -> int:
     ratio_implementation = implementations["ratio-codex-live-episodes"]
     assert "continuation.rs#cmd_pulse_world_loop" in ratio_implementation["prompt"]
     assert "ratiotissue live-codex-sessions" in ratio_implementation["prompt"]
-    assert "world-return contact" in ratio_implementation["prompt"]
+    assert "actionwave/world-return contact facts" in ratio_implementation["prompt"]
+    assert "email addresses" in ratio_implementation["prompt"]
+    assert "no_action" in ratio_implementation["prompt"]
 
     with tempfile.TemporaryDirectory(prefix="codemap-postgres-oracle-") as raw:
         oracle_root = Path(raw)
@@ -162,6 +166,11 @@ def main() -> int:
         assert oracle.has_checksum_comparison("expected | sha256sum -c -")
         assert oracle.has_checksum_comparison('test "$expected" = "$actual"')
         assert not oracle.has_checksum_comparison("sha256sum backup.sql.gz")
+        assert oracle.remote_copy_count("restic backup /work") == 1
+        assert oracle.has_remote_readback(
+            "restic backup /work; restic restore latest --target /verify"
+        )
+        assert not oracle.has_remote_readback("restic backup /work")
 
     with tempfile.TemporaryDirectory(prefix="codemap-source-claim-verifier-") as raw:
         root = Path(raw)

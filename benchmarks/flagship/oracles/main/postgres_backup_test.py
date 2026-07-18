@@ -47,7 +47,20 @@ def pod_script(cronjob: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, 
 
 def remote_copy_count(script: str) -> int:
     aws = re.findall(r"(?:^|[\s;])(?:[^\s;]*/)?aws\b[^\n;&|]*\bs3\s+cp\b", script)
-    return len(aws) + script.count("mc cp") + script.count("rclone copy")
+    return (
+        len(aws)
+        + script.count("mc cp")
+        + script.count("rclone copy")
+        + script.count("restic backup")
+    )
+
+
+def has_remote_readback(script: str) -> bool:
+    remote_copies = remote_copy_count(script)
+    return remote_copies >= 2 or any(
+        command in script
+        for command in ("mc cat", "rclone cat", "s3api get-object", "restic restore")
+    )
 
 
 def has_checksum_comparison(script: str) -> bool:
@@ -120,10 +133,10 @@ class PostgresBackupTest(unittest.TestCase):
         self.assertIn("pg_dump", script)
         remote_copies = remote_copy_count(script)
         self.assertGreater(remote_copies, 0)
-        readback = remote_copies >= 2 or any(
-            command in script for command in ("mc cat", "rclone cat", "s3api get-object")
+        self.assertTrue(
+            has_remote_readback(script),
+            "backup must upload and independently read back",
         )
-        self.assertTrue(readback, "backup must upload and independently read back")
         self.assertGreaterEqual(script.count("sha256sum"), 2)
         self.assertTrue(
             has_checksum_comparison(script),

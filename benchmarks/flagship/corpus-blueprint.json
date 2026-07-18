@@ -302,7 +302,7 @@
           "path": "tests/structural_map/runtime_transform_paths.rs"
         }
       ],
-      "prompt": "Start from `src/map/lenses/runtime/paths.rs#runtime_route_path_analysis`. Make runtime, flow, and cone distinguish request guards from passive security telemetry and response-output shaping from input or unrelated local-object shaping. For a response projection, compare fields read from the primary parameter and its aliases with reads that actually occur inside balanced return expressions; a same-named output key sourced from an unrelated local object is not evidence that the primary field was returned. Preserve exact external-response evidence and dynamic-boundary behavior, and add focused regression coverage.",
+      "prompt": "Start from `src/map/lenses/runtime/paths.rs#runtime_route_path_analysis`. Make runtime, flow, and cone distinguish request guards from passive security telemetry and response-output shaping from input or unrelated local-object shaping. A security-named observer such as `csrfObserver` is telemetry, not a guard; input transforms such as `sanitizePayload` and `normalizeInput` must remain transformations in the runtime chain but must not become response-projection evidence. For a response projection, compare fields read from the primary parameter and its aliases with reads that actually occur inside balanced return expressions; a same-named output key sourced from an unrelated local object is not evidence that the primary field was returned. Preserve exact external-response evidence and dynamic-boundary behavior, and add focused regression coverage.",
       "repo_id": "codemap",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -858,7 +858,7 @@
       },
       "ecosystem": "typescript",
       "id": "pabg-deterministic-investigation",
-      "prompt": "At the frozen commit, start from `apps/web/src/app/(game)/town/chronicle/[match_id]/page.tsx` and reconstruct how a Chronicle replay request becomes a validated, mounted world, including the repository-owned evidence that proves that behavior. Follow only connections supported by source. Do not modify files or substitute directories. Explain the resulting chain with compact adjacent connections and concrete line or symbol evidence.",
+      "prompt": "At the frozen commit, start from `apps/web/src/app/(game)/town/chronicle/[match_id]/page.tsx` and reconstruct how a Chronicle replay URL is canonicalized and then becomes a validated, policy-filtered, mounted world, including the repository-owned live-route evidence that proves or limits that behavior. Follow only connections supported by source. Do not modify files or substitute directories. Explain the resulting chain with compact adjacent connections and concrete line or symbol evidence.",
       "repo_id": "pabg",
       "task_class": "investigation"
     },
@@ -1358,7 +1358,7 @@
           "path": ".flagship/browser_focused_clipboard_test.js"
         }
       ],
-      "prompt": "Make both `clipboard.write` and `clipboard.writeSvg` in `vendor/browser_extension/service_worker.js#dispatchRpc` prefer the explicitly requested or focused controlled tab, execute only in that tab's isolated top frame, and fall back to the existing offscreen path. Public receipts must identify the selected tab and retain ordered `tab` and `offscreen` attempted contexts on fallback success and failure; a combined failure must preserve both causes. Preserve bounded execution, the extension kill switch, and other RPC behavior.",
+      "prompt": "Begin at the exact existing owner `vendor/browser_extension/service_worker.js#dispatchRpc`. Make both `clipboard.write` and `clipboard.writeSvg` prefer the explicitly requested or focused controlled tab, execute only in that tab's isolated top frame, and fall back to the existing offscreen path. Public receipts must identify the selected tab, whether it came from the request or focused state, the isolated top-frame carrier, and ordered structured `tab` and `offscreen` attempts with success or failure details; a combined failure must preserve both causes. Preserve bounded execution, the extension kill switch, and other RPC behavior.",
       "repo_id": "browser",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -1642,7 +1642,7 @@
           "path": ".flagship/active_plan_test.py"
         }
       ],
-      "prompt": "Expose a public `active-plan` projection beginning at the existing `domains/workspace` boundary and carry it end to end through the workspace domain, `core-daemon --active-plan`, stdio `{\"operation\":\"active-plan\"}`, and the macOS workbench consumer probe. The deterministic JSON contract contains every ROADMAP row in order as `slices`, status `counts`, the first non-done slice, its repository proof artifacts, and `roadmap_path`. Repository discovery must honor `OPEN_SLOP_REPO_ROOT`; a missing roadmap or one with no valid rows exits nonzero.",
+      "prompt": "Expose a public `active-plan` projection beginning at the existing `domains/workspace` boundary and carry it end to end through the workspace domain, `core-daemon --active-plan`, stdio `{\"operation\":\"active-plan\"}`, and the macOS workbench consumer probe. The deterministic JSON contract contains every ROADMAP row in order as `slices`; `counts` always contains `done`, `active`, `planned`, and `blocked`, including zero values; `active_slice` is the first non-done slice and carries status/review/visual proof artifacts with repository-relative path, state, and availability; and `roadmap_path` is repository-relative. Repository discovery must honor `OPEN_SLOP_REPO_ROOT`; a missing roadmap or one with no valid rows exits nonzero.",
       "repo_id": "openslop",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -1860,7 +1860,7 @@
           "path": ".flagship/live_codex_sessions_test.py"
         }
       ],
-      "prompt": "Beginning at `crates/ratiotissue-cli/src/cli/continuation.rs#cmd_pulse_world_loop`, expose bounded live Codex history through the public `ratiotissue live-codex-sessions <file-or-directory> --db <db>` command. Support explicit carrier output (`--carrier-dir`, with `--carriers` as the same output owner), session/episode limits, and fragment-byte bounds. Produce privacy-safe deterministic episodes with stable content identities and carriers, preserve real actionwave/world-return contact receipts, redact secrets and private paths, and exit nonzero when a session has no actionable contact.",
+      "prompt": "Beginning at `crates/ratiotissue-cli/src/cli/continuation.rs#cmd_pulse_world_loop`, expose bounded live Codex history through the public `ratiotissue live-codex-sessions <file-or-directory> --db <db>` command. Support explicit carrier output (`--carrier-dir`, with `--carriers` as the same output owner), session/episode limits, and fragment-byte bounds; the byte bound limits each emitted carrier body apart from its final newline. Produce privacy-safe deterministic episodes with stable content identities and carriers, redacting credentials, email addresses, and private paths. Each public episode receipt reports its stable episode/content identity and either real actionwave/world-return contact facts or explicit `no_action`/no-contact facts—never synthetic contact. Exit nonzero when a session has no actionable contact.",
       "repo_id": "ratio",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200

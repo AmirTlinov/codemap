@@ -28,7 +28,7 @@ def episode_identity(stdout: str) -> str:
     for line in stdout.splitlines():
         if "live_codex_episode" not in line:
             continue
-        match = re.search(r"(?:^|\s)(?:episode_id|id)=([^\s]+)", line)
+        match = re.search(r"(?:^|\s)(?:episode_id|content_id|id)=([^\s]+)", line)
         if match:
             return match.group(1)
     raise AssertionError("live_codex_episode receipt has no stable identity")

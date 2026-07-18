@@ -70,9 +70,14 @@ describe("flagship text chat multiplayer consumer", () => {
       chatHistory?: readonly { text: string }[];
       textChatHistory?: readonly { text: string }[];
       recentTextChat?: readonly { text: string }[];
+      chatMessages?: readonly { text: string }[];
     };
     const history =
-      state.textChat ?? state.chatHistory ?? state.textChatHistory ?? state.recentTextChat;
+      state.textChat ??
+      state.chatHistory ??
+      state.textChatHistory ??
+      state.recentTextChat ??
+      state.chatMessages;
     expect(history?.map((message) => message.text)).toEqual(["First", "Second"]);
     expect(result.current.publishTextChat("Third")).toBe(true);
     expect(transport.send).toHaveBeenLastCalledWith({ type: "text_chat", text: "Third" });
