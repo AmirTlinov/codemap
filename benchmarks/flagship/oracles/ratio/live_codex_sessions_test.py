@@ -142,6 +142,7 @@ def observed_contact(stdout: str) -> bool:
             marker in stdout
             for marker in ("world_return=contact", "interaction_id=", "conductance_changed=")
         )
+        or all(marker in stdout for marker in ("contact=observed", "actionwave=", "world_return="))
         or all(
             marker in stdout
             for marker in ("contact=true", "world_return_keys=", "conductance_changed=")

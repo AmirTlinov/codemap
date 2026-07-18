@@ -210,6 +210,7 @@ def main() -> int:
     assert '"type": "function_call"' in ratio_oracle
     assert '"type": "function_call_output"' in ratio_oracle
     assert '"call_id": CALL_ID' in ratio_oracle
+    assert '"contact=observed"' in ratio_oracle
     assert "assert observed_contact(paired.stdout)" in ratio_oracle
     assert "assert explicit_no_contact(unpaired)" in ratio_oracle
 
