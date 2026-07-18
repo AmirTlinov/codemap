@@ -1,5 +1,5 @@
 #[test]
-fn version_bump_guard_requires_higher_package_version_for_changed_files() {
+fn version_bump_guard_protects_released_identity_not_each_commit() {
     let repo = TempDir::new().expect("repo tempdir");
     git(repo.path(), &["init", "-q"]);
     git(repo.path(), &["config", "user.email", "a@example.com"]);
@@ -11,12 +11,12 @@ fn version_bump_guard_requires_higher_package_version_for_changed_files() {
     write(&repo.path().join("src/main.rs"), "fn main() {}\n");
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["commit", "-qm", "baseline"]);
+    git(repo.path(), &["tag", "v0.2.0"]);
 
     write(&repo.path().join("src/main.rs"), "fn main() { println!(\"changed\"); }\n");
     let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/check-version-bump.py");
     let missing_bump = python()
         .arg(&script)
-        .arg("HEAD")
         .current_dir(repo.path())
         .output()
         .expect("version guard should run");
@@ -38,7 +38,6 @@ fn version_bump_guard_requires_higher_package_version_for_changed_files() {
     );
     let bumped = python()
         .arg(&script)
-        .arg("HEAD")
         .current_dir(repo.path())
         .output()
         .expect("version guard should run");
@@ -50,5 +49,22 @@ fn version_bump_guard_requires_higher_package_version_for_changed_files() {
     assert!(
         String::from_utf8_lossy(&bumped.stderr).contains("version bump ok: 0.2.0 -> 0.2.1"),
         "guard should report the visible version move"
+    );
+
+    git(repo.path(), &["add", "."]);
+    git(repo.path(), &["commit", "-qm", "prepare unreleased version"]);
+    write(
+        &repo.path().join("src/main.rs"),
+        "fn main() { println!(\"another unreleased change\"); }\n",
+    );
+    let accumulated = python()
+        .arg(&script)
+        .current_dir(repo.path())
+        .output()
+        .expect("version guard should run");
+    assert!(
+        accumulated.status.success(),
+        "more work may accumulate under one unreleased identity: stderr={}",
+        String::from_utf8_lossy(&accumulated.stderr)
     );
 }

@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 import re
 import subprocess
@@ -22,28 +21,28 @@ def commit(value: str) -> str | None:
     return result.stdout.strip() if result.returncode == 0 else None
 
 
+def release_tag_base() -> str | None:
+    result = git("tag", "--merged", "HEAD", "--list", "v*")
+    if result.returncode != 0:
+        return None
+    candidates: list[tuple[tuple[int, int, int], str]] = []
+    for tag in result.stdout.splitlines():
+        try:
+            candidates.append((semver(tag.removeprefix("v")), tag))
+        except ValueError:
+            continue
+    if not candidates:
+        return None
+    return commit(max(candidates)[1])
+
+
 def resolve_base(requested: str | None) -> str | None:
     if requested:
         resolved = commit(requested)
         if not resolved:
             raise ValueError(f"base ref {requested!r} is not a commit")
         return resolved
-    base_ref = os.environ.get("GITHUB_BASE_REF")
-    if base_ref and commit(f"origin/{base_ref}"):
-        result = git("merge-base", "HEAD", f"origin/{base_ref}")
-        if result.returncode == 0:
-            return result.stdout.strip()
-    event_path = os.environ.get("GITHUB_EVENT_PATH")
-    if event_path and Path(event_path).is_file():
-        before = json.loads(Path(event_path).read_text(encoding="utf-8")).get("before")
-        if isinstance(before, str) and before.strip("0") and commit(before):
-            return before
-    upstream = git("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}")
-    if upstream.returncode == 0:
-        result = git("merge-base", "HEAD", upstream.stdout.strip())
-        if result.returncode == 0:
-            return result.stdout.strip()
-    return commit("HEAD^")
+    return release_tag_base()
 
 
 def version_from_text(text: str) -> str | None:
@@ -80,7 +79,7 @@ def main(argv: list[str]) -> int:
             raise ValueError("Cargo.toml not found; run from the repository root")
         base = resolve_base(argv[0] if argv else os.environ.get("CODEMAP_VERSION_BASE"))
         if not base:
-            print("codemap version guard: no base commit found; skipping", file=sys.stderr)
+            print("codemap version guard: no release tag found; skipping", file=sys.stderr)
             return 0
         current = version_from_text(cargo.read_text(encoding="utf-8"))
         base_file = git("show", f"{base}:Cargo.toml")
@@ -100,7 +99,7 @@ def main(argv: list[str]) -> int:
             )
         print(f"codemap version guard: version bump ok: {previous} -> {current}", file=sys.stderr)
         return 0
-    except (OSError, ValueError, json.JSONDecodeError) as error:
+    except (OSError, ValueError) as error:
         print(f"codemap version guard: {error}", file=sys.stderr)
         return 1
 
