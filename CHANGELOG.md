@@ -5,6 +5,8 @@ public JSON compatibility is governed separately by `docs/SCHEMA_POLICY.md`.
 
 ## Unreleased
 
+- Split each flagship implementation oracle into independent user-outcome criteria and shortened
+  prompts to product intent, so partial completion is measurable without publishing an internal checklist.
 - Kept adjacent domain contracts and exact CI operations documentation in bounded file cones,
   so entrypoint-first investigations retain the consumer policy and release contract in view.
 - Reused exact snapshot-scoped `changed` and `proof changed` artifacts after their first build,
