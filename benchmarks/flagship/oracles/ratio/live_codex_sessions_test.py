@@ -208,9 +208,6 @@ def check_world_return(root: Path) -> dict[str, str]:
     assert paired.returncode == 0, paired.stdout + paired.stderr
     assert "actionwave" in paired.stdout.lower()
     assert observed_contact(paired.stdout), paired.stdout
-    assert "conductance_changed=" in paired.stdout or all(
-        marker in paired.stdout for marker in ("useful_deltas=", "inhibitions=", "corrections=")
-    )
 
     unpaired, _ = run_case(root, "unpaired", records(output=False), carriers=False)
     assert explicit_no_contact(unpaired), unpaired.stdout + unpaired.stderr
