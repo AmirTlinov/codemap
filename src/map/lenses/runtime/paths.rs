@@ -1,12 +1,14 @@
 // Responsibility: runtime-route-boundary-path-facts
 mod classify;
 mod deployment_env;
+mod response_projection;
 
 use self::classify::{
-    explicitly_omitted_fields, invoked_target, middleware_or_guard_kind, response_constructors,
-    response_projection_name, runtime_path_unknowns, transformation_name,
+    invoked_target, middleware_or_guard_kind, response_constructors, runtime_path_unknowns,
+    transformation_name,
 };
 use self::deployment_env::{DeploymentEnvIndex, deployment_env_index};
+use self::response_projection::{explicitly_omitted_fields, response_output_call};
 use crate::map::{
     env_surfaces_for_file, imported_binding_target_symbol_name, route_anchor_label, sort_edges,
     structural_edge_with_locations, symbol_body_text, symbol_outgoing_edges,
@@ -26,6 +28,14 @@ pub(crate) struct RuntimePathAnalysis {
 
 pub(crate) struct RuntimePathContext {
     deployment_env: DeploymentEnvIndex,
+}
+
+struct RuntimeTraceVisit {
+    rel: String,
+    symbol: String,
+    depth: usize,
+    guard_chain: bool,
+    response_output: bool,
 }
 
 pub(crate) fn runtime_path_context(project: &Project) -> RuntimePathContext {
@@ -65,22 +75,27 @@ pub(crate) fn runtime_route_path_analysis(
         analysis.guards.push(guard.clone());
     }
 
-    let mut queue = VecDeque::from([(route.file.clone(), handler.to_string(), 0usize)]);
+    let mut queue = VecDeque::from([RuntimeTraceVisit {
+        rel: route.file.clone(),
+        symbol: handler.to_string(),
+        depth: 0,
+        guard_chain: false,
+        response_output: false,
+    }]);
     let mut visited = BTreeSet::new();
-    while let Some((rel, symbol, depth)) = queue.pop_front() {
-        if depth > 3 || analysis.edges.len() >= 64 || !visited.insert((rel.clone(), symbol.clone()))
+    while let Some(visit) = queue.pop_front() {
+        if visit.depth > 3
+            || analysis.edges.len() >= 64
+            || !visited.insert((
+                visit.rel.clone(),
+                visit.symbol.clone(),
+                visit.guard_chain,
+                visit.response_output,
+            ))
         {
             continue;
         }
-        trace_symbol(
-            project,
-            context,
-            &rel,
-            &symbol,
-            depth,
-            &mut queue,
-            &mut analysis,
-        );
+        trace_symbol(project, context, &visit, &mut queue, &mut analysis);
     }
     sort_edges(&mut analysis.edges);
     analysis.edges.dedup_by(|a, b| {
@@ -110,12 +125,12 @@ pub(crate) fn runtime_route_path_analysis(
 fn trace_symbol(
     project: &Project,
     context: &RuntimePathContext,
-    rel: &str,
-    symbol: &str,
-    depth: usize,
-    queue: &mut VecDeque<(String, String, usize)>,
+    visit: &RuntimeTraceVisit,
+    queue: &mut VecDeque<RuntimeTraceVisit>,
     analysis: &mut RuntimePathAnalysis,
 ) {
+    let rel = visit.rel.as_str();
+    let symbol = visit.symbol.as_str();
     let Some(file) = project.files.get(rel) else {
         return;
     };
@@ -143,30 +158,30 @@ fn trace_symbol(
         let Some(name) = target_symbol(&edge.to) else {
             continue;
         };
-        let (relation, evidence, strength) =
-            if let Some(kind) = middleware_or_guard_kind(&body, name) {
-                analysis.guards.push(MiddlewareOrGuard {
-                    name: name.to_string(),
-                    kind,
-                    owner: edge.to.clone(),
-                    evidence: "resolved_call_with_guard_naming".to_string(),
-                    strength: EvidenceStrength::Medium,
-                    locations: edge.locations.clone(),
-                });
-                (
-                    "guarded_by",
-                    "resolved_call_with_guard_naming",
-                    EvidenceStrength::Medium,
-                )
-            } else if transformation_name(name) {
-                (
-                    "transforms",
-                    "resolved_call_with_transformation_naming",
-                    EvidenceStrength::Medium,
-                )
-            } else {
-                ("routes_to", "resolved_symbol_call", EvidenceStrength::High)
-            };
+        let guard_kind = middleware_or_guard_kind(&body, name, visit.guard_chain);
+        let (relation, evidence, strength) = if let Some(kind) = guard_kind {
+            analysis.guards.push(MiddlewareOrGuard {
+                name: name.to_string(),
+                kind,
+                owner: edge.to.clone(),
+                evidence: "resolved_call_with_guard_role".to_string(),
+                strength: EvidenceStrength::Medium,
+                locations: edge.locations.clone(),
+            });
+            (
+                "guarded_by",
+                "resolved_call_with_guard_role",
+                EvidenceStrength::Medium,
+            )
+        } else if transformation_name(name) {
+            (
+                "transforms",
+                "resolved_call_with_transformation_naming",
+                EvidenceStrength::Medium,
+            )
+        } else {
+            ("routes_to", "resolved_symbol_call", EvidenceStrength::High)
+        };
         analysis.edges.push(structural_edge_with_locations(
             source.clone(),
             edge.to.clone(),
@@ -176,11 +191,24 @@ fn trace_symbol(
             edge.locations.clone(),
         ));
         if let Some((target_rel, target_name)) = split_symbol_anchor(&edge.to) {
-            queue.push_back((target_rel.to_string(), target_name.to_string(), depth + 1));
+            queue.push_back(RuntimeTraceVisit {
+                rel: target_rel.to_string(),
+                symbol: target_name.to_string(),
+                depth: visit.depth + 1,
+                guard_chain: visit.guard_chain || guard_kind.is_some(),
+                response_output: response_output_call(&body, name),
+            });
         }
     }
     add_nested_transform_edges(&body, &outgoing, analysis);
-    add_response_edges(rel, symbol, &body, line_offset, analysis);
+    add_response_edges(
+        rel,
+        symbol,
+        &body,
+        line_offset,
+        visit.response_output,
+        analysis,
+    );
     add_env_edges(
         project,
         context,
@@ -197,6 +225,7 @@ fn add_response_edges(
     symbol: &str,
     body: &str,
     line_offset: usize,
+    response_output: bool,
     analysis: &mut RuntimePathAnalysis,
 ) {
     let source = format!("{rel}#{symbol}");
@@ -210,7 +239,7 @@ fn add_response_edges(
             vec![EvidenceLocation::line(rel, line, "external_response")],
         ));
     }
-    if response_projection_name(symbol) {
+    if response_output {
         let omitted = explicitly_omitted_fields(body);
         if !omitted.is_empty() {
             analysis.edges.push(structural_edge_with_locations(

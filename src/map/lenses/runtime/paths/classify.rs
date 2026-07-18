@@ -9,26 +9,36 @@ pub(crate) fn invoked_target(body: &str, name: &str) -> bool {
     })
 }
 
-pub(crate) fn middleware_or_guard_kind(body: &str, name: &str) -> Option<MiddlewareOrGuardKind> {
+pub(crate) fn middleware_or_guard_kind(
+    body: &str,
+    name: &str,
+    on_guard_chain: bool,
+) -> Option<MiddlewareOrGuardKind> {
     let lower = name.to_ascii_lowercase();
     if validation_call(body, name) || lower.ends_with("schema") || lower.contains("validator") {
         return Some(MiddlewareOrGuardKind::Validation);
     }
-    if lower.contains("middleware") || lower.starts_with("with") && lower.contains("context") {
-        return Some(MiddlewareOrGuardKind::Middleware);
-    }
-    if lower.contains("guard")
-        || lower.contains("permission")
-        || lower.contains("authorize")
-        || lower.contains("authenticate")
-        || lower.starts_with("requiresession")
-        || lower.starts_with("getsession")
-        || lower.starts_with("assert")
-        || lower.starts_with("ensuretenant")
-    {
-        return Some(MiddlewareOrGuardKind::Guard);
-    }
-    None
+    let kind =
+        if lower.contains("middleware") || lower.starts_with("with") && lower.contains("context") {
+            MiddlewareOrGuardKind::Middleware
+        } else if lower.contains("guard")
+            || lower.contains("csrf")
+            || lower.contains("permission")
+            || lower.contains("authorize")
+            || lower.contains("authenticate")
+            || lower.contains("security")
+            || lower.contains("session")
+            || lower.starts_with("requiresession")
+            || lower.starts_with("getsession")
+            || lower.starts_with("assert")
+            || lower.starts_with("ensuretenant")
+        {
+            MiddlewareOrGuardKind::Guard
+        } else {
+            return None;
+        };
+    (call_wraps_protected_handler(body, name) || call_is_awaited(body, name, on_guard_chain))
+        .then_some(kind)
 }
 
 pub(crate) fn transformation_name(name: &str) -> bool {
@@ -45,21 +55,6 @@ pub(crate) fn transformation_name(name: &str) -> bool {
         "pick",
         "wrap",
         "normalize",
-    ]
-    .iter()
-    .any(|part| lower.contains(part))
-}
-
-pub(crate) fn response_projection_name(name: &str) -> bool {
-    let lower = name.to_ascii_lowercase();
-    [
-        "serialize",
-        "project",
-        "sanitize",
-        "strip",
-        "redact",
-        "omit",
-        "pick",
     ]
     .iter()
     .any(|part| lower.contains(part))
@@ -136,26 +131,6 @@ pub(crate) fn runtime_path_unknowns(rel: &str, body: &str, line_offset: usize) -
     out
 }
 
-pub(crate) fn explicitly_omitted_fields(body: &str) -> Vec<String> {
-    let code = runtime_code_lines(body)
-        .into_iter()
-        .map(|(_, line)| code_shape_without_literal_content(&line))
-        .collect::<Vec<_>>()
-        .join("\n");
-    let Some(parameter) = primary_parameter_name(&code) else {
-        return Vec::new();
-    };
-    let referenced = owned_dotted_fields(&code, parameter);
-    let returned = returned_primary_fields(&code, parameter);
-    if returned.is_empty() {
-        return Vec::new();
-    }
-    referenced
-        .into_iter()
-        .filter(|field| !returned.contains(field))
-        .collect()
-}
-
 fn validation_call(body: &str, name: &str) -> bool {
     runtime_code_lines(body).into_iter().any(|(_, line)| {
         let code = code_shape_without_literal_content(&line);
@@ -163,154 +138,55 @@ fn validation_call(body: &str, name: &str) -> bool {
     })
 }
 
-fn identifier_followed_by(code: &str, name: &str, expected: char) -> bool {
-    crate::map::identifier_ranges(code, name)
-        .any(|range| code[range.1..].trim_start().starts_with(expected))
+fn call_wraps_protected_handler(body: &str, name: &str) -> bool {
+    call_sources(body, name).into_iter().any(|(source, start)| {
+        let before = &body[..start];
+        let returned = before
+            .rsplit([';', '\n', '{', '}'])
+            .next()
+            .is_some_and(|prefix| prefix.trim_start().starts_with("return "));
+        let callback_argument = crate::repo::js_top_level_arguments(source)
+            .into_iter()
+            .skip(1)
+            .any(|argument| {
+                matches!(
+                    argument.trim().to_ascii_lowercase().as_str(),
+                    "handler" | "next" | "callback"
+                )
+            });
+        returned && (source.contains("=>") || source.contains("function") || callback_argument)
+    })
 }
 
-fn primary_parameter_name(code: &str) -> Option<&str> {
-    let start = code.find('(')? + 1;
-    let tail = code[start..].trim_start();
-    let parameter_len = tail
-        .chars()
-        .take_while(|ch| ch.is_ascii_alphanumeric() || *ch == '_' || *ch == '$')
-        .count();
-    (parameter_len > 0).then(|| &tail[..parameter_len])
+fn call_is_awaited(body: &str, name: &str, on_guard_chain: bool) -> bool {
+    call_sources(body, name).into_iter().any(|(_, start)| {
+        let prefix = body[..start]
+            .rsplit([';', '\n', '{', '}'])
+            .next()
+            .unwrap_or_default();
+        prefix.split_whitespace().any(|part| part == "await")
+            && (on_guard_chain || prefix.contains("return") || prefix.contains('='))
+    })
 }
 
-fn owned_dotted_fields(code: &str, owner: &str) -> std::collections::BTreeSet<String> {
-    let mut out = std::collections::BTreeSet::new();
-    for (_, end) in crate::map::identifier_ranges(code, owner) {
-        let tail = code[end..].trim_start();
-        let Some(tail) = tail.strip_prefix("?.").or_else(|| tail.strip_prefix('.')) else {
+fn call_sources<'a>(body: &'a str, name: &str) -> Vec<(&'a str, usize)> {
+    let mut out = Vec::new();
+    for (start, end) in crate::map::identifier_ranges(body, name) {
+        let after = end
+            + body[end..]
+                .len()
+                .saturating_sub(body[end..].trim_start().len());
+        if body.as_bytes().get(after) != Some(&b'(') {
             continue;
-        };
-        let field = tail
-            .chars()
-            .take_while(|ch| ch.is_ascii_alphanumeric() || *ch == '_')
-            .collect::<String>();
-        if !field.is_empty() {
-            out.insert(field);
+        }
+        if let Some(call_end) = crate::repo::js_balanced_call_end(body, after) {
+            out.push((&body[start..call_end], start));
         }
     }
     out
 }
 
-fn returned_primary_fields(code: &str, parameter: &str) -> std::collections::BTreeSet<String> {
-    let aliases = primary_field_aliases(code, parameter);
-    let mut returned = std::collections::BTreeSet::new();
-    for (_, return_end) in crate::map::identifier_ranges(code, "return") {
-        let open = return_end
-            + code[return_end..]
-                .chars()
-                .take_while(|ch| ch.is_whitespace())
-                .map(char::len_utf8)
-                .sum::<usize>();
-        if !code[open..].starts_with('{') {
-            continue;
-        }
-        let Some(close) = matching_brace(code, open) else {
-            continue;
-        };
-        for segment in top_level_comma_segments(&code[open + 1..close]) {
-            returned.extend(owned_dotted_fields(segment, parameter));
-            let value = top_level_value(segment).unwrap_or(segment).trim();
-            for (alias, fields) in &aliases {
-                if crate::map::identifier_ranges(value, alias).next().is_some() {
-                    returned.extend(fields.iter().cloned());
-                }
-            }
-        }
-    }
-    returned
-}
-
-fn primary_field_aliases(
-    code: &str,
-    parameter: &str,
-) -> std::collections::BTreeMap<String, std::collections::BTreeSet<String>> {
-    let mut aliases = std::collections::BTreeMap::new();
-    for line in code.lines() {
-        let Some((left, right)) = line.split_once('=') else {
-            continue;
-        };
-        if right.starts_with('=') || left.ends_with(['!', '<', '>']) {
-            continue;
-        }
-        let fields = owned_dotted_fields(right, parameter);
-        if fields.is_empty() {
-            continue;
-        }
-        let Some(name) = left
-            .split(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '_' || ch == '$'))
-            .rfind(|part| !part.is_empty())
-        else {
-            continue;
-        };
-        aliases.insert(name.to_string(), fields);
-    }
-    aliases
-}
-
-fn top_level_value(segment: &str) -> Option<&str> {
-    let mut round = 0usize;
-    let mut square = 0usize;
-    let mut curly = 0usize;
-    for (offset, ch) in segment.char_indices() {
-        match ch {
-            '(' => round += 1,
-            ')' => round = round.saturating_sub(1),
-            '[' => square += 1,
-            ']' => square = square.saturating_sub(1),
-            '{' => curly += 1,
-            '}' => curly = curly.saturating_sub(1),
-            ':' if round == 0 && square == 0 && curly == 0 => {
-                return Some(&segment[offset + 1..]);
-            }
-            _ => {}
-        }
-    }
-    None
-}
-
-fn matching_brace(code: &str, open: usize) -> Option<usize> {
-    let mut depth = 0usize;
-    for (offset, ch) in code[open..].char_indices() {
-        match ch {
-            '{' => depth += 1,
-            '}' => {
-                depth = depth.checked_sub(1)?;
-                if depth == 0 {
-                    return Some(open + offset);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
-}
-
-fn top_level_comma_segments(value: &str) -> Vec<&str> {
-    let mut segments = Vec::new();
-    let mut start = 0usize;
-    let mut round = 0usize;
-    let mut square = 0usize;
-    let mut curly = 0usize;
-    for (offset, ch) in value.char_indices() {
-        match ch {
-            '(' => round += 1,
-            ')' => round = round.saturating_sub(1),
-            '[' => square += 1,
-            ']' => square = square.saturating_sub(1),
-            '{' => curly += 1,
-            '}' => curly = curly.saturating_sub(1),
-            ',' if round == 0 && square == 0 && curly == 0 => {
-                segments.push(&value[start..offset]);
-                start = offset + 1;
-            }
-            _ => {}
-        }
-    }
-    segments.push(&value[start..]);
-    segments
+fn identifier_followed_by(code: &str, name: &str, expected: char) -> bool {
+    crate::map::identifier_ranges(code, name)
+        .any(|range| code[range.1..].trim_start().starts_with(expected))
 }
