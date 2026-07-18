@@ -103,6 +103,38 @@ fn exact_ignored_anchors_are_hydrated_without_expanding_root_inventory() {
 }
 
 #[test]
+fn changed_keeps_a_modified_tracked_ignored_file() {
+    let repo = TempDir::new().expect("ignored changed repo");
+    let cache = TempDir::new().expect("ignored changed cache");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.email", "a@example.com"]);
+    git(repo.path(), &["config", "user.name", "a"]);
+    let path = "vendor/browser_extension/service_worker.js";
+    write(
+        &repo.path().join(path),
+        "export function dispatchRpc() { return 'before'; }\n",
+    );
+    git(repo.path(), &["add", "-f", path]);
+    git(repo.path(), &["commit", "-qm", "tracked vendor owner"]);
+    write(
+        &repo.path().join(path),
+        "export function dispatchRpc() { return 'after'; }\n",
+    );
+
+    let changed = run_json(repo.path(), cache.path(), &["changed", "--format", "json"]);
+    assert_eq!(changed["selection"]["selected_files"], 1, "{changed:#}");
+    assert_eq!(changed["total_changed_count"], 1, "{changed:#}");
+    assert!(
+        changed["git_state"]
+            .as_array()
+            .expect("git state")
+            .iter()
+            .any(|entry| entry["path"] == path && entry["status"] == "modified"),
+        "a tracked indexed vendor owner must remain in changed: {changed:#}"
+    );
+}
+
+#[test]
 fn exact_ignored_oversized_file_keeps_its_unread_body_boundary() {
     let repo = TempDir::new().expect("ignored oversized repo");
     let cache = TempDir::new().expect("ignored oversized cache");

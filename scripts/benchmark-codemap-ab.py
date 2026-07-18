@@ -45,7 +45,7 @@ ARMS = (ARM_CONTROL, ARM_TREATMENT)
 MODE_IMPLEMENTATION = "implementation"
 MODE_ANALYSIS = "analysis"
 TASK_MODES = (MODE_IMPLEMENTATION, MODE_ANALYSIS)
-PROMPT_PROTOCOL_VERSION = 14
+PROMPT_PROTOCOL_VERSION = 15
 
 COMMON_PROMPT = """You are completing one benchmark coding task in a disposable git worktree.
 Make the smallest complete implementation that satisfies the task. Work autonomously; do not ask
@@ -66,11 +66,11 @@ ordinary repository tools only.
     ARM_TREATMENT: """CODEMAP TREATMENT ARM: before ordinary inspection, use one proportionate entry:
 `codemap cone <file-or-file#symbol>` for a task-named file, `codemap where <symbol>` when only a
 symbol is known, or `codemap ls <directory>` for a named directory. Use `codemap ls .` only when
-scope is unknown; never replace an exact file with its parent directory. Read the relevant linked
-source. Use a printed exact Expand only when its hidden or unknown evidence matters to the task.
+scope is unknown. If a task-named path does not exist yet, map its nearest existing parent; otherwise
+never replace an exact file with its parent directory. Read the relevant linked source.
+Use a printed exact Expand only when its hidden or unknown evidence matters to the task.
 After editing, run `codemap changed && codemap proof changed` once, then the task-specific check.
-Do not run broad repository gates.
-""",
+Do not run broad repository gates.""",
 }
 
 ANALYSIS_ARM_PROMPTS = {
@@ -283,10 +283,12 @@ def task_prompt(task: Task, arm: str) -> str:
     return f"{common}\n{arm_prompt}\nTASK (identical in both arms):\n{task.prompt}\n"
 
 
-def arm_protocol_valid(task: Task, arm: str, invocation_count: int) -> bool:
+def arm_protocol_valid(task: Task, arm: str, protocol: dict[str, Any]) -> bool:
     if arm == ARM_CONTROL:
-        return invocation_count == 0
-    return invocation_count > 0 or task.task_class == "exact_control"
+        return protocol["invocation_count"] == 0
+    if task.task_class == "exact_control":
+        return protocol["invocation_count"] == 0
+    return protocol["compliant"] is True
 
 
 def parse_codex_events(text: str) -> dict[str, Any]:
@@ -603,7 +605,7 @@ def run_trial(
             and completeness["required_criteria_passed"]
             and (task.mode != MODE_ANALYSIS or not changed_paths)
         )
-        arm_valid = arm_protocol_valid(task, arm, protocol["invocation_count"])
+        arm_valid = arm_protocol_valid(task, arm, protocol)
         verifier_timed_out = any(verifier["timed_out"] for verifier in verifiers)
         run_valid = codex.status == 0 and not codex.timed_out and arm_valid and not verifier_timed_out
         invalidation_reason = None
@@ -617,7 +619,7 @@ def run_trial(
             invalidation_reason = (
                 "control_codemap_access"
                 if arm == ARM_CONTROL
-                else "treatment_codemap_missing"
+                else "treatment_protocol_noncompliant"
             )
         result = {
             "task_id": task.task_id,

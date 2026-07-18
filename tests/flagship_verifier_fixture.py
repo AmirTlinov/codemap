@@ -111,16 +111,28 @@ def main() -> int:
         for task in implementations.values()
     )
     browser = implementations["browser-focused-clipboard"]
-    assert "carrier provenance" in browser["prompt"]
+    assert "provenance must identify the selected tab" in browser["prompt"]
+    assert "both SVG-carrier and offscreen-fallback attempts" in browser["prompt"]
     assert "kill switch" in browser["prompt"]
     assert {"tab-provenance", "offscreen-fallback", "combined-failure"} <= set(
         browser["criteria"]
     )
     openslop = implementations["openslop-active-plan"]
+    assert "public `active-plan`" in openslop["prompt"]
+    assert "consumer-probe convention" in openslop["prompt"]
     assert "fail closed" in openslop["prompt"]
     assert {"workspace-projection", "stdio-contract", "consumer-probes"} <= set(
         openslop["criteria"]
     )
+    codemap = implementations["codemap-response-projection"]
+    assert "primary handler input" in codemap["prompt"]
+    assert "balanced nested return expressions" in codemap["prompt"]
+    backup = implementations["main-postgres-backup"]
+    assert "remote readback and checksum comparison" in backup["prompt"]
+    assert "immutable identity" in backup["prompt"]
+    ratio_implementation = implementations["ratio-codex-live-episodes"]
+    assert "public `ratiotissue` CLI" in ratio_implementation["prompt"]
+    assert "world-return contact" in ratio_implementation["prompt"]
 
     with tempfile.TemporaryDirectory(prefix="codemap-postgres-oracle-") as raw:
         oracle_root = Path(raw)

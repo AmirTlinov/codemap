@@ -259,8 +259,6 @@ def materialize(blueprint_path: Path, out_dir: Path, remote_only: bool) -> Path:
             "task_class": task_class,
             "verifier_artifacts": sorted(set(artifacts)),
         }
-        if task_class == "exact_control":
-            meta["allowed_exact_entries"] = task["allowed_exact_entries"]
         task_rows.append(
             {
                 "id": task["id"],

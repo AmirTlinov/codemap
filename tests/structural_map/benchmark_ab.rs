@@ -38,7 +38,7 @@ codemap_commands = []
 if treatment and analysis:
     codemap_commands.append(["cone", "README.md"])
 elif treatment:
-    codemap_commands.extend((["ls", "."], ["changed"], ["proof", "changed"], ["changed"], ["proof", "changed"]))
+    codemap_commands.extend((["ls", "."], ["changed"], ["proof", "changed"]))
 for command in codemap_commands:
     with open(os.environ["CODEMAP_AB_INVOCATION_LOG"], "a") as stream:
         stream.write(json.dumps({"argv": command, "status": 0, "agent_direct": True}) + "\n")
@@ -220,12 +220,12 @@ raise SystemExit(0 if "README.md:1" in message else 1)
         .find(|row| row["task_id"] == "paired-answer" && row["arm"] == "codemap")
         .expect("codemap result");
     assert_eq!(control["codemap_protocol"]["invocation_count"], 0);
-    assert_eq!(treatment["codemap_protocol"]["invocation_count"], 5);
+    assert_eq!(treatment["codemap_protocol"]["invocation_count"], 3);
     assert_eq!(treatment["codemap_protocol"]["first_entry"], "ls .");
     assert_eq!(treatment["codemap_protocol"]["entry_kind"], "root");
     assert_eq!(treatment["codemap_protocol"]["root_entry"], true);
     assert_eq!(treatment["codemap_protocol"]["exact_entry"], false);
-    assert_eq!(treatment["codemap_protocol"]["compliant"], false);
+    assert_eq!(treatment["codemap_protocol"]["compliant"], true);
     assert_eq!(treatment["run_valid"], true);
     assert_eq!(treatment["outcome_passed"], true);
     assert_eq!(treatment["runtime"]["codex_home"], "isolated");

@@ -61,14 +61,9 @@ def _protocol_errors(row: dict[str, Any], task: dict[str, Any]) -> list[str]:
     if row.get("arm") == "control":
         return [] if protocol.get("invocation_count") == 0 else ["control_codemap_access"]
     meta = task_meta(task)
-    invoked = protocol.get("invocation_count", 0) > 0
-    errors = [] if invoked or meta["task_class"] == "exact_control" else ["treatment_codemap_missing"]
-    if meta["task_class"] == "exact_control" and invoked:
-        if protocol.get("entry_kind") != "exact" or protocol.get("root_entry") is not False:
-            errors.append("exact_control_not_local")
-        if protocol.get("first_entry") not in meta["allowed_exact_entries"]:
-            errors.append("exact_control_wrong_entry")
-    return errors
+    if meta["task_class"] == "exact_control":
+        return [] if protocol.get("invocation_count") == 0 else ["exact_control_codemap_access"]
+    return [] if protocol.get("compliant") is True else ["treatment_protocol_noncompliant"]
 
 
 def _run_errors(row: dict[str, Any]) -> list[str]:

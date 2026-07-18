@@ -158,12 +158,6 @@ def validate_tasks(tasks: list[dict[str, Any]]) -> dict[str, Any]:
             names.add(name)
         if required == 0:
             raise ValueError(f"task {task_id}: at least one required criterion is mandatory")
-        if task_class == "exact_control":
-            entries = meta.get("allowed_exact_entries")
-            if not isinstance(entries, list) or not entries or not all(
-                isinstance(entry, str) and entry for entry in entries
-            ):
-                raise ValueError(f"task {task_id}: allowed_exact_entries are required")
         classes[task_class] += 1
         repo_classes[repo_id][task_class] += 1
         ecosystems.add(ecosystem)

@@ -211,6 +211,18 @@ fn exported_symbol_type_dependency_opens_the_shared_contract_consumers() {
             .any(|expand| expand == "codemap contract apps/ws/src/protocol.ts"),
         "the exact symbol cone should open the contract consumer map directly: {cone:#}"
     );
+    assert!(
+        cone["contracts"]
+            .as_array()
+            .expect("contracts")
+            .iter()
+            .any(|edge| {
+                edge["from"] == "apps/web/src/ChatStrip.ts"
+                    && edge["to"] == "apps/ws/src/protocol.ts"
+                    && edge["evidence"] == "public_symbol_type_consumer"
+            }),
+        "the exact symbol cone should inline the cross-package contract consumer: {cone:#}"
+    );
 
     let contract = run_json(
         repo.path(),

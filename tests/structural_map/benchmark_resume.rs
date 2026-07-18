@@ -80,7 +80,7 @@ assert module["existing_trial"](trial, "fingerprint", True) == second
 assert (trial / "result.json").is_file()
 assert (archived / "result.json").is_file()
 
-for name, reason in [("verifier-loss", None), ("protocol-invalid", "treatment_codemap_missing")]:
+for name, reason in [("verifier-loss", None), ("protocol-invalid", "treatment_protocol_noncompliant")]:
     candidate = root / name
     expected = result(candidate, reason, 1)
     assert module["existing_trial"](candidate, "fingerprint", True) == expected

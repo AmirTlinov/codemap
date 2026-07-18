@@ -224,8 +224,18 @@ fn saturated_symbol_cone_caps_readable_outgoing_but_all_and_json_are_complete() 
         "saturated cone exceeded ~1100 tokens ({approximate_tokens}): {bounded}"
     );
     assert!(
-        bounded.contains("symbol outgoing edges hidden by limit"),
-        "readable model must own the outgoing cap: {bounded}"
+        !bounded.contains("symbol outgoing edges hidden by limit")
+            && bounded.contains("src/d13.ts#d13"),
+        "the ordinary report budget should expose the complete direct call surface: {bounded}"
+    );
+    let limited = run_markdown(
+        repo.path(),
+        cache.path(),
+        &["cone", anchor, "--limit", "5"],
+    );
+    assert!(
+        limited.contains("symbol outgoing edges hidden by limit: 9"),
+        "an explicit tighter report budget should retain bounded projection truth: {limited}"
     );
 
     let json = run_json(

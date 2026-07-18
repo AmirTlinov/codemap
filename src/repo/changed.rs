@@ -91,7 +91,7 @@ pub(crate) fn changed_paths(changes: Vec<GitChange>) -> Vec<String> {
 }
 
 fn visible_or_degraded_change(change: GitChange) -> Option<GitChange> {
-    if !should_ignore_rel(&change.path) {
+    if !should_ignore_rel(&change.path) || change.status != "renamed" {
         return Some(change);
     }
     if change.status == "renamed"

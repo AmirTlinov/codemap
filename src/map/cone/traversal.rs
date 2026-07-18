@@ -6,19 +6,18 @@ use crate::map::{
     is_generic_noise, limit_edge_section, missing_symbol_observations, package_name_for_file,
     same_package_symbol_reference_consumers, shell_quote, sort_edges, structural_roles_for_ls,
     symbol_anchor_path, symbol_cone_expands, symbol_cone_observations, symbol_cone_outgoing_edges,
-    symbol_contract_edges, symbol_file_summary_with_observed_consumers,
-    symbol_local_incoming_edges, symbol_reference_edge_set,
-    symbol_verification_edges_with_owning_file, unique, unknown, unknown_missing_symbol_anchor,
-    unknown_symbol_outgoing, unresolved_import_unknowns,
+    symbol_contract_consumer_edges, symbol_contract_edges,
+    symbol_file_summary_with_observed_consumers, symbol_local_incoming_edges,
+    symbol_outgoing_limit, symbol_reference_edge_set, symbol_verification_edges_with_owning_file,
+    unique, unknown, unknown_missing_symbol_anchor, unknown_symbol_outgoing,
+    unresolved_import_unknowns,
 };
 use crate::model::CountFact;
 use crate::model::{
     ConeReport, EvidenceStrength, FileInfo, FileSummary, HiddenGroup, Project, StructuralEdge,
     Unknown,
 };
-use std::collections::BTreeMap;
-use std::collections::BTreeSet;
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 pub(crate) fn cone_symbol_report(
     project: &Project,
@@ -63,22 +62,44 @@ pub(crate) fn cone_symbol_report_with_references(
     let mut proof =
         symbol_verification_edges_with_owning_file(project, file_rel, symbol_name, usize::MAX);
     let mut outgoing = symbol_cone_outgoing_edges(project, file_rel, symbol_name, depth);
-    let contracts = symbol_contract_edges(project, file_rel, symbol_name);
+    let mut contracts = symbol_contract_edges(project, file_rel, symbol_name);
+    let mut contract_consumers = symbol_contract_consumer_edges(project, &contracts);
     let boundary = Vec::new();
     let mut hidden = Vec::new();
     sort_edges(&mut outgoing);
     sort_edges(&mut incoming);
     sort_edges(&mut proof);
+    sort_edges(&mut contracts);
+    sort_edges(&mut contract_consumers);
     let incoming_observed = incoming.len();
     let proof_observed = proof.len();
+    let outgoing_limit = if include_hidden {
+        limit
+    } else {
+        symbol_outgoing_limit(&outgoing, file_rel, limit)
+    };
     limit_edge_section(
         &mut outgoing,
         &mut hidden,
         include_hidden,
-        limit.min(5),
+        outgoing_limit,
         "symbol outgoing edges hidden by limit",
         &format!("codemap cone {} --all", shell_quote(&anchor_path)),
     );
+    let contract_consumer_limit = if include_hidden {
+        contract_consumers.len()
+    } else {
+        limit.saturating_sub(contracts.len())
+    };
+    limit_edge_section(
+        &mut contract_consumers,
+        &mut hidden,
+        include_hidden,
+        contract_consumer_limit,
+        "cross-package contract consumers hidden by limit",
+        &format!("codemap cone {} --all", shell_quote(&anchor_path)),
+    );
+    contracts.extend(contract_consumers);
     let incoming_limit = if include_hidden {
         incoming_observed
     } else {

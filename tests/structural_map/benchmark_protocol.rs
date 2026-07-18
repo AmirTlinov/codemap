@@ -109,6 +109,8 @@ sys.path.insert(0, str(pathlib.Path(sys.argv[1]).parent))
 m = runpy.run_path(sys.argv[1])
 task = m["Task"]("exact", "implementation", pathlib.Path("."), "HEAD", "abc", "edit", [], "exact_control")
 regular = m["Task"]("regular", "implementation", pathlib.Path("."), "HEAD", "abc", "edit", [])
+def protocol(invocations, compliant):
+    return {"invocation_count": invocations, "compliant": compliant}
 print(json.dumps({
     "version": m["PROMPT_PROTOCOL_VERSION"],
     "implementation": m["ARM_PROMPTS"]["codemap"],
@@ -116,11 +118,12 @@ print(json.dumps({
     "exact": m["task_prompt"](task, "codemap"),
     "exact_control": m["task_prompt"](task, "control"),
     "arm_valid": [
-        m["arm_protocol_valid"](task, "codemap", 0),
-        m["arm_protocol_valid"](regular, "codemap", 0),
-        m["arm_protocol_valid"](regular, "codemap", 1),
-        m["arm_protocol_valid"](task, "control", 0),
-        m["arm_protocol_valid"](task, "control", 1),
+        m["arm_protocol_valid"](task, "codemap", protocol(0, False)),
+        m["arm_protocol_valid"](regular, "codemap", protocol(0, False)),
+        m["arm_protocol_valid"](regular, "codemap", protocol(1, True)),
+        m["arm_protocol_valid"](regular, "codemap", protocol(1, False)),
+        m["arm_protocol_valid"](task, "control", protocol(0, True)),
+        m["arm_protocol_valid"](task, "control", protocol(1, False)),
     ],
 }))
 "#;
@@ -134,11 +137,15 @@ print(json.dumps({
         String::from_utf8_lossy(&output.stderr)
     );
     let prompt: Value = serde_json::from_slice(&output.stdout).expect("prompt json");
-    assert_eq!(prompt["version"], 14);
+    assert_eq!(prompt["version"], 15);
     assert!(prompt["implementation"]
         .as_str()
         .unwrap()
         .contains("codemap changed && codemap proof changed` once"));
+    assert!(prompt["implementation"]
+        .as_str()
+        .unwrap()
+        .contains("nearest existing parent"));
     assert!(prompt["analysis"]
         .as_str()
         .unwrap()
@@ -165,7 +172,7 @@ print(json.dumps({
         .contains("one command-execution shell call"));
     assert_eq!(
         prompt["arm_valid"],
-        serde_json::json!([true, false, true, true, false])
+        serde_json::json!([true, false, true, false, true, false])
     );
 }
 

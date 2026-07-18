@@ -70,8 +70,6 @@ def task_rows(repos: list[Path], verifier_path: Path) -> list[dict]:
                 "ecosystem": ecosystems[index],
                 "verifier_artifacts": [str(verifier_path)],
             }
-            if task_class == "exact_control":
-                meta["allowed_exact_entries"] = ["cone README.md"]
             rows.append(
                 {
                     "id": task_id,
@@ -201,7 +199,7 @@ def result_row(
     exact_without_map = treatment and task_class == "exact_control"
     protocol = {
         "invocation_count": 1 if treatment and not exact_without_map else 0,
-        "compliant": not treatment,
+        "compliant": not treatment or not exact_without_map,
         "entry_kind": "exact" if treatment and not exact_without_map else "none",
         "root_entry": False,
         "first_entry": "cone README.md" if treatment and not exact_without_map else None,

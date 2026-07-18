@@ -52,7 +52,9 @@ pub(crate) fn git_status_snapshot(root: &Path) -> Option<GitStatusSnapshot> {
             continue;
         };
         count_status_change(&change, &mut snapshot.worktree);
-        if should_ignore_rel(&change.path) {
+        if should_ignore_rel(&change.path)
+            && matches!(change.status.as_str(), "renamed" | "untracked")
+        {
             if change.status == "renamed"
                 && let Some(old_path) = change.old_path.take()
                 && !should_ignore_rel(&old_path)
