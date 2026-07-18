@@ -156,6 +156,8 @@ def main() -> int:
     assert active_plan_spec is not None and active_plan_spec.loader is not None
     active_plan_oracle = importlib.util.module_from_spec(active_plan_spec)
     active_plan_spec.loader.exec_module(active_plan_oracle)
+    assert active_plan_oracle.slice_id({"id": "S01"}) == "S01"
+    assert active_plan_oracle.slice_id({"slice": "S01"}) == "S01"
     artifacts = {"visual_proof": {"state": "missing", "available": False}}
     assert active_plan_oracle.proof_artifacts({"artifacts": artifacts}) == artifacts
     codemap = implementations["codemap-response-projection"]

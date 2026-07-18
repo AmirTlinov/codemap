@@ -32,9 +32,13 @@ def field(value: dict[str, Any], camel: str, snake: str) -> Any:
     return value[camel] if camel in value else value[snake]
 
 
+def slice_id(value: dict[str, Any]) -> Any:
+    return value.get("id", value.get("slice"))
+
+
 def selected_slice(value: dict[str, Any], expected_id: str | None) -> Any:
     for candidate in value.values():
-        if isinstance(candidate, dict) and candidate.get("id") == expected_id:
+        if isinstance(candidate, dict) and slice_id(candidate) == expected_id:
             return candidate
     raise KeyError("first non-done slice")
 
@@ -76,13 +80,13 @@ def validate_projection(payload: dict[str, Any]) -> None:
     assert payload["kind"] in {"active_plan", "active_plan_projection"}, payload
     rows = roadmap_rows()
     slices = payload["slices"]
-    assert [(row["id"], row["status"]) for row in slices] == rows
+    assert [(slice_id(row), row["status"]) for row in slices] == rows
     counts = payload["counts"]
     for status in ("done", "active", "planned", "blocked"):
         assert counts[status] == sum(row_status == status for _, row_status in rows)
     expected = next((row_id for row_id, status in rows if status != "done"), None)
     active = selected_slice(payload, expected)
-    assert (active and active["id"]) == expected
+    assert (active and slice_id(active)) == expected
     assert field(payload, "roadmapPath", "roadmap_path") == "ROADMAP.md"
 
     proof = proof_artifacts(active)
