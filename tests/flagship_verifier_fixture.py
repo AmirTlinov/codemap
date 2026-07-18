@@ -111,27 +111,35 @@ def main() -> int:
         for task in implementations.values()
     )
     browser = implementations["browser-focused-clipboard"]
-    assert "provenance must identify the selected tab" in browser["prompt"]
-    assert "both SVG-carrier and offscreen-fallback attempts" in browser["prompt"]
+    assert "both `clipboard.write` and `clipboard.writeSvg`" in browser["prompt"]
+    assert "ordered `tab` and `offscreen` attempted contexts" in browser["prompt"]
     assert "kill switch" in browser["prompt"]
     assert {"tab-provenance", "offscreen-fallback", "combined-failure"} <= set(
         browser["criteria"]
     )
     openslop = implementations["openslop-active-plan"]
     assert "public `active-plan`" in openslop["prompt"]
-    assert "consumer-probe convention" in openslop["prompt"]
-    assert "fail closed" in openslop["prompt"]
+    assert "every ROADMAP row in order as `slices`" in openslop["prompt"]
+    assert "OPEN_SLOP_REPO_ROOT" in openslop["prompt"]
     assert {"workspace-projection", "stdio-contract", "consumer-probes"} <= set(
         openslop["criteria"]
     )
     codemap = implementations["codemap-response-projection"]
-    assert "primary handler input" in codemap["prompt"]
-    assert "balanced nested return expressions" in codemap["prompt"]
+    assert "src/map/lenses/runtime/paths.rs#runtime_route_path_analysis" in codemap["prompt"]
+    assert "balanced return expressions" in codemap["prompt"]
     backup = implementations["main-postgres-backup"]
-    assert "remote readback and checksum comparison" in backup["prompt"]
-    assert "immutable identity" in backup["prompt"]
+    assert "existing parent `deploy/k8s/base`" in backup["prompt"]
+    assert "kube_cronjob_status_last_successful_time" in backup["prompt"]
+    pabg = implementations["pabg-global-text-chat"]
+    assert "TownHub domain boundary" in pabg["prompt"]
+    hook_commands = pabg["criteria"]["web-consumer"]["commands"]
+    assert any(
+        "src/hooks/flagship_text_chat_hook.test.ts" in command["argv"]
+        for command in hook_commands
+    )
     ratio_implementation = implementations["ratio-codex-live-episodes"]
-    assert "public `ratiotissue` CLI" in ratio_implementation["prompt"]
+    assert "continuation.rs#cmd_pulse_world_loop" in ratio_implementation["prompt"]
+    assert "ratiotissue live-codex-sessions" in ratio_implementation["prompt"]
     assert "world-return contact" in ratio_implementation["prompt"]
 
     with tempfile.TemporaryDirectory(prefix="codemap-postgres-oracle-") as raw:

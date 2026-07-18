@@ -302,7 +302,7 @@
           "path": "tests/structural_map/runtime_transform_paths.rs"
         }
       ],
-      "prompt": "Make the runtime, flow, and cone projections distinguish request guards from passive security telemetry and distinguish response-output shaping from input or unrelated local-object shaping. Response projection follows the primary handler input and its transformed aliases through balanced nested return expressions; unrelated local objects are not response evidence. Preserve exact external response evidence and existing dynamic-boundary behavior, and add focused regression coverage.",
+      "prompt": "Start from `src/map/lenses/runtime/paths.rs#runtime_route_path_analysis`. Make runtime, flow, and cone distinguish request guards from passive security telemetry and response-output shaping from input or unrelated local-object shaping. For a response projection, compare fields read from the primary parameter and its aliases with reads that actually occur inside balanced return expressions; a same-named output key sourced from an unrelated local object is not evidence that the primary field was returned. Preserve exact external-response evidence and dynamic-boundary behavior, and add focused regression coverage.",
       "repo_id": "codemap",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -651,7 +651,7 @@
           "path": "deploy/k8s/base/backup/flagship_postgres_backup_test.py"
         }
       ],
-      "prompt": "Restore the production PostgreSQL backup owner under `deploy/k8s/base/backup`. Success requires independent remote readback and checksum comparison, and every deployed image must use an immutable identity. The backup must remain least-privilege, network-bounded, GitOps-owned, observable when stale, and operable from repository documentation. Keep the existing deployment structure and YAML loader contract.",
+      "prompt": "Create the production PostgreSQL backup owner under the not-yet-existing `deploy/k8s/base/backup`, beginning structural inspection at its existing parent `deploy/k8s/base`. Require independent remote readback and checksum comparison, digest-pinned deployed images, least privilege, egress limited to DNS/PostgreSQL/object storage, GitOps ownership, and an operator restore runbook. Staleness must be observable from the rendered `kube_cronjob_status_last_successful_time` metric. Keep the existing deployment structure and YAML loader contract.",
       "repo_id": "main-cluster",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -1007,7 +1007,7 @@
                 "exec",
                 "vitest",
                 "run",
-                "src/flagship_text_chat_hook.test.ts"
+                "src/hooks/flagship_text_chat_hook.test.ts"
               ],
               "timeout_seconds": 1200
             }
@@ -1065,7 +1065,7 @@
           "path": "apps/web/src/hooks/flagship_text_chat_hook.test.ts"
         }
       ],
-      "prompt": "Add production-ready global text chat through the existing town WebSocket owner beginning at `apps/ws/src/hub.ts#TownHub` and its shared protocol/web consumers. It must preserve authenticated sender identity, safe input, live delivery, bounded newcomer history, flood isolation, and a usable web conversation surface without regressing emoji chat or movement.",
+      "prompt": "Add production-ready global text chat through `apps/ws/src/hub.ts#TownHub` and its shared protocol/web consumers. Preserve authenticated server-owned sender identity, live delivery, bounded newcomer history, per-connection flood isolation, and a usable web conversation surface without regressing emoji chat or movement. Normalize and validate text at the TownHub domain boundary as well as wire ingestion, so direct domain calls cannot retain surrounding whitespace or unsafe input.",
       "repo_id": "pabg",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -1358,7 +1358,7 @@
           "path": ".flagship/browser_focused_clipboard_test.js"
         }
       ],
-      "prompt": "Make `vendor/browser_extension/service_worker.js#dispatchRpc` prefer the explicitly requested or focused controlled tab for clipboard writes. Execution must be isolated to that tab's top frame, provenance must identify the selected tab, and the success or failure receipt must retain both SVG-carrier and offscreen-fallback attempts. Preserve bounded execution, the extension kill switch, and existing RPC behavior.",
+      "prompt": "Make both `clipboard.write` and `clipboard.writeSvg` in `vendor/browser_extension/service_worker.js#dispatchRpc` prefer the explicitly requested or focused controlled tab, execute only in that tab's isolated top frame, and fall back to the existing offscreen path. Public receipts must identify the selected tab and retain ordered `tab` and `offscreen` attempted contexts on fallback success and failure; a combined failure must preserve both causes. Preserve bounded execution, the extension kill switch, and other RPC behavior.",
       "repo_id": "browser",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -1642,7 +1642,7 @@
           "path": ".flagship/active_plan_test.py"
         }
       ],
-      "prompt": "Expose a public `active-plan` projection end to end through the existing workspace domain, core-daemon CLI and stdio contract, and macOS workbench. Follow the repository's existing consumer-probe convention. The projection must be deterministic, carry repository proof state, select the next live slice, and fail closed when no valid roadmap exists.",
+      "prompt": "Expose a public `active-plan` projection beginning at the existing `domains/workspace` boundary and carry it end to end through the workspace domain, `core-daemon --active-plan`, stdio `{\"operation\":\"active-plan\"}`, and the macOS workbench consumer probe. The deterministic JSON contract contains every ROADMAP row in order as `slices`, status `counts`, the first non-done slice, its repository proof artifacts, and `roadmap_path`. Repository discovery must honor `OPEN_SLOP_REPO_ROOT`; a missing roadmap or one with no valid rows exits nonzero.",
       "repo_id": "openslop",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -1860,7 +1860,7 @@
           "path": ".flagship/live_codex_sessions_test.py"
         }
       ],
-      "prompt": "Expose bounded live Codex session history through the public `ratiotissue` CLI as privacy-safe deterministic episodes in the existing actionwave/world-return loop. Preserve real world-return contact semantics, stable carriers and receipts, redaction and bounds, and fail closed when a session contains no actionable contact.",
+      "prompt": "Beginning at `crates/ratiotissue-cli/src/cli/continuation.rs#cmd_pulse_world_loop`, expose bounded live Codex history through the public `ratiotissue live-codex-sessions <file-or-directory> --db <db>` command. Support explicit carrier output (`--carrier-dir`, with `--carriers` as the same output owner), session/episode limits, and fragment-byte bounds. Produce privacy-safe deterministic episodes with stable content identities and carriers, preserve real actionwave/world-return contact receipts, redact secrets and private paths, and exit nonzero when a session has no actionable contact.",
       "repo_id": "ratio",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
