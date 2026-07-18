@@ -65,8 +65,8 @@ fn proof_edges_with_direct_consumers(
                 let Some(test_file) = project.files.get(&test) else {
                     continue;
                 };
-                if !test_mentions_anchor(project, seed, test_file)
-                    && !(include_direct_consumer_imports && evidence == "test_import")
+                if !(test_mentions_anchor(project, seed, test_file)
+                    || include_direct_consumer_imports && evidence == "test_import")
                 {
                     continue;
                 }
