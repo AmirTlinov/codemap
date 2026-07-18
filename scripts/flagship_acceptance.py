@@ -56,14 +56,14 @@ def _provenance_errors(
     }
     return [name for name, passed in checks.items() if not passed]
 
-
 def _protocol_errors(row: dict[str, Any], task: dict[str, Any]) -> list[str]:
     protocol = row.get("codemap_protocol", {})
     if row.get("arm") == "control":
         return [] if protocol.get("invocation_count") == 0 else ["control_codemap_access"]
-    errors = [] if protocol.get("invocation_count", 0) > 0 else ["treatment_codemap_missing"]
     meta = task_meta(task)
-    if meta["task_class"] == "exact_control":
+    invoked = protocol.get("invocation_count", 0) > 0
+    errors = [] if invoked or meta["task_class"] == "exact_control" else ["treatment_codemap_missing"]
+    if meta["task_class"] == "exact_control" and invoked:
         if protocol.get("entry_kind") != "exact" or protocol.get("root_entry") is not False:
             errors.append("exact_control_not_local")
         if protocol.get("first_entry") not in meta["allowed_exact_entries"]:

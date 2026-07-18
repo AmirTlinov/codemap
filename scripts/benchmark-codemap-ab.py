@@ -45,7 +45,7 @@ ARMS = (ARM_CONTROL, ARM_TREATMENT)
 MODE_IMPLEMENTATION = "implementation"
 MODE_ANALYSIS = "analysis"
 TASK_MODES = (MODE_IMPLEMENTATION, MODE_ANALYSIS)
-PROMPT_PROTOCOL_VERSION = 12
+PROMPT_PROTOCOL_VERSION = 13
 
 COMMON_PROMPT = """You are completing one benchmark coding task in a disposable git worktree.
 Make the smallest complete implementation that satisfies the task. Work autonomously; do not ask
@@ -88,14 +88,12 @@ investigation with broad scans. Do not edit the repository.
 """,
 }
 
-EXACT_TREATMENT_PROMPT = """EXACT TASK CONTACT: use one command-execution shell call and no separate
-file-change tool. In that call, run the narrow codemap entry with output suppressed, assert and replace
-the task's exact current fragment once using a Python UTF-8 text-I/O heredoc, then run `codemap changed`
-and `codemap proof changed` with output suppressed and print only the exact diff/content verification.
-Invoke every codemap command directly from the shell, never through Python subprocess. Do not retry
-or reopen the file.
-"""
-
+EXACT_COMMON_PROMPT = """EXACT TASK CONTACT: the task already fixes the file and exact bytes, so there
+is no repository-navigation uncertainty. Apply the replacement directly; verify only resulting bytes."""
+EXACT_ARM_PROMPTS = {
+    ARM_CONTROL: "CONTROL ARM: codemap is unavailable. Do not attempt to use it.",
+    ARM_TREATMENT: "CODEMAP TREATMENT ARM: codemap is available; the exact task requires no map call.",
+}
 
 @dataclass(frozen=True)
 class Verifier:
@@ -279,12 +277,18 @@ def task_prompt(task: Task, arm: str) -> str:
     if task.mode == MODE_ANALYSIS:
         common = ANALYSIS_COMMON_PROMPT
         arm_prompt = ANALYSIS_ARM_PROMPTS[arm]
+    elif task.task_class == "exact_control":
+        common, arm_prompt = f"{COMMON_PROMPT}\n{EXACT_COMMON_PROMPT}", EXACT_ARM_PROMPTS[arm]
     else:
         common = COMMON_PROMPT
         arm_prompt = ARM_PROMPTS[arm]
-        if arm == ARM_TREATMENT and task.task_class == "exact_control":
-            arm_prompt += EXACT_TREATMENT_PROMPT
     return f"{common}\n{arm_prompt}\nTASK (identical in both arms):\n{task.prompt}\n"
+
+
+def arm_protocol_valid(task: Task, arm: str, invocation_count: int) -> bool:
+    if arm == ARM_CONTROL:
+        return invocation_count == 0
+    return invocation_count > 0 or task.task_class == "exact_control"
 
 
 def parse_codex_events(text: str) -> dict[str, Any]:
@@ -601,11 +605,7 @@ def run_trial(
             and completeness["required_criteria_passed"]
             and (task.mode != MODE_ANALYSIS or not changed_paths)
         )
-        arm_valid = (
-            protocol["invocation_count"] == 0
-            if arm == ARM_CONTROL
-            else protocol["invocation_count"] > 0
-        )
+        arm_valid = arm_protocol_valid(task, arm, protocol["invocation_count"])
         verifier_timed_out = any(verifier["timed_out"] for verifier in verifiers)
         run_valid = codex.status == 0 and not codex.timed_out and arm_valid and not verifier_timed_out
         invalidation_reason = None

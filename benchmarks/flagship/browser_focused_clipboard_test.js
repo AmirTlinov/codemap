@@ -113,10 +113,12 @@ function tabProvenance(result, expectedTab, expectedSource) {
         result.selectedBy,
         result.selectedFrom,
         result.selectionSource,
+        result.tabIdSource,
         attempt?.source,
         attempt?.selectedBy,
         attempt?.selectedFrom,
         attempt?.selectionSource,
+        attempt?.tabIdSource,
       );
   }
   const value = result.context;
@@ -124,7 +126,13 @@ function tabProvenance(result, expectedTab, expectedSource) {
     && String(value.tabId) === String(expectedTab)
     && isTopFrame(value)
     && value.world === "ISOLATED"
-    && sourceMatches(value.source, value.selectedBy, value.selectedFrom, value.selectionSource);
+    && sourceMatches(
+      value.source,
+      value.selectedBy,
+      value.selectedFrom,
+      value.selectionSource,
+      value.tabIdSource,
+    );
 }
 
 function isTopFrame(value) {

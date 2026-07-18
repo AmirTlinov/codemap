@@ -198,12 +198,13 @@ def result_row(
     write(events, "{}\n")
     write(stderr, "")
     write(patch, "")
+    exact_without_map = treatment and task_class == "exact_control"
     protocol = {
-        "invocation_count": 1 if treatment else 0,
+        "invocation_count": 1 if treatment and not exact_without_map else 0,
         "compliant": not treatment,
-        "entry_kind": "exact" if treatment else "none",
+        "entry_kind": "exact" if treatment and not exact_without_map else "none",
         "root_entry": False,
-        "first_entry": "cone README.md" if treatment else None,
+        "first_entry": "cone README.md" if treatment and not exact_without_map else None,
     }
     elapsed = 1000
     input_tokens = 1000

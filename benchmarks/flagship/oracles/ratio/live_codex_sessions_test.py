@@ -23,6 +23,16 @@ def digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def episode_identity(stdout: str) -> str:
+    for line in stdout.splitlines():
+        if "live_codex_episode" not in line:
+            continue
+        match = re.search(r"(?:^|\s)(?:episode_id|id)=([^\s]+)", line)
+        if match:
+            return match.group(1)
+    raise AssertionError("live_codex_episode receipt has no stable identity")
+
+
 def main() -> int:
     build = run(["cargo", "build", "--quiet", "-p", "ratiotissue-cli"])
     assert build.returncode == 0, build.stderr
@@ -85,7 +95,7 @@ def main() -> int:
         first = run(command)
         assert first.returncode == 0, first.stdout + first.stderr
         assert "actionwave" in first.stdout.lower()
-        assert "live_codex_" in first.stdout and "episode_id=" in first.stdout
+        first_episode = episode_identity(first.stdout)
         observed = (
             "observed=true" in first.stdout
             or "world_return_observed=true" in first.stdout
@@ -136,9 +146,7 @@ def main() -> int:
         assert second.returncode == 0, second.stdout + second.stderr
         after = {path.name: digest(path) for path in sorted(carriers.glob("*"))}
         assert after == before
-        first_episode = next(part for part in first.stdout.split() if part.startswith("episode_id="))
-        second_episode = next(part for part in second.stdout.split() if part.startswith("episode_id="))
-        assert first_episode == second_episode
+        assert first_episode == episode_identity(second.stdout)
 
         metadata = root / "metadata.jsonl"
         metadata.write_text(

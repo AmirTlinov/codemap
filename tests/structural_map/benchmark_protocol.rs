@@ -108,11 +108,20 @@ fn ab_treatment_prompt_keeps_navigation_proportionate() {
 sys.path.insert(0, str(pathlib.Path(sys.argv[1]).parent))
 m = runpy.run_path(sys.argv[1])
 task = m["Task"]("exact", "implementation", pathlib.Path("."), "HEAD", "abc", "edit", [], "exact_control")
+regular = m["Task"]("regular", "implementation", pathlib.Path("."), "HEAD", "abc", "edit", [])
 print(json.dumps({
     "version": m["PROMPT_PROTOCOL_VERSION"],
     "implementation": m["ARM_PROMPTS"]["codemap"],
     "analysis": m["ANALYSIS_ARM_PROMPTS"]["codemap"],
     "exact": m["task_prompt"](task, "codemap"),
+    "exact_control": m["task_prompt"](task, "control"),
+    "arm_valid": [
+        m["arm_protocol_valid"](task, "codemap", 0),
+        m["arm_protocol_valid"](regular, "codemap", 0),
+        m["arm_protocol_valid"](regular, "codemap", 1),
+        m["arm_protocol_valid"](task, "control", 0),
+        m["arm_protocol_valid"](task, "control", 1),
+    ],
 }))
 "#;
     let output = python()
@@ -125,7 +134,7 @@ print(json.dumps({
         String::from_utf8_lossy(&output.stderr)
     );
     let prompt: Value = serde_json::from_slice(&output.stdout).expect("prompt json");
-    assert_eq!(prompt["version"], 12);
+    assert_eq!(prompt["version"], 13);
     assert!(prompt["implementation"]
         .as_str()
         .unwrap()
@@ -145,15 +154,19 @@ print(json.dumps({
     assert!(prompt["exact"]
         .as_str()
         .unwrap()
-        .contains("exact current fragment once"));
-    assert!(prompt["exact"]
+        .contains("no repository-navigation uncertainty"));
+    assert!(prompt["exact_control"]
+        .as_str()
+        .unwrap()
+        .contains("no repository-navigation uncertainty"));
+    assert!(!prompt["exact"]
         .as_str()
         .unwrap()
         .contains("one command-execution shell call"));
-    assert!(prompt["exact"]
-        .as_str()
-        .unwrap()
-        .contains("never through Python subprocess"));
+    assert_eq!(
+        prompt["arm_valid"],
+        serde_json::json!([true, false, true, true, false])
+    );
 }
 
 #[test]
