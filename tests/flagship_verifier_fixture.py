@@ -139,6 +139,8 @@ def main() -> int:
     assert "result.selectedTabId" in browser_oracle
     assert "result.selectedTabSource" in browser_oracle
     assert "value?.carrierDetails" in browser_oracle
+    assert "value?.carrier?.world" in browser_oracle
+    assert "carrier?.kind || carrier?.type" in browser_oracle
     assert "combined?.data?.attempts" in browser_oracle
     openslop = implementations["openslop-active-plan"]
     assert "public `active-plan`" in openslop["prompt"]

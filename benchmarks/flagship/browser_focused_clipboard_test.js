@@ -126,7 +126,7 @@ function tabProvenance(result, expectedTab, expectedSource) {
       );
   }
   const value = typeof result.context === "object" ? result.context : result;
-  return value && (value.kind === "tab" || value.type === "tab" || value.carrier === "tab")
+  return value && contextKind(value) === "tab"
     && String(value.tabId ?? value.selectedTabId ?? value.selectedTab?.tabId) === String(expectedTab)
     && isTopFrame(value)
     && carrierWorld(value) === "ISOLATED"
@@ -142,7 +142,7 @@ function tabProvenance(result, expectedTab, expectedSource) {
 }
 
 function isTopFrame(value) {
-  return [value, value?.carrierDetails].some((candidate) =>
+  return [value, value?.carrierDetails, value?.carrier].some((candidate) =>
     Number(candidate?.frameId) === 0
       || (Array.isArray(candidate?.frameIds)
         && candidate.frameIds.length === 1
@@ -150,7 +150,7 @@ function isTopFrame(value) {
 }
 
 function carrierWorld(value) {
-  return value?.world ?? value?.carrierDetails?.world;
+  return value?.world ?? value?.carrierDetails?.world ?? value?.carrier?.world;
 }
 
 function topFrameCall(call, tabId) {
@@ -169,11 +169,14 @@ function attempts(result) {
 
 function contextKind(row) {
   const context = row?.context;
+  const carrier = row?.carrier;
   return typeof row === "string"
     ? row
-    : row?.kind || row?.type || row?.carrier || (typeof context === "string"
-      ? context
-      : context?.kind || context?.type || context?.carrier);
+    : row?.kind || row?.type || (typeof carrier === "string"
+      ? carrier
+      : carrier?.kind || carrier?.type || carrier?.carrier) || (typeof context === "string"
+        ? context
+        : context?.kind || context?.type || context?.carrier);
 }
 
 function hasAttempt(rows, kind, status) {
