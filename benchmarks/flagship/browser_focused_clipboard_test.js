@@ -5,6 +5,8 @@ const vm = require("vm");
 
 const worktree = process.argv[2];
 if (!worktree) throw new Error("usage: browser_focused_clipboard_test.js WORKTREE");
+const criterion = process.argv[3] || "all";
+const enabled = (name) => criterion === "all" || criterion === name;
 const source = fs.readFileSync(
   path.join(worktree, "vendor/browser_extension/service_worker.js"),
   "utf8",
@@ -186,76 +188,88 @@ const textItems = [{
 (async () => {
   await Promise.resolve();
 
-  const requested = await context.dispatchRpc("clipboard.write", { tabId: "77", items: textItems });
-  if (!tabProvenance(requested, 77, "requested") || !topFrameCall(scriptCalls.at(-1), 77)) {
-    throw new Error(`requested-tab write lost bounded provenance: ${JSON.stringify(requested)}`);
+  if (enabled("tab-provenance")) {
+    const requested = await context.dispatchRpc("clipboard.write", { tabId: "77", items: textItems });
+    if (!tabProvenance(requested, 77, "requested") || !topFrameCall(scriptCalls.at(-1), 77)) {
+      throw new Error(`requested-tab write lost bounded provenance: ${JSON.stringify(requested)}`);
+    }
+
+    vm.runInContext('state.focusedTabId = "41"', context);
+    const focused = await context.dispatchRpc("clipboard.write", { items: textItems });
+    if (!tabProvenance(focused, 41, "focused") || !topFrameCall(scriptCalls.at(-1), 41)) {
+      throw new Error(`focused-tab write lost bounded provenance: ${JSON.stringify(focused)}`);
+    }
   }
 
-  vm.runInContext('state.focusedTabId = "41"', context);
-  const focused = await context.dispatchRpc("clipboard.write", { items: textItems });
-  if (!tabProvenance(focused, 41, "focused") || !topFrameCall(scriptCalls.at(-1), 41)) {
-    throw new Error(`focused-tab write lost bounded provenance: ${JSON.stringify(focused)}`);
+  if (enabled("offscreen-fallback")) {
+    scriptMode = "failure";
+    offscreenMode = "success";
+    const fallback = await context.dispatchRpc("clipboard.write", { tabId: "77", items: textItems });
+    const fallbackAttempts = attempts(fallback);
+    if (contextKind(fallback) !== "offscreen"
+        || !hasAttempt(fallbackAttempts, "tab")
+        || !hasAttempt(fallbackAttempts, "offscreen")
+        || (!hasAttempt(fallbackAttempts, "tab", "failed")
+          && !hasContextError(fallbackAttempts, "tab")
+          && !hasContextError(fallback.errors || fallback.contextErrors || [], "tab"))) {
+      throw new Error(`fallback did not preserve both attempts: ${JSON.stringify(fallback)}`);
+    }
   }
 
-  scriptMode = "failure";
-  offscreenMode = "success";
-  const fallback = await context.dispatchRpc("clipboard.write", { tabId: "77", items: textItems });
-  const fallbackAttempts = attempts(fallback);
-  if (contextKind(fallback) !== "offscreen"
-      || !hasAttempt(fallbackAttempts, "tab")
-      || !hasAttempt(fallbackAttempts, "offscreen")
-      || (!hasAttempt(fallbackAttempts, "tab", "failed")
-        && !hasContextError(fallbackAttempts, "tab")
-        && !hasContextError(fallback.errors || fallback.contextErrors || [], "tab"))) {
-    throw new Error(`fallback did not preserve both attempts: ${JSON.stringify(fallback)}`);
+  if (enabled("svg-carrier")) {
+    scriptMode = "success";
+    const svg = await context.dispatchRpc("clipboard.writeSvg", {
+      tabId: "77",
+      svg: '<svg xmlns="http://www.w3.org/2000/svg"/>',
+      includePng: false,
+    });
+    if (!tabProvenance(svg, 77, "requested") || !topFrameCall(scriptCalls.at(-1), 77)) {
+      throw new Error(`writeSvg bypassed focused-tab contract: ${JSON.stringify(svg)}`);
+    }
   }
 
-  scriptMode = "success";
-  const svg = await context.dispatchRpc("clipboard.writeSvg", {
-    tabId: "77",
-    svg: '<svg xmlns="http://www.w3.org/2000/svg"/>',
-    includePng: false,
-  });
-  if (!tabProvenance(svg, 77, "requested") || !topFrameCall(scriptCalls.at(-1), 77)) {
-    throw new Error(`writeSvg bypassed focused-tab contract: ${JSON.stringify(svg)}`);
+  if (enabled("combined-failure")) {
+    scriptMode = "failure";
+    offscreenMode = "failure";
+    let combined;
+    try {
+      await context.dispatchRpc("clipboard.write", { tabId: "77", items: textItems });
+    } catch (error) {
+      combined = error;
+    }
+    const combinedAttempts = combined?.data?.attemptedContexts || [];
+    if (!combined
+        || !hasAttempt(combinedAttempts, "tab")
+        || !hasAttempt(combinedAttempts, "offscreen")
+        || !String(combined.message).includes("tab")
+        || !String(combined.message).includes("offscreen")) {
+      throw new Error(`combined failure lost one context: ${combined?.stack || combined}`);
+    }
   }
 
-  scriptMode = "failure";
-  offscreenMode = "failure";
-  let combined;
-  try {
-    await context.dispatchRpc("clipboard.write", { tabId: "77", items: textItems });
-  } catch (error) {
-    combined = error;
-  }
-  const combinedAttempts = combined?.data?.attemptedContexts || [];
-  if (!combined
-      || !hasAttempt(combinedAttempts, "tab")
-      || !hasAttempt(combinedAttempts, "offscreen")
-      || !String(combined.message).includes("tab")
-      || !String(combined.message).includes("offscreen")) {
-    throw new Error(`combined failure lost one context: ${combined?.stack || combined}`);
-  }
-
-  scriptMode = "success";
-  offscreenMode = "success";
-  const callsBeforeKill = scriptCalls.length;
-  await context.dispatchRpc("state.set", { enabled: false });
-  let killed = false;
-  try {
-    await context.dispatchRpc("clipboard.write", { tabId: "77", items: textItems });
-  } catch (error) {
-    killed = /off|disabled/i.test(String(error.message));
-  }
-  if (!killed || scriptCalls.length !== callsBeforeKill) {
-    throw new Error("clipboard path bypassed the extension kill switch");
+  if (enabled("kill-switch")) {
+    scriptMode = "success";
+    offscreenMode = "success";
+    const callsBeforeKill = scriptCalls.length;
+    await context.dispatchRpc("state.set", { enabled: false });
+    let killed = false;
+    try {
+      await context.dispatchRpc("clipboard.write", { tabId: "77", items: textItems });
+    } catch (error) {
+      killed = /off|disabled/i.test(String(error.message));
+    }
+    if (!killed || scriptCalls.length !== callsBeforeKill) {
+      throw new Error("clipboard path bypassed the extension kill switch");
+    }
   }
 
   console.log(JSON.stringify({
     passed: true,
+    criterion,
     scriptCalls: scriptCalls.length,
     offscreenCalls: offscreenCalls.length,
   }));
+  process.exit(0);
 })().catch((error) => {
   console.error(error.stack || String(error));
   process.exit(1);

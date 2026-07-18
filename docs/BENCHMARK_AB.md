@@ -239,8 +239,10 @@ repetitions produce 36 pairs and 72 agent runs.
 Each task declares executable deterministic verifiers. Investigation verifiers check
 source-backed claims and concrete `path:line` citations against frozen repository bytes;
 they do not match prescribed report wording, and an opened-file inventory does not score.
-Implementation verifiers run hidden tests or
-contract checks, and exact controls check their local outcome. Response length, model
+Implementation verifiers run independent hidden behavior groups or contract checks, so a partial
+implementation produces deterministic partial completeness instead of one opaque pass bit. Their
+prompts state the user-level outcome without publishing the internal owner path or full oracle
+checklist. Exact controls check their local outcome. Response length, model
 self-report, and another model's opinion are not evidence.
 
 Each investigation prompt names one real runtime, file, or symbol anchor and asks a

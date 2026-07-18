@@ -269,8 +269,7 @@ fn exact_route_beats_cross_package_catchall_and_dynamic_dispatch_stays_a_stop() 
     );
 }
 
-#[test]
-fn response_projection_uses_primary_parameter_and_balanced_return_values() {
+fn response_projection_fixture() -> serde_json::Value {
     let repo = TempDir::new().expect("repo tempdir");
     let cache = TempDir::new().expect("cache tempdir");
     git(repo.path(), &["init", "-q"]);
@@ -304,11 +303,31 @@ function sanitizeAccount(account: Account, options = {}) {
     git(repo.path(), &["add", "."]);
     git(repo.path(), &["commit", "-qm", "projection precision"]);
 
-    let runtime = run_json(
+    run_json(
         repo.path(),
         cache.path(),
         &["runtime", "app/api/account/route.ts", "--all", "--format", "json"],
+    )
+}
+
+#[test]
+fn csrf_observer_is_not_promoted_to_guard() {
+    let runtime = response_projection_fixture();
+    let paths = runtime["paths"].as_array().expect("runtime paths");
+    assert!(
+        paths.iter().all(|edge| {
+            edge["type"] != "guarded_by"
+                || !edge["to"]
+                    .as_str()
+                    .is_some_and(|to| to.contains("csrfObserver"))
+        }),
+        "a CSRF observer is not a guard: {runtime:#}"
     );
+}
+
+#[test]
+fn response_projection_uses_primary_parameter_and_balanced_return_values() {
+    let runtime = response_projection_fixture();
     let paths = runtime["paths"].as_array().expect("runtime paths");
     assert!(
         paths.iter().any(|edge| {
@@ -321,14 +340,5 @@ function sanitizeAccount(account: Account, options = {}) {
                 && edge["evidence"] == "explicit_return_object_omission"
         }),
         "projection must retain only exact omitted primary-parameter fields: {runtime:#}"
-    );
-    assert!(
-        paths.iter().all(|edge| {
-            edge["type"] != "guarded_by"
-                || !edge["to"]
-                    .as_str()
-                    .is_some_and(|to| to.contains("csrfObserver"))
-        }),
-        "a CSRF observer is not a guard: {runtime:#}"
     );
 }

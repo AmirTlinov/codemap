@@ -221,7 +221,25 @@
     },
     {
       "criteria": {
-        "regression": {
+        "csrf-observer-exclusion": {
+          "commands": [
+            {
+              "argv": [
+                "cargo",
+                "test",
+                "--test",
+                "structural_map",
+                "csrf_observer_is_not_promoted_to_guard",
+                "--",
+                "--exact"
+              ],
+              "timeout_seconds": 1200
+            }
+          ],
+          "kind": "commands",
+          "overlays": "{task_overlays}"
+        },
+        "dynamic-boundary-regression": {
           "commands": [
             {
               "argv": [
@@ -236,9 +254,28 @@
               "timeout_seconds": 1200
             }
           ],
-          "kind": "commands"
+          "kind": "commands",
+          "overlays": "{task_overlays}"
         },
-        "required": {
+        "response-projection": {
+          "commands": [
+            {
+              "argv": [
+                "cargo",
+                "test",
+                "--test",
+                "structural_map",
+                "response_projection_uses_primary_parameter_and_balanced_return_values",
+                "--",
+                "--exact"
+              ],
+              "timeout_seconds": 1200
+            }
+          ],
+          "kind": "commands",
+          "overlays": "{task_overlays}"
+        },
+        "runtime-chain": {
           "commands": [
             {
               "argv": [
@@ -247,18 +284,6 @@
                 "--test",
                 "structural_map",
                 "runtime_path_carries_guard_service_projection_response_and_deployment_config",
-                "--",
-                "--exact"
-              ],
-              "timeout_seconds": 1200
-            },
-            {
-              "argv": [
-                "cargo",
-                "test",
-                "--test",
-                "structural_map",
-                "response_projection_uses_primary_parameter_and_balanced_return_values",
                 "--",
                 "--exact"
               ],
@@ -277,7 +302,7 @@
           "path": "tests/structural_map/runtime_transform_paths.rs"
         }
       ],
-      "prompt": "Correct false runtime transformation claims in `src/map/lenses/runtime/paths/classify.rs`: CSRF observer/recorder telemetry must not become a guard merely because it mentions CSRF, even when its name omits the word `failure` (for example `csrfObserver` whose body only records or observes CSRF); response omission inference must attribute dotted fields only to the transform primary parameter, count an alias derived from a primary field and returned by shorthand as returned even when the alias applies a method/call transformation (for example `const title = result.title.trim(); return { title }`), must not treat unrelated local-object fields as primary-source fields, and must parse nested object/array/call expressions without splitting on inner commas or braces. Preserve exact external response-omission evidence and add regression coverage.",
+      "prompt": "Make the runtime, flow, and cone projections distinguish request guards from passive security telemetry and distinguish response-output shaping from input or unrelated local-object shaping. Preserve exact external response evidence and existing dynamic-boundary behavior, and add focused regression coverage.",
       "repo_id": "codemap",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -552,7 +577,36 @@
     },
     {
       "criteria": {
-        "regression": {
+        "gitops-operations": {
+          "commands": [
+            {
+              "argv": [
+                "python3",
+                "deploy/k8s/base/backup/flagship_postgres_backup_test.py",
+                "PostgresBackupTest.test_gitops_alert_and_runbook_own_the_slice"
+              ],
+              "timeout_seconds": 1200
+            }
+          ],
+          "kind": "commands",
+          "overlays": "{task_overlays}"
+        },
+        "least-privilege": {
+          "commands": [
+            {
+              "argv": [
+                "python3",
+                "deploy/k8s/base/backup/flagship_postgres_backup_test.py",
+                "PostgresBackupTest.test_runtime_is_least_privilege"
+              ],
+              "timeout_seconds": 1200
+            }
+          ],
+          "kind": "commands",
+          "overlays": "{task_overlays}"
+        },
+        "loader-regression": {
+          "category": "regression",
           "commands": [
             {
               "argv": [
@@ -564,12 +618,27 @@
           ],
           "kind": "commands"
         },
-        "required": {
+        "network-boundary": {
           "commands": [
             {
               "argv": [
                 "python3",
-                "deploy/k8s/base/backup/flagship_postgres_backup_test.py"
+                "deploy/k8s/base/backup/flagship_postgres_backup_test.py",
+                "PostgresBackupTest.test_network_is_only_dns_postgres_and_minio"
+              ],
+              "timeout_seconds": 1200
+            }
+          ],
+          "kind": "commands",
+          "overlays": "{task_overlays}"
+        },
+        "remote-recoverability": {
+          "commands": [
+            {
+              "argv": [
+                "python3",
+                "deploy/k8s/base/backup/flagship_postgres_backup_test.py",
+                "PostgresBackupTest.test_remote_readback_precedes_success"
               ],
               "timeout_seconds": 1200
             }
@@ -586,7 +655,7 @@
           "path": "deploy/k8s/base/backup/flagship_postgres_backup_test.py"
         }
       ],
-      "prompt": "Restore a verified PostgreSQL backup owner under `deploy/k8s/base/backup`: a scheduled dump must upload to MinIO, read the object back, compare SHA-256 before success, run with digest-pinned container images and least privilege, expose only DNS/Postgres/MinIO network paths, be included by GitOps, emit a stale-backup alert with the repository's `kube_cronjob_status_last_successful_time` metric, and have an operator runbook. Keep the existing deployment structure and YAML loader contract.",
+      "prompt": "Restore the production PostgreSQL backup owner under `deploy/k8s/base/backup`. The backup must be independently recoverable, least-privilege, network-bounded, GitOps-owned, observable when stale, and operable from repository documentation. Keep the existing deployment structure and YAML loader contract.",
       "repo_id": "main-cluster",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -803,8 +872,76 @@
     },
     {
       "criteria": {
-        "regression": {
+        "history-and-floods": {
           "commands": [
+            {
+              "argv": [
+                "pnpm",
+                "install",
+                "--frozen-lockfile",
+                "--ignore-scripts"
+              ],
+              "timeout_seconds": 1200
+            },
+            {
+              "argv": [
+                "pnpm",
+                "--filter",
+                "@pabg/ws",
+                "exec",
+                "vitest",
+                "run",
+                "src/flagship_text_chat.test.ts",
+                "-t",
+                "bounds newcomer history and isolates text floods from emoji allowance"
+              ],
+              "timeout_seconds": 1200
+            }
+          ],
+          "kind": "commands",
+          "overlays": "{task_overlays}"
+        },
+        "identity-and-delivery": {
+          "commands": [
+            {
+              "argv": [
+                "pnpm",
+                "install",
+                "--frozen-lockfile",
+                "--ignore-scripts"
+              ],
+              "timeout_seconds": 1200
+            },
+            {
+              "argv": [
+                "pnpm",
+                "--filter",
+                "@pabg/ws",
+                "exec",
+                "vitest",
+                "run",
+                "src/flagship_text_chat.test.ts",
+                "-t",
+                "rejects pre-hello text and broadcasts normalized server-owned identity"
+              ],
+              "timeout_seconds": 1200
+            }
+          ],
+          "kind": "commands",
+          "overlays": "{task_overlays}"
+        },
+        "regression": {
+          "category": "regression",
+          "commands": [
+            {
+              "argv": [
+                "pnpm",
+                "install",
+                "--frozen-lockfile",
+                "--ignore-scripts"
+              ],
+              "timeout_seconds": 1200
+            },
             {
               "argv": [
                 "pnpm",
@@ -832,7 +969,61 @@
           ],
           "kind": "commands"
         },
-        "required": {
+        "visible-ui": {
+          "commands": [
+            {
+              "argv": [
+                "pnpm",
+                "install",
+                "--frozen-lockfile",
+                "--ignore-scripts"
+              ],
+              "timeout_seconds": 1200
+            },
+            {
+              "argv": [
+                "pnpm",
+                "--filter",
+                "@pabg/web",
+                "exec",
+                "vitest",
+                "run",
+                "src/components/town/flagship_text_chat_ui.test.tsx"
+              ],
+              "timeout_seconds": 1200
+            }
+          ],
+          "kind": "commands",
+          "overlays": "{task_overlays}"
+        },
+        "web-consumer": {
+          "commands": [
+            {
+              "argv": [
+                "pnpm",
+                "install",
+                "--frozen-lockfile",
+                "--ignore-scripts"
+              ],
+              "timeout_seconds": 1200
+            },
+            {
+              "argv": [
+                "pnpm",
+                "--filter",
+                "@pabg/web",
+                "exec",
+                "vitest",
+                "run",
+                "src/flagship_text_chat_hook.test.ts"
+              ],
+              "timeout_seconds": 1200
+            }
+          ],
+          "kind": "commands",
+          "overlays": "{task_overlays}"
+        },
+        "wire-and-validation": {
           "commands": [
             {
               "argv": [
@@ -851,31 +1042,9 @@
                 "exec",
                 "vitest",
                 "run",
-                "src/flagship_text_chat.test.ts"
-              ],
-              "timeout_seconds": 1200
-            },
-            {
-              "argv": [
-                "pnpm",
-                "--filter",
-                "@pabg/web",
-                "exec",
-                "vitest",
-                "run",
-                "src/hooks/flagship_text_chat_hook.test.ts"
-              ],
-              "timeout_seconds": 1200
-            },
-            {
-              "argv": [
-                "pnpm",
-                "--filter",
-                "@pabg/web",
-                "exec",
-                "vitest",
-                "run",
-                "src/components/town/flagship_text_chat_ui.test.tsx"
+                "src/flagship_text_chat.test.ts",
+                "-t",
+                "owns bounded text_chat and text_chat_broadcast wire frames"
               ],
               "timeout_seconds": 1200
             }
@@ -904,7 +1073,7 @@
           "path": "apps/web/src/hooks/flagship_text_chat_hook.test.ts"
         }
       ],
-      "prompt": "Add global text chat over the town WebSocket hub beginning at `apps/ws/src/hub.ts#TownHub`. Use `text_chat` for the client frame, `text_chat_broadcast` for server delivery, and `chat_history` on welcome. Reject empty, overlong, and control-character text; trim accepted text; attach sender identity and server time; broadcast to sender and peers; retain bounded history for newcomers; rate-limit floods in a bucket separate from emoji chat; reject chat before hello; and wire both the web multiplayer hook and a visible text input/history UI without regressing emoji chat or movement.",
+      "prompt": "Add production-ready global text chat through the existing town WebSocket owner beginning at `apps/ws/src/hub.ts#TownHub`. It must preserve authenticated sender identity, safe input, live delivery, bounded newcomer history, flood isolation, and a usable web conversation surface without regressing emoji chat or movement.",
       "repo_id": "pabg",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -1103,25 +1272,88 @@
     },
     {
       "criteria": {
-        "regression": {
+        "combined-failure": {
+          "commands": [
+            {
+              "argv": [
+                "node",
+                ".flagship/browser_focused_clipboard_test.js",
+                "{worktree}",
+                "combined-failure"
+              ],
+              "timeout_seconds": 1200
+            }
+          ],
+          "kind": "commands",
+          "overlays": "{task_overlays}"
+        },
+        "kill-switch": {
+          "commands": [
+            {
+              "argv": [
+                "node",
+                ".flagship/browser_focused_clipboard_test.js",
+                "{worktree}",
+                "kill-switch"
+              ],
+              "timeout_seconds": 1200
+            }
+          ],
+          "kind": "commands",
+          "overlays": "{task_overlays}"
+        },
+        "offscreen-fallback": {
+          "commands": [
+            {
+              "argv": [
+                "node",
+                ".flagship/browser_focused_clipboard_test.js",
+                "{worktree}",
+                "offscreen-fallback"
+              ],
+              "timeout_seconds": 1200
+            }
+          ],
+          "kind": "commands",
+          "overlays": "{task_overlays}"
+        },
+        "svg-carrier": {
+          "commands": [
+            {
+              "argv": [
+                "node",
+                ".flagship/browser_focused_clipboard_test.js",
+                "{worktree}",
+                "svg-carrier"
+              ],
+              "timeout_seconds": 1200
+            }
+          ],
+          "kind": "commands",
+          "overlays": "{task_overlays}"
+        },
+        "syntax-regression": {
+          "category": "regression",
           "commands": [
             {
               "argv": [
                 "node",
                 "--check",
                 "vendor/browser_extension/service_worker.js"
-              ]
+              ],
+              "timeout_seconds": 1200
             }
           ],
           "kind": "commands"
         },
-        "required": {
+        "tab-provenance": {
           "commands": [
             {
               "argv": [
                 "node",
                 ".flagship/browser_focused_clipboard_test.js",
-                "{worktree}"
+                "{worktree}",
+                "tab-provenance"
               ],
               "timeout_seconds": 1200
             }
@@ -1138,7 +1370,7 @@
           "path": ".flagship/browser_focused_clipboard_test.js"
         }
       ],
-      "prompt": "Update `vendor/browser_extension/service_worker.js#dispatchRpc` so `clipboard.write` and `clipboard.writeSvg` first attempt a bounded write in the explicitly requested or focused tab through `chrome.scripting.executeScript`, targeting only `frameIds: [0]` with `world: \"ISOLATED\"`. Preserve tab/context provenance, including whether selection came from the explicit request or focused state. If that fails, fall back to the existing offscreen carrier and report both attempted contexts or combined errors. Keep the extension kill switch and existing RPC behavior intact.",
+      "prompt": "Make `vendor/browser_extension/service_worker.js#dispatchRpc` prefer the explicitly requested or focused controlled tab for clipboard writes while preserving bounded execution, carrier provenance, robust fallback diagnostics, the extension kill switch, and existing RPC behavior.",
       "repo_id": "browser",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -1347,7 +1579,64 @@
     },
     {
       "criteria": {
-        "regression": {
+        "consumer-probes": {
+          "commands": [
+            {
+              "argv": [
+                "python3",
+                ".flagship/active_plan_test.py",
+                "consumer-probes"
+              ],
+              "timeout_seconds": 1200
+            }
+          ],
+          "kind": "commands",
+          "overlays": "{task_overlays}"
+        },
+        "fail-closed-roadmap": {
+          "commands": [
+            {
+              "argv": [
+                "python3",
+                ".flagship/active_plan_test.py",
+                "fail-closed-roadmap"
+              ],
+              "timeout_seconds": 1200
+            }
+          ],
+          "kind": "commands",
+          "overlays": "{task_overlays}"
+        },
+        "stdio-contract": {
+          "commands": [
+            {
+              "argv": [
+                "python3",
+                ".flagship/active_plan_test.py",
+                "stdio-contract"
+              ],
+              "timeout_seconds": 1200
+            }
+          ],
+          "kind": "commands",
+          "overlays": "{task_overlays}"
+        },
+        "workspace-projection": {
+          "commands": [
+            {
+              "argv": [
+                "python3",
+                ".flagship/active_plan_test.py",
+                "workspace-projection"
+              ],
+              "timeout_seconds": 1200
+            }
+          ],
+          "kind": "commands",
+          "overlays": "{task_overlays}"
+        },
+        "workspace-regression": {
+          "category": "regression",
           "commands": [
             {
               "argv": [
@@ -1359,19 +1648,6 @@
             }
           ],
           "kind": "commands"
-        },
-        "required": {
-          "commands": [
-            {
-              "argv": [
-                "python3",
-                ".flagship/active_plan_test.py"
-              ],
-              "timeout_seconds": 1200
-            }
-          ],
-          "kind": "commands",
-          "overlays": "{task_overlays}"
         }
       },
       "ecosystem": "swift",
@@ -1382,7 +1658,7 @@
           "path": ".flagship/active_plan_test.py"
         }
       ],
-      "prompt": "Add an active-plan projection rooted in `ROADMAP.md`: a workspace-domain owner must parse slice rows, materialize STATUS/REVIEW/VISUAL proof state, emit a nested `counts` object with `done`, `active`, `planned`, and `blocked`, and select the first non-done slice. When the roadmap is absent or has no slice rows, the CLI process must fail closed with a non-zero exit. All emitted repository paths must be deterministic and repository-relative. Expose the same typed projection through core-daemon CLI/stdio, WorkbenchCore, the inspector UI, and runnable Make/Swift probes.",
+      "prompt": "Expose the active roadmap state end to end through the existing workspace domain, core-daemon CLI/stdio, and macOS workbench. The projection must be deterministic, carry repository proof state, select the next live slice, and fail closed when no valid roadmap exists.",
       "repo_id": "openslop",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -1525,7 +1801,50 @@
     },
     {
       "criteria": {
-        "regression": {
+        "fail-closed-metadata": {
+          "commands": [
+            {
+              "argv": [
+                "python3",
+                ".flagship/live_codex_sessions_test.py",
+                "fail-closed-metadata"
+              ],
+              "timeout_seconds": 1200
+            }
+          ],
+          "kind": "commands",
+          "overlays": "{task_overlays}"
+        },
+        "redaction-and-bounds": {
+          "commands": [
+            {
+              "argv": [
+                "python3",
+                ".flagship/live_codex_sessions_test.py",
+                "redaction-and-bounds"
+              ],
+              "timeout_seconds": 1200
+            }
+          ],
+          "kind": "commands",
+          "overlays": "{task_overlays}"
+        },
+        "stable-carriers": {
+          "commands": [
+            {
+              "argv": [
+                "python3",
+                ".flagship/live_codex_sessions_test.py",
+                "stable-carriers"
+              ],
+              "timeout_seconds": 1200
+            }
+          ],
+          "kind": "commands",
+          "overlays": "{task_overlays}"
+        },
+        "workspace-regression": {
+          "category": "regression",
           "commands": [
             {
               "argv": [
@@ -1538,12 +1857,13 @@
           ],
           "kind": "commands"
         },
-        "required": {
+        "world-return-contact": {
           "commands": [
             {
               "argv": [
                 "python3",
-                ".flagship/live_codex_sessions_test.py"
+                ".flagship/live_codex_sessions_test.py",
+                "world-return-contact"
               ],
               "timeout_seconds": 1200
             }
@@ -1560,7 +1880,7 @@
           "path": ".flagship/live_codex_sessions_test.py"
         }
       ],
-      "prompt": "Add a `live-codex-sessions` command through `crates/ratiotissue-cli/src/cli/continuation.rs` that reads bounded Codex JSONL session history, classifies user pressure and assistant world-return fragments, builds stable episodes that redact home paths, email addresses, and secret/token strings, writes deterministic carrier files, and runs each episode through the existing actionwave/world-return loop with explicit receipts. Recognized token prefixes must be redacted even when fixture values are short. Empty or metadata-only sessions must fail closed rather than claim contact. Preserve ordinary live behavior.",
+      "prompt": "Turn bounded live Codex session history into privacy-safe deterministic episodes through the existing actionwave/world-return loop. Preserve real contact semantics, stable carriers and receipts, and fail closed when a session contains no actionable contact.",
       "repo_id": "ratio",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200

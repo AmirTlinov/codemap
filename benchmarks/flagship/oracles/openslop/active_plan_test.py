@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -94,41 +95,55 @@ def validate_projection(payload: dict[str, Any]) -> None:
         assert artifact["state"]
 
 
+def selected(name: str, criterion: str) -> bool:
+    return criterion in {"all", name}
+
+
 def main() -> int:
+    criterion = sys.argv[1] if len(sys.argv) > 1 else "all"
     build = run(["cargo", "build", "--quiet", "-p", "core-daemon"])
     assert build.returncode == 0, build.stderr
 
-    cli = run([str(DAEMON), "--active-plan"])
-    assert cli.returncode == 0, cli.stderr
-    projection = json.loads(cli.stdout)
-    validate_projection(projection)
+    projection: dict[str, Any] | None = None
+    if selected("workspace-projection", criterion):
+        cli = run([str(DAEMON), "--active-plan"])
+        assert cli.returncode == 0, cli.stderr
+        projection = json.loads(cli.stdout)
+        validate_projection(projection)
 
-    stdio = run(
-        [str(DAEMON), "--serve-stdio"],
-        input=json.dumps({"operation": "active-plan"}) + "\n",
-    )
-    assert stdio.returncode == 0, stdio.stderr
-    validate_projection(json.loads(stdio.stdout.splitlines()[0]))
-
-    with tempfile.TemporaryDirectory(prefix="openslop-active-plan-") as raw:
-        empty = Path(raw)
-        missing = run(
-            [str(DAEMON), "--active-plan"],
-            cwd=empty,
-            env={"OPEN_SLOP_REPO_ROOT": str(empty)},
+    if selected("stdio-contract", criterion):
+        stdio = run(
+            [str(DAEMON), "--serve-stdio"],
+            input=json.dumps({"operation": "active-plan"}) + "\n",
         )
-        assert missing.returncode != 0
-        (empty / "ROADMAP.md").write_text("# ROADMAP\n", encoding="utf-8")
-        no_rows = run(
-            [str(DAEMON), "--active-plan"],
-            cwd=empty,
-            env={"OPEN_SLOP_REPO_ROOT": str(empty)},
-        )
-        assert no_rows.returncode != 0
+        assert stdio.returncode == 0, stdio.stderr
+        validate_projection(json.loads(stdio.stdout.splitlines()[0]))
 
-    probe = run(["make", "probe-active-plan"])
-    assert probe.returncode == 0, probe.stdout + probe.stderr
-    print(json.dumps({"passed": True, "slices": len(projection["slices"])}))
+    if selected("fail-closed-roadmap", criterion):
+        with tempfile.TemporaryDirectory(prefix="openslop-active-plan-") as raw:
+            empty = Path(raw)
+            missing = run(
+                [str(DAEMON), "--active-plan"],
+                cwd=empty,
+                env={"OPEN_SLOP_REPO_ROOT": str(empty)},
+            )
+            assert missing.returncode != 0
+            (empty / "ROADMAP.md").write_text("# ROADMAP\n", encoding="utf-8")
+            no_rows = run(
+                [str(DAEMON), "--active-plan"],
+                cwd=empty,
+                env={"OPEN_SLOP_REPO_ROOT": str(empty)},
+            )
+            assert no_rows.returncode != 0
+
+    if selected("consumer-probes", criterion):
+        probe = run(["make", "probe-active-plan"])
+        assert probe.returncode == 0, probe.stdout + probe.stderr
+    print(json.dumps({
+        "passed": True,
+        "criterion": criterion,
+        "slices": len(projection["slices"]) if projection else None,
+    }))
     return 0
 
 

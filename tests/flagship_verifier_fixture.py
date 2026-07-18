@@ -105,11 +105,22 @@ def main() -> int:
         for task in blueprint["tasks"]
         if task["task_class"] == "implementation"
     }
-    assert "chrome.scripting.executeScript" in implementations["browser-focused-clipboard"][
-        "prompt"
-    ]
-    assert "frameIds: [0]" in implementations["browser-focused-clipboard"]["prompt"]
-    assert "nested `counts` object" in implementations["openslop-active-plan"]["prompt"]
+    assert all(len(task["criteria"]) >= 4 for task in implementations.values())
+    assert all(
+        all(action["kind"] == "commands" for action in task["criteria"].values())
+        for task in implementations.values()
+    )
+    browser = implementations["browser-focused-clipboard"]
+    assert "carrier provenance" in browser["prompt"]
+    assert "kill switch" in browser["prompt"]
+    assert {"tab-provenance", "offscreen-fallback", "combined-failure"} <= set(
+        browser["criteria"]
+    )
+    openslop = implementations["openslop-active-plan"]
+    assert "fail closed" in openslop["prompt"]
+    assert {"workspace-projection", "stdio-contract", "consumer-probes"} <= set(
+        openslop["criteria"]
+    )
 
     with tempfile.TemporaryDirectory(prefix="codemap-postgres-oracle-") as raw:
         oracle_root = Path(raw)

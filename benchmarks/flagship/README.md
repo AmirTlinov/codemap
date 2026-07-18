@@ -10,9 +10,10 @@ Investigation reports are checked as source-backed claims with concrete `path:li
 citations against frozen source bytes; an opened-file inventory does not score.
 The verifier checks frozen causal anchors and real citations, not prescribed prose.
 Required claims define the task's causal core; additional claims measure completeness.
-Implementation tasks use hidden tests and contract checks, but every behavior and public shape they
-require is stated in the shared task prompt; hidden bytes must not turn an unspecified design choice
-into a pass/fail lottery. Exact controls verify the local byte change.
+Implementation tasks use independent hidden behavior groups rather than one monolithic pass bit.
+Their prompts state the user-visible outcome and boundaries; criteria verify necessary consequences
+of that outcome without prescribing owner paths, internal names, or one implementation shape.
+Exact controls verify the local byte change.
 An investigation prompt exposes one real runtime/file/symbol anchor, not the expected
 owner and proof vocabulary that its external verifier checks.
 
