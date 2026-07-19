@@ -1,18 +1,17 @@
 #[test]
-fn help_exposes_only_map_first_commands() {
+fn help_exposes_map_entries_without_prescribing_a_workflow() {
     let output = codemap().arg("--help").output().expect("help should run");
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("help utf8");
     for expected in [
-        "Choose one proportional map entry:",
-        "known symbol only: codemap where <symbol>",
-        "known file anchor: codemap cone <file-or-file#symbol>",
-        "known directory:   codemap ls <directory>",
-        "unfamiliar scope:  codemap ls .",
-        "never replace it with a parent directory",
-        "root orientation is only for an unknown scope",
-        "codemap changed",
-        "codemap proof changed",
+        "Read-only structural map entries:",
+        "symbol:       codemap where <symbol>",
+        "file/symbol:  codemap cone <file-or-file#symbol>",
+        "directory:    codemap ls <directory>",
+        "current level: codemap ls .",
+        "Exact and scoped entries avoid unrelated root output",
+        "`codemap changed` maps the current diff",
+        "`codemap proof changed` maps nearby verification surfaces",
         "Focused map lenses:",
         "runtime, contract, flow",
         "Diagnostics:",
@@ -96,10 +95,9 @@ fn assert_map_bootstrap_text(text: &str) {
         "codemap ls <directory>",
         "codemap cone <file-or-file#symbol> --depth 1",
         "codemap where <exact-symbol>",
-        "root orientation first when an exact anchor is already known",
-        "Do not replace an exact file with its parent directory",
         "codemap changed",
         "codemap proof changed",
+        "optional read-only structural map",
     ] {
         assert!(
             text.contains(expected),
@@ -112,6 +110,7 @@ fn assert_map_bootstrap_text(text: &str) {
         "read_first",
         "ranking engine",
         "when that lens matches",
+        "before broad manual scanning",
     ] {
         assert!(
             !text.contains(forbidden),

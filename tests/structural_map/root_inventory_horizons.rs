@@ -94,7 +94,7 @@ fn root_inventory_horizons_certify_every_group() {
 }
 
 #[test]
-fn bounded_readable_root_inventory_shares_the_machine_certificates() {
+fn bounded_readable_root_inventory_shares_the_machine_horizons() {
     let repo = root_inventory_horizon_fixture();
     let readable_cache = TempDir::new().expect("readable root inventory cache");
     let json_cache = TempDir::new().expect("json root inventory cache");
@@ -108,7 +108,7 @@ fn bounded_readable_root_inventory_shares_the_machine_certificates() {
     assert!(
         markdown.contains("- test_surfaces: counted(1); shown=1 hidden=0")
             && markdown.contains("- scripts: counted-at-least("),
-        "every root inventory group must print its own certified visibility row: {markdown}"
+        "every root inventory group must print its own visibility row: {markdown}"
     );
 
     let json = run_json(
@@ -120,41 +120,17 @@ fn bounded_readable_root_inventory_shares_the_machine_certificates() {
         .as_array()
         .expect("root inventory horizons")
     {
+        assert_horizon_certificate_resolves(&json["observations"], horizon);
         assert_eq!(
             horizon["shown"], horizon["count"]["observed"],
             "full JSON must serialize every fact in {}: {json:#}",
             horizon["group"]
         );
         assert_eq!(horizon["hidden"], 0, "{json:#}");
-    }
-    let readable_certificates = markdown
-        .lines()
-        .filter_map(|line| line.split_once(": ").map(|(group, _)| (group, line)))
-        .filter_map(|(group, line)| {
-            let certificate = line.split_once("cert=`")?.1.split_once('`')?.0;
-            Some((group.trim_start_matches("- ").to_string(), certificate))
-        })
-        .collect::<std::collections::BTreeMap<_, _>>();
-    assert_eq!(
-        readable_certificates.len(),
-        4,
-        "readable root ls output must show all four group certificates: {markdown}"
-    );
-    for horizon in json["observations"]["horizons"]
-        .as_array()
-        .expect("root inventory horizons")
-    {
         let group = horizon["group"].as_str().expect("group");
-        let readable_digest = readable_certificates[group]
-            .strip_prefix("v1:")
-            .expect("compact certificate");
         assert!(
-            horizon["count"]["certificate_id"]
-                .as_str()
-                .expect("certificate id")
-                .strip_prefix("coverage-v1:")
-                .is_some_and(|digest| digest.starts_with(readable_digest)),
-            "readable and JSON projections must resolve the same {group} certificate: {json:#}"
+            markdown.lines().any(|line| line.starts_with(&format!("- {group}:"))),
+            "readable output omitted the {group} horizon: {markdown}"
         );
     }
 }
@@ -230,7 +206,7 @@ fn cold_root_atlas_fast_path_closes_supported_horizons() {
     assert!(
         first.contains("full-index source edges hidden by bounded root inventory")
             && first.contains("## Visibility"),
-        "the cold bounded inventory must expose certified visibility: {first}"
+        "the cold bounded inventory must expose visibility limits: {first}"
     );
     assert_lens_markdown_eq(
         &first,
@@ -247,16 +223,7 @@ fn cold_root_atlas_fast_path_closes_supported_horizons() {
         "{json:#}"
     );
     for complete in ledger["horizons"].as_array().expect("horizons") {
-        let certificate = complete["count"]["certificate_id"]
-            .as_str()
-            .expect("certificate")
-            .strip_prefix("coverage-v1:")
-            .expect("certificate prefix");
-        assert!(
-            first.contains(&format!("cert=`v1:{}`", &certificate[..12])),
-            "cold readable and full JSON must share the {} certificate: {first}\n{json:#}",
-            complete["group"]
-        );
+        assert_horizon_certificate_resolves(ledger, complete);
         assert_eq!(complete["shown"], complete["count"]["observed"], "{json:#}");
         assert_eq!(complete["hidden"], 0, "{json:#}");
     }

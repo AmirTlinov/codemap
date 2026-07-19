@@ -3,8 +3,8 @@
 
 Each task is executed from the same git commit in two disposable worktrees. The
 model, reasoning effort, task text, sandbox, and deterministic verifier are held
-constant. Only the navigation arm changes: treatment is offered codemap and a
-short entry protocol, while control blocks agent-attributed codemap calls.
+constant. Only tool availability changes: treatment can use codemap, while
+control blocks agent-attributed codemap calls.
 """
 
 from __future__ import annotations
@@ -45,7 +45,7 @@ ARMS = (ARM_CONTROL, ARM_TREATMENT)
 MODE_IMPLEMENTATION = "implementation"
 MODE_ANALYSIS = "analysis"
 TASK_MODES = (MODE_IMPLEMENTATION, MODE_ANALYSIS)
-PROMPT_PROTOCOL_VERSION = 17
+ARM_PROMPT_VERSION = 18
 
 COMMON_PROMPT = """You are completing one benchmark coding task in a disposable git worktree.
 Make the smallest complete implementation that satisfies the task. Work autonomously; do not ask
@@ -63,34 +63,24 @@ ARM_PROMPTS = {
     ARM_CONTROL: """CONTROL ARM: codemap is unavailable. Do not attempt to use it. Navigate with
 ordinary repository tools only.
 """,
-    ARM_TREATMENT: """CODEMAP TREATMENT ARM: before ordinary inspection, use one proportionate entry:
-`codemap cone <file-or-file#symbol>` for a task-named file, `codemap where <symbol>` when only a
-symbol is known, or `codemap ls <directory>` for a named directory. Use `codemap ls .` only when
-scope is unknown. If a task-named path does not exist yet, map its nearest existing parent; otherwise
-never replace an exact file with its parent directory; read the relevant linked source.
-Use a printed exact Expand only when its evidence matters; for a shared contract you will edit, run its exact `contract` Expand before editing.
-After editing, run `codemap changed && codemap proof changed` once, then the task-specific check.
-Do not run broad repository gates.""",
+    ARM_TREATMENT: """CODEMAP TREATMENT ARM: codemap is available as an optional read-only
+structural map. Its main entries are `codemap where <symbol>`, `codemap cone <file-or-file#symbol>`,
+and `codemap ls <scope>`; reports may expose deeper Expand commands. Use codemap when it is useful
+to the task. You remain responsible for investigation, edits, and verification.""",
 }
 
 ANALYSIS_ARM_PROMPTS = {
     ARM_CONTROL: """CONTROL ARM: codemap is unavailable. Do not attempt to use it. Navigate with
 ordinary read-only repository tools only.
 """,
-    ARM_TREATMENT: """CODEMAP TREATMENT ARM: begin with one proportionate structural map: `codemap cone
-<file-or-file#symbol>` for a task-named file, `codemap where <symbol>` when only a symbol is known,
-or `codemap ls <directory>` for a named directory. Use `codemap ls .` only when scope is unknown;
-never replace an exact file with its parent directory. Read the relevant linked source for line
-evidence. Use a printed exact Expand only when its hidden or unknown evidence matters to the task.
-Do not edit the repository.
-""",
+    ARM_TREATMENT: ARM_PROMPTS[ARM_TREATMENT],
 }
 
 EXACT_COMMON_PROMPT = """EXACT TASK CONTACT: the task already fixes the file and exact bytes, so there
 is no repository-navigation uncertainty. Apply the replacement directly; verify only resulting bytes."""
 EXACT_ARM_PROMPTS = {
     ARM_CONTROL: "CONTROL ARM: codemap is unavailable. Do not attempt to use it.",
-    ARM_TREATMENT: "CODEMAP TREATMENT ARM: codemap is available; the exact task requires no map call.",
+    ARM_TREATMENT: ARM_PROMPTS[ARM_TREATMENT],
 }
 
 @dataclass(frozen=True)
@@ -462,7 +452,7 @@ def trial_fingerprint(
             "verifiers": [verifier.__dict__ for verifier in task.verifiers],
             "arm": arm,
             "order": order,
-            "prompt_protocol_version": PROMPT_PROTOCOL_VERSION,
+            "arm_prompt_version": ARM_PROMPT_VERSION,
             "composed_prompt_sha256": hashlib.sha256(
                 task_prompt(task, arm).encode("utf-8")
             ).hexdigest(),
@@ -617,7 +607,7 @@ def run_trial(
             "mode": task.mode,
             "task_prompt_sha256": hashlib.sha256(task.prompt.encode("utf-8")).hexdigest(),
             "composed_prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
-            "prompt_protocol_version": PROMPT_PROTOCOL_VERSION,
+            "arm_prompt_version": ARM_PROMPT_VERSION,
             "repo": str(task.repo),
             "base_ref": task.base_ref,
             "base_commit": base_commit,
@@ -1069,7 +1059,7 @@ def write_summary(
             f'{effect["median_output_token_delta"] if effect["median_output_token_delta"] is not None else "-"} |',
             "",
             "A winner is chosen by required outcome first, then weighted completeness. Token use "
-            "never decides the winner. A Codex failure, timeout, or arm protocol violation makes "
+            "never decides the winner. A Codex failure, timeout, or control-arm contamination makes "
             "the pair invalid instead of silently counting it as a product loss.",
             "",
             "Artifacts: `results.jsonl` plus prompt, events, final message, patch, git status, and "

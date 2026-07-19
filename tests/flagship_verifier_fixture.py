@@ -320,8 +320,8 @@ async function dispatchRpc(method, params = {}) {
         passed = source_claim(root, "owner is evidenced at src/owner.rs:1\n")
         assert passed.returncode == 0, passed.stdout
         receipt = json.loads(passed.stdout)
-        assert receipt["evidence_source"] == "frozen_source_and_cited_report"
-        assert receipt["cited_lines"] == {"src/owner.rs": [1]}
+        assert receipt["evidence_source"] == "frozen_source_and_relevant_citations"
+        assert receipt["cited_source_facts"] == {"src/owner.rs": [1]}
 
         differently_worded = source_claim(
             root,
@@ -331,6 +331,11 @@ async function dispatchRpc(method, params = {}) {
 
         assert source_claim(root, "owner without a citation\n").returncode == 1
         assert source_claim(root, "owner at src/owner.rs:999\n").returncode == 1
+        assert source_claim(
+            root,
+            "owner is cited at src/owner.rs:1\n",
+            source_body="fn unrelated() {}\n\n\n\n\n\n\n\nfn owner() { contract(); }\n",
+        ).returncode == 1
         assert source_claim(root, "owner at ../src/owner.rs:1\n").returncode == 1
         assert source_claim(
             root,

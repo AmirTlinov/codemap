@@ -2,9 +2,9 @@
 
 Read-only project x-ray for AI coding agents.
 
-Give an agent `codemap` before it edits an unfamiliar repo. The agent gets a
-small map instead of guessing through `ls`, `rg`, `git status`, manifests,
-imports, configs, schemas, scripts, and tests.
+When an agent needs structural orientation, `codemap` gives it a small map of
+the repository alongside ordinary `ls`, `rg`, `git status`, manifests, imports,
+configs, schemas, scripts, and tests.
 
 ## What It Gives The Agent
 
@@ -17,8 +17,8 @@ imports, configs, schemas, scripts, and tests.
 | What did I change? | `codemap changed` | staged/unstaged/untracked files, changed surface types, links, risks, verification gaps |
 | How can this be checked? | `codemap proof changed` | tests, build/check commands, linked surfaces, broad fallbacks, missing direct links |
 
-The win: the agent spends less time wandering and is less likely to reimplement
-code that already exists nearby.
+The intended win is better-directed attention and a more complete change. The
+flagship A/B below measures that outcome rather than assuming it from map output.
 
 ## Measure The Win
 
@@ -62,9 +62,9 @@ The `v1.0.0` flagship claim exists only with the immutable evidence bundle in
 the [GitHub Release](https://github.com/AmirTlinov/codemap/releases/tag/v1.0.0).
 Until that release publishes an accepted receipt for the exact binary, the build is a candidate.
 
-## Copy-Paste Workflow
+## Main map entries
 
-Choose **one** entry proportional to what the task already names:
+Use the narrowest scope already known when a structural map is useful:
 
 ```bash
 codemap where <exact-symbol>
@@ -72,24 +72,21 @@ codemap cone <file-or-file#symbol> --depth 1
 codemap ls <directory>
 ```
 
-Preserve an exact task-named file instead of widening to its parent directory. Use
-root orientation only when the relevant scope is unknown:
+Current-level orientation is also available:
 
 ```bash
 codemap ls .
 ```
 
-Do not pay for root orientation first when an exact anchor is already known.
-
-After edits:
+The post-edit views are independent map surfaces, not a required ritual:
 
 ```bash
 codemap changed
 codemap proof changed
 ```
 
-Follow the exact `Expand` commands printed by the output when more detail is
-needed.
+Readable output and `agent.expands` expose exact deeper views when more detail is
+useful. The agent decides whether to follow them and which project checks to run.
 
 ## What The Sections Mean
 

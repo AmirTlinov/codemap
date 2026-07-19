@@ -2,7 +2,7 @@
 const EXACT_SYMBOL_LS_ANCHOR: &str = "src/token.ts#refreshToken";
 
 #[test]
-fn exact_symbol_ls_readable_and_json_share_two_certified_horizons() {
+fn exact_symbol_ls_readable_and_json_share_two_horizons() {
     let repo = exact_symbol_ls_fixture();
     let readable_cache = TempDir::new().expect("symbol ls readable cache");
     let json_cache = TempDir::new().expect("symbol ls json cache");
@@ -48,17 +48,11 @@ fn exact_symbol_ls_readable_and_json_share_two_certified_horizons() {
         assert_eq!(item["hidden"], 0, "{group}: {json:#}");
         assert_horizon_certificate_resolves(ledger, item);
 
-        let certificate = item["count"]["certificate_id"]
-            .as_str()
-            .expect("certificate")
-            .strip_prefix("coverage-v1:")
-            .expect("coverage certificate");
-        let preview = format!("cert=`v1:{}`", &certificate[..12]);
         assert!(
             readable
                 .lines()
-                .any(|line| line.starts_with(&format!("- {group}:")) && line.contains(&preview)),
-            "readable and JSON must expose the same {group} certificate: {readable}"
+                .any(|line| line.starts_with(&format!("- {group}:"))),
+            "readable output must expose the {group} horizon: {readable}"
         );
     }
     let readable_visibility = readable

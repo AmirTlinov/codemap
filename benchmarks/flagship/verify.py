@@ -23,10 +23,10 @@ def verify_source_claim(
     action: dict[str, Any], message: Path, worktree: Path
 ) -> tuple[bool, dict[str, Any]]:
     answer = message.read_text(encoding="utf-8") if message.is_file() else ""
-    missing_citations = []
-    cited_lines = {}
+    missing_facts = []
+    cited_facts = {}
     source_errors = []
-    source_line_counts = {}
+    source_fact_lines = {}
     root = worktree.resolve()
     for evidence in action.get("evidence", []):
         relative = Path(evidence["path"])
@@ -37,14 +37,21 @@ def verify_source_claim(
         body = (
             source.read_text(encoding="utf-8", errors="replace") if source.is_file() else ""
         )
-        source_line_counts[evidence["path"]] = len(body.splitlines())
         if not source.is_file():
             source_errors.append(f"missing-source:{evidence['path']}")
-        source_errors.extend(
-            f"missing-source-text:{evidence['path']}:{needle}"
-            for needle in evidence.get("contains", [])
-            if needle not in body
-        )
+        fact_lines = set()
+        for needle in evidence.get("contains", []):
+            start = body.find(needle)
+            if start < 0:
+                source_errors.append(f"missing-source-text:{evidence['path']}:{needle}")
+                continue
+            first = body.count("\n", 0, start) + 1
+            last = first + needle.count("\n")
+            # A report commonly cites the owning declaration rather than the exact
+            # call line. Keep the accepted source span local without accepting an
+            # arbitrary line from the same file.
+            fact_lines.update(range(max(1, first - 3), last + 4))
+        source_fact_lines.setdefault(evidence["path"], set()).update(fact_lines)
     for path in action.get("citations", []):
         matches = [
             int(value)
@@ -52,16 +59,16 @@ def verify_source_claim(
                 rf"(?<![A-Za-z0-9_./-]){re.escape(path)}:(\d+)", answer
             )
         ]
-        line_count = source_line_counts.get(path, 0)
-        valid = [line for line in matches if 1 <= line <= line_count]
+        fact_lines = source_fact_lines.get(path, set())
+        valid = [line for line in matches if line in fact_lines]
         if not valid:
-            missing_citations.append(path)
+            missing_facts.append(path)
         else:
-            cited_lines[path] = valid
-    return not missing_citations and not source_errors, {
-        "evidence_source": "frozen_source_and_cited_report",
-        "missing_citations": missing_citations,
-        "cited_lines": cited_lines,
+            cited_facts[path] = valid
+    return not missing_facts and not source_errors, {
+        "evidence_source": "frozen_source_and_relevant_citations",
+        "missing_source_facts": missing_facts,
+        "cited_source_facts": cited_facts,
         "source_errors": source_errors,
     }
 

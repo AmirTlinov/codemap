@@ -223,7 +223,12 @@ def _trajectory_evidence(
 ) -> tuple[dict[str, Any] | None, list[str]]:
     if path is None or not path.is_file():
         return None, ["missing_trajectory_analysis"]
-    summary = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        summary = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None, ["unreadable_trajectory_analysis"]
+    if not isinstance(summary, dict):
+        return None, ["unsupported_trajectory_analysis"]
     errors = []
     if summary.get("kind") != "codemap_flagship_trajectory_analysis" or summary.get("version") != 1:
         errors.append("unsupported_trajectory_analysis")
@@ -231,7 +236,11 @@ def _trajectory_evidence(
         errors.append("trajectory_manifest_mismatch")
     expected = {(task["id"], repetition) for task in tasks for repetition in (1, 2)}
     observed = set()
-    for row in summary.get("pairs", []):
+    pairs = summary.get("pairs", [])
+    if not isinstance(pairs, list):
+        errors.append("invalid_trajectory_pairs")
+        pairs = []
+    for row in (item for item in pairs if isinstance(item, dict)):
         key = (row.get("task_id"), row.get("repetition"))
         if key in observed:
             errors.append(f"duplicate_trajectory:{key}")
@@ -246,7 +255,8 @@ def _trajectory_evidence(
             errors.append(f"trajectory_report_hash:{key}")
         if not context.is_file() or file_sha256(context) != row.get("context_sha256"):
             errors.append(f"trajectory_context_hash:{key}")
-        if set(row.get("labels", {}).values()) != set(ARMS):
+        labels = row.get("labels", {})
+        if not isinstance(labels, dict) or set(labels.values()) != set(ARMS):
             errors.append(f"trajectory_arm_labels:{key}")
     if observed != expected:
         errors.append("trajectory_pair_denominator")
@@ -255,9 +265,7 @@ def _trajectory_evidence(
     return summary, errors
 
 
-def acceptance_checks(
-    run: dict[str, Any], manifest: dict[str, Any], trajectory_errors: list[str]
-) -> dict[str, Any]:
+def acceptance_checks(run: dict[str, Any], manifest: dict[str, Any]) -> dict[str, Any]:
     thresholds = manifest["acceptance"]
     complex_tasks = [row for row in run["tasks"] if row["task_class"] != "exact_control"]
     exact_tasks = [row for row in run["tasks"] if row["task_class"] == "exact_control"]
@@ -286,7 +294,6 @@ def acceptance_checks(
         and run["valid_pairs"] == 36
         and len(run["tasks"]) == 18,
         "zero_repo_writes_for_read_only_tasks": not run["zero_write_violations"],
-        "paired_trajectory_analysis": not trajectory_errors,
     }
     criteria = {
         "complex_effectiveness": len(complex_tasks) == 12
@@ -335,7 +342,8 @@ def _markdown(report: dict[str, Any]) -> str:
             f"**{len(acceptance['complex']['losing_tasks'])}**.",
             f"- Required criterion losses: **{len(acceptance['required_criterion_losses'])}**; "
             f"exact regressions: **{len(acceptance['exact_regressions'])}**.",
-            f"- Causal trajectory reports: **{report['trajectory_analysis']['pairs']}/36**.",
+            f"- Interpretive trajectory reports: **{report['trajectory_analysis']['pairs']}/36** "
+            "(published for causal inspection; not an acceptance criterion).",
             f"- Complex overhead: time **{resources['complex_median_time_overhead']:.1%}**, "
             f"input **{resources['complex_median_input_overhead']:.1%}**.",
             f"- Exact overhead: time **{resources['exact_median_time_overhead']:.1%}**, "
@@ -358,7 +366,7 @@ def evaluate(
     trajectory, trajectory_errors = _trajectory_evidence(
         trajectory_summary_path, tasks, manifest_path.resolve()
     )
-    acceptance = acceptance_checks(run, manifest, trajectory_errors)
+    acceptance = acceptance_checks(run, manifest)
     out_dir.mkdir(parents=True, exist_ok=True)
     if (out_dir / "acceptance.json").exists():
         raise ValueError(f"acceptance output already exists: {out_dir}")

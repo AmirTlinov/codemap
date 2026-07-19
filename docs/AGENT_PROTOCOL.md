@@ -3,9 +3,9 @@
 `codemap` is one read-only CLI tool. It does not route tasks, inject hidden
 context, call a model, or require a daemon or network service.
 
-## Invocation order
+## Map affordances
 
-Preserve the narrowest task-named anchor:
+An integration may use the narrowest scope already known when a structural map is useful:
 
 ```bash
 codemap where <symbol> --format json
@@ -13,11 +13,11 @@ codemap cone <file-or-file#symbol> --format json
 codemap ls <directory> --format json
 ```
 
-Do not replace an exact task-named file with its parent directory. Use `codemap ls .`
-only when the relevant scope is unknown. Execute entries from
-`agent.expands` only when the current evidence leaves the corresponding question
-open. After edits, use `codemap changed --format json`, then
-`codemap proof changed --format json`.
+`codemap ls .` provides current-level orientation. `agent.expands` exposes exact
+deeper views; `codemap changed --format json` maps the current diff and
+`codemap proof changed --format json` maps nearby verification surfaces. These
+commands are independent affordances. The protocol does not prescribe investigation
+order, required calls, or project verification choices.
 
 ## Transport
 
@@ -51,7 +51,8 @@ required `agent` envelope v1 provides the common fields:
 ```
 
 `scope`, `snapshot`, and `horizon` are summaries. The report-specific schema
-remains authoritative for complete facts and certificates.
+remains authoritative for complete facts. `certificate_count` is integrity metadata
+for persisted observation bases; it is not a confidence score, verdict, or action.
 
 ## Exit taxonomy
 

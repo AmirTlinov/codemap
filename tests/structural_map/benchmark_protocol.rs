@@ -7,27 +7,9 @@ activity = runpy.run_path(sys.argv[1])["codemap_activity"]
 root = sys.argv[2]
 selected = str(pathlib.Path(root) / "src")
 print(json.dumps([
-    activity(["ls --format json", "cone src/pricing.py"], root),
-    activity(["ls --format json src/pricing.py"], root),
-    activity(["graph --lens causal", "ls src/pricing.py"], root),
-    activity(["ls src/pricing.py", "proof changed", "changed"], root),
-    activity(["ls ./", "cone src/pricing.py"], root),
-    activity(["--root changed ls src/pricing.py"], root),
-    activity(["ls --root changed src/pricing.py"], root),
-    activity(["ls src/pricing.py", "changed", "proof changed"], root),
-    activity(["ls .", "cone"], root),
-    activity(["doctor ls src/pricing.py"], root),
-    activity(["--format json ls src/pricing.py"], root),
-    activity(["garbage ls src/pricing.py"], root),
-    activity([{"argv":["ls",root],"status":0}], root),
-    activity([{"argv":["ls","--bogus","src/pricing.py"],"status":2}], root),
-    activity([{"argv":["--root",selected,"ls",selected],"status":0}], root),
-    activity([{"argv":["ls","--root",selected,selected],"status":0}], root),
-    activity(["cone ."], root),
-    activity([{"argv":["cone",root],"status":0}], root),
-    activity(["cone src/.."], root),
-    activity(["ls src/pricing.py", "changed", "changed", "proof changed"], root),
+    activity(["ls --format json", "cone src/pricing.py", "proof changed"], root),
     activity([{"argv":["cone","missing.py"],"status":2},{"argv":["cone","src/pricing.py"],"status":0}], root),
+    activity([{"argv":["--root",selected,"ls",selected],"status":0}], root),
 ]))
 "#;
     let output = python()
@@ -45,43 +27,28 @@ print(json.dumps([
         String::from_utf8_lossy(&output.stderr)
     );
     let rows: Value = serde_json::from_slice(&output.stdout).expect("protocol json");
-    assert_eq!(rows[0]["entry_kind"], "root");
-    assert_eq!(rows[0]["focused_after_root"], true);
-    assert_eq!(rows[1]["entry_kind"], "exact");
-    assert_eq!(rows[2]["entry_is_first_successful_invocation"], false);
-    assert_eq!(rows[3]["ordered_daily"], false);
-    assert_eq!(rows[4]["entry_kind"], "root");
-    assert_eq!(rows[4]["root_entry"], true);
-    assert_eq!(rows[5]["entry_kind"], "exact");
-    assert_eq!(rows[5]["first_entry"], "--root changed ls src/pricing.py");
-    assert_eq!(rows[6]["entry_kind"], "exact");
-    assert_eq!(rows[7]["ordered_daily"], true);
-    assert_eq!(rows[8]["focused_after_root"], false);
-    for index in 9..=11 {
-        assert_eq!(rows[index]["entry_kind"], "none");
+    assert_eq!(rows[0]["calls"][0]["command"], "ls");
+    assert_eq!(rows[0]["calls"][0]["scope_kind"], "current_level");
+    assert_eq!(rows[0]["calls"][1]["command"], "cone");
+    assert_eq!(rows[0]["calls"][1]["scope_kind"], "scoped");
+    assert_eq!(rows[0]["calls"][2]["command"], "proof");
+    assert_eq!(rows[0]["calls"][2]["argument"], "changed");
+    assert_eq!(rows[1]["failed_invocation_count"], 1);
+    assert_eq!(rows[1]["calls"][0]["succeeded"], false);
+    assert_eq!(rows[1]["calls"][1]["succeeded"], true);
+    assert_eq!(rows[2]["calls"][0]["scope_kind"], "current_level");
+    for forbidden in [
+        "ordered_daily",
+        "entry_is_first_successful_invocation",
+        "focused_after_root",
+        "compliant",
+    ] {
+        assert!(rows.as_array().unwrap().iter().all(|row| row.get(forbidden).is_none()));
     }
-    assert_eq!(rows[12]["entry_kind"], "root");
-    assert_eq!(rows[12]["root_entry"], true);
-    assert_eq!(rows[12]["exact_entry"], false);
-    assert_eq!(rows[13]["failed_invocation_count"], 1);
-    assert_eq!(rows[13]["entry_kind"], "none");
-    for index in 14..=15 {
-        assert_eq!(rows[index]["entry_kind"], "root");
-        assert_eq!(rows[index]["root_entry"], true);
-        assert_eq!(rows[index]["exact_entry"], false);
-    }
-    for index in 16..=18 {
-        assert_eq!(rows[index]["entry_kind"], "root");
-        assert_eq!(rows[index]["root_entry"], true);
-    }
-    assert_eq!(rows[19]["ordered_daily"], false);
-    assert_eq!(rows[20]["failed_invocation_count"], 1);
-    assert_eq!(rows[20]["first_entry"], "cone src/pricing.py");
-    assert_eq!(rows[20]["entry_is_first_successful_invocation"], true);
 }
 
 #[test]
-fn ab_protocol_ignores_project_internal_codemap_consumers() {
+fn ab_arm_shim_ignores_project_internal_codemap_consumers() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let output = python()
         .arg(root.join("tests/protocol_shim_fixture.py"))
@@ -96,7 +63,7 @@ fn ab_protocol_ignores_project_internal_codemap_consumers() {
 }
 
 #[test]
-fn ab_treatment_prompt_keeps_navigation_proportionate() {
+fn ab_treatment_prompt_offers_the_map_without_prescribing_agent_behavior() {
     let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/benchmark-codemap-ab.py");
     let probe = r#"import json, pathlib, runpy, sys
 sys.path.insert(0, str(pathlib.Path(sys.argv[1]).parent))
@@ -112,7 +79,7 @@ def pair(control, codemap):
             "required_criteria":{"core":{"control":control, "codemap":codemap}},
             "control_elapsed":10, "codemap_elapsed":10, "control_input":10, "codemap_input":10}
 print(json.dumps({
-    "version": m["PROMPT_PROTOCOL_VERSION"],
+    "version": m["ARM_PROMPT_VERSION"],
     "implementation": m["ARM_PROMPTS"]["codemap"],
     "analysis": m["ANALYSIS_ARM_PROMPTS"]["codemap"],
     "exact": m["task_prompt"](task, "codemap"),
@@ -141,31 +108,22 @@ print(json.dumps({
         String::from_utf8_lossy(&output.stderr)
     );
     let prompt: Value = serde_json::from_slice(&output.stdout).expect("prompt json");
-    assert_eq!(prompt["version"], 17);
-    assert!(prompt["implementation"]
-        .as_str()
-        .unwrap()
-        .contains("codemap changed && codemap proof changed` once"));
-    assert!(prompt["implementation"]
-        .as_str()
-        .unwrap()
-        .contains("nearest existing parent"));
-    assert!(prompt["implementation"]
-        .as_str()
-        .unwrap()
-        .contains("shared contract you will edit"));
-    assert!(prompt["analysis"]
-        .as_str()
-        .unwrap()
-        .contains("Read the relevant linked source"));
-    assert!(prompt["analysis"]
-        .as_str()
-        .unwrap()
-        .contains("never replace an exact file with its parent directory"));
-    assert!(prompt["analysis"]
-        .as_str()
-        .unwrap()
-        .contains("printed exact Expand only when"));
+    assert_eq!(prompt["version"], 18);
+    for arm in ["implementation", "analysis", "exact"] {
+        let body = prompt[arm].as_str().unwrap();
+        assert!(body.contains("optional read-only"));
+        assert!(body.contains("Use codemap when it is useful"));
+        for forbidden in [
+            "before ordinary inspection",
+            "must",
+            "never replace",
+            "After editing",
+            "Do not run broad",
+            "requires no map call",
+        ] {
+            assert!(!body.contains(forbidden), "{arm} prescribes `{forbidden}`: {body}");
+        }
+    }
     assert!(prompt["exact"]
         .as_str()
         .unwrap()
@@ -174,6 +132,10 @@ print(json.dumps({
         .as_str()
         .unwrap()
         .contains("no repository-navigation uncertainty"));
+    assert!(!prompt["exact"]
+        .as_str()
+        .unwrap()
+        .contains("requires no map call"));
     assert!(!prompt["exact"]
         .as_str()
         .unwrap()
@@ -212,7 +174,7 @@ args = argparse.Namespace(model="m", reasoning_effort="high", timeout_seconds=10
 def fingerprint(order=0):
     return m["trial_fingerprint"](task, "abc", "codemap", order, args, "codex", "codemap", [], {})
 values = [fingerprint()]
-m["ARM_PROMPTS"]["codemap"] += "\nchanged protocol bytes\n"
+m["ARM_PROMPTS"]["codemap"] += "\nchanged prompt bytes\n"
 values.append(fingerprint())
 args.timeout_seconds = 11
 values.append(fingerprint())

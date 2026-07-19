@@ -7,7 +7,7 @@ import shlex
 from typing import Any
 
 
-FOCUSED_NAMES = {
+MAP_COMMANDS = {
     "ls",
     "cone",
     "where",
@@ -23,7 +23,7 @@ FOCUSED_NAMES = {
     "impact",
     "proof-map",
 }
-COMMAND_NAMES = FOCUSED_NAMES | {"changed", "proof"}
+COMMAND_NAMES = MAP_COMMANDS | {"changed", "proof", "doctor", "status"}
 VALUE_OPTIONS = {
     "--depth",
     "--files",
@@ -36,7 +36,6 @@ VALUE_OPTIONS = {
     "--section",
     "--since",
 }
-REQUIRED_FOCUS_ARGUMENT = {"cone", "where", "contract", "flow", "delete"}
 
 
 def _words(invocation: str) -> list[str]:
@@ -153,20 +152,29 @@ def _call(
     index: int,
     args: list[str],
     worktree: os.PathLike[str] | str | None,
-) -> tuple[int, str, str | None, str | None] | None:
+) -> dict[str, Any] | None:
     command_index = _command_index(args)
     if command_index is None:
         return None
     command = args[command_index]
     argument = _positional_argument(args[command_index + 1 :])
-    entry = None
+    scope_kind = None
     if command == "ls":
-        entry = "root" if _is_root_scope(argument, _effective_root(args, worktree)) else "exact"
+        scope_kind = (
+            "current_level" if _is_root_scope(argument, _effective_root(args, worktree)) else "scoped"
+        )
     elif command == "cone" and argument is not None:
-        entry = "root" if _is_root_scope(argument, _effective_root(args, worktree)) else "exact"
+        scope_kind = (
+            "current_level" if _is_root_scope(argument, _effective_root(args, worktree)) else "scoped"
+        )
     elif command == "where" and argument is not None:
-        entry = "exact"
-    return index, command, argument, entry
+        scope_kind = "symbol"
+    return {
+        "invocation_index": index,
+        "command": command,
+        "argument": argument,
+        "scope_kind": scope_kind,
+    }
 
 
 def _record(raw: str | dict[str, Any]) -> dict[str, Any]:
@@ -197,51 +205,20 @@ def codemap_activity(
     all_records = [_record(raw) for raw in invocations]
     records = [record for record in all_records if record["agent_direct"]]
     internal = [record for record in all_records if not record["agent_direct"]]
-    calls = [
-        call
-        for index, record in enumerate(records)
-        if record["status"] == 0
-        and (call := _call(index, record["argv"], worktree))
-    ]
-    entries = [(index, entry) for index, _, _, entry in calls if entry is not None]
-    first = entries[0] if entries else None
-    first_successful_invocation = next(
-        (index for index, record in enumerate(records) if record["status"] == 0),
-        None,
-    )
-    entry_is_first_successful_invocation = bool(
-        first and first[0] == first_successful_invocation
-    )
-    root_entry = any(entry == "root" for _, entry in entries)
-    exact_entry = any(entry == "exact" for _, entry in entries)
-    focused_calls = [
-        index
-        for index, command, argument, entry in calls
-        if command in FOCUSED_NAMES
-        and entry != "root"
-        and not (command in REQUIRED_FOCUS_ARGUMENT and argument is None)
-    ]
-    focused_after_root = bool(
-        first
-        and first[1] == "root"
-        and any(index > first[0] for index in focused_calls)
-    )
-    changed_calls = [index for index, command, _, _ in calls if command == "changed"]
-    proof_changed_calls = [
-        index
-        for index, command, argument, _ in calls
-        if command == "proof" and argument == "changed"
-    ]
-    ordered_daily = bool(
-        first
-        and len(changed_calls) == 1
-        and len(proof_changed_calls) == 1
-        and any(
-            first[0] < changed_call < proof_call
-            for changed_call in changed_calls
-            for proof_call in proof_changed_calls
+    calls = []
+    for index, record in enumerate(records):
+        call = _call(index, record["argv"], worktree)
+        if call is None:
+            continue
+        calls.append(
+            {
+                **call,
+                "status": record["status"],
+                "succeeded": record["status"] == 0,
+                "argv": record["argv"],
+                "display": record["display"],
+            }
         )
-    )
     observed_commands = agent_codemap_commands(agent_commands or [])
     trace_matches = agent_commands is None or len(observed_commands) == len(records)
     return {
@@ -254,16 +231,5 @@ def codemap_activity(
         "internal_invocation_results": internal,
         "agent_command_invocations": observed_commands,
         "agent_command_trace_matches": trace_matches,
-        "first_entry": records[first[0]]["display"] if first else None,
-        "entry_is_first_successful_invocation": entry_is_first_successful_invocation,
-        "entry_kind": first[1] if first else "none",
-        "root_entry": root_entry,
-        "exact_entry": exact_entry,
-        "mixed": root_entry and exact_entry,
-        "root_ls": root_entry,
-        "changed": bool(changed_calls),
-        "proof_changed": bool(proof_changed_calls),
-        "ordered_daily": ordered_daily,
-        "focused": bool(focused_calls),
-        "focused_after_root": focused_after_root,
+        "calls": calls,
     }

@@ -45,10 +45,6 @@ def verify(path: Path) -> list[str]:
     zero_write = not run.get("zero_write_violations")
     if validity.get("zero_repo_writes_for_read_only_tasks") is not zero_write:
         errors.append("zero-write state mismatch")
-    trajectory = report.get("trajectory_analysis", {})
-    trajectory_complete = trajectory.get("pairs") == 36 and not trajectory.get("errors")
-    if validity.get("paired_trajectory_analysis") is not trajectory_complete:
-        errors.append("trajectory evidence state mismatch")
     complex_result = acceptance.get("complex", {})
     effectiveness = complex_result.get("wins", 0) >= 8 and not complex_result.get("losing_tasks")
     if criteria.get("complex_effectiveness") is not effectiveness:

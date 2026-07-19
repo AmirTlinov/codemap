@@ -71,21 +71,11 @@ fn runtime_flagship_groups_share_one_basis_across_bounded_and_full_projections()
             .as_str()
             .expect("certificate id");
         assert!(certificate_ids.insert(certificate_id), "{group}: {json:#}");
-        let preview = format!(
-            "v1:{}",
-            certificate_id
-                .strip_prefix("coverage-v1:")
-                .expect("coverage certificate")
-                .chars()
-                .take(12)
-                .collect::<String>()
-        );
         let line = readable
             .lines()
             .find(|line| line.starts_with(&format!("- {group}:")))
             .unwrap_or_else(|| panic!("missing readable {group} horizon: {readable}"));
         assert!(line.contains(&format!("shown={readable_shown} hidden={readable_hidden}")));
-        assert!(line.contains(&format!("cert=`{preview}`")), "{line}");
     }
     assert!(
         readable.contains("scripts: unknown lower bound: 0")
@@ -177,15 +167,12 @@ fn runtime_root_keeps_full_group_certificates_behind_current_level_display() {
     );
     for group in S03C_RUNTIME_GROUPS {
         let item = horizon(&json["observations"], group);
-        let certificate_id = item["count"]["certificate_id"]
-            .as_str()
-            .expect("root certificate");
-        let preview = &certificate_id["coverage-v1:".len()..][..12];
+        assert_horizon_certificate_resolves(&json["observations"], item);
         let line = readable
             .lines()
             .find(|line| line.starts_with(&format!("- {group}:")))
             .unwrap_or_else(|| panic!("missing root {group} horizon: {readable}"));
-        assert!(line.contains(&format!("cert=`v1:{preview}`")), "{group}: {line}");
+        assert!(line.contains("shown=") && line.contains("hidden="), "{group}: {line}");
         assert_eq!(item["shown"], item["count"]["observed"], "{group}: {json:#}");
         assert_eq!(item["hidden"], 0, "{group}: {json:#}");
     }

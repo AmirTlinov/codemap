@@ -109,17 +109,17 @@ def main(argv: list[str]) -> int:
         manifest, tasks = load_frozen(manifest_path)
         _verify_frozen_tools(manifest)
         out_dir = Path(args.out_dir).resolve()
-        trajectory = analyze_trajectories(
-            manifest_path,
-            tasks,
-            Path(args.run_dir).resolve(),
-            out_dir / "trajectory-analysis",
-            args.resume,
-        )
-        trajectory_report = json.loads(trajectory.read_text(encoding="utf-8"))
-        if trajectory_report.get("complete") is not True:
-            print(trajectory)
-            return 1
+        trajectory = None
+        try:
+            trajectory = analyze_trajectories(
+                manifest_path,
+                tasks,
+                Path(args.run_dir).resolve(),
+                out_dir / "trajectory-analysis",
+                args.resume,
+            )
+        except Exception as exc:  # Interpretive analysis must never decide acceptance.
+            print(f"trajectory analysis unavailable: {exc}", file=sys.stderr)
         output = evaluate(manifest_path, Path(args.run_dir), out_dir, trajectory)
         report = json.loads(output.read_text(encoding="utf-8"))
         print(output)

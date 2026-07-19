@@ -74,7 +74,7 @@ fn exact_entry_stays_local_and_zero_links_are_explicit() {
 }
 
 #[test]
-fn published_protocol_is_exact_first_without_a_router() {
+fn published_map_entries_are_optional_and_router_free() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let help = String::from_utf8(codemap().arg("--help").output().unwrap().stdout).unwrap();
     let bootstrap = String::from_utf8(
@@ -93,7 +93,6 @@ fn published_protocol_is_exact_first_without_a_router() {
             "product",
             fs::read_to_string(root.join("docs/PRODUCT.md")).unwrap(),
         ),
-        ("AGENTS", fs::read_to_string(root.join("AGENTS.md")).unwrap()),
     ];
     for (owner, text) in texts {
         for daily in [
@@ -105,11 +104,8 @@ fn published_protocol_is_exact_first_without_a_router() {
         ] {
             assert!(text.contains(daily), "{owner} omitted daily entry {daily}: {text}");
         }
-        let lower = text.to_ascii_lowercase();
-        assert!(
-            lower.contains("root orientation") && lower.contains("unknown"),
-            "{owner} must reserve root orientation for unknown scope: {text}"
-        );
+        assert!(!text.contains("before broad manual scanning"), "{owner}: {text}");
+        assert!(!text.contains("After edits, use"), "{owner}: {text}");
     }
 }
 

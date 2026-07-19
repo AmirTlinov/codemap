@@ -72,7 +72,7 @@ fn render_compact_xray_visibility(horizons: &[&CoverageHorizon]) {
         .collect::<Vec<_>>()
         .join(", ");
     println!(
-        "- xray ledger: certified={}; fully-shown={}; open={}; unavailable={}{}",
+        "- xray visibility: groups={}; fully-shown={}; open={}; unavailable={}{}",
         horizons.len(),
         horizons.len() - limited.len(),
         if open.is_empty() { "0" } else { &open },
@@ -133,13 +133,12 @@ pub(crate) fn render_runtime_visibility(observations: &ObservationLedger) {
                 .collect::<std::collections::BTreeSet<_>>()
                 .len();
             println!(
-                "- routes: {}; shown={} hidden={}; dynamic={} unsupported_files={}; cert=`{}`",
+                "- routes: {}; shown={} hidden={}; dynamic={} unsupported_files={}",
                 horizon.count.display(),
                 horizon.shown,
                 horizon.hidden,
                 horizon.dynamic.len(),
-                unsupported_files,
-                readable_certificate_id(&horizon.count.certificate_id)
+                unsupported_files
             );
         } else {
             render_visibility_horizon_row(horizon);
@@ -198,25 +197,10 @@ fn render_visibility_horizon(horizon: &CoverageHorizon) {
 
 fn render_visibility_horizon_row(horizon: &CoverageHorizon) {
     println!(
-        "- {}: {}; shown={} hidden={}; cert=`{}`",
+        "- {}: {}; shown={} hidden={}",
         horizon.group,
         horizon.count.display(),
         horizon.shown,
-        horizon.hidden,
-        readable_certificate_id(&horizon.count.certificate_id)
+        horizon.hidden
     );
-}
-
-pub(crate) fn readable_certificate_id(id: &str) -> String {
-    const DIGEST_PREVIEW: usize = 12;
-    let Some(digest) = id.strip_prefix("coverage-v1:") else {
-        return id.to_string();
-    };
-    if digest.chars().count() <= DIGEST_PREVIEW {
-        return id.to_string();
-    }
-    format!(
-        "v1:{}",
-        digest.chars().take(DIGEST_PREVIEW).collect::<String>()
-    )
 }

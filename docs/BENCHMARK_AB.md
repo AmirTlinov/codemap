@@ -4,7 +4,7 @@
 task twice with Codex:
 
 - `control`: `codemap` is blocked and ordinary repository navigation remains available;
-- `codemap`: the agent receives the short proportional-entry protocol and the frozen binary.
+- `codemap`: the same agent can optionally use the frozen `codemap` binary.
 
 Both arms use the same git commit, task text, model, reasoning effort, sandbox, and
 external verifier. Each arm receives a fresh detached worktree. Arm order alternates
@@ -108,17 +108,12 @@ binary without changing its version invalidates the old trial.
 `--codemap-bin` accepts one direct executable path. Internal orchestration preserves
 wrappers as argv arrays in the frozen manifest; shell command strings are not accepted.
 
-The treatment prompt recommends the narrowest usable anchor named by the task: `codemap cone <file-or-file#symbol>`
-for an exact file, `codemap ls <directory>` for a named directory, or `codemap where <symbol>`
-when only the exact symbol name is known. It never widens a task-named file to its parent and uses `codemap ls .`
-only when the scope is unknown. The agent inspects task-relevant direct links before searching
-beyond the map; another map is recommended only when it is an exact expand printed by the current map
-for still-relevant hidden or unknown evidence. In `implementation` mode, the navigation is followed by
-`codemap changed` and `codemap proof changed`. In `analysis` mode, an exact entry is
-sufficient; root orientation must be followed by another focused map. Any analytical
-repository change fails the outcome. Control has ordinary tools and blocks agent-attributed
-codemap calls. Exact/local controls are the exception: when the prompt already fixes the file
-and replacement bytes, both arms edit and verify directly without required navigation.
+The treatment prompt only says that a read-only structural map is available and names
+its main entries. It does not prescribe when to call it, which scope to choose, which
+Expand to follow, or how to verify the task. Control has the same task and ordinary tools,
+but agent-attributed codemap calls are blocked. An analytical repository change still
+fails that task's external zero-write boundary. Exact/local controls use the same direct
+edit prompt in both arms; optional map use remains part of the measured cost.
 
 The harness does not parse task text or choose a command. Its shim uses native process ancestry
 (`libproc` on macOS, `/proc` on Linux) to separate an agent navigation call from a codemap
@@ -127,17 +122,16 @@ to the frozen benchmark binary in treatment; internal consumers keep using the p
 built binary and do not count as navigation. Completed Codex command events are independently
 matched against attributed shim calls, so invoking the frozen binary by an absolute path cannot
 bypass arm attribution. The shim records argv and the actual exit status. The report keeps
-the raw `invocation_results`, `first_entry`, `entry_is_first_successful_invocation`, `entry_kind` (`none`,
-`exact`, or `root`), `root_entry`, `exact_entry`, `mixed`, `ordered_daily`, and whether a
-focused call followed root orientation. Ignored internal calls and the event-trace comparison
+raw invocation records plus neutral call facts: command, argument, scope kind, argv,
+display text, status, and success. Ignored internal calls and the event-trace comparison
 remain visible as diagnostics. A treatment agent may ignore, misuse, or recover from codemap;
 all of those trajectories remain outcome and cost evidence. They are not converted into a map
 defect unless the captured map itself omitted, distorted, or buried the required structural fact.
-Entry ordering starts with the first successful agent call, while failures remain visible. Arm
-validity requires only that control never gains access to codemap.
+Arm validity requires only that control never gains access to codemap; treatment behavior is
+not graded for following a command sequence.
 
 Use `--resume` after interruption. Existing trials are reused only when the task,
-base commit, composed arm prompt, protocol/parser and harness bytes, model, reasoning,
+base commit, composed arm prompt, activity parser and harness bytes, model, reasoning,
 timeout, trial order, Codex version, arm, and verifier configuration produce the same
 fingerprint. Codemap command artifacts and the full benchmark identity also participate,
 so replacing a wrapper or binary without changing its version invalidates the old trial.
@@ -147,10 +141,11 @@ at the trial root and links the preserved result. A normal verifier failure or a
 treatment choice is product evidence and is never retried as infrastructure. Control access to
 codemap is arm contamination and is not repaired by retrying the model.
 
-For the frozen 72-run corpus, `scripts/benchmark-codemap-flagship.py evaluate` runs the
-same frozen Codex identity as the single trajectory analyst and writes 36 causal reports
-beside `acceptance.json`. `--resume` reuses a report only when its pair-context hash,
-analyzer prompt, model, reasoning effort, and Codex bytes still match.
+For the frozen 72-run corpus, `scripts/benchmark-codemap-flagship.py evaluate` attempts
+one comparative trajectory report per pair with the same frozen Codex identity.
+Missing, incomplete, or failed analysis remains visible in `acceptance.json` but cannot
+change external completeness, wins, costs, or acceptance. `--resume` reuses a report only
+when its pair-context hash, analyzer prompt, model, reasoning effort, and Codex bytes match.
 
 ## Designing a Completeness Benchmark
 
@@ -192,13 +187,8 @@ trusting an agent's self-description. A strong corpus contains tasks where the d
 edit is easy but important coupled surfaces are not obvious from the prompt.
 
 Exact/local controls name the file, current bytes, and replacement bytes in the identical task
-prompt. Both arms receive the same instruction to edit that file directly and verify the resulting
-bytes; codemap is not a required contact when there is no navigation uncertainty. If treatment
-does invoke codemap, the call must match a pre-registered exact entry with `entry_kind=exact` and
-`root_entry=false`. These controls measure whether availability alone preserves outcome without
-adding material cost.
-that codemap preserves the control outcome without charging for root orientation; time and token
-deltas remain visible resource costs rather than a substitute for that check.
+prompt. Both arms receive the same direct edit outcome. Treatment may use or ignore codemap;
+the control measures whether availability alone preserves outcome without adding material cost.
 
 ## Artifacts and Scoring
 
@@ -220,9 +210,9 @@ trials/<task>-r<repetition>-<arm>/
 The run root also contains `results.jsonl`, `summary.json`, and `summary.md`.
 
 A failed required verifier is a failed task outcome. Any failed verifier lowers the
-completeness score according to its fixed weight. A Codex crash, timeout, control-arm
-codemap attempt, or treatment arm that never invokes codemap makes the pair invalid;
-an unsuccessful codemap command remains part of the product result.
+completeness score according to its fixed weight. A Codex crash, timeout, or control-arm
+codemap attempt makes the pair invalid. Treatment map use, non-use, failed calls, and
+recovery remain part of the product result.
 
 One task and one repetition are a smoke test, not evidence of general lift. A useful
 product result needs multiple representative tasks from unfamiliar repositories,
@@ -244,8 +234,9 @@ implementation, and one exact/local control: 18 tasks total. Two counterbalanced
 repetitions produce 36 pairs and 72 agent runs.
 
 Each task declares executable deterministic verifiers. Investigation verifiers check
-source-backed claims and concrete `path:line` citations against frozen repository bytes;
-they do not match prescribed report wording, and an opened-file inventory does not score.
+source-backed claims and concrete `path:line` citations inside local spans of the frozen
+causal facts; an arbitrary line from the expected file or an opened-file inventory does
+not score. They do not match prescribed report wording.
 Implementation verifiers run independent hidden behavior groups or contract checks, so a partial
 implementation produces deterministic partial completeness instead of one opaque pass bit. Their
 prompts state the user-level outcome without publishing the internal owner path or full oracle

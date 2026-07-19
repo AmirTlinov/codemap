@@ -16,19 +16,15 @@ pub(crate) const DEFAULT_PROOF_LIMIT: usize = 12;
 #[derive(Debug, Parser)]
 #[command(name = "codemap")]
 #[command(about = "Structural code map CLI for AI coding agents")]
-#[command(before_help = "Choose one proportional map entry:
-  known symbol only: codemap where <symbol>
-  known file anchor: codemap cone <file-or-file#symbol>
-  known directory:   codemap ls <directory>
-  unfamiliar scope:  codemap ls .
+#[command(before_help = "Read-only structural map entries:
+  symbol:       codemap where <symbol>
+  file/symbol:  codemap cone <file-or-file#symbol>
+  directory:    codemap ls <directory>
+  current level: codemap ls .
 
-Preserve an exact task-named anchor; never replace it with a parent directory; root orientation is only for an unknown scope.
+Exact and scoped entries avoid unrelated root output. `codemap changed` maps the current diff; `codemap proof changed` maps nearby verification surfaces. Neither command runs project code.
 
-After edits:
-  codemap changed
-  codemap proof changed
-
-Diagnostics and deeper lenses stay available as exact expand targets.
+Reports expose exact expand targets when more structural detail is available.
 ")]
 #[command(after_help = "Diagnostics:
   doctor, status, files, schema, bootstrap, init, anchors, boundaries

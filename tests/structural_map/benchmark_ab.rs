@@ -221,10 +221,10 @@ raise SystemExit(0 if "README.md:1" in message else 1)
         .expect("codemap result");
     assert_eq!(control["codemap_activity"]["invocation_count"], 0);
     assert_eq!(treatment["codemap_activity"]["invocation_count"], 3);
-    assert_eq!(treatment["codemap_activity"]["first_entry"], "ls .");
-    assert_eq!(treatment["codemap_activity"]["entry_kind"], "root");
-    assert_eq!(treatment["codemap_activity"]["root_entry"], true);
-    assert_eq!(treatment["codemap_activity"]["exact_entry"], false);
+    assert_eq!(treatment["codemap_activity"]["calls"][0]["command"], "ls");
+    assert_eq!(treatment["codemap_activity"]["calls"][1]["command"], "changed");
+    assert_eq!(treatment["codemap_activity"]["calls"][2]["command"], "proof");
+    assert_eq!(treatment["codemap_activity"]["calls"][2]["argument"], "changed");
     assert_eq!(treatment["run_valid"], true);
     assert_eq!(treatment["outcome_passed"], true);
     assert_eq!(treatment["runtime"]["codex_home"], "isolated");
@@ -250,12 +250,15 @@ raise SystemExit(0 if "README.md:1" in message else 1)
     assert_eq!(analysis_control["verifiers"][0]["passed"], true);
     assert_eq!(analysis_control["codemap_activity"]["invocation_count"], 0);
     assert_eq!(analysis_treatment["codemap_activity"]["invocation_count"], 1);
-    assert_eq!(analysis_treatment["codemap_activity"]["first_entry"], "cone README.md");
-    assert_eq!(analysis_treatment["codemap_activity"]["entry_kind"], "exact");
-    assert_eq!(analysis_treatment["codemap_activity"]["root_entry"], false);
-    assert_eq!(analysis_treatment["codemap_activity"]["exact_entry"], true);
-    assert_eq!(analysis_treatment["codemap_activity"]["mixed"], false);
-    assert_eq!(analysis_treatment["codemap_activity"]["focused"], true);
+    assert_eq!(analysis_treatment["codemap_activity"]["calls"][0]["command"], "cone");
+    assert_eq!(
+        analysis_treatment["codemap_activity"]["calls"][0]["argument"],
+        "README.md"
+    );
+    assert_eq!(
+        analysis_treatment["codemap_activity"]["calls"][0]["scope_kind"],
+        "scoped"
+    );
     let markdown = fs::read_to_string(out.path().join("summary.md")).expect("summary markdown");
     assert!(markdown.contains("Externally verified result"));
     assert!(markdown.contains("Resource cost (secondary)"));

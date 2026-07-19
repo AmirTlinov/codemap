@@ -134,9 +134,5 @@ fn runtime_root_does_not_reaggregate_entrypoints_already_visible_under_github() 
     let item = horizon(&json["observations"], "entrypoints");
     assert_eq!(item["count"]["observed"], 1, "{json:#}");
     assert_eq!(item["shown"], 1, "{json:#}");
-    let id = item["count"]["certificate_id"]
-        .as_str()
-        .expect("entrypoint certificate");
-    let preview = &id["coverage-v1:".len()..][..12];
-    assert!(readable.contains(&format!("cert=`v1:{preview}`")), "{readable}");
+    assert_horizon_certificate_resolves(&json["observations"], item);
 }

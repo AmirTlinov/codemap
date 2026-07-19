@@ -18,11 +18,6 @@ fn runtime_route_horizon_owns_mass_truncation_and_route_gaps() {
         markdown.contains("dynamic=3") && markdown.contains("unsupported_files=2"),
         "readable route horizon must name both unresolved dynamic registrations and unsupported files: {markdown}"
     );
-    let readable_certificate = runtime_route_certificate_preview(&markdown);
-    assert!(
-        readable_certificate.starts_with("v1:") && readable_certificate.len() == 15,
-        "readable runtime output needs the compact certificate identity: {markdown}"
-    );
     assert!(
         markdown.lines().count() <= 90,
         "the 227-route fixture must remain a bounded daily map: {markdown}"
@@ -72,15 +67,6 @@ fn runtime_route_horizon_owns_mass_truncation_and_route_gaps() {
     let certificate_id = routes["count"]["certificate_id"]
         .as_str()
         .expect("route certificate id");
-    let readable_digest = readable_certificate
-        .strip_prefix("v1:")
-        .expect("compact v1 certificate");
-    assert!(
-        certificate_id
-            .strip_prefix("coverage-v1:")
-            .is_some_and(|digest| digest.starts_with(readable_digest)),
-        "readable and full JSON projections must resolve to the same route certificate: {json:#}"
-    );
     let certificate = &ledger["certificates"][certificate_id];
     assert_eq!(certificate["observed_facts"], 227, "{json:#}");
     assert_eq!(certificate["dynamic_stops"], routes["dynamic"], "{json:#}");
@@ -280,14 +266,4 @@ fn initialize_runtime_coverage_repo(repo: &TempDir) {
         &repo.path().join("package.json"),
         r#"{"name":"runtime-coverage-fixture","private":true}"#,
     );
-}
-
-fn runtime_route_certificate_preview(markdown: &str) -> &str {
-    markdown
-        .lines()
-        .find(|line| line.starts_with("- routes:"))
-        .and_then(|line| line.split_once("cert=`"))
-        .and_then(|(_, tail)| tail.split_once('`'))
-        .map(|(certificate, _)| certificate)
-        .unwrap_or_else(|| panic!("missing route certificate in readable output: {markdown}"))
 }

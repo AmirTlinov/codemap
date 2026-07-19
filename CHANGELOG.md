@@ -5,6 +5,13 @@ public JSON compatibility is governed separately by `docs/SCHEMA_POLICY.md`.
 
 ## Unreleased
 
+- Reduced the flagship treatment to optional `codemap` availability: command order,
+  map-call presence, failed calls, and recovery are recorded but no longer graded.
+- Made paired trajectory analysis interpretive and non-gating, while tightening
+  investigation citations to local spans of frozen source facts.
+- Removed coverage certificate identities from readable maps without changing the
+  machine observation ledger, typed gaps, or cache-integrity checks.
+
 ## 1.0.0 - 2026-07-18
 
 - Tightened the flagship task contracts where treatment exposed genuine ambiguity, and made

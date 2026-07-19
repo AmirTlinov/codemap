@@ -121,7 +121,7 @@ fn where_limit_one_never_forges_a_unique_definition() {
         markdown.contains("  - consumers:")
             && markdown.contains("  - incoming:")
             && markdown.contains("  - verification:"),
-        "every shown definition needs all certified horizons in readable output: {markdown}"
+        "every shown definition needs all visibility horizons in readable output: {markdown}"
     );
 }
 

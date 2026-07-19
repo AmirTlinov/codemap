@@ -2,9 +2,9 @@
 use crate::model::{ConeReport, WhereDefinition, WhereReport};
 use crate::render::{
     AnchorPathDisplay, disclaimer, edge_location_summary_with_paths, hidden_section,
-    public_evidence_label, readable_certificate_id, render_cone_links, render_cone_xray,
-    render_definition_visibility, render_definition_visibility_compact, render_visibility_section,
-    root_aware_expand, section, unknown_section, xray_edge_label,
+    public_evidence_label, render_cone_links, render_cone_xray, render_definition_visibility,
+    render_definition_visibility_compact, render_visibility_section, root_aware_expand, section,
+    unknown_section, xray_edge_label,
 };
 
 pub fn where_locator(report: &WhereReport) {
@@ -175,11 +175,10 @@ fn render_compact_definition(def: &WhereDefinition) {
             continue;
         };
         println!(
-            "  - {group}: {}; shown={} hidden={}; cert=`{}`",
+            "  - {group}: {}; shown={} hidden={}",
             horizon.count.display(),
             horizon.shown,
-            horizon.hidden,
-            readable_certificate_id(&horizon.count.certificate_id)
+            horizon.hidden
         );
         if horizon.hidden > 0
             && let Some(expand) = horizon.expand.as_deref()

@@ -2,7 +2,7 @@
 const EXACT_FILE_LS_ANCHOR: &str = "src/owner.ts";
 
 #[test]
-fn exact_file_ls_readable_and_json_share_relationship_certificates() {
+fn exact_file_ls_readable_and_json_share_relationship_horizons() {
     let repo = exact_file_ls_fixture();
     let readable_cache = TempDir::new().expect("file ls readable cache");
     let json_cache = TempDir::new().expect("file ls json cache");
@@ -55,26 +55,20 @@ fn exact_file_ls_readable_and_json_share_relationship_certificates() {
         assert_eq!(item["shown"], observed, "{group}: {json:#}");
         assert_eq!(item["hidden"], 0, "{group}: {json:#}");
         assert_horizon_certificate_resolves(ledger, item);
-        let digest = item["count"]["certificate_id"]
-            .as_str()
-            .expect("certificate")
-            .strip_prefix("coverage-v1:")
-            .expect("coverage certificate");
         assert!(
-            readable.lines().any(|line| {
-                line.starts_with(&format!("- {group}:"))
-                    && line.contains(&format!("cert=`v1:{}`", &digest[..12]))
-            }),
-            "readable and JSON must expose the same {group} certificate: {readable}"
+            readable
+                .lines()
+                .any(|line| line.starts_with(&format!("- {group}:"))),
+            "readable output must expose the {group} horizon: {readable}"
         );
     }
     let rows = readable
         .lines()
         .filter(|line| {
-            line.contains("cert=`v1:")
+            line.contains("shown=")
                 && ["- imports:", "- consumers:", "- verification:", "- symbols:"]
-                    .iter()
-                    .any(|prefix| line.starts_with(prefix))
+                .iter()
+                .any(|prefix| line.starts_with(prefix))
         })
         .collect::<Vec<_>>();
     assert_eq!(rows.len(), 4, "{readable}");
@@ -227,18 +221,12 @@ fn exact_file_symbol_catalog_is_bounded_in_readable_and_complete_in_json() {
         "machine projection must contain the complete catalog: {json:#}"
     );
     assert!(json["hidden"].as_array().expect("hidden").is_empty(), "{json:#}");
-    let digest = symbols["count"]["certificate_id"]
-        .as_str()
-        .expect("symbol certificate")
-        .strip_prefix("coverage-v1:")
-        .expect("coverage certificate");
     let row = readable
         .lines()
-        .find(|line| line.starts_with("- symbols:") && line.contains("cert=`v1:"))
+        .find(|line| line.starts_with("- symbols:") && line.contains("shown="))
         .expect("readable symbols horizon");
     assert!(row.contains("counted(4)"), "{readable}");
     assert!(row.contains("shown=2 hidden=2"), "{readable}");
-    assert!(row.contains(&format!("cert=`v1:{}`", &digest[..12])), "{readable}");
     assert!(!readable.contains("symbols hidden by limit"), "{readable}");
 }
 

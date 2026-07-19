@@ -7,7 +7,8 @@ implementation, and one exact/local control per repository.
 `materialize.py` creates clean repository snapshots, isolated exact-control
 mutations, hidden verifier overlays, a verification spec, and a runnable draft.
 Investigation reports are checked as source-backed claims with concrete `path:line`
-citations against frozen source bytes; an opened-file inventory does not score.
+citations inside local spans of frozen causal facts; an arbitrary line from the right
+file or an opened-file inventory does not score.
 The verifier checks frozen causal anchors and real citations, not prescribed prose.
 Required claims define the task's causal core; additional claims measure completeness.
 Implementation tasks use independent hidden behavior groups rather than one monolithic pass bit.
@@ -46,3 +47,7 @@ in the 72-run denominator and makes acceptance red.
 `verify.py` is the only task-verifier dispatcher. Hidden overlays are copied only
 after the candidate patch is captured. Every transitive verifier byte is hashed by
 the manifest and rechecked before execution and evaluation.
+
+Raw paired histories, diffs, verifier outputs, and costs are the experiment facts.
+One comparative trajectory analysis may explain how attention changed, but missing or
+incomplete analysis is diagnostic and cannot change the external acceptance result.

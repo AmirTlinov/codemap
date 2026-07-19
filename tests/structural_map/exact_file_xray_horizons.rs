@@ -34,7 +34,7 @@ fn every_exact_file_xray_group_is_bounded_and_machine_complete() {
     );
     assert_schema("schemas/cone.schema.json", &json);
     assert_eq!(json["observations"]["horizons"].as_array().unwrap().len(), 13);
-    assert!(readable.contains("xray ledger: certified=7"), "{readable}");
+    assert!(readable.contains("xray visibility: groups=7"), "{readable}");
     assert!(
         !readable.contains("xray_proof_"),
         "default visibility should account verification once through its canonical group: {readable}"

@@ -49,18 +49,12 @@ fn nested_directory_relations_are_bounded_in_readable_and_complete_in_json() {
         "nested visibility accounting belongs only to the horizons: {json:#}"
     );
 
-    let digest = relations["count"]["certificate_id"]
-        .as_str()
-        .expect("relations certificate")
-        .strip_prefix("coverage-v1:")
-        .expect("coverage certificate");
     let row = readable
         .lines()
-        .find(|line| line.starts_with("- relations:") && line.contains("cert=`v1:"))
+        .find(|line| line.starts_with("- relations:"))
         .expect("readable relation horizon");
     assert!(row.contains("counted(5)"), "{readable}");
     assert!(row.contains("shown=2 hidden=3"), "{readable}");
-    assert!(row.contains(&format!("cert=`v1:{}`", &digest[..12])), "{readable}");
     assert!(!readable.contains("directory edges hidden by limit"), "{readable}");
     let group_row = readable
         .lines()

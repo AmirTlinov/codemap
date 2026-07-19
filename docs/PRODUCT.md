@@ -25,7 +25,7 @@ codemap = ls + xref + cone + impact + proof for code
 - no project script execution without `--run`;
 - no LLM, embeddings, ranking engine, or task router in the hard path;
 - exact paths are anchors;
-- use the narrowest known anchor; root orientation is only for an unknown scope;
+- exact and scoped entries remain available so agents can avoid unrelated root output;
 - root `codemap ls .` shows a bounded domain/package map, not every file;
 - deeper views require an explicit scope, file, depth, or changed-file input;
 - optional `.codemap.yml` supplies only hard semantic anchors code cannot reveal.
@@ -139,9 +139,9 @@ is historical compatibility, not a correctness verdict.
 - generated `ARCHITECTURE.md` / large generated `AGENTS.md` maps;
 - broad project scans as a default answer.
 
-## Agent Rule
+## Agent use
 
-An agent chooses one entry using the narrowest anchor already present in the task:
+When a structural map is useful, an agent can use the narrowest scope already known:
 
 ```bash
 codemap where <exact-symbol>
@@ -149,21 +149,22 @@ codemap cone <file-or-file#symbol> --depth 1
 codemap ls <directory>
 ```
 
-An exact task-named file remains the anchor; it is not widened to its parent directory.
-Only when the relevant scope is unknown should the agent begin at the current level:
+Current-level orientation remains available when a broader view is useful:
 
 ```bash
 codemap ls .
 ```
 
-After edits:
+Post-edit views are independent surfaces:
 
 ```bash
 codemap changed
 codemap proof changed
 ```
 
-Expand only when structural evidence requires it: empty cone, public/package/schema boundary, missing direct verification surface, or failure outside the predicted impact.
+Exact expands expose additional structure without deciding whether the agent should
+follow them. `codemap` supplies evidence and observation boundaries; the agent owns
+its investigation, plan, and verification choices.
 
 ## Anchor Contract
 
