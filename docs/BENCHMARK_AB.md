@@ -100,6 +100,12 @@ exec rules, disabled fanout/multi-agent behavior, `workspace-write`, and explici
 model/reasoning settings. The treatment receives an external codemap cache; the
 target worktree stays free of codemap artifacts.
 
+The isolated trial runtime also makes the repository-level `MCP_BROWSER_BINARY`
+launch contract explicitly unavailable. A desktop Chrome process cannot register with
+LaunchServices from the macOS `workspace-write` sandbox; masking that binary keeps a
+project's optional live-browser suite fail-closed instead of generating repeated OS crash
+reports. Deterministic external verifiers still run outside the agent runtime.
+
 Binary resolution is deterministic: explicit `--codemap-bin`, then `CODEMAP_BIN`,
 then a local debug/release target, then `PATH`. Summary and per-trial JSON preserve
 one shared `report_prelude.codemap` with exact argv, version, executable artifacts,
