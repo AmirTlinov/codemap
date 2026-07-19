@@ -11,6 +11,7 @@ PAIR_ORDER = "task_index_plus_repetition_v1"
 TASK_CLASSES = {"investigation": 6, "implementation": 6, "exact_control": 6}
 REQUIRED_ACCEPTANCE = {
     "min_complex_wins": 8,
+    "min_direction_repetitions": 3,
     "max_complex_time_overhead": 0.20,
     "max_complex_input_overhead": 0.15,
     "max_exact_overhead": 0.10,
@@ -27,8 +28,8 @@ def validate_draft(draft: dict[str, Any]) -> None:
     limits = draft.get("limits")
     if not isinstance(limits, dict):
         raise ValueError("flagship limits are required")
-    if limits.get("repetitions") != 2:
-        raise ValueError("flagship requires exactly two counterbalanced repetitions")
+    if limits.get("repetitions") != 4:
+        raise ValueError("flagship requires exactly four counterbalanced repetitions")
     if limits.get("infrastructure_retries") != 1:
         raise ValueError("flagship infrastructure failures must retry exactly once")
     for field in ("timeout_seconds", "verifier_timeout_seconds"):

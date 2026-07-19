@@ -1,4 +1,4 @@
-"""Evaluate one frozen 72-run A/B against the outcome-based flagship contract."""
+"""Evaluate one frozen 144-run A/B against the outcome-based flagship contract."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from flagship_artifacts import artifact_inventory
 from flagship_manifest import file_sha256, load_frozen, read_jsonl, task_meta
 from flagship_receipts import trial_receipt_errors
 from flagship_stats import criterion_score, median, task_aggregate
+from flagship_trajectory import trajectory_evidence
 
 
 ARMS = ("control", "codemap")
@@ -143,6 +144,8 @@ def _pair_row(
 def evaluate_run(
     run_dir: Path, tasks: list[dict[str, Any]], manifest: dict[str, Any]
 ) -> dict[str, Any]:
+    repetitions = manifest["limits"]["repetitions"]
+    min_direction = manifest["acceptance"]["min_direction_repetitions"]
     input_path = run_dir / "input-tasks.jsonl"
     if not input_path.is_file() or file_sha256(input_path) != manifest["tasks_sha256"]:
         raise ValueError("run task bytes differ from frozen tasks")
@@ -167,7 +170,7 @@ def evaluate_run(
         task_id = task["id"]
         if preflight.get(task_id, {}).get("baseline_passed") is not False:
             invalid.append({"task_id": task_id, "reason": "preflight_no_gap"})
-        for repetition in (1, 2):
+        for repetition in range(1, repetitions + 1):
             pair: dict[str, dict[str, Any]] = {}
             for arm in ARMS:
                 key = (task_id, repetition, arm)
@@ -192,7 +195,7 @@ def evaluate_run(
     expected_keys = {
         (task["id"], repetition, arm)
         for task in tasks
-        for repetition in (1, 2)
+        for repetition in range(1, repetitions + 1)
         for arm in ARMS
     }
     invalid.extend(
@@ -204,12 +207,15 @@ def evaluate_run(
         by_task[row["task_id"]].append(row)
     task_rows = []
     for task in tasks:
-        if len(by_task[task["id"]]) == 2:
-            task_rows.append(task_aggregate(by_task[task["id"]]))
+        if len(by_task[task["id"]]) == repetitions:
+            task_rows.append(
+                task_aggregate(by_task[task["id"]], repetitions, min_direction)
+            )
+    expected_pairs = len(tasks) * repetitions
     return {
-        "expected_trials": 72,
+        "expected_trials": expected_pairs * len(ARMS),
         "observed_trials": len(rows),
-        "expected_pairs": 36,
+        "expected_pairs": expected_pairs,
         "valid_pairs": len(pair_rows),
         "invalid": invalid,
         "zero_write_violations": zero_write_violations,
@@ -218,59 +224,12 @@ def evaluate_run(
     }
 
 
-def _trajectory_evidence(
-    path: Path | None, tasks: list[dict[str, Any]], manifest_path: Path
-) -> tuple[dict[str, Any] | None, list[str]]:
-    if path is None or not path.is_file():
-        return None, ["missing_trajectory_analysis"]
-    try:
-        summary = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None, ["unreadable_trajectory_analysis"]
-    if not isinstance(summary, dict):
-        return None, ["unsupported_trajectory_analysis"]
-    errors = []
-    if summary.get("kind") != "codemap_flagship_trajectory_analysis" or summary.get("version") != 1:
-        errors.append("unsupported_trajectory_analysis")
-    if summary.get("manifest_sha256") != file_sha256(manifest_path):
-        errors.append("trajectory_manifest_mismatch")
-    expected = {(task["id"], repetition) for task in tasks for repetition in (1, 2)}
-    observed = set()
-    pairs = summary.get("pairs", [])
-    if not isinstance(pairs, list):
-        errors.append("invalid_trajectory_pairs")
-        pairs = []
-    for row in (item for item in pairs if isinstance(item, dict)):
-        key = (row.get("task_id"), row.get("repetition"))
-        if key in observed:
-            errors.append(f"duplicate_trajectory:{key}")
-        observed.add(key)
-        report = Path(str(row.get("report", "")))
-        context = report.parent / "pair-context.md"
-        if row.get("complete") is not True or row.get("status") != 0 or row.get("timed_out") is not False:
-            errors.append(f"incomplete_trajectory:{key}")
-        if not report.is_file() or not report.read_text(encoding="utf-8", errors="replace").strip():
-            errors.append(f"missing_trajectory_report:{key}")
-        elif file_sha256(report) != row.get("report_sha256"):
-            errors.append(f"trajectory_report_hash:{key}")
-        if not context.is_file() or file_sha256(context) != row.get("context_sha256"):
-            errors.append(f"trajectory_context_hash:{key}")
-        labels = row.get("labels", {})
-        if not isinstance(labels, dict) or set(labels.values()) != set(ARMS):
-            errors.append(f"trajectory_arm_labels:{key}")
-    if observed != expected:
-        errors.append("trajectory_pair_denominator")
-    if summary.get("complete") is not (not errors):
-        errors.append("trajectory_summary_state")
-    return summary, errors
-
-
 def acceptance_checks(run: dict[str, Any], manifest: dict[str, Any]) -> dict[str, Any]:
     thresholds = manifest["acceptance"]
     complex_tasks = [row for row in run["tasks"] if row["task_class"] != "exact_control"]
     exact_tasks = [row for row in run["tasks"] if row["task_class"] == "exact_control"]
-    wins = [row["task_id"] for row in complex_tasks if row["delta"] > 0]
-    losses = [row["task_id"] for row in complex_tasks if row["delta"] < 0]
+    wins = [row["task_id"] for row in complex_tasks if row["direction"] == "win"]
+    losses = [row["task_id"] for row in complex_tasks if row["direction"] == "loss"]
     required_losses = [
         {
             "task_id": row["task_id"],
@@ -282,16 +241,18 @@ def acceptance_checks(run: dict[str, Any], manifest: dict[str, Any]) -> dict[str
     exact_regressions = [
         row["task_id"]
         for row in exact_tasks
-        if sum(row["control_outcomes"]) != sum(row["codemap_outcomes"])
+        if row["outcome_direction"] == "loss"
     ]
     complex_time = median([row["time_overhead"] for row in complex_tasks if row["time_overhead"] is not None])
     complex_input = median([row["input_overhead"] for row in complex_tasks if row["input_overhead"] is not None])
     exact_time = median([row["time_overhead"] for row in exact_tasks if row["time_overhead"] is not None])
     exact_input = median([row["input_overhead"] for row in exact_tasks if row["input_overhead"] is not None])
     validity = {
-        "complete_72_run_denominator": not run["invalid"]
-        and run["observed_trials"] == 72
-        and run["valid_pairs"] == 36
+        "complete_144_run_denominator": not run["invalid"]
+        and run["expected_trials"] == 144
+        and run["observed_trials"] == run["expected_trials"]
+        and run["expected_pairs"] == 72
+        and run["valid_pairs"] == run["expected_pairs"]
         and len(run["tasks"]) == 18,
         "zero_repo_writes_for_read_only_tasks": not run["zero_write_violations"],
     }
@@ -315,7 +276,16 @@ def acceptance_checks(run: dict[str, Any], manifest: dict[str, Any]) -> dict[str
         "accepted": all(validity.values()) and all(criteria.values()),
         "validity": validity,
         "criteria": criteria,
-        "complex": {"wins": len(wins), "winning_tasks": wins, "losing_tasks": losses},
+        "complex": {
+            "wins": len(wins),
+            "winning_tasks": wins,
+            "losing_tasks": losses,
+            "mean_completeness_delta": (
+                sum(row["delta"] for row in complex_tasks) / len(complex_tasks)
+                if complex_tasks
+                else None
+            ),
+        },
         "required_criterion_losses": required_losses,
         "exact_regressions": exact_regressions,
         "resources": {
@@ -336,13 +306,15 @@ def _markdown(report: dict[str, Any]) -> str:
             "# codemap flagship A/B",
             "",
             f"**{state}** — deterministic external verification over 6 repositories, "
-            "4+ ecosystems, 18 tasks, 2 counterbalanced repetitions, and 72 agent runs.",
+            "4+ ecosystems, 18 tasks, 4 counterbalanced repetitions, and 144 agent runs.",
             "",
             f"- Complex wins: **{acceptance['complex']['wins']}/12**; losses: "
             f"**{len(acceptance['complex']['losing_tasks'])}**.",
             f"- Required criterion losses: **{len(acceptance['required_criterion_losses'])}**; "
             f"exact regressions: **{len(acceptance['exact_regressions'])}**.",
-            f"- Interpretive trajectory reports: **{report['trajectory_analysis']['pairs']}/36** "
+            f"- Mean complex completeness delta: "
+            f"**{acceptance['complex']['mean_completeness_delta']:+.1%}**.",
+            f"- Interpretive trajectory reports: **{report['trajectory_analysis']['pairs']}/72** "
             "(published for causal inspection; not an acceptance criterion).",
             f"- Complex overhead: time **{resources['complex_median_time_overhead']:.1%}**, "
             f"input **{resources['complex_median_input_overhead']:.1%}**.",
@@ -363,8 +335,11 @@ def evaluate(
 ) -> Path:
     manifest, tasks = load_frozen(manifest_path)
     run = evaluate_run(run_dir.resolve(), tasks, manifest)
-    trajectory, trajectory_errors = _trajectory_evidence(
-        trajectory_summary_path, tasks, manifest_path.resolve()
+    trajectory, trajectory_errors = trajectory_evidence(
+        trajectory_summary_path,
+        tasks,
+        manifest_path.resolve(),
+        manifest["limits"]["repetitions"],
     )
     acceptance = acceptance_checks(run, manifest)
     out_dir.mkdir(parents=True, exist_ok=True)

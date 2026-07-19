@@ -4,12 +4,13 @@
       "max_complex_input_overhead": 0.15,
       "max_complex_time_overhead": 0.2,
       "max_exact_overhead": 0.1,
-      "min_complex_wins": 8
+      "min_complex_wins": 8,
+      "min_direction_repetitions": 3
     },
     "limits": {
       "infrastructure_retries": 1,
       "parallel_pairs": 4,
-      "repetitions": 2,
+      "repetitions": 4,
       "timeout_seconds": 1800,
       "verifier_timeout_seconds": 1200
     },

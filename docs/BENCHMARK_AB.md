@@ -147,7 +147,7 @@ at the trial root and links the preserved result. A normal verifier failure or a
 treatment choice is product evidence and is never retried as infrastructure. Control access to
 codemap is arm contamination and is not repaired by retrying the model.
 
-For the frozen 72-run corpus, `scripts/benchmark-codemap-flagship.py evaluate` attempts
+For the frozen 144-run corpus, `scripts/benchmark-codemap-flagship.py evaluate` attempts
 one comparative trajectory report per pair with the same frozen Codex identity.
 Missing, incomplete, or failed analysis remains visible in `acceptance.json` but cannot
 change external completeness, wins, costs, or acceptance. `--resume` reuses a report only
@@ -236,8 +236,9 @@ The exploratory harness remains the execution owner. The flagship wrapper adds o
 
 The corpus contains exactly six repositories across at least four ecosystems. Each
 repository contributes one deterministic investigation, one multi-owner
-implementation, and one exact/local control: 18 tasks total. Two counterbalanced
-repetitions produce 36 pairs and 72 agent runs.
+implementation, and one exact/local control: 18 tasks total. Four counterbalanced
+repetitions produce 72 pairs and 144 agent runs. Each arm runs first twice and second
+twice for every task.
 
 Each task declares executable deterministic verifiers. Investigation verifiers check
 source-backed claims and concrete `path:line` citations inside local spans of the frozen
@@ -305,13 +306,15 @@ fixed denominator and makes the gate red.
 
 Acceptance has three product conditions:
 
-1. treatment wins at least 8 of 12 complex tasks by mean deterministic completeness
-   across both repetitions and loses none;
-2. treatment does not trail control on the two-repeat success count of any required criterion,
-   and every exact control preserves the same two-repeat outcome count regardless of which
-   stochastic repetition missed;
+1. treatment has at least 8 stable wins among 12 complex tasks and no stable loss;
+   a direction is stable only when it appears in at least 3 of 4 paired repetitions;
+2. a required criterion or exact task outcome is a regression only when control beats
+   treatment in at least 3 of 4 valid pairs; one stochastic miss does not block the gate;
 3. median complex overhead is at most 20% wall time and 15% input tokens, while median
    exact-control overhead is at most 10% for both metrics.
+
+Mean four-repeat completeness delta remains published as effect size, but it does not
+turn a single miss or a split 2/2 result into a product direction.
 
 `acceptance.json` inventories the manifest, frozen tasks, raw results, per-trial
 receipts, and verifier outputs by SHA-256. The independent verifier imports none of the

@@ -113,7 +113,7 @@ def freeze(root: Path, tasks: list[dict], codex: Path, codemap: Path) -> tuple[P
         "reasoning_effort": "high",
         "pair_order": "task_index_plus_repetition_v1",
         "limits": {
-            "repetitions": 2,
+            "repetitions": 4,
             "parallel_pairs": 2,
             "timeout_seconds": 30,
             "verifier_timeout_seconds": 30,
@@ -121,6 +121,7 @@ def freeze(root: Path, tasks: list[dict], codex: Path, codemap: Path) -> tuple[P
         },
         "acceptance": {
             "min_complex_wins": 8,
+            "min_direction_repetitions": 3,
             "max_complex_time_overhead": 0.20,
             "max_complex_input_overhead": 0.15,
             "max_exact_overhead": 0.10,
@@ -138,13 +139,15 @@ def freeze(root: Path, tasks: list[dict], codex: Path, codemap: Path) -> tuple[P
 
 
 def verifier_results(
-    task: dict, arm: str, win: bool, required_loss: bool, trial_dir: Path
+    task: dict, arm: str, direction: int, required_loss: bool, trial_dir: Path
 ) -> list[dict]:
     rows = []
     for item in task["verify"]:
         passed = True
         if item["name"] == "completeness" and task["benchmark"]["task_class"] != "exact_control":
-            passed = arm == "codemap" if win else True
+            passed = (
+                arm == "codemap" if direction > 0 else arm == "control" if direction < 0 else True
+            )
         if item["name"] == "required" and arm == "codemap" and required_loss:
             passed = False
         stdout = trial_dir / f"{item['name']}.stdout.log"
@@ -174,7 +177,7 @@ def result_row(
     arm: str,
     order: int,
     artifact: Path,
-    win: bool,
+    direction: int,
     required_loss: bool = False,
     exact_regression: bool = False,
     complex_over: bool = False,
@@ -220,7 +223,7 @@ def result_row(
         else:
             elapsed = 1210 if complex_over else 1200
             input_tokens = 1160 if complex_over else 1150
-    verifiers = verifier_results(task, arm, win, required_loss, trial_dir)
+    verifiers = verifier_results(task, arm, direction, required_loss, trial_dir)
     row = {
         "task_id": task["id"],
         "mode": task["mode"],
@@ -276,9 +279,9 @@ def make_run(
     *,
     wins: int = 8,
     missing_arm: bool = False,
-    loss: bool = False,
-    required_loss: bool = False,
-    exact_regression: bool = False,
+    task_directions: dict[str, list[int]] | None = None,
+    required_loss_repetitions: int = 0,
+    exact_regression_repetitions: int = 0,
     complex_over: bool = False,
     exact_over: bool = False,
     infrastructure_failure: bool = False,
@@ -294,10 +297,15 @@ def make_run(
     complex_ids = [
         task["id"] for task in tasks if task["benchmark"]["task_class"] != "exact_control"
     ]
+    repetitions = manifest["limits"]["repetitions"]
+    directions = {
+        task_id: [1 if task_id in complex_ids[:wins] else 0] * repetitions
+        for task_id in complex_ids
+    }
+    directions.update(task_directions or {})
     rows = []
     for task in tasks:
-        task_win = task["id"] in complex_ids[:wins]
-        for repetition in (1, 2):
+        for repetition in range(1, repetitions + 1):
             for arm in ("control", "codemap"):
                 artifact = run_dir / "trials" / f"{task['id']}-r{repetition}-{arm}" / "last-message.md"
                 rows.append(
@@ -308,9 +316,10 @@ def make_run(
                         arm,
                         schedule[(task["id"], repetition)].index(arm) + 1,
                         artifact,
-                        task_win,
-                        required_loss=required_loss and task["id"] == complex_ids[0],
-                        exact_regression=exact_regression
+                        directions.get(task["id"], [0] * repetitions)[repetition - 1],
+                        required_loss=repetition <= required_loss_repetitions
+                        and task["id"] == complex_ids[0],
+                        exact_regression=repetition <= exact_regression_repetitions
                         and task["benchmark"]["task_class"] == "exact_control"
                         and task["benchmark"]["repo_id"] == "repo-0",
                         complex_over=complex_over,
@@ -324,14 +333,6 @@ def make_run(
                         and task["id"] == complex_ids[0],
                     )
                 )
-    if loss:
-        target = complex_ids[-1]
-        for row in rows:
-            if row["task_id"] == target and row["arm"] == "codemap":
-                bonus = next(item for item in row["verifiers"] if item["name"] == "completeness")
-                bonus.update({"passed": False, "status": 1})
-                write(Path(bonus["stdout_artifact"]), "external verifier\n")
-                write(Path(row["codex"]["last_message_artifact"]).parent / "result.json", json.dumps(row, indent=2, sort_keys=True) + "\n")
     if missing_arm:
         rows.pop()
     write(run_dir / "results.jsonl", "\n".join(json.dumps(row) for row in rows) + "\n")

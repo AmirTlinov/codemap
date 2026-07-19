@@ -30,6 +30,7 @@ ANALYST_PROMPT = """Ты исследующий сравнительный аг�
 вердикт о принятии эксперимента и не считай финальный самоотчёт доказательством. Если истории
 не позволяют установить причинную связь, скажи это прямо. Пиши по-русски.
 """
+ARMS = {"control", "codemap"}
 
 
 def _safe_label(value: str) -> str:
@@ -168,6 +169,60 @@ def _usage(events: str) -> dict[str, int]:
     return result
 
 
+def trajectory_evidence(
+    path: Path | None,
+    tasks: list[dict[str, Any]],
+    manifest_path: Path,
+    repetitions: int,
+) -> tuple[dict[str, Any] | None, list[str]]:
+    if path is None or not path.is_file():
+        return None, ["missing_trajectory_analysis"]
+    try:
+        summary = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None, ["unreadable_trajectory_analysis"]
+    if not isinstance(summary, dict):
+        return None, ["unsupported_trajectory_analysis"]
+    errors = []
+    if summary.get("kind") != "codemap_flagship_trajectory_analysis" or summary.get("version") != 1:
+        errors.append("unsupported_trajectory_analysis")
+    if summary.get("manifest_sha256") != file_sha256(manifest_path):
+        errors.append("trajectory_manifest_mismatch")
+    expected = {
+        (task["id"], repetition)
+        for task in tasks
+        for repetition in range(1, repetitions + 1)
+    }
+    observed = set()
+    pairs = summary.get("pairs", [])
+    if not isinstance(pairs, list):
+        errors.append("invalid_trajectory_pairs")
+        pairs = []
+    for row in (item for item in pairs if isinstance(item, dict)):
+        key = (row.get("task_id"), row.get("repetition"))
+        if key in observed:
+            errors.append(f"duplicate_trajectory:{key}")
+        observed.add(key)
+        report = Path(str(row.get("report", "")))
+        context = report.parent / "pair-context.md"
+        if row.get("complete") is not True or row.get("status") != 0 or row.get("timed_out") is not False:
+            errors.append(f"incomplete_trajectory:{key}")
+        if not report.is_file() or not report.read_text(encoding="utf-8", errors="replace").strip():
+            errors.append(f"missing_trajectory_report:{key}")
+        elif file_sha256(report) != row.get("report_sha256"):
+            errors.append(f"trajectory_report_hash:{key}")
+        if not context.is_file() or file_sha256(context) != row.get("context_sha256"):
+            errors.append(f"trajectory_context_hash:{key}")
+        labels = row.get("labels", {})
+        if not isinstance(labels, dict) or set(labels.values()) != ARMS:
+            errors.append(f"trajectory_arm_labels:{key}")
+    if observed != expected:
+        errors.append("trajectory_pair_denominator")
+    if summary.get("complete") is not (not errors):
+        errors.append("trajectory_summary_state")
+    return summary, errors
+
+
 def _analyze_pair(
     job: tuple[Path, dict[str, Any]], manifest: dict[str, Any], resume: bool
 ) -> dict[str, Any]:
@@ -244,6 +299,7 @@ def analyze_trajectories(
     manifest_path: Path, tasks: list[dict[str, Any]], run_dir: Path, out_dir: Path, resume: bool
 ) -> Path:
     manifest = json.loads(_read(manifest_path))
+    repetitions = manifest["limits"]["repetitions"]
     rows = read_jsonl(run_dir / "results.jsonl")
     indexed: dict[tuple[str, int, str], dict[str, Any]] = {}
     for row in rows:
@@ -254,7 +310,7 @@ def analyze_trajectories(
     out_dir.mkdir(parents=True, exist_ok=resume)
     jobs = []
     for task in tasks:
-        for repetition in (1, 2):
+        for repetition in range(1, repetitions + 1):
             pair = {
                 arm: indexed[(task["id"], repetition, arm)] for arm in ("control", "codemap")
             }
@@ -278,7 +334,8 @@ def analyze_trajectories(
             "prompt_version": PROMPT_VERSION,
         },
         "pairs": analyses,
-        "complete": len(analyses) == 36 and all(row["complete"] for row in analyses),
+        "complete": len(analyses) == len(tasks) * repetitions
+        and all(row["complete"] for row in analyses),
     }
     output = out_dir / "summary.json"
     output.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")

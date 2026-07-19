@@ -98,14 +98,14 @@ else:
             "model": "gpt-fixture",
             "reasoning_effort": "high",
             "codex": {"command_argv": [sys.executable, str(fake)], "version": "fixture"},
-            "limits": {"timeout_seconds": 30, "parallel_pairs": 1},
+            "limits": {"timeout_seconds": 30, "parallel_pairs": 1, "repetitions": 4},
         }
         manifest_path = root / "manifest.json"
         write(manifest_path, json.dumps(manifest))
         task = {"id": "task", "repo": str(root / "repo"), "prompt": "Trace the owner."}
         run = root / "run"
         rows = []
-        for repetition in (1, 2):
+        for repetition in range(1, 5):
             order = ("control", "codemap") if repetition == 1 else ("codemap", "control")
             rows.extend(trial(run, repetition, arm, order.index(arm) + 1) for arm in order)
         write(run / "results.jsonl", "".join(json.dumps(row) + "\n" for row in rows))
@@ -113,9 +113,9 @@ else:
             manifest_path, [task], run, root / "analysis", resume=False
         )
         summary = json.loads(summary_path.read_text(encoding="utf-8"))
-        assert len(summary["pairs"]) == 2
+        assert len(summary["pairs"]) == 4
         assert all(row["complete"] for row in summary["pairs"])
-        assert summary["complete"] is False
+        assert summary["complete"] is True
         context = root / "analysis/task-r1/pair-context.md"
         body = context.read_text(encoding="utf-8")
         for expected in (

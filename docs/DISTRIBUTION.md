@@ -59,4 +59,4 @@ write-failure behavior.
 ## Release boundary
 
 Maintenance builds may publish with explicit limitations. A release is called flagship only when
-its exact binary passes the frozen 72-run acceptance and the released-download scenario.
+its exact binary passes the frozen 144-run acceptance and the released-download scenario.

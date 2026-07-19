@@ -81,7 +81,7 @@ def parser() -> argparse.ArgumentParser:
     freeze.add_argument("--out-dir", required=True)
     freeze.add_argument("--codex-bin", default="codex")
     freeze.add_argument("--codemap-bin")
-    run_parser = commands.add_parser("run", help="run all 72 frozen agent trials")
+    run_parser = commands.add_parser("run", help="run all 144 frozen agent trials")
     run_parser.add_argument("manifest")
     run_parser.add_argument("--out-dir", required=True)
     run_parser.add_argument("--work-dir")

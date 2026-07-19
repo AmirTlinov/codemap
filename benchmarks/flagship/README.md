@@ -42,7 +42,7 @@ python3 scripts/benchmark-codemap-flagship.py evaluate \
 Freeze is the experiment boundary. Any binary, task, criterion, threshold, repo
 commit, model, or limit change requires a new identity and a complete rerun.
 Infrastructure failures retry once with the same manifest; a second failure stays
-in the 72-run denominator and makes acceptance red.
+in the 144-run denominator and makes acceptance red.
 
 `verify.py` is the only task-verifier dispatcher. Hidden overlays are copied only
 after the candidate patch is captured. Every transitive verifier byte is hashed by

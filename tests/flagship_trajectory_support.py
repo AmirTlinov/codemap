@@ -10,9 +10,10 @@ from flagship_manifest import file_sha256
 
 def build_trajectory(root: Path, tasks: list[dict], manifest_path: Path) -> Path:
     root.mkdir()
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     pairs = []
     for task in tasks:
-        for repetition in (1, 2):
+        for repetition in range(1, manifest["limits"]["repetitions"] + 1):
             pair = root / f"{task['id']}-r{repetition}"
             pair.mkdir()
             context = pair / "pair-context.md"

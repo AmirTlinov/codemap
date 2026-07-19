@@ -72,8 +72,9 @@ from flagship_stats import task_aggregate
 task = m["Task"]("exact", "implementation", pathlib.Path("."), "HEAD", "abc", "edit", [], "exact_control")
 def activity(invocations):
     return {"invocation_count": invocations}
-def pair(control, codemap):
+def pair(repetition, control, codemap):
     return {"task_id":"stochastic", "repo_id":"fixture", "task_class":"exact_control",
+            "repetition":repetition,
             "control_score":control, "codemap_score":codemap,
             "control_outcome":bool(control), "codemap_outcome":bool(codemap),
             "required_criteria":{"core":{"control":control, "codemap":codemap}},
@@ -95,7 +96,10 @@ print(json.dumps({
         [{"task_id":"exact", "run_valid":True, "outcome_passed":False}],
         [{"task_id":"exact", "baseline_passed":False}],
     ),
-    "stochastic": task_aggregate([pair(1.0, 0.0), pair(0.0, 1.0)]),
+    "stochastic": task_aggregate([
+        pair(1, 1.0, 0.0), pair(2, 0.0, 1.0),
+        pair(3, 1.0, 0.0), pair(4, 0.0, 1.0)
+    ], 4, 3),
 }))
 "#;
     let output = python()
@@ -155,12 +159,13 @@ print(json.dumps({
     );
     assert_eq!(
         prompt["stochastic"]["control_outcomes"],
-        serde_json::json!([true, false])
+        serde_json::json!([true, false, true, false])
     );
     assert_eq!(
         prompt["stochastic"]["codemap_outcomes"],
-        serde_json::json!([false, true])
+        serde_json::json!([false, true, false, true])
     );
+    assert_eq!(prompt["stochastic"]["direction"], "neutral");
 }
 
 #[test]

@@ -5,6 +5,8 @@ public JSON compatibility is governed separately by `docs/SCHEMA_POLICY.md`.
 
 ## Unreleased
 
+- Changed the next frozen flagship experiment to four counterbalanced repetitions:
+  only a 3-of-4 paired direction is a win or regression, while mean effect remains reported.
 - Made repository-level desktop browser launches fail closed inside benchmark agent
   sandboxes, preventing repeated macOS LaunchServices crash reports.
 - Reduced the flagship treatment to optional `codemap` availability: command order,

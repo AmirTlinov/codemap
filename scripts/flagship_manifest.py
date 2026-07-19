@@ -196,10 +196,10 @@ def verifier_artifacts(tasks: list[dict[str, Any]], tasks_path: Path) -> list[di
     return [{"path": path, "sha256": digest} for path, digest in sorted(artifacts.items())]
 
 
-def pair_schedule(tasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def pair_schedule(tasks: list[dict[str, Any]], repetitions: int) -> list[dict[str, Any]]:
     rows = []
     for task_index, task in enumerate(tasks):
-        for repetition in (1, 2):
+        for repetition in range(1, repetitions + 1):
             arms = list(ARMS) if (task_index + repetition) % 2 else list(reversed(ARMS))
             rows.append({"task_id": task["id"], "repetition": repetition, "arms": arms})
     return rows
@@ -277,7 +277,7 @@ def freeze_corpus(
                 "artifacts": command_artifacts(codex_command),
             },
             "codemap_identity": codemap_identity,
-            "pair_schedule": pair_schedule(frozen_tasks),
+            "pair_schedule": pair_schedule(frozen_tasks, manifest["limits"]["repetitions"]),
         }
     )
     output = out_dir / "manifest.json"
@@ -299,7 +299,7 @@ def load_frozen(path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
         raise ValueError("frozen task matrix changed")
     if task_records(tasks) != manifest.get("task_records"):
         raise ValueError("frozen prompts or criteria changed")
-    if pair_schedule(tasks) != manifest.get("pair_schedule"):
+    if pair_schedule(tasks, manifest["limits"]["repetitions"]) != manifest.get("pair_schedule"):
         raise ValueError("frozen pair schedule changed")
     for artifact in manifest.get("verifier_artifacts", []):
         candidate = Path(artifact["path"])
