@@ -197,9 +197,8 @@ def result_row(
     write(stderr, "")
     write(patch, "")
     exact_without_map = treatment and task_class == "exact_control"
-    protocol = {
+    activity = {
         "invocation_count": 1 if treatment and not exact_without_map else 0,
-        "compliant": not treatment or not exact_without_map,
         "entry_kind": "exact" if treatment and not exact_without_map else "none",
         "root_entry": False,
         "first_entry": "cone README.md" if treatment and not exact_without_map else None,
@@ -230,7 +229,7 @@ def result_row(
         "codex_artifacts": manifest["codex"]["artifacts"],
         "report_prelude": {"codemap": manifest["codemap_identity"]},
         "trial_fingerprint": f"{task['id']}:{repetition}:{arm}",
-        "codemap_protocol": protocol,
+        "codemap_activity": activity,
         "patch_artifact": str(patch),
         "codex": {
             "elapsed_ms": elapsed,

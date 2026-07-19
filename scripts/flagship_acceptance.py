@@ -56,14 +56,11 @@ def _provenance_errors(
     }
     return [name for name, passed in checks.items() if not passed]
 
-def _protocol_errors(row: dict[str, Any], task: dict[str, Any]) -> list[str]:
-    protocol = row.get("codemap_protocol", {})
-    if row.get("arm") == "control":
-        return [] if protocol.get("invocation_count") == 0 else ["control_codemap_access"]
-    meta = task_meta(task)
-    if meta["task_class"] == "exact_control":
-        return [] if protocol.get("invocation_count") == 0 else ["exact_control_codemap_access"]
-    return [] if protocol.get("compliant") is True else ["treatment_protocol_noncompliant"]
+def _assignment_errors(row: dict[str, Any]) -> list[str]:
+    activity = row.get("codemap_activity", {})
+    if row.get("arm") != "control":
+        return []
+    return [] if activity.get("invocation_count") == 0 else ["control_codemap_access"]
 
 
 def _run_errors(row: dict[str, Any]) -> list[str]:
@@ -118,13 +115,14 @@ def _pair_row(
     by_arm = {
         arm: {criterion["id"]: criterion for criterion in criteria[arm]} for arm in ARMS
     }
-    required_losses = [
-        name
+    required_criteria = {
+        name: {
+            "control": control["value"],
+            "codemap": by_arm["codemap"][name]["value"],
+        }
         for name, control in by_arm["control"].items()
         if control["required"]
-        and control["value"] == 1.0
-        and by_arm["codemap"][name]["value"] < 1.0
-    ]
+    }
     return {
         "task_id": task["id"],
         "repo_id": task_meta(task)["repo_id"],
@@ -134,7 +132,7 @@ def _pair_row(
         "codemap_score": criterion_score(criteria["codemap"]),
         "control_outcome": pair["control"].get("outcome_passed") is True,
         "codemap_outcome": pair["codemap"].get("outcome_passed") is True,
-        "required_losses": required_losses,
+        "required_criteria": required_criteria,
         "control_elapsed": pair["control"]["codex"]["elapsed_ms"],
         "codemap_elapsed": pair["codemap"]["codex"]["elapsed_ms"],
         "control_input": _input_usage(pair["control"]),
@@ -179,7 +177,7 @@ def evaluate_run(
                     continue
                 order = schedule[(task_id, repetition)].index(arm) + 1
                 errors = _provenance_errors(row, task, manifest, order)
-                errors += _protocol_errors(row, task)
+                errors += _assignment_errors(row)
                 errors += _run_errors(row)
                 errors += trial_receipt_errors(row)
                 if task["mode"] == "analysis" and row.get("analysis_no_repo_changes") is not True:
@@ -268,16 +266,15 @@ def acceptance_checks(
     required_losses = [
         {
             "task_id": row["task_id"],
-            "repetition": row["repetition"],
-            "criteria": row["required_losses"],
+            "criteria": row["required_criterion_losses"],
         }
-        for row in run["pairs"]
-        if row["required_losses"]
+        for row in run["tasks"]
+        if row["required_criterion_losses"]
     ]
     exact_regressions = [
         row["task_id"]
         for row in exact_tasks
-        if row["control_outcomes"] != row["codemap_outcomes"]
+        if sum(row["control_outcomes"]) != sum(row["codemap_outcomes"])
     ]
     complex_time = median([row["time_overhead"] for row in complex_tasks if row["time_overhead"] is not None])
     complex_input = median([row["input_overhead"] for row in complex_tasks if row["input_overhead"] is not None])

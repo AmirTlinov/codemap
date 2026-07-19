@@ -56,7 +56,7 @@ def trial(root: Path, repetition: int, arm: str, order: int) -> dict:
         "outcome_passed": True,
         "completeness": {"score": 1.0},
         "changed_paths": ["src/owner.rs"],
-        "codemap_protocol": {"invocation_count": 1 if arm == "codemap" else 0},
+        "codemap_activity": {"invocation_count": 1 if arm == "codemap" else 0},
         "codex": {
             "events_artifact": str(events),
             "last_message_artifact": str(final),

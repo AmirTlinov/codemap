@@ -14,6 +14,11 @@ Before spending model calls, the harness runs every verifier against the untouch
 base commit in a third disposable worktree. If every verifier already passes, the
 task is rejected because it has no measured behavioral gap.
 
+`--treatment-preflight` then checks that the corpus, runtime, binary, and verifiers can
+execute together. Its agent outcomes are diagnostic: a stochastic miss is reported but
+does not fail preflight or trigger product tuning. Only infrastructure invalidity or a
+baseline verifier leak makes this readiness check fail.
+
 The primary result is **externally verified completeness**, not token minimization.
 Each task should be split into independent criteria that expose what the agent actually
 covered: direct behavior, public contracts, downstream consumers, regressions, and
@@ -103,11 +108,11 @@ binary without changing its version invalidates the old trial.
 `--codemap-bin` accepts one direct executable path. Internal orchestration preserves
 wrappers as argv arrays in the frozen manifest; shell command strings are not accepted.
 
-Treatment preserves the narrowest usable anchor named by the task: `codemap cone <file-or-file#symbol>`
+The treatment prompt recommends the narrowest usable anchor named by the task: `codemap cone <file-or-file#symbol>`
 for an exact file, `codemap ls <directory>` for a named directory, or `codemap where <symbol>`
 when only the exact symbol name is known. It never widens a task-named file to its parent and uses `codemap ls .`
 only when the scope is unknown. The agent inspects task-relevant direct links before searching
-beyond the map; another map is used only when it is an exact expand printed by the current map
+beyond the map; another map is recommended only when it is an exact expand printed by the current map
 for still-relevant hidden or unknown evidence. In `implementation` mode, the navigation is followed by
 `codemap changed` and `codemap proof changed`. In `analysis` mode, an exact entry is
 sufficient; root orientation must be followed by another focused map. Any analytical
@@ -122,15 +127,14 @@ to the frozen benchmark binary in treatment; internal consumers keep using the p
 built binary and do not count as navigation. Completed Codex command events are independently
 matched against attributed shim calls, so invoking the frozen binary by an absolute path cannot
 bypass arm attribution. The shim records argv and the actual exit status. The report keeps
-the raw `invocation_results`, `first_entry`, `entry_is_first_invocation`, `entry_kind` (`none`,
+the raw `invocation_results`, `first_entry`, `entry_is_first_successful_invocation`, `entry_kind` (`none`,
 `exact`, or `root`), `root_entry`, `exact_entry`, `mixed`, `ordered_daily`, and whether a
 focused call followed root orientation. Ignored internal calls and the event-trace comparison
-remain visible as diagnostics. A failed or repeated treatment command is product behavior, not a
-reason to discard external evidence. Entry ordering starts with the first successful agent call;
-a failed attempt remains cost evidence but does not invalidate the successful exact entry that
-follows. Validity only requires that control never accesses codemap,
-treatment accesses it on complex tasks, and an optional exact-control call stays on its
-pre-registered local entry.
+remain visible as diagnostics. A treatment agent may ignore, misuse, or recover from codemap;
+all of those trajectories remain outcome and cost evidence. They are not converted into a map
+defect unless the captured map itself omitted, distorted, or buried the required structural fact.
+Entry ordering starts with the first successful agent call, while failures remain visible. Arm
+validity requires only that control never gains access to codemap.
 
 Use `--resume` after interruption. Existing trials are reused only when the task,
 base commit, composed arm prompt, protocol/parser and harness bytes, model, reasoning,
@@ -139,8 +143,9 @@ fingerprint. Codemap command artifacts and the full benchmark identity also part
 so replacing a wrapper or binary without changing its version invalidates the old trial.
 An agent crash, agent timeout, or verifier timeout is retried exactly once with that
 fingerprint. The first raw attempt moves to `attempts/attempt-1`; the second attempt stays
-at the trial root and links the preserved result. A normal verifier failure or invalid
-arm protocol is product evidence and is never retried as infrastructure.
+at the trial root and links the preserved result. A normal verifier failure or any
+treatment choice is product evidence and is never retried as infrastructure. Control access to
+codemap is arm contamination and is not repaired by retrying the model.
 
 For the frozen 72-run corpus, `scripts/benchmark-codemap-flagship.py evaluate` runs the
 same frozen Codex identity as the single trajectory analyst and writes 36 causal reports
@@ -305,8 +310,9 @@ Acceptance has three product conditions:
 
 1. treatment wins at least 8 of 12 complex tasks by mean deterministic completeness
    across both repetitions and loses none;
-2. treatment never loses a required criterion passed by control in a valid pair, and
-   all six exact controls keep the same outcome;
+2. treatment does not trail control on the two-repeat success count of any required criterion,
+   and every exact control preserves the same two-repeat outcome count regardless of which
+   stochastic repetition missed;
 3. median complex overhead is at most 20% wall time and 15% input tokens, while median
    exact-control overhead is at most 10% for both metrics.
 

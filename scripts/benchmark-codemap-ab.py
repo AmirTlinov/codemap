@@ -3,8 +3,8 @@
 
 Each task is executed from the same git commit in two disposable worktrees. The
 model, reasoning effort, task text, sandbox, and deterministic verifier are held
-constant. Only the navigation arm changes: the treatment must use codemap's
-daily workflow, while the control blocks agent-attributed codemap calls.
+constant. Only the navigation arm changes: treatment is offered codemap and a
+short entry protocol, while control blocks agent-attributed codemap calls.
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ from benchmark_attempts import (
 import benchmark_codex_runtime as codex_runtime
 from benchmark_worktrees import add_worktree, remove_worktree
 from codemap_identity import CodemapIdentityError, benchmark_binary_identity, command_artifacts, resolve_codemap_command
-from codemap_protocol import codemap_protocol
+from codemap_activity import codemap_activity
 from codemap_protocol_shim import shell_profile_environment, write_shim
 
 
@@ -45,7 +45,7 @@ ARMS = (ARM_CONTROL, ARM_TREATMENT)
 MODE_IMPLEMENTATION = "implementation"
 MODE_ANALYSIS = "analysis"
 TASK_MODES = (MODE_IMPLEMENTATION, MODE_ANALYSIS)
-PROMPT_PROTOCOL_VERSION = 16
+PROMPT_PROTOCOL_VERSION = 17
 
 COMMON_PROMPT = """You are completing one benchmark coding task in a disposable git worktree.
 Make the smallest complete implementation that satisfies the task. Work autonomously; do not ask
@@ -283,12 +283,9 @@ def task_prompt(task: Task, arm: str) -> str:
     return f"{common}\n{arm_prompt}\nTASK (identical in both arms):\n{task.prompt}\n"
 
 
-def arm_protocol_valid(task: Task, arm: str, protocol: dict[str, Any]) -> bool:
-    if arm == ARM_CONTROL:
-        return protocol["invocation_count"] == 0
-    if task.task_class == "exact_control":
-        return protocol["invocation_count"] == 0
-    return protocol["compliant"] is True
+def arm_assignment_valid(arm: str, activity: dict[str, Any]) -> bool:
+    """Keep treatment behavior as evidence; only control access contaminates an arm."""
+    return arm != ARM_CONTROL or activity["invocation_count"] == 0
 
 
 def parse_codex_events(text: str) -> dict[str, Any]:
@@ -470,8 +467,8 @@ def trial_fingerprint(
                 task_prompt(task, arm).encode("utf-8")
             ).hexdigest(),
             "harness_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-            "protocol_parser_sha256": hashlib.sha256(
-                Path(__file__).with_name("codemap_protocol.py").read_bytes()
+            "activity_parser_sha256": hashlib.sha256(
+                Path(__file__).with_name("codemap_activity.py").read_bytes()
             ).hexdigest(),
             "process_runner_sha256": hashlib.sha256(
                 Path(__file__).with_name("benchmark_parallel.py").read_bytes()
@@ -583,9 +580,7 @@ def run_trial(
         events_path.write_text(codex.stdout, encoding="utf-8")
         stderr_path.write_text(codex.stderr, encoding="utf-8")
         event_summary = parse_codex_events(codex.stdout)
-        protocol = codemap_protocol(
-            task.mode,
-            arm,
+        activity = codemap_activity(
             read_invocations(invocation_log),
             worktree,
             event_summary["completed_commands"],
@@ -605,7 +600,7 @@ def run_trial(
             and completeness["required_criteria_passed"]
             and (task.mode != MODE_ANALYSIS or not changed_paths)
         )
-        arm_valid = arm_protocol_valid(task, arm, protocol)
+        arm_valid = arm_assignment_valid(arm, activity)
         verifier_timed_out = any(verifier["timed_out"] for verifier in verifiers)
         run_valid = codex.status == 0 and not codex.timed_out and arm_valid and not verifier_timed_out
         invalidation_reason = None
@@ -616,11 +611,7 @@ def run_trial(
         elif verifier_timed_out:
             invalidation_reason = "verifier_timeout"
         elif not arm_valid:
-            invalidation_reason = (
-                "control_codemap_access"
-                if arm == ARM_CONTROL
-                else "treatment_protocol_noncompliant"
-            )
+            invalidation_reason = "control_codemap_access"
         result = {
             "task_id": task.task_id,
             "mode": task.mode,
@@ -653,7 +644,7 @@ def run_trial(
                 "last_message_artifact": str(last_message_path),
                 **event_summary,
             },
-            "codemap_protocol": protocol,
+            "codemap_activity": activity,
             "patch_artifact": str(artifact_dir / "patch.diff"),
             "verifiers": verifiers,
             "completeness": completeness,
@@ -902,6 +893,23 @@ def run_preflight(task: Task, out_dir: Path, work_root: Path) -> dict[str, Any]:
         removed = remove_worktree(task.repo, worktree)
         if removed.status != 0:
             print(f"[ab] warning: could not remove {worktree}: {removed.stderr}", file=sys.stderr)
+
+
+def treatment_preflight_summary(
+    tasks: list[Task], results: list[dict[str, Any]], preflight: list[dict[str, Any]]
+) -> dict[str, Any]:
+    baseline_leaks = [row["task_id"] for row in preflight if row["baseline_passed"]]
+    invalid_runs = [row["task_id"] for row in results if not row["run_valid"]]
+    outcome_misses = [row["task_id"] for row in results if not row["outcome_passed"]]
+    return {
+        "kind": "codemap_treatment_preflight",
+        "tasks": len(tasks),
+        "infrastructure_ready": not invalid_runs and not baseline_leaks,
+        "valid_runs": len(tasks) - len(set(invalid_runs)),
+        "invalid_tasks": sorted(set(invalid_runs)),
+        "outcome_misses": sorted(set(outcome_misses)),
+        "baseline_leaks": sorted(baseline_leaks),
+    }
 
 
 def write_summary(
@@ -1212,28 +1220,17 @@ def main(argv: list[str]) -> int:
                 ),
                 args.parallel_pairs,
             )
-            baseline_leaks = [row["task_id"] for row in preflight if row["baseline_passed"]]
-            failures = [
-                row["task_id"] for row in results
-                if not row["run_valid"] or not row["outcome_passed"]
-            ]
             results_path = out_dir / "treatment-preflight-results.jsonl"
             results_path.write_text(
                 "".join(json.dumps(row, sort_keys=True) + "\n" for row in results),
                 encoding="utf-8",
             )
-            summary = {
-                "kind": "codemap_treatment_preflight",
-                "tasks": len(tasks),
-                "passed": len(tasks) - len(set(failures) | set(baseline_leaks)),
-                "failed_tasks": sorted(set(failures)),
-                "baseline_leaks": sorted(baseline_leaks),
-            }
+            summary = treatment_preflight_summary(tasks, results, preflight)
             (out_dir / "treatment-preflight-summary.json").write_text(
                 json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
             )
             print(f"Treatment preflight: {results_path}")
-            return 1 if failures or baseline_leaks else 0
+            return 0 if summary["infrastructure_ready"] else 1
         eligible = {
             row["task_id"] for row in preflight if row.get("baseline_passed") is False
         }

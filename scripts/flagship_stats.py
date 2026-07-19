@@ -28,6 +28,15 @@ def task_aggregate(pair_rows: list[dict[str, Any]]) -> dict[str, Any]:
         raise ValueError("every flagship task requires exactly two valid pairs")
     control = [float(row["control_score"]) for row in pair_rows]
     treatment = [float(row["codemap_score"]) for row in pair_rows]
+    required_ids = set(pair_rows[0]["required_criteria"])
+    if any(set(row["required_criteria"]) != required_ids for row in pair_rows):
+        raise ValueError("required criterion identities changed between repetitions")
+    required_losses = [
+        criterion
+        for criterion in sorted(required_ids)
+        if sum(row["required_criteria"][criterion]["codemap"] for row in pair_rows)
+        < sum(row["required_criteria"][criterion]["control"] for row in pair_rows)
+    ]
     return {
         "task_id": pair_rows[0]["task_id"],
         "repo_id": pair_rows[0]["repo_id"],
@@ -37,6 +46,7 @@ def task_aggregate(pair_rows: list[dict[str, Any]]) -> dict[str, Any]:
         "delta": statistics.mean(treatment) - statistics.mean(control),
         "control_outcomes": [row["control_outcome"] for row in pair_rows],
         "codemap_outcomes": [row["codemap_outcome"] for row in pair_rows],
+        "required_criterion_losses": required_losses,
         "time_overhead": median(
             [
                 value

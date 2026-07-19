@@ -91,7 +91,7 @@ def _arm_context(row: dict[str, Any], label: str) -> str:
         "outcome_passed": row.get("outcome_passed"),
         "completeness": row.get("completeness"),
         "changed_paths": row.get("changed_paths"),
-        "codemap_protocol": row.get("codemap_protocol"),
+        "codemap_activity": row.get("codemap_activity"),
     }
     return "\n".join(
         [

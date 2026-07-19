@@ -1,33 +1,33 @@
 #[test]
-fn ab_protocol_classifies_proportional_entry_and_order_truthfully() {
+fn ab_activity_records_navigation_without_judging_it() {
     let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/benchmark-codemap-ab.py");
     let probe = r#"import json, pathlib, runpy, sys
 sys.path.insert(0, str(pathlib.Path(sys.argv[1]).parent))
-protocol = runpy.run_path(sys.argv[1])["codemap_protocol"]
+activity = runpy.run_path(sys.argv[1])["codemap_activity"]
 root = sys.argv[2]
 selected = str(pathlib.Path(root) / "src")
 print(json.dumps([
-    protocol("analysis", "codemap", ["ls --format json", "cone src/pricing.py"], root),
-    protocol("analysis", "codemap", ["ls --format json src/pricing.py"], root),
-    protocol("analysis", "codemap", ["graph --lens causal", "ls src/pricing.py"], root),
-    protocol("implementation", "codemap", ["ls src/pricing.py", "proof changed", "changed"], root),
-    protocol("analysis", "codemap", ["ls ./", "cone src/pricing.py"], root),
-    protocol("analysis", "codemap", ["--root changed ls src/pricing.py"], root),
-    protocol("analysis", "codemap", ["ls --root changed src/pricing.py"], root),
-    protocol("implementation", "codemap", ["ls src/pricing.py", "changed", "proof changed"], root),
-    protocol("analysis", "codemap", ["ls .", "cone"], root),
-    protocol("analysis", "codemap", ["doctor ls src/pricing.py"], root),
-    protocol("analysis", "codemap", ["--format json ls src/pricing.py"], root),
-    protocol("analysis", "codemap", ["garbage ls src/pricing.py"], root),
-    protocol("analysis", "codemap", [{"argv":["ls",root],"status":0}], root),
-    protocol("analysis", "codemap", [{"argv":["ls","--bogus","src/pricing.py"],"status":2}], root),
-    protocol("analysis", "codemap", [{"argv":["--root",selected,"ls",selected],"status":0}], root),
-    protocol("analysis", "codemap", [{"argv":["ls","--root",selected,selected],"status":0}], root),
-    protocol("analysis", "codemap", ["cone ."], root),
-    protocol("analysis", "codemap", [{"argv":["cone",root],"status":0}], root),
-    protocol("analysis", "codemap", ["cone src/.."], root),
-    protocol("implementation", "codemap", ["ls src/pricing.py", "changed", "changed", "proof changed"], root),
-    protocol("analysis", "codemap", [{"argv":["cone","missing.py"],"status":2},{"argv":["cone","src/pricing.py"],"status":0}], root),
+    activity(["ls --format json", "cone src/pricing.py"], root),
+    activity(["ls --format json src/pricing.py"], root),
+    activity(["graph --lens causal", "ls src/pricing.py"], root),
+    activity(["ls src/pricing.py", "proof changed", "changed"], root),
+    activity(["ls ./", "cone src/pricing.py"], root),
+    activity(["--root changed ls src/pricing.py"], root),
+    activity(["ls --root changed src/pricing.py"], root),
+    activity(["ls src/pricing.py", "changed", "proof changed"], root),
+    activity(["ls .", "cone"], root),
+    activity(["doctor ls src/pricing.py"], root),
+    activity(["--format json ls src/pricing.py"], root),
+    activity(["garbage ls src/pricing.py"], root),
+    activity([{"argv":["ls",root],"status":0}], root),
+    activity([{"argv":["ls","--bogus","src/pricing.py"],"status":2}], root),
+    activity([{"argv":["--root",selected,"ls",selected],"status":0}], root),
+    activity([{"argv":["ls","--root",selected,selected],"status":0}], root),
+    activity(["cone ."], root),
+    activity([{"argv":["cone",root],"status":0}], root),
+    activity(["cone src/.."], root),
+    activity(["ls src/pricing.py", "changed", "changed", "proof changed"], root),
+    activity([{"argv":["cone","missing.py"],"status":2},{"argv":["cone","src/pricing.py"],"status":0}], root),
 ]))
 "#;
     let output = python()
@@ -47,32 +47,24 @@ print(json.dumps([
     let rows: Value = serde_json::from_slice(&output.stdout).expect("protocol json");
     assert_eq!(rows[0]["entry_kind"], "root");
     assert_eq!(rows[0]["focused_after_root"], true);
-    assert_eq!(rows[0]["compliant"], true);
     assert_eq!(rows[1]["entry_kind"], "exact");
-    assert_eq!(rows[1]["compliant"], true);
-    assert_eq!(rows[2]["entry_is_first_invocation"], false);
-    assert_eq!(rows[2]["compliant"], false);
+    assert_eq!(rows[2]["entry_is_first_successful_invocation"], false);
     assert_eq!(rows[3]["ordered_daily"], false);
-    assert_eq!(rows[3]["compliant"], false);
     assert_eq!(rows[4]["entry_kind"], "root");
     assert_eq!(rows[4]["root_entry"], true);
     assert_eq!(rows[5]["entry_kind"], "exact");
     assert_eq!(rows[5]["first_entry"], "--root changed ls src/pricing.py");
     assert_eq!(rows[6]["entry_kind"], "exact");
     assert_eq!(rows[7]["ordered_daily"], true);
-    assert_eq!(rows[7]["compliant"], true);
     assert_eq!(rows[8]["focused_after_root"], false);
-    assert_eq!(rows[8]["compliant"], false);
     for index in 9..=11 {
         assert_eq!(rows[index]["entry_kind"], "none");
-        assert_eq!(rows[index]["compliant"], false);
     }
     assert_eq!(rows[12]["entry_kind"], "root");
     assert_eq!(rows[12]["root_entry"], true);
     assert_eq!(rows[12]["exact_entry"], false);
     assert_eq!(rows[13]["failed_invocation_count"], 1);
     assert_eq!(rows[13]["entry_kind"], "none");
-    assert_eq!(rows[13]["compliant"], false);
     for index in 14..=15 {
         assert_eq!(rows[index]["entry_kind"], "root");
         assert_eq!(rows[index]["root_entry"], true);
@@ -81,14 +73,11 @@ print(json.dumps([
     for index in 16..=18 {
         assert_eq!(rows[index]["entry_kind"], "root");
         assert_eq!(rows[index]["root_entry"], true);
-        assert_eq!(rows[index]["compliant"], false);
     }
     assert_eq!(rows[19]["ordered_daily"], false);
-    assert_eq!(rows[19]["compliant"], false);
     assert_eq!(rows[20]["failed_invocation_count"], 1);
     assert_eq!(rows[20]["first_entry"], "cone src/pricing.py");
-    assert_eq!(rows[20]["entry_is_first_invocation"], true);
-    assert_eq!(rows[20]["compliant"], true);
+    assert_eq!(rows[20]["entry_is_first_successful_invocation"], true);
 }
 
 #[test]
@@ -112,24 +101,34 @@ fn ab_treatment_prompt_keeps_navigation_proportionate() {
     let probe = r#"import json, pathlib, runpy, sys
 sys.path.insert(0, str(pathlib.Path(sys.argv[1]).parent))
 m = runpy.run_path(sys.argv[1])
+from flagship_stats import task_aggregate
 task = m["Task"]("exact", "implementation", pathlib.Path("."), "HEAD", "abc", "edit", [], "exact_control")
-regular = m["Task"]("regular", "implementation", pathlib.Path("."), "HEAD", "abc", "edit", [])
-def protocol(invocations, compliant):
-    return {"invocation_count": invocations, "compliant": compliant}
+def activity(invocations):
+    return {"invocation_count": invocations}
+def pair(control, codemap):
+    return {"task_id":"stochastic", "repo_id":"fixture", "task_class":"exact_control",
+            "control_score":control, "codemap_score":codemap,
+            "control_outcome":bool(control), "codemap_outcome":bool(codemap),
+            "required_criteria":{"core":{"control":control, "codemap":codemap}},
+            "control_elapsed":10, "codemap_elapsed":10, "control_input":10, "codemap_input":10}
 print(json.dumps({
     "version": m["PROMPT_PROTOCOL_VERSION"],
     "implementation": m["ARM_PROMPTS"]["codemap"],
     "analysis": m["ANALYSIS_ARM_PROMPTS"]["codemap"],
     "exact": m["task_prompt"](task, "codemap"),
     "exact_control": m["task_prompt"](task, "control"),
-    "arm_valid": [
-        m["arm_protocol_valid"](task, "codemap", protocol(0, False)),
-        m["arm_protocol_valid"](regular, "codemap", protocol(0, False)),
-        m["arm_protocol_valid"](regular, "codemap", protocol(1, True)),
-        m["arm_protocol_valid"](regular, "codemap", protocol(1, False)),
-        m["arm_protocol_valid"](task, "control", protocol(0, True)),
-        m["arm_protocol_valid"](task, "control", protocol(1, False)),
+    "assignment_valid": [
+        m["arm_assignment_valid"]("codemap", activity(0)),
+        m["arm_assignment_valid"]("codemap", activity(1)),
+        m["arm_assignment_valid"]("control", activity(0)),
+        m["arm_assignment_valid"]("control", activity(1)),
     ],
+    "preflight": m["treatment_preflight_summary"](
+        [task],
+        [{"task_id":"exact", "run_valid":True, "outcome_passed":False}],
+        [{"task_id":"exact", "baseline_passed":False}],
+    ),
+    "stochastic": task_aggregate([pair(1.0, 0.0), pair(0.0, 1.0)]),
 }))
 "#;
     let output = python()
@@ -142,7 +141,7 @@ print(json.dumps({
         String::from_utf8_lossy(&output.stderr)
     );
     let prompt: Value = serde_json::from_slice(&output.stdout).expect("prompt json");
-    assert_eq!(prompt["version"], 16);
+    assert_eq!(prompt["version"], 17);
     assert!(prompt["implementation"]
         .as_str()
         .unwrap()
@@ -180,8 +179,25 @@ print(json.dumps({
         .unwrap()
         .contains("one command-execution shell call"));
     assert_eq!(
-        prompt["arm_valid"],
-        serde_json::json!([true, false, true, false, true, false])
+        prompt["assignment_valid"],
+        serde_json::json!([true, true, true, false])
+    );
+    assert_eq!(prompt["preflight"]["infrastructure_ready"], true);
+    assert_eq!(
+        prompt["preflight"]["outcome_misses"],
+        serde_json::json!(["exact"])
+    );
+    assert_eq!(
+        prompt["stochastic"]["required_criterion_losses"],
+        serde_json::json!([])
+    );
+    assert_eq!(
+        prompt["stochastic"]["control_outcomes"],
+        serde_json::json!([true, false])
+    );
+    assert_eq!(
+        prompt["stochastic"]["codemap_outcomes"],
+        serde_json::json!([false, true])
     );
 }
 

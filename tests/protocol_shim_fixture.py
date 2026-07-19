@@ -15,7 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from codemap_protocol import codemap_protocol  # noqa: E402
+from codemap_activity import codemap_activity  # noqa: E402
 from codemap_protocol_shim import (  # noqa: E402
     is_agent_direct,
     shell_profile_environment,
@@ -62,14 +62,11 @@ def main() -> int:
         assert is_agent_direct(["/opt/codex"])
         assert not is_agent_direct(["/tmp/debug/deps/project-tests", "/bin/zsh", "/opt/codex"])
         direct_rows = [{"argv": ["ls", "README.md"], "status": 127, "agent_direct": True}]
-        assert codemap_protocol("analysis", "control", direct_rows)["compliant"] is False
-        bypass = codemap_protocol(
-            "analysis",
-            "control",
+        assert codemap_activity(direct_rows)["failed_invocation_count"] == 1
+        bypass = codemap_activity(
             [],
             agent_commands=["/bin/zsh -lc '/opt/benchmark/codemap ls README.md'"],
         )
-        assert bypass["compliant"] is False
         assert bypass["agent_command_trace_matches"] is False
 
         if os.name == "nt":
@@ -85,22 +82,18 @@ def main() -> int:
             assert internal.returncode == 0
             assert internal.stdout.strip() == "project:--version"
             internal_rows = rows(log)
-        report = codemap_protocol("analysis", "control", internal_rows)
+        report = codemap_activity(internal_rows)
         assert internal_rows[0]["agent_direct"] is False
-        assert report["compliant"] is True
         assert report["invocation_count"] == 0
         assert report["ignored_internal_invocation_count"] == 1
 
         treatment_rows = [
             {"argv": ["cone", "README.md"], "status": 0, "agent_direct": True}
         ]
-        treatment_report = codemap_protocol(
-            "analysis",
-            "codemap",
+        treatment_report = codemap_activity(
             treatment_rows,
             agent_commands=["/bin/zsh -lc 'codemap cone README.md'"],
         )
-        assert treatment_report["compliant"] is True
         assert treatment_report["agent_command_trace_matches"] is True
         multiline_rows = [
             {"argv": ["ls", scope, "--all"], "status": 0, "agent_direct": True}
@@ -113,9 +106,7 @@ def main() -> int:
                 "docs/ops",
             )
         ]
-        multiline_report = codemap_protocol(
-            "analysis",
-            "codemap",
+        multiline_report = codemap_activity(
             multiline_rows,
             agent_commands=[
                 "/bin/zsh -lc 'codemap ls .github --all\n"
@@ -128,10 +119,7 @@ def main() -> int:
         )
         assert len(multiline_report["agent_command_invocations"]) == 6
         assert multiline_report["agent_command_trace_matches"] is True
-        assert multiline_report["compliant"] is True
-        assert not codemap_protocol(
-            "analysis",
-            "control",
+        assert not codemap_activity(
             [],
             agent_commands=["/bin/zsh -lc 'rg codemap README.md'"],
         )["agent_command_invocations"]
