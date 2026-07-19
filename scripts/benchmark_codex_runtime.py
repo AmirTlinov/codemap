@@ -21,6 +21,8 @@ DISABLED_FEATURES = (
     "plugins",
     "remote_plugin",
 )
+DESKTOP_BROWSER_BINARY_ENV = "MCP_BROWSER_BINARY"
+UNAVAILABLE_BROWSER_BINARY = "desktop-browser-unavailable-in-workspace-write"
 
 
 def codex_runtime_sha256() -> str:
@@ -41,6 +43,7 @@ class CodexTrialRuntime:
             "codex_home": "isolated",
             "auth": "linked" if self.auth_linked else "environment_or_unavailable",
             "extensions": "disabled",
+            "desktop_browser": "unavailable",
         }
 
 
@@ -59,4 +62,7 @@ def isolated_codex_runtime(base_env: Mapping[str, str]) -> Iterator[CodexTrialRu
             (runtime_home / "auth.json").symlink_to(source_auth)
         env = dict(base_env)
         env["CODEX_HOME"] = os.fspath(runtime_home)
+        env[DESKTOP_BROWSER_BINARY_ENV] = os.fspath(
+            runtime_home / UNAVAILABLE_BROWSER_BINARY
+        )
         yield CodexTrialRuntime(env=env, auth_linked=auth_linked)

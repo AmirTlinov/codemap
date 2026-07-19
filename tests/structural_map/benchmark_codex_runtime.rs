@@ -15,11 +15,21 @@ import pathlib
 import sys
 
 sys.path.insert(0, sys.argv[1])
-from benchmark_codex_runtime import codex_runtime_isolation_args, isolated_codex_runtime
+from benchmark_codex_runtime import (
+    DESKTOP_BROWSER_BINARY_ENV,
+    UNAVAILABLE_BROWSER_BINARY,
+    codex_runtime_isolation_args,
+    isolated_codex_runtime,
+)
 
 source = pathlib.Path(sys.argv[2])
-with isolated_codex_runtime({"CODEX_HOME": str(source), "SENTINEL": "kept"}) as runtime:
+with isolated_codex_runtime({
+    "CODEX_HOME": str(source),
+    "MCP_BROWSER_BINARY": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "SENTINEL": "kept",
+}) as runtime:
     home = pathlib.Path(runtime.env["CODEX_HOME"])
+    browser_binary = pathlib.Path(runtime.env[DESKTOP_BROWSER_BINARY_ENV])
     assert home != source
     assert home.is_dir()
     assert runtime.env["SENTINEL"] == "kept"
@@ -28,10 +38,13 @@ with isolated_codex_runtime({"CODEX_HOME": str(source), "SENTINEL": "kept"}) as 
     assert not (home / "plugins").exists()
     assert (home / "auth.json").is_symlink()
     assert (home / "auth.json").resolve() == (source / "auth.json").resolve()
+    assert browser_binary == home / UNAVAILABLE_BROWSER_BINARY
+    assert not browser_binary.exists()
     assert runtime.evidence() == {
         "codex_home": "isolated",
         "auth": "linked",
         "extensions": "disabled",
+        "desktop_browser": "unavailable",
     }
     runtime_home = home
 assert not runtime_home.exists()

@@ -5,6 +5,8 @@ public JSON compatibility is governed separately by `docs/SCHEMA_POLICY.md`.
 
 ## Unreleased
 
+- Made repository-level desktop browser launches fail closed inside benchmark agent
+  sandboxes, preventing repeated macOS LaunchServices crash reports.
 - Reduced the flagship treatment to optional `codemap` availability: command order,
   map-call presence, failed calls, and recovery are recorded but no longer graded.
 - Made paired trajectory analysis interpretive and non-gating, while tightening
