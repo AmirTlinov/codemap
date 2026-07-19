@@ -169,13 +169,13 @@ print(json.dumps({
 }
 
 #[test]
-fn ab_fingerprint_tracks_composed_prompt_timeout_and_order() {
+fn ab_fingerprint_tracks_prompt_timeout_order_and_experiment_repetitions() {
     let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/benchmark-codemap-ab.py");
     let probe = r#"import argparse, json, pathlib, runpy, sys
 sys.path.insert(0, str(pathlib.Path(sys.argv[1]).parent))
 m = runpy.run_path(sys.argv[1])
 task = m["Task"]("t", "implementation", pathlib.Path("."), "HEAD", "abc", "edit", [])
-args = argparse.Namespace(model="m", reasoning_effort="high", timeout_seconds=10)
+args = argparse.Namespace(model="m", reasoning_effort="high", repetitions=4, timeout_seconds=10)
 def fingerprint(order=0):
     return m["trial_fingerprint"](task, "abc", "codemap", order, args, "codex", "codemap", [], {})
 values = [fingerprint()]
@@ -183,6 +183,8 @@ m["ARM_PROMPTS"]["codemap"] += "\nchanged prompt bytes\n"
 values.append(fingerprint())
 args.timeout_seconds = 11
 values.append(fingerprint())
+values.append(fingerprint(1))
+args.repetitions = 2
 values.append(fingerprint(1))
 print(json.dumps(values))
 "#;
@@ -204,7 +206,7 @@ print(json.dumps(values))
         .collect::<std::collections::BTreeSet<_>>();
     assert_eq!(
         unique.len(),
-        4,
+        5,
         "every runtime contract change must invalidate resume"
     );
 }

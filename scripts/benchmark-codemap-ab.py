@@ -466,6 +466,7 @@ def trial_fingerprint(
             "codex_runtime_sha256": codex_runtime.codex_runtime_sha256(),
             "model": args.model,
             "reasoning_effort": args.reasoning_effort,
+            "experiment_repetitions": args.repetitions,
             "timeout_seconds": args.timeout_seconds,
             "codex_version": codex_version,
             "codex_artifacts": getattr(args, "codex_artifacts", []),

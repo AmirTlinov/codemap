@@ -138,7 +138,7 @@ not graded for following a command sequence.
 
 Use `--resume` after interruption. Existing trials are reused only when the task,
 base commit, composed arm prompt, activity parser and harness bytes, model, reasoning,
-timeout, trial order, Codex version, arm, and verifier configuration produce the same
+timeout, frozen repetition count, trial order, Codex version, arm, and verifier configuration produce the same
 fingerprint. Codemap command artifacts and the full benchmark identity also participate,
 so replacing a wrapper or binary without changing its version invalidates the old trial.
 An agent crash, agent timeout, or verifier timeout is retried exactly once with that
