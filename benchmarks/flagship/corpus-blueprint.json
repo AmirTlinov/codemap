@@ -215,7 +215,7 @@
       },
       "ecosystem": "rust",
       "id": "codemap-deterministic-investigation",
-      "prompt": "At the frozen commit, start from `src/cli/run.rs#run` and reconstruct what happens when a user runs `codemap proof changed`, including the repository-owned evidence that proves the public behavior. Follow only connections supported by source. Do not modify files or substitute directories. Explain the resulting chain with compact adjacent connections and concrete line or symbol evidence.",
+      "prompt": "A maintainer needs to change the public `codemap proof changed` behavior without confusing its default plan with explicit execution. Reconstruct the complete source-backed path from CLI input to observable output and repository-owned proof, including material fast paths or boundaries that affect the result. Do not modify files. Support each adjacent connection with concrete line or symbol evidence.",
       "repo_id": "codemap",
       "task_class": "investigation"
     },
@@ -302,7 +302,7 @@
           "path": "tests/structural_map/runtime_transform_paths.rs"
         }
       ],
-      "prompt": "Start from `src/map/lenses/runtime/paths.rs#runtime_route_path_analysis`. Make runtime, flow, and cone distinguish request guards from passive security telemetry and response-output shaping from input or unrelated local-object shaping. A passive telemetry call is not a request guard merely because its name contains a security term; guarding behavior must be established structurally by its role in the request chain. An awaited security or session dependency reached inside an established guard remains on that guard chain because rejection prevents the protected handler, even when its returned value is not bound. A plain side-effect telemetry sibling whose result is ignored and which is not awaited stays off the guard chain even when it is reached inside that guard and has a security-looking name. Input transforms such as `sanitizePayload` and `normalizeInput` must remain transformations in the runtime chain but must not become response-projection evidence. For a response projection, compare fields read from the primary parameter and its aliases with reads that actually occur inside balanced return expressions. A local derived from a primary field retains that field's provenance when returned; a same-named output key sourced from an unrelated local object does not. A branch that returns the primary object only when a field is absent does not establish that field as response output. Preserve exact external-response evidence and dynamic-boundary behavior, and add focused regression coverage.",
+      "prompt": "Make the public runtime, flow, and cone maps distinguish request guards from passive security telemetry and response-output shaping from input or unrelated local-object shaping. A passive telemetry call is not a request guard merely because its name contains a security term; guarding behavior must be established structurally by its role in the request chain. An awaited security or session dependency reached inside an established guard remains on that guard chain because rejection prevents the protected handler, even when its returned value is not bound. A plain side-effect telemetry sibling whose result is ignored and which is not awaited stays off the guard chain even when it is reached inside that guard and has a security-looking name. Input transforms such as `sanitizePayload` and `normalizeInput` must remain transformations in the runtime chain but must not become response-projection evidence. For a response projection, compare fields read from the primary parameter and its aliases with reads that actually occur inside balanced return expressions. A local derived from a primary field retains that field's provenance when returned; a same-named output key sourced from an unrelated local object does not. A branch that returns the primary object only when a field is absent does not establish that field as response output. Preserve exact external-response evidence and dynamic-boundary behavior, and add focused regression coverage.",
       "repo_id": "codemap",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -567,7 +567,7 @@
       },
       "ecosystem": "typescript",
       "id": "main-cluster-deterministic-investigation",
-      "prompt": "At the frozen commit, start from `.github/workflows/release-prod.yml` and reconstruct the end-to-end production behavior it owns, including the repository-owned evidence that proves the release contract. Follow only connections supported by source. Do not modify files or substitute directories. Explain the resulting chain with compact adjacent connections and concrete line or symbol evidence.",
+      "prompt": "An operator needs to decide whether the production release workflow is sufficient evidence for a safe rollout. Reconstruct the complete source-backed behavior from the release request through artifact authority, promotion, reconciliation, and live proof, and identify any behaviorally relevant gaps or partial-failure boundaries. Do not modify files. Support each adjacent connection with concrete line or symbol evidence.",
       "repo_id": "main-cluster",
       "task_class": "investigation"
     },
@@ -651,7 +651,7 @@
           "path": "deploy/k8s/base/backup/flagship_postgres_backup_test.py"
         }
       ],
-      "prompt": "Create the production PostgreSQL backup owner under the not-yet-existing `deploy/k8s/base/backup`, beginning structural inspection at its existing parent `deploy/k8s/base`. Require independent remote readback and checksum comparison, digest-pinned deployed images, least privilege, egress limited to DNS/PostgreSQL/object storage, GitOps ownership, and an operator restore runbook. Staleness must be observable from the rendered `kube_cronjob_status_last_successful_time` metric. Keep the existing deployment structure and YAML loader contract: every manifest must load through the repository fallback loader without YAML anchors or aliases.",
+      "prompt": "Create the production PostgreSQL backup owner under the not-yet-existing `deploy/k8s/base/backup`, using its existing parent `deploy/k8s/base` as the architectural entry. A successful CronJob must mean an independently read-back, checksum-verified remote dump. Require digest-pinned deployed images, least privilege, egress limited to DNS/PostgreSQL/object storage, GitOps ownership, and an operator restore runbook. Staleness must be observable from the rendered `kube_cronjob_status_last_successful_time` metric. Keep the existing deployment structure and YAML loader contract: every manifest must load through the repository fallback loader without YAML anchors or aliases.",
       "repo_id": "main-cluster",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -845,7 +845,7 @@
       },
       "ecosystem": "typescript",
       "id": "pabg-deterministic-investigation",
-      "prompt": "At the frozen commit, start from `apps/web/src/app/(game)/town/chronicle/[match_id]/page.tsx` and reconstruct how a Chronicle replay URL is canonicalized and then becomes a validated, policy-filtered, mounted world, including the repository-owned live-route evidence that proves or limits that behavior. Follow only connections supported by source. Do not modify files or substitute directories. Explain the resulting chain with compact adjacent connections and concrete line or symbol evidence.",
+      "prompt": "A user opens a Chronicle replay URL and eventually sees a mounted world. Reconstruct the complete source-backed path by which that untrusted URL becomes accepted replay state, including integrity, materialization, policy, client mounting, and the live evidence that proves or limits the behavior. Do not modify files. Support each adjacent connection with concrete line or symbol evidence.",
       "repo_id": "pabg",
       "task_class": "investigation"
     },
@@ -1052,7 +1052,7 @@
           "path": "apps/web/src/hooks/flagship_text_chat_hook.test.ts"
         }
       ],
-      "prompt": "Add production-ready global text chat through `apps/ws/src/hub.ts#TownHub` and its shared protocol/web consumers. Own text as dedicated `text_chat` and `text_chat_broadcast` wire frames rather than widening the existing emoji `chat` frames, and give text floods a per-connection budget independent of the existing emoji allowance. Preserve authenticated server-owned sender identity, live delivery, bounded newcomer history, and a usable web conversation surface without regressing emoji chat or movement. Normalize and validate text at the TownHub domain boundary as well as wire ingestion, so direct domain calls cannot retain surrounding whitespace or unsafe input.",
+      "prompt": "Add production-ready global text chat through the existing TownHub domain boundary and its shared protocol and web consumers. Own text as dedicated `text_chat` and `text_chat_broadcast` wire frames rather than widening the existing emoji `chat` frames, and give text floods a per-connection budget independent of the existing emoji allowance. Preserve authenticated server-owned sender identity, live delivery, bounded newcomer history, and a usable web conversation surface without regressing emoji chat or movement. Normalize and validate text at the TownHub domain boundary as well as wire ingestion, so direct domain calls cannot retain surrounding whitespace or unsafe input.",
       "repo_id": "pabg",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -1241,7 +1241,7 @@
       },
       "ecosystem": "python",
       "id": "browser-deterministic-investigation",
-      "prompt": "At the frozen commit, start from `mcp_servers/browser/apps/insert.py#insert_best_effort` and reconstruct how a universal insert request reaches the controlled browser, including the repository-owned evidence that proves the carrier behavior. Follow only connections supported by source. Do not modify files or substitute directories. Explain the resulting chain with compact adjacent connections and concrete line or symbol evidence.",
+      "prompt": "A caller invokes the browser universal-insert capability and expects the value to reach the controlled browser. Reconstruct the complete source-backed path across the public entry, carrier selection, extension requests, fallbacks, receipts, and live proof boundaries. Do not modify files. Support each adjacent connection with concrete line or symbol evidence.",
       "repo_id": "browser",
       "task_class": "investigation"
     },
@@ -1345,7 +1345,7 @@
           "path": ".flagship/browser_focused_clipboard_test.js"
         }
       ],
-      "prompt": "Begin at the exact existing owner `vendor/browser_extension/service_worker.js#dispatchRpc`. Make both `clipboard.write` and `clipboard.writeSvg` prefer the explicitly requested or focused controlled tab, execute only in that tab's isolated top frame, and fall back to the existing offscreen path. Public receipts must identify the selected tab, whether it came from the request or focused state, the isolated top-frame carrier, and ordered structured `tab` and `offscreen` attempts with success or failure details; a combined failure must preserve both causes. Preserve bounded execution, the extension kill switch, and other RPC behavior.",
+      "prompt": "Make both `clipboard.write` and `clipboard.writeSvg` prefer the explicitly requested or focused controlled tab, execute only in that tab's isolated top frame, and fall back to the existing offscreen path. Public receipts must identify the selected tab, whether it came from the request or focused state, the isolated top-frame carrier, and ordered structured `tab` and `offscreen` attempts with success or failure details; a combined failure must preserve both causes. Preserve bounded execution, the extension kill switch, and other RPC behavior.",
       "repo_id": "browser",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -1544,7 +1544,7 @@
       },
       "ecosystem": "swift",
       "id": "openslop-deterministic-investigation",
-      "prompt": "At the frozen commit, start from `services/core-daemon/src/main.rs#codex_submit_turn_stream_json` and reconstruct how a streamed Codex turn reaches the macOS transcript experience and durable session state, including the repository-owned evidence that proves the live behavior. Follow only connections supported by source. Do not modify files or substitute directories. Explain the resulting chain with compact adjacent connections and concrete line or symbol evidence.",
+      "prompt": "A streamed Codex reply appears in the macOS transcript and is expected to survive as session state. Reconstruct the complete source-backed path from provider stream to daemon boundary, stdio contract, workbench consumer, and durable state, including the live evidence that proves the behavior and any persistence limit. Do not modify files. Support each adjacent connection with concrete line or symbol evidence.",
       "repo_id": "openslop",
       "task_class": "investigation"
     },
@@ -1629,7 +1629,7 @@
           "path": ".flagship/active_plan_test.py"
         }
       ],
-      "prompt": "Expose a public `active-plan` projection beginning at the existing `domains/workspace` boundary and carry it end to end through the workspace domain, `core-daemon --active-plan`, stdio `{\"operation\":\"active-plan\"}`, and the macOS workbench consumer probe. The deterministic JSON contract contains every ROADMAP row in order as `slices`; `counts` always contains `done`, `active`, `planned`, and `blocked`, including zero values; `active_slice` is the first non-done slice and carries status/review/visual proof artifacts with repository-relative path, state, and availability; and `roadmap_path` is repository-relative. Repository discovery must honor `OPEN_SLOP_REPO_ROOT`; a missing roadmap or one with no valid rows exits nonzero.",
+      "prompt": "Expose a public `active-plan` projection through the existing workspace domain, `core-daemon --active-plan`, stdio `{\"operation\":\"active-plan\"}`, and the macOS workbench consumer probe. The deterministic JSON contract contains every ROADMAP row in order as `slices`; `counts` always contains `done`, `active`, `planned`, and `blocked`, including zero values; `active_slice` is the first non-done slice and carries status/review/visual proof artifacts with repository-relative path, state, and availability; and `roadmap_path` is repository-relative. Repository discovery must honor `OPEN_SLOP_REPO_ROOT`; a missing roadmap or one with no valid rows exits nonzero.",
       "repo_id": "openslop",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200
@@ -1762,7 +1762,7 @@
       },
       "ecosystem": "rust",
       "id": "ratio-deterministic-investigation",
-      "prompt": "At the frozen commit, start from `crates/ratiotissue-cli/src/cli/continuation.rs#cmd_pulse_world_loop` and reconstruct the exact causal boundary: how an actionwave leaves continuation, what world operation actually occurs, how the returned contact is recorded and influences the next iteration, and what repository-owned evidence does or does not prove that loop. Follow only connections supported by source. Do not modify files or substitute directories. Explain the resulting chain with compact adjacent connections and concrete line or symbol evidence.",
+      "prompt": "Determine whether the continuation world loop is genuinely causal rather than report-only. Reconstruct the complete source-backed path from the emitted action through the actual world operation, returned contact, durable recording, reentry, and any influence on the next iteration, then state exactly what repository-owned evidence proves or limits that loop. Do not modify files. Support each adjacent connection with concrete line or symbol evidence.",
       "repo_id": "ratio",
       "task_class": "investigation"
     },
@@ -1847,7 +1847,7 @@
           "path": ".flagship/live_codex_sessions_test.py"
         }
       ],
-      "prompt": "Beginning at `crates/ratiotissue-cli/src/cli/continuation.rs#cmd_pulse_world_loop`, expose bounded live Codex history through the public `ratiotissue live-codex-sessions <file-or-directory> --db <db>` command. Support explicit carrier output (`--carrier-dir`, with `--carriers` as the same output owner), session/episode limits, and fragment-byte bounds; the byte bound limits each emitted carrier body apart from its final newline. Produce privacy-safe deterministic episodes with stable content identities and carriers, redacting credentials, email addresses, and private paths. A Codex `function_call` paired with `function_call_output` by the same `call_id` is already the observed external action and world return; do not require the continuation engine to emit a second action before reporting that contact. An unpaired call or dialogue-only episode has no actionable contact. Each public episode receipt reports its stable episode/content identity and either those real actionwave/world-return contact facts or explicit `no_action`/no-contact facts—never synthetic contact. Exit nonzero when a session has no actionable contact.",
+      "prompt": "Expose bounded live Codex history through the public `ratiotissue live-codex-sessions <file-or-directory> --db <db>` command and existing storage architecture. Support explicit carrier output (`--carrier-dir`, with `--carriers` as the same output owner), session/episode limits, and fragment-byte bounds; the byte bound limits each emitted carrier body apart from its final newline. Produce privacy-safe deterministic episodes with stable content identities and carriers, redacting credentials, email addresses, and private paths. A Codex `function_call` paired with `function_call_output` by the same `call_id` is already the observed external action and world return; an unpaired call or dialogue-only episode has no actionable contact. Each public episode receipt reports its stable episode/content identity and either those real actionwave/world-return contact facts or explicit `no_action`/no-contact facts—never synthetic contact. Exit nonzero when a session has no actionable contact.",
       "repo_id": "ratio",
       "task_class": "implementation",
       "verifier_timeout_seconds": 1200

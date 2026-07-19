@@ -97,7 +97,7 @@ def main() -> int:
         for evidence in action["evidence"]
     }
     assert "crates/ratiotissue-cli/src/continuation/feedback.rs" not in ratio_paths
-    assert "what world operation actually occurs" in ratio["prompt"]
+    assert "actual world operation" in ratio["prompt"]
     pabg_investigation = next(
         task for task in investigations if task["id"] == "pabg-deterministic-investigation"
     )
@@ -239,7 +239,7 @@ async function dispatchRpc(method, params = {}) {
     finally:
         active_plan_oracle.ROOT, active_plan_oracle.run = original_root, original_run
     codemap = implementations["codemap-response-projection"]
-    assert "src/map/lenses/runtime/paths.rs#runtime_route_path_analysis" in codemap["prompt"]
+    assert "public runtime, flow, and cone maps" in codemap["prompt"]
     assert "balanced return expressions" in codemap["prompt"]
     assert "passive telemetry call" in codemap["prompt"]
     assert "awaited security or session dependency" in codemap["prompt"]
@@ -272,7 +272,7 @@ async function dispatchRpc(method, params = {}) {
     assert 'text: "First"' in hook_oracle
     assert "chat_history:" not in hook_oracle
     ratio_implementation = implementations["ratio-codex-live-episodes"]
-    assert "continuation.rs#cmd_pulse_world_loop" in ratio_implementation["prompt"]
+    assert "existing storage architecture" in ratio_implementation["prompt"]
     assert "ratiotissue live-codex-sessions" in ratio_implementation["prompt"]
     assert "actionwave/world-return contact facts" in ratio_implementation["prompt"]
     assert "paired with `function_call_output` by the same `call_id`" in ratio_implementation[
