@@ -15,6 +15,18 @@ pub(crate) fn resolve_python(
         return resolve_python_relative(from, spec, paths);
     }
     let base = spec.replace('.', "/");
+    let from_dir = Path::new(from)
+        .parent()
+        .map(|dir| normalize_rel_path(&dir.to_string_lossy()))
+        .unwrap_or_else(|| ".".to_string());
+    let sibling_base = if from_dir == "." {
+        base.clone()
+    } else {
+        format!("{from_dir}/{base}")
+    };
+    if let Some(target) = resolve_python_module(&sibling_base, paths) {
+        return Some(target);
+    }
     for candidate in [format!("{base}.py"), format!("{base}/__init__.py")]
         .into_iter()
         .chain([
@@ -45,6 +57,12 @@ pub(crate) fn resolve_python(
         }
     }
     None
+}
+
+fn resolve_python_module(base: &str, paths: &BTreeSet<String>) -> Option<String> {
+    [format!("{base}.py"), format!("{base}/__init__.py")]
+        .into_iter()
+        .find(|candidate| paths.contains(candidate))
 }
 
 fn resolve_python_relative(from: &str, spec: &str, paths: &BTreeSet<String>) -> Option<String> {
